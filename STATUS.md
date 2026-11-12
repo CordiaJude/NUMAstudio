@@ -3,7 +3,7 @@
 | Task | State | Round | Open findings |
 |------|-------|-------|---------------|
 | T0 Foundation | ACCEPTED (review PASS x2, 223 unit tests green) | 2 | 2 minor logged below |
-| T1 Engine | IN PROGRESS | 1 | |
+| T1 Engine | REVISING | 2 | B: segment VBV bitrate cap; M: 4:5 endcard overlap, caption overlap, cache disk use |
 | T2 Analyze | ACCEPTED (re-review PASS 7/7; orchestrator fixed minor: no script alignment on mismatch) | 2 | |
 | T3 Finish | REVISING | 3 | M: one-sided bar regression; minors: quiet master, limiter headroom, qa dup |
 | T4 Validator/baseline/claims | ACCEPTED (re-review 10/10 PASS) | 2 | cosmetic: duplicate hits per rule |
