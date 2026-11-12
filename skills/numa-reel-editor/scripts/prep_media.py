@@ -20,12 +20,18 @@ item, `off` skips it. `--ids` limits the run to those items.
               white to white, so highlights are never blown; chroma gets a small
               boost so the lift does not look washed out.
 
-Writes WORK/prep/<id>.mp4 (H.264 High, yuv420p, source frame rate, the clip's
-audio kept) or WORK/prep/<id>.jpg and sets the item's `prepared_path`, which
-the Editor and baseline_plan.py use as the shot `src`. WORK/prep/index.json
-records each source's SHA-256 and the steps applied, so an unchanged source is
-not processed again. An item whose steps all turn out off loses its
-`prepared_path`. Outputs are deterministic (fixed encoder threads, bit-exact
+Writes WORK/prep/<id>.mp4 (H.264 High, yuv420p, the clip's audio kept, scaled
+so the shorter side is at most 1080) or WORK/prep/<id>.jpg and sets the item's
+`prepared_path`, which the Editor and baseline_plan.py use as the shot `src`.
+Faces are then detected again on the prepared copy: `faces`, `focus` and each
+clip second's `faces` count describe the prepared file, and the original
+file's boxes stay in `orig_faces` / `orig_focus` (blur boxes must match the
+file the engine renders). vid.stab results with a jolt (a frame-to-frame jump
+over 4% of the width) are replaced by the OpenCV result when that is steadier.
+WORK/prep/index.json records each source's SHA-256, the steps applied and the
+steps forced with `on` (a later `auto` run keeps them), so an unchanged source
+is not processed again. An item whose steps all turn out off loses its
+`prepared_path` and gets its faces from `path` again. Outputs are deterministic (fixed encoder threads, bit-exact
 flags, no metadata timestamps).
 
 See docs/CONTRACTS.md sections 2, 3 and 9 and DECISIONS.md D13.
