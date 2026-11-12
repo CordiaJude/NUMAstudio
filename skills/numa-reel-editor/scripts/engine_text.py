@@ -3,14 +3,15 @@
 
 Internal helper module of the render engine (see engine.py for the public API).
 
-* ``Sprite``: one pre-rendered piece of text (alpha mask + soft shadow), drawn
-  with ``draw_sprite`` onto an RGB uint8 frame in place, touching only its region.
-* ``layout_caption_line``: one caption line as at most 2 balanced rows inside a
-  960 px box (scaled with the frame), shrinking the font a little when needed.
-* ``layout_hook``: the frame-zero hook text (up to 3 rows), with gold italic accent
-  words marked ``*like this*`` (default: the last word).
-* ``text_sprite``: single sprites for the end card (spaced uppercase tagline,
-  gold italic subtitle).
+* ``make_sprite``: one pre-rendered piece of text (alpha mask + soft shadow,
+  optional letter tracking for the spaced end-card tagline).
+* ``draw_sprite``: composites a sprite onto an RGB uint8 frame in place,
+  touching only its region.
+* ``layout_words``: a caption line or the hook as balanced rows inside a box
+  (captions: at most 2 rows in 960 px at a 1080-wide frame), shrinking the
+  font a little when needed; ``balanced_rows``/``greedy_rows`` do the splitting.
+* ``hook_words``: hook text with gold italic accent words marked ``*like this*``
+  (default: the last word).
 """
 from __future__ import annotations
 

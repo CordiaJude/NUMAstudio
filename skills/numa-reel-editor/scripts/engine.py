@@ -151,7 +151,7 @@ def output_size(plan: dict, size: tuple[int, int] | None = None, draft: bool | N
 class Shot:
     """One plan shot: its source, framing and (lazily) its plate."""
 
-    def __init__(self, i: int, d: dict, W: int, H: int, fps: float, next_tr: str | None):
+    def __init__(self, i: int, d: dict, W: int, H: int, fps: float, next_tr: str | None, warn=nc.warn):
         self.i, self.d = i, d
         self.what = f"shots[{i}].src"
         self.kind = d.get("kind", "image")
@@ -174,6 +174,15 @@ class Shot:
             self.speed = float(d.get("speed", 1.0))
             self.start = float(d.get("start", 0.0))
             self.clip_duration = info.get("duration")
+            dur = self.clip_duration
+            if dur:
+                need = self.start + self.len * self.speed
+                if self.start >= dur:
+                    warn(f"shots[{i}].start {self.start:g} s is past the end of the {dur:.2f} s clip; "
+                         f"its last frame is held")
+                elif need > dur + 0.05:
+                    warn(f"shots[{i}]: the clip ends at {dur:.2f} s but the shot needs {need:.2f} s; "
+                         f"its last frame is held for {(need - dur) / self.speed:.2f} s")
         else:
             crop = d.get("crop")
             fw, fh = em.image_size(self.src, None, self.what)
@@ -187,7 +196,7 @@ class Shot:
         self.aspect = sw / sh
         self.pw, self.ph = em.plate_geometry(sw, sh, W, H, zmax, self.panorama)
         self.framing = em.make_framing(self.pw, self.ph, W, H, z, d.get("pan", [0, 0]), focus, i,
-                                       self.panorama, sw / sh)
+                                       self.panorama, sw / sh, self.len)
         self.faces_plate = [self._to_plate(b) for b in faces]
         # video: frames at the reel cadence from t0 through the outgoing transition tail
         self.n_frames = int(math.ceil((self.len + self.tail) * fps)) + 2 if self.kind == "video" else 0
@@ -266,7 +275,8 @@ class Renderer:
     """Renders frames of one plan at one size. See the module docstring."""
 
     def __init__(self, plan: dict, *, size: tuple[int, int] | None = None, draft: bool | None = None,
-                 base_dir: str | os.PathLike | None = None):
+                 base_dir: str | os.PathLike | None = None, quiet: bool = False):
+        self.quiet = quiet
         if not plan.get("out_dir") or not Path(plan["shots"][0]["src"]).is_absolute():
             plan = prepare_plan(plan, base_dir)
         else:
@@ -295,7 +305,11 @@ class Renderer:
             if not Path(f).is_file():
                 raise nc.UserError(f"font not found: {f}")
         shots = sorted(plan["shots"], key=lambda d: float(d["t0"]))
-        self.shots = [Shot(i, d, W, H, self.fps, shots[i + 1].get("tr", "cut") if i + 1 < len(shots) else None)
+        if shots[0].get("tr", "cut") != "cut":
+            self._warn(f"shots[0].tr: {shots[0]['tr']!r} on the first shot is rendered as a plain cut")
+            shots[0] = dict(shots[0], tr="cut")
+        self.shots = [Shot(i, d, W, H, self.fps, shots[i + 1].get("tr", "cut") if i + 1 < len(shots) else None,
+                           warn=self._warn)
                       for i, d in enumerate(shots)]
         self._t0s = [s.t0 for s in self.shots]
         self._build_masks()
@@ -305,6 +319,10 @@ class Renderer:
         self._build_captions()
         self._build_endcard()
         self._cache_dir: Path | None = None
+
+    def _warn(self, msg: str) -> None:
+        if not self.quiet:
+            nc.warn(msg)
 
     # context manager: nothing to free but caches
     def __enter__(self) -> "Renderer":
@@ -428,13 +446,15 @@ class Renderer:
         self._lines = []
         self.caption_boxes = []   # (t_first, t_end, x0, y0, x1, y1) after placement, for tests/QA
         margin = 0.015 * H
-        for li, ln in enumerate(self.plan.get("lines", [])):
+        plan_lines = self.plan.get("lines", [])
+        firsts = [float(ln["words"][0][1]) for ln in plan_lines]
+        for li, ln in enumerate(plan_lines):
             words = [(str(w[0]), bool(len(w) > 2 and w[2]), float(w[1])) for w in ln["words"]]
             blk = et.layout_words(words, self.font_regular, self.font_italic, cfg["font_px"] * self.s, W,
                                   et.CAPTION_BOX_PX * self.s, int(cfg["max_rows"]),
                                   (self.white, self.accent), 8 * self.s, 3 * self.s)
             if not blk.fit:
-                nc.warn(f"lines[{li}]: caption does not fit in {cfg['max_rows']} rows; it wraps to {blk.rows}")
+                self._warn(f"lines[{li}]: caption does not fit in {cfg['max_rows']} rows; it wraps to {blk.rows}")
             # ink extents relative to the block top (top = 0)
             ink_top = min(blk.baseline(0, r) - (sp.baseline - sp.ink_top) for sp, _, r, _ in blk.words)
             ink_bot = max(blk.baseline(0, r) + (sp.ink_bottom - sp.baseline) for sp, _, r, _ in blk.words) + self.rise
@@ -442,7 +462,13 @@ class Renderer:
             top0 = cy - blk.height / 2
             top = min(max(top0, lo), hi) if hi >= lo else lo
             t_first, t_end = words[0][2], float(ln["end"])
-            faces = self._face_rects(t_first, t_end + LINE_FADE_OUT_S)
+            # the fade-out ends by the next line's first word, so two lines never share the spot
+            gone = t_end + LINE_FADE_OUT_S
+            later = [f for f in firsts[li + 1:] if f > t_first]
+            if later:
+                gone = min(gone, later[0])
+            fade_start = min(t_end, gone - 0.08)
+            faces = self._face_rects(t_first, gone)
 
             def clear(tp: float) -> bool:
                 y0, y1 = tp + ink_top - margin, tp + ink_bot + margin
@@ -455,7 +481,7 @@ class Renderer:
                 ok = [c for c in cands if clear(c)]
                 if ok:
                     top = min(ok, key=lambda c: (abs(c - top), c))
-            self._lines.append((blk, top, t_first, t_end))
+            self._lines.append((blk, top, t_first, fade_start, gone))
             self.caption_boxes.append((t_first, t_end, blk.x_min, top + ink_top, blk.x_max, top + ink_bot))
 
     def _build_endcard(self) -> None:
@@ -622,10 +648,10 @@ class Renderer:
             et.draw_sprite(img, sp, x, blk.baseline(top, r), a)
 
     def _draw_captions(self, img: np.ndarray, t: float) -> None:
-        for blk, top, t_first, t_end in self._lines:
-            if t < t_first - 0.01 or t > t_end + LINE_FADE_OUT_S:
+        for blk, top, t_first, fade_start, gone in self._lines:
+            if t < t_first - 0.01 or t >= gone:
                 continue
-            lo = 1.0 - em.smooth((t - t_end) / LINE_FADE_OUT_S) if t > t_end else 1.0
+            lo = 1.0 - em.smooth((t - fade_start) / max(1e-3, gone - fade_start)) if t > fade_start else 1.0
             for sp, x, r, ts in blk.words:
                 p = (t - ts) / self.word_fade
                 if p <= 0:
@@ -790,7 +816,7 @@ _WORKER_ARGS: list[str] = []
 def _worker_init(plan: dict, size, draft, cache_dir: str, enc_args: list[str]) -> None:
     global _WORKER, _WORKER_ARGS
     cv2.setNumThreads(1)
-    _WORKER = Renderer(plan, size=size, draft=draft)
+    _WORKER = Renderer(plan, size=size, draft=draft, quiet=True)
     _WORKER.attach_cache(cache_dir)
     _WORKER_ARGS = enc_args
 

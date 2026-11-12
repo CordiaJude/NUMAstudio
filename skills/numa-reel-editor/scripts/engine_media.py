@@ -46,6 +46,7 @@ PANORAMA_VISIBLE_FRACTION = 0.25
 FILL_FOREGROUND_HEIGHT = 0.62  # panorama foreground height as a fraction of the canvas
 AUTO_PAN_MIN_TRAVEL = 0.12     # auto pan when the spare width is at least 12% of the view
 AUTO_PAN_SPAN = 0.8            # fraction of the available travel an auto pan covers
+AUTO_PAN_MAX_SPEED = 0.6       # auto pan at most 0.6 screen widths per second (short shots pan less)
 
 
 # ---------------------------------------------------------------------------
@@ -185,6 +186,7 @@ class Framing:
     pan: tuple[float, float]
     focus: tuple[float, float]   # plate px
     auto_pan: int                # 0 = none, +1 = left->right, -1 = right->left
+    pan_span: float = AUTO_PAN_SPAN  # fraction of the travel the auto pan covers
 
     @property
     def cover(self) -> float:
@@ -202,12 +204,13 @@ class Framing:
         span_y = (self.H / self.cover)
         if self.auto_pan and hi_x > lo_x:
             u_end = clamp01((self.focus[0] - lo_x) / (hi_x - lo_x)) if hi_x > lo_x else 0.5
+            span = self.pan_span
             if self.auto_pan > 0:
-                u_end = max(u_end, AUTO_PAN_SPAN)
-                u_start = u_end - AUTO_PAN_SPAN
+                u_end = max(u_end, span)
+                u_start = u_end - span
             else:
-                u_end = min(u_end, 1 - AUTO_PAN_SPAN)
-                u_start = u_end + AUTO_PAN_SPAN
+                u_end = min(u_end, 1 - span)
+                u_start = u_end + span
             u = u_start + (u_end - u_start) * min(pe, 1.0 + 0.1 * max(0.0, pe - 1.0))
             cx = lo_x + (hi_x - lo_x) * clamp01(u)
         else:
@@ -261,7 +264,7 @@ def plate_geometry(sw: int, sh: int, W: int, H: int, zmax: float, panorama: bool
 
 
 def make_framing(pw: int, ph: int, W: int, H: int, z, pan, focus_norm, index: int, panorama: bool,
-                 src_aspect: float) -> Framing:
+                 src_aspect: float, shot_s: float = 2.0) -> Framing:
     z0, z1 = effective_zoom(z)
     focus = (focus_norm[0] * pw, focus_norm[1] * ph)
     if panorama:
@@ -274,6 +277,10 @@ def make_framing(pw: int, ph: int, W: int, H: int, z, pan, focus_norm, index: in
         view_w = W / (fr.cover * min(z0, z1))
         if pw - view_w >= AUTO_PAN_MIN_TRAVEL * view_w:
             fr.auto_pan = 1 if index % 2 == 0 else -1
+            # travel on screen (output px) for the full span, capped to AUTO_PAN_MAX_SPEED
+            travel_px = (pw - view_w) * fr.cover * min(z0, z1)
+            limit = AUTO_PAN_MAX_SPEED * W * max(shot_s, 1e-3)
+            fr.pan_span = min(AUTO_PAN_SPAN, limit / max(travel_px, 1e-6))
     return fr
 
 

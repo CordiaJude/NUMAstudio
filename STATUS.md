@@ -9,7 +9,7 @@
 | T4 Validator/baseline/claims | ACCEPTED (re-review 10/10 PASS) | 2 | cosmetic: duplicate hits per rule |
 | T5 Vision/prep | IN REVIEW | 1 | |
 | T6 Formats | PENDING | 0 | |
-| T7 Ops scripts | IN REVIEW | 1 | |
+| T7 Ops scripts | REVISING | 2 | B: library people detection; M: prefs mapping, sources negatives, dashboard contrast/layout |
 | T8 Instructions A | PENDING | 0 | |
 | T9 Instructions B | PENDING | 0 | |
 | T10 Setup/posting | PENDING | 0 | |
@@ -22,3 +22,4 @@
 
 ## Traceability (filled in Phase 5)
 - T2: R13/R14/R18/R102 instruction rows go to T8 (librarian.md, analyst.md, make-reel.md): fix_transcript --script order.
+- T12: baseline_plan should honour max_flashes pref (T7 review).
