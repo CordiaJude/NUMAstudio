@@ -11,7 +11,7 @@
 | T6 Formats | IN REVIEW | 1 | |
 | T7 Ops scripts | ACCEPTED (round 3 re-review PASS) | 3 | |
 | T8a Director+librarian/scout/analyst | ACCEPTED (9/10; --template depends on T12, verified in T11) | 2 | |
-| T8b Crew agents + skills | REVISING | 2 | M: consent gate for faces w/o people flag; ledger sheet mirror |
+| T8b Crew agents + skills | ACCEPTED (re-review 8/8 PASS) | 2 | |
 | T9 30-day system | IN REVIEW | 1 | |
 | T10 Setup/posting | IN REVIEW | 1 | |
 | T12 Templates/prefs/kinetic | PENDING | 0 | |

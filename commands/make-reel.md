@@ -145,6 +145,7 @@ Pass `--template NAME` when the day's row names a template (e.g. `--template off
 ```
 python3 "$S/ledger.py" check --ledger "$STATE/credit_ledger" --job kling_pro_5s --reel SLUG --json
 ```
+Write the hand-back's `ledger_sheet_rows` (CSV from `ledger.py sheet`) to the credit-ledger tab of the "NUMA 30-Day Reel Plan" Sheet with the Sheets connector (R220 mirror); connector down: F15, keep the CSV in `work/motion.json` and retry next run.
 Blocked or Higgsfield unavailable: F8 / F15; the reel renders without motion clips. Put the approved clips into plan.json as `kind: video` shots with `ai_generated: true` and set `ai.label_required` when AI people or scenes appear.
 
 **7. Validate.** Must show 0 ERRORs before any render:
