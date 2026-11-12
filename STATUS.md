@@ -14,7 +14,7 @@
 | T8b Crew agents + skills | ACCEPTED (re-review 8/8 PASS) | 2 | |
 | T9 30-day system | ACCEPTED (re-review 6/6 PASS) | 2 | |
 | T10 Setup/posting | ACCEPTED (re-review 7/7 PASS; 2 minors fixed by orchestrator) | 2 | |
-| T12 Templates/prefs/kinetic/rule41 | REVISING | 2 | M: --before/--after bypasses consent gate |
+| T12 Templates/prefs/kinetic/rule41 | ACCEPTED (re-review 5/5 PASS) | 2 | minors logged |
 | T11 Integration | IN PROGRESS | 1 | |
 
 ## Minor findings for final polish
@@ -35,3 +35,4 @@
 - T11: wire NUMA_BRAND=STATE/brand.json (when newer) into make-reel, librarian, build-today, plan-month, night-check, digest (D18).
 - T12 follow-up: baseline_plan writes formats story/carousel text as caption-line fragments; use whole sentences (reuse formats.py sentence joining) and never set reach_cut.hook equal to reel hook.
 - T6 minors: no WARN when final-segment defence lengthens window; reach hook reappears as caption ~3 s later; near-duplicate carousel pictures; report ok:true when outputs skipped (should list skipped).
+- T12 minors: rule 24 counts transcript words past duration and omits card words in message; card text can exceed template max_words; formats.default_carousel shortens with ellipsis (not whole sentences).
