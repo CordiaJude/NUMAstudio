@@ -1199,8 +1199,9 @@
       "status": "blocked_until_counsel",
       "blocked": true,
       "patterns": [
-        "\\b57\\s*(min|minutes)\\b",
-        "\\b11\\s*(min|minutes)?\\s*of\\s*cold\\b"
+        "\\b57\\s*(min|mins|minutes)\\b[^.!?\\n]{0,40}\\b(sauna|heat|hot)\\b",
+        "\\b(sauna|heat|hot)\\b[^.!?\\n]{0,40}\\b57\\s*(min|mins|minutes)\\b",
+        "\\b11\\s*(min|mins|minutes)?\\b[^.!?\\n]{0,30}\\b(cold|plunge|ice)\\b[^.!?\\n]{0,20}\\b(a|per|each)\\s+week\\b"
       ],
       "source": "spec p.22, p.57 Q47",
       "note": "While 'blocked' is true, scanners treat these patterns as banned. Only an advertising lawyer's OK flips it."

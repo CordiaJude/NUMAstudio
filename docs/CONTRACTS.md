@@ -398,7 +398,7 @@ rules. `E` = ERROR (exit 1), `W` = WARN. Tolerances: tiling 1 ms; beat 1 frame
 | 26 | Caption block overlaps a face box of the shot on screen at that time | W | R68 |
 | 27 | Any text (lines, hook, endcard tagline/subtitle, formats texts) hits a `fail` claim in brand.json (or the dosing line while blocked); `warn`-severity hits are W | E/W | R128 |
 | 28 | Shot with `people: true` and `consent` not true | E | R141 |
-| 29 | v2 plan without `music`, or `music.license` empty for a source other than `natural`/`pad` | E | R141 |
+| 29 | v2 plan without `music`, or `music.license` empty for a source other than `natural`/`pad` (source `folder` = NUMA's own file: W, record it in sources.txt) | E | R141 |
 | 30 | `ai.people` or `ai.scenes` true, or any `ai_generated` shot, while `ai.label_required` is not true | E | R139 |
 | 31 | End card: `t` not inside (0, duration) | E | R49 |
 | 32 | End card holds less than 3.5 s or more than 5 s, or does not start on a shot boundary | W | R49 |
