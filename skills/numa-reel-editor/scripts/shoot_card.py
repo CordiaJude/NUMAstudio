@@ -147,9 +147,9 @@ COLLAB_FRIDAY = {"pillar": "collective_collabs", "goal": "community", "template"
                  "slot_notes": "Collab week: 'Sweat there, recover here' or Meet the Collective"}
 
 FILING_RULES = [
-    "Photos -> photos/   Videos -> clips/   Voice memo -> name it \"voiceover\"",
+    "Photos -> photos/   Videos -> clips/   Voice memo -> name it \"voiceover {nn}\"",
     "Only in this day's folder. File names don't matter; Claude sorts by content.",
-    "Re-record: replace the voiceover file.",
+    "Re-record: replace the voiceover file. Reading the week's scripts back to back is fine: one file per day.",
     "Music: optional. Drop a track here, or Claude picks from Music Library by the mood below.",
     "Changes: optional. Edit this day's Sheet row; nothing waits on it.",
 ]
@@ -777,7 +777,7 @@ def render_card(r: dict) -> str:
     root = nc.brand_value("drive.root", "NUMA Reels")
     L.append("WHERE TO PUT FILES")
     L.append(f"  Drive > {root} > {month_folder(d)} > {folder}")
-    L += [f"  {x}" for x in FILING_RULES]
+    L += [f"  {x}".replace("{nn}", f"{int(r['day']):02d}") for x in FILING_RULES]
     L.append("")
     if fresh:
         L.append(f"WHAT TO FILM  ({PHONE_SETTINGS})")
@@ -790,7 +790,6 @@ def render_card(r: dict) -> str:
         who = str(r.get("voiceover_by") or "Katie")
         reader = "" if who.lower() == "katie" else f" ({who} reads this)"
         L.append(f"READ THIS OUT LOUD{reader}  ({RECORDING_TIPS})")
-        L.append(f"  Save it as \"voiceover\" in this folder (Day {int(r['day']):02d}).")
         n_lines = len(r["lines"])
         for i, line in enumerate(r["lines"]):
             opening = '"' if i == 0 else " "

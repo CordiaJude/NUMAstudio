@@ -238,7 +238,7 @@ def test_full_run_small(small_job, run_script, nc):
     plan = json.loads(plan_path.read_text())
     clip_src = plan["shots"][0]["src"]
     plan["formats"] = {
-        "reach_cut": {"t0": 2.0, "t1": 10.5, "hook": "Three minutes. *Wide* awake."},
+        "reach_cut": {"t0": 1.0, "t1": 9.5, "hook": "Three minutes. *Wide* awake."},
         "story": [{"t": 1.5, "text": "Colder than you think."}, {"t": 5.5, "text": "Breathe *slow*."},
                   {"t": 7.5, "text": "Walk out awake.", "clip": True}],
         "carousel": [{"t": 1.0, "text": "Your *first* plunge."}, {"src": clip_src, "text": "The water"},
@@ -256,7 +256,7 @@ def test_full_run_small(small_job, run_script, nc):
     reach = Path(out["reach"]["files"][0])
     info = numa_common.media_info(reach)
     assert (info["width"], info["height"]) == tuple(SMALL) and info["has_audio"]
-    assert 8.0 <= info["duration"] <= 12.0 and info["duration"] == pytest.approx(10.5 - 2.0 + 2.0, abs=0.05)
+    assert 8.0 <= info["duration"] <= 12.0 and info["duration"] == pytest.approx(9.5 - 1.0 + 3.0, abs=0.05)  # + end-card tail
     assert sec["checks"][reach.name]["ok"], sec["checks"][reach.name]
     # the new hook text is on frame 0: the top band differs from the same frame rendered without it
     d, _ = formats.reach_plan(engine.load_plan(plan_path), plan["formats"]["reach_cut"])
