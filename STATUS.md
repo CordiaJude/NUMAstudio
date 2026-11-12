@@ -7,12 +7,12 @@
 | T2 Analyze | ACCEPTED (re-review PASS 7/7; orchestrator fixed minor: no script alignment on mismatch) | 2 | |
 | T3 Finish | ACCEPTED (round 3 re-review 4/4 PASS) | 3 | 2 minor logged |
 | T4 Validator/baseline/claims | ACCEPTED (re-review 10/10 PASS) | 2 | cosmetic: duplicate hits per rule |
-| T5 Vision/prep | IN RE-REVIEW | 2 | |
+| T5 Vision/prep | ACCEPTED (re-review 6/6 PASS) | 2 | minor: color_range tag on OpenCV path |
 | T6 Formats | IN PROGRESS | 1 | |
 | T7 Ops scripts | ACCEPTED (round 3 re-review PASS) | 3 | |
 | T8a Director+librarian/scout/analyst | IN REVIEW | 1 | |
 | T8b Crew agents + skills | IN PROGRESS | 1 | |
-| T9 Instructions B | PENDING | 0 | |
+| T9 30-day system | IN PROGRESS | 1 | |
 | T10 Setup/posting | PENDING | 0 | |
 | T12 Templates/prefs/kinetic | PENDING | 0 | |
 | T11 Integration | PENDING | 0 | |
