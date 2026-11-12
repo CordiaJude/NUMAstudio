@@ -210,7 +210,7 @@ schema. There is no migration: re-run `analyze.py` on the job's `raw/` folder
 
 ---
 
-Vision fields (written by vision.py): photos[]/clips[] `flags` (subset of landscape, low_res, blurry, shaky, dark), `faces`, `focus`, clips[] `scores` and `windows`. prep_media.py records prepared sources in `WORK/prep/index.json` (source SHA-256, steps, forced steps) and sets `prepared_path`. When `prepared_path` is set, `faces`/`focus` (and clip `scores[].faces`) describe the prepared copy (the shot source) and `orig_faces`/`orig_focus` describe `path`; sharpness/motion/windows/flags still describe the original.
+Vision fields (written by vision.py): photos[]/clips[] `flags` (subset of landscape, low_res, blurry, shaky, dark), `faces`, `focus`, clips[] `scores` and `windows`. prep_media.py records prepared sources in `WORK/prep/index.json` (source SHA-256, steps, forced steps) and sets `prepared_path`. Optional per-item `consent` (true/"yes", false/"no", absent = unknown; set by the analyst from the Consent List or library tags) is read by baseline_plan for rule 41. When `prepared_path` is set, `faces`/`focus` (and clip `scores[].faces`) describe the prepared copy (the shot source) and `orig_faces`/`orig_focus` describe `path`; sharpness/motion/windows/flags still describe the original.
 
 ## 4. plan.json
 
