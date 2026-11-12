@@ -383,7 +383,7 @@ def test_unknown_template_is_a_clean_error(make_job, run_script):
     ("max_flashes", 0, lambda p: not [s for s in p["shots"] if s["tr"] == "flash"] and "signature" not in p),
     ("max_leaks", 0, lambda p: not p["leaks"] and not [s for s in p["shots"] if s["tr"] == "leakfade"]),
     ("max_leak_strength", 0.2, lambda p: all(lk[2] <= 0.2 for lk in p["leaks"])),
-    ("caption_px", 104, lambda p: p["caption_px"] == 104),
+    ("caption_px", 104, lambda p: p.get("caption_px") == 104),
     ("max_hook_words", 3, lambda p: len(p["hook"]["text"].split()) <= 3),
     ("max_caption_chars", 25, lambda p: max(len(" ".join(w[0] for w in ln["words"])) for ln in p["lines"]) <= 25),
     ("max_gold_words", 1, lambda p: all(sum(len(w) > 2 for w in ln["words"]) <= 1 for ln in p["lines"])),
