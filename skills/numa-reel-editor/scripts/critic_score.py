@@ -7,7 +7,7 @@ Usage:
     critic_score.py best   --rounds FILE [--json]
 
 SCORES_JSON (a file, or inline JSON) is the Critic's sheet: every rubric
-category of config `critic.rubric` scored as an integer 1-5, either flat or
+category of config `critic.rubric` scored as a whole number 1-5 (4 or 4.0), either flat or
 under "scores", with optional failed hard gates:
 
     {"scores": {"hook": 4, "retention_pacing": 4, "story_clarity": 4, "shareability": 4,
@@ -87,7 +87,8 @@ def parse_sheet(data: Any, rub: list[dict] | None = None) -> tuple[dict[str, int
         errors.append(f"unknown categories: {', '.join(unknown)} (known: {', '.join(ids)})")
     for k in ids:
         v = scores.get(k)
-        if k in scores and (isinstance(v, bool) or not isinstance(v, int) or not 1 <= v <= 5):
+        whole = isinstance(v, int) or (isinstance(v, float) and v.is_integer())  # 4.0 is fine, 4.5 is not
+        if k in scores and (isinstance(v, bool) or not whole or not 1 <= v <= 5):
             errors.append(f"{k}: score must be an integer 1-5, got {v!r}")
     if errors:
         raise nc.UserError("scores: " + "; ".join(errors))

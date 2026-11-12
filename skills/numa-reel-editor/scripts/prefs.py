@@ -59,33 +59,40 @@ class Rule:
         return int(v) if float(v).is_integer() else round(v, 3)
 
 
-LESS = r"(fewer|less|no more|not so many|too many|too much|cut (down )?(the )?|drop (the )?|lose (the )?|stop( using)?)"
+LESS = r"(fewer|less|not so many|too many|too much|cut( down)?( on)?( the)?|tone down( the)?)"
+NONE = r"(no|no more|don'?t use( any)?|do not use( any)?|never use( any)?|stop using( the)?|without( any)?|lose the|drop the)"
+# First match wins: specific rules (captions, hooks, whole-reel length) come before the general ones,
+# and "none" rules (max = 0) before "fewer" rules.
 RULES: tuple[Rule, ...] = (
-    Rule("no_whips", "max_whips", 0, 0, 0, (r"\bno whips?\b", r"\bwithout (any )?whips?\b")),
+    Rule("no_whips", "max_whips", 0, 0, 0, (rf"\b{NONE} whips?\b", r"\bwhips?\b.{0,10}\b(never|none)\b")),
     Rule("fewer_whips", "max_whips", 1, -1, 0, (LESS + r" .{0,20}\bwhip", r"\bwhips?\b.{0,20}\b(too many|less|fewer|too much)\b")),
+    Rule("no_flashes", "max_flashes", 0, 0, 0, (rf"\b{NONE} (white )?flash(es)?\b",)),
     Rule("fewer_flashes", "max_flashes", 1, -1, 0, (LESS + r" .{0,20}\bflash", r"\bflash(es)?\b.{0,20}\b(too many|less|fewer)\b")),
     Rule("softer_leaks", "max_leak_strength", 0.35, -0.1, 0.1,
          (r"\b(softer|subtler|gentler|lighter|weaker)\b.{0,20}\b(light )?leaks?\b", r"\bleaks?\b.{0,20}\btoo (strong|bright)\b")),
+    Rule("no_leaks", "max_leaks", 0, 0, 0, (rf"\b{NONE} (light )?leaks?\b",)),
     Rule("fewer_leaks", "max_leaks", 1, -1, 0, (LESS + r" .{0,20}\b(light )?leaks?\b",)),
+    Rule("shorter_captions", "max_caption_chars", 50, -10, 25,
+         (r"\bshorter (captions?|caption lines|lines|text)\b", r"\b(less|fewer) (words|text)\b",
+          r"\b(captions?|caption lines|text)\b.{0,12}\btoo long\b")),
+    Rule("shorter_hooks", "max_hook_words", 6, -1, 3,
+         (r"\bshorter hooks?\b", r"\bhooks?\b.{0,12}\btoo long\b", r"\b(punchier|tighter) hooks?\b")),
+    Rule("bigger_captions", "caption_px", 104, 8, 120,
+         (r"\b(bigger|larger) (captions?|text|words|font)\b", r"\b(captions?|text)\b.{0,12}\btoo small\b")),
+    Rule("smaller_captions", "caption_px", 84, -6, 72,
+         (r"\bsmaller (captions?|text|words|font)\b", r"\b(captions?|text)\b.{0,12}\btoo (big|large)\b")),
+    Rule("fewer_gold_words", "max_gold_words", 1, 0, 1, (LESS + r" .{0,10}\bgold\b",)),
     Rule("shorter_reels", "max_duration", 45, -5, 15,
-         (r"\bshorter (reels?|videos?)\b", r"\b(reels?|videos?) (are |is )?too long\b", r"\btoo long\b$")),
-    Rule("longer_reels", "min_duration", 30, 5, 60, (r"\blonger (reels?|videos?)\b", r"\b(reels?|videos?) (are |is )?too short\b")),
+         (r"\bshorter (reels?|videos?)\b", r"\b(reels?|videos?)\b.{0,12}\btoo long\b")),
+    Rule("longer_reels", "min_duration", 30, 5, 60,
+         (r"\blonger (reels?|videos?)\b", r"\b(reels?|videos?)\b.{0,12}\btoo short\b")),
     Rule("slower_cuts", "min_shot_seconds", 1.0, 0.25, 2.0,
          (r"\bslower (cuts|pace|pacing|edit)", r"\btoo (fast|choppy|frantic|busy)\b", r"\blonger shots?\b",
           r"\b(fewer|less) cuts\b", r"\blet (the )?shots breathe\b")),
     Rule("faster_cuts", "max_shot_seconds", 3.0, -0.5, 1.5,
          (r"\bfaster (cuts|pace|pacing|edit)", r"\btoo slow\b", r"\bshorter shots?\b", r"\bmore cuts\b", r"\bsnappier\b")),
-    Rule("shorter_captions", "max_caption_chars", 50, -10, 25,
-         (r"\bshorter (captions?|lines|text)\b", r"\b(less|fewer) (words|text)\b", r"\b(captions?|text) (are |is )?too long\b")),
-    Rule("fewer_gold_words", "max_gold_words", 1, 0, 1, (LESS + r" .{0,10}\bgold\b",)),
-    Rule("bigger_captions", "caption_px", 104, 8, 120,
-         (r"\b(bigger|larger) (captions?|text|words|font)\b", r"\b(captions?|text) (are |is )?too small\b")),
-    Rule("smaller_captions", "caption_px", 84, -6, 72,
-         (r"\bsmaller (captions?|text|words|font)\b", r"\b(captions?|text) (are |is )?too (big|large)\b")),
     Rule("more_people", "min_people_shots", 2, 1, 6,
          (r"\bmore (people|faces|members|humans)\b", r"\b(too empty|not enough people)\b")),
-    Rule("shorter_hooks", "max_hook_words", 6, -1, 3,
-         (r"\bshorter hooks?\b", r"\bhooks? (are |is )?too long\b", r"\b(punchier|tighter) hooks?\b")),
 )
 # Pairs where the later note wins (they set the same key or contradict each other).
 OPPOSITES = {("min_shot_seconds", "max_shot_seconds"), ("min_duration", "max_duration")}

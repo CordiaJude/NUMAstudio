@@ -107,8 +107,8 @@ def test_account_insights_kept(nc, store, tmp_path):
     f.write_text(json.dumps(resp))
     assert run(["account", "--store", str(store), "--data", str(f), "--date", "2026-06-01"]) == 0
     acct = json.loads(store.read_text())["account"]
-    assert acct["daily"]["2026-01-02"]["reach"] == 120  # older than 90 days and still there
-    assert acct["daily"]["2026-06-01"]["reach"] == 999
+    assert acct["daily"]["2026-01-01"]["reach"] == 120  # period start; older than 90 days and still there
+    assert acct["daily"]["2026-05-31"]["reach"] == 999
     assert acct["totals"]["2026-01-03"]["accounts_engaged"] == 33
     f.write_text(json.dumps({"data": [{"name": "impressions", "values": [{"value": 1}]}]}))
     assert run(["account", "--store", str(store), "--data", str(f), "--date", "2026-06-02"]) == 1
@@ -134,3 +134,11 @@ def test_naive_times_are_central(nc):
     assert mx.to_central(mx.parse_time("2026-12-01T23:30:00Z", "t")).hour == 17
     assert mx._us_central_offset(datetime(2026, 7, 1, tzinfo=timezone.utc)).total_seconds() == -5 * 3600
     assert mx._us_central_offset(datetime(2026, 12, 1, tzinfo=timezone.utc)).total_seconds() == -6 * 3600
+
+
+def test_composio_failure_reported(nc, store, tmp_path, capsys):
+    f = tmp_path / "fail.json"
+    f.write_text(json.dumps({"successful": False, "error": "Invalid OAuth access token", "data": {}}))
+    assert run(["ingest", "--store", str(store), "--reel", "r", "--pull", "48h", "--data", str(f)]) == 1
+    assert "Composio call failed: Invalid OAuth access token" in capsys.readouterr().err
+    assert run(["account", "--store", str(store), "--data", str(f)]) == 1

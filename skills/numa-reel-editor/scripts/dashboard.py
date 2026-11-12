@@ -39,6 +39,7 @@ import numa_common as nc  # noqa: E402
 
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 TREND_DAYS = 90
+LEADERBOARD_TOP = 20
 
 
 def esc(x: Any) -> str:
@@ -182,14 +183,19 @@ def load_competitors(path: str | None) -> dict | None:
 # ---------------------------------------------------------------------------
 # HTML pieces
 # ---------------------------------------------------------------------------
+HEAT_LIGHT, CARD_LIGHT = (63, 111, 114), (255, 255, 255)
+HEAT_DARK, CARD_DARK = (127, 179, 181), (33, 31, 28)
+
 CSS = """
-:root{color-scheme:light;--bg:#faf6ee;--card:#ffffff;--ink:#22201c;--ink2:#5b554c;--muted:#857d71;
---line:#e6dfd2;--accent:#3f6f72;--accent-soft:#d8e6e6;--ember:#a8502d;--good:#2f6b3f;--bad:#a8502d;--heat:63,111,114}
+:root{color-scheme:light;--bg:#faf6ee;--card:#ffffff;--ink:#22201c;--ink2:#5b554c;--muted:#6b6459;
+--line:#e6dfd2;--accent:#3f6f72;--accent-soft:#d8e6e6;--ember:#a8502d;--good:#2f6b3f;--bad:#a8502d;--heat:@HEAT_LIGHT@}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#171614;--card:#211f1c;
 --ink:#f1ece3;--ink2:#c9c1b4;--muted:#9a9184;--line:#36322c;--accent:#7fb3b5;--accent-soft:#2b3b3c;--ember:#e08a63;
---good:#8cc79a;--bad:#e08a63;--heat:127,179,181}}
+--good:#8cc79a;--bad:#e08a63;--heat:@HEAT_DARK@}
+.heat td.v{color:var(--ink-d)}}
 :root[data-theme="dark"]{color-scheme:dark;--bg:#171614;--card:#211f1c;--ink:#f1ece3;--ink2:#c9c1b4;--muted:#9a9184;
---line:#36322c;--accent:#7fb3b5;--accent-soft:#2b3b3c;--ember:#e08a63;--good:#8cc79a;--bad:#e08a63;--heat:127,179,181}
+--line:#36322c;--accent:#7fb3b5;--accent-soft:#2b3b3c;--ember:#e08a63;--good:#8cc79a;--bad:#e08a63;--heat:@HEAT_DARK@}
+:root[data-theme="dark"] .heat td.v{color:var(--ink-d)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
 "Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%}
@@ -204,12 +210,13 @@ h2{font-size:17px;margin:0 0 4px}
 .tiles{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:16px}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .tile .k{color:var(--ink2);font-size:13px}.tile .v{font-size:26px;font-variant-numeric:tabular-nums}
-.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:14px}
 caption{text-align:left;color:var(--ink2);font-size:13px;padding:0 0 8px}
 th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th:first-child,td:first-child,th.l,td.l{text-align:left}
-td.name{white-space:normal;min-width:140px}
+th.name,td.name{white-space:normal;min-width:150px;max-width:300px;overflow-wrap:anywhere}
+.name .meta{display:block;color:var(--ink2);font-size:12px;font-weight:400}
 thead th{color:var(--ink2);font-weight:600;font-size:13px}
 a{color:var(--accent)}
 .bar{display:inline-block;height:8px;border-radius:0 4px 4px 0;background:var(--accent);vertical-align:middle;margin-right:6px}
@@ -221,11 +228,19 @@ a{color:var(--accent)}
 .heat td{padding:0;border:1px solid var(--card);min-width:30px;height:30px;text-align:center;font-size:11px}
 .heat th{font-weight:500;font-size:12px;padding:4px}
 .heat td span{display:block;line-height:30px}
+.heat td.v{color:var(--ink-l)}
 .legend{display:flex;align-items:center;gap:8px;color:var(--ink2);font-size:12px;margin-top:8px}
 .legend i{display:inline-block;width:18px;height:12px;border-radius:2px}
 svg{display:block;width:100%;height:auto}
 svg.narrow{display:none}
-@media (max-width:600px){svg.wide{display:none}svg.narrow{display:block}}
+@media (max-width:600px){svg.wide{display:none}svg.narrow{display:block}
+table.cards thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+table.cards,table.cards tbody{display:block}
+table.cards tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 12px;padding:10px 0;
+border-bottom:1px solid var(--line)}
+table.cards th.name{grid-column:1/-1;border:0;padding:0;max-width:none}
+table.cards td{border:0;padding:0;text-align:left;white-space:normal}
+table.cards td::before{content:attr(data-label);display:block;color:var(--ink2);font-size:12px}}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 svg text{fill:var(--ink2);font-size:11px}
 svg .grid line{stroke:var(--line)}
@@ -236,21 +251,48 @@ footer{color:var(--muted);font-size:12px;margin-top:20px}
 """
 
 
+def _lum(rgb: tuple[float, float, float]) -> float:
+    c = [x / 255 for x in rgb]
+    c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+
+def contrast(a: tuple, b: tuple) -> float:
+    la, lb = sorted((_lum(a), _lum(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def blend(rgb: tuple, alpha: float, under: tuple) -> tuple[float, float, float]:
+    return tuple(alpha * c + (1 - alpha) * u for c, u in zip(rgb, under))
+
+
+def heat_ink(alpha: float, heat: tuple, card: tuple) -> str:
+    """Black or white, whichever reads better on this heat cell (>= 4.58:1 for any background)."""
+    bg = blend(heat, alpha, card)
+    return "#000" if contrast(bg, (0, 0, 0)) >= contrast(bg, (255, 255, 255)) else "#fff"
+
+
+def css() -> str:
+    return CSS.replace("@HEAT_LIGHT@", ",".join(map(str, HEAT_LIGHT))).replace("@HEAT_DARK@", ",".join(map(str, HEAT_DARK)))
+
+
 def empty(text: str) -> str:
     return f'<p class="empty">{esc(text)}</p>'
 
 
 def table(caption: str, head: list[str], rows: list[list[str]], first_is_name: bool = True,
           left: tuple[int, ...] = ()) -> str:
-    """An accessible table; `left` = indexes of text columns aligned left (numbers align right)."""
+    """An accessible table; `left` = indexes of text columns aligned left (numbers align right).
+    Under 600 px wide each row becomes a card: the name on top, then the cells labelled from the header."""
     th = "".join(f'<th scope="col"{" class=\"l\"" if i in left else ""}>{esc(h)}</th>' for i, h in enumerate(head))
     body = []
     for r in rows:
         cells = [f'<th scope="row" class="name">{r[0]}</th>' if first_is_name else f"<td>{r[0]}</td>"]
-        cells += [f'<td{" class=\"l\"" if i in left else ""}>{c}</td>' for i, c in enumerate(r[1:], 1)]
+        cells += [f'<td data-label="{esc(head[i])}"{" class=\"l\"" if i in left else ""}>{c}</td>'
+                  for i, c in enumerate(r[1:], 1)]
         body.append("<tr>" + "".join(cells) + "</tr>")
     return (f'<p class="sub" aria-hidden="true">{esc(caption)}</p>'
-            f'<div class="scroll"><table><caption class="vh">{esc(caption)}</caption><thead><tr>{th}</tr></thead>'
+            f'<div class="scroll"><table class="cards"><caption class="vh">{esc(caption)}</caption><thead><tr>{th}</tr></thead>'
             f'<tbody>{"".join(body)}</tbody></table></div>')
 
 
@@ -292,14 +334,18 @@ def leaderboard(rows: list[dict], names: dict[str, str]) -> str:
         sv = r["skip_vs"]
         skip = "–" if not isinstance(sv, (int, float)) else (
             f'<span class="{"pos" if sv > 0 else "neg"}">{sv:+.1f}</span>' if sv else "0.0")
-        body.append([f"{i}. {title}", esc(r["posted"].strftime("%b %-d") if r["posted"] else "–"),
-                     esc(names.get(r["series"], r["series"]) or "–"),
-                     fmt_num(r["length"]) + (" s" if isinstance(r["length"], (int, float)) else ""),
-                     fmt_num(r["views"]), fmt_num(r["reach"]), fmt_pct(r["retention"]),
-                     fmt_num(r["sends_1k"], 1), fmt_num(r["saves_1k"], 1), skip, esc(r["pull"])])
-    return head + table("Reels ranked by views; skip rate is in points against NUMA's median (lower is better).",
-                        ["Reel", "Posted", "Series", "Length", "Views", "Reach", "Retention", "Sends/1k",
-                         "Saves/1k", "Skip vs median", "Pull"], body, left=(2,)) + "</section>"
+        meta = [r["posted"].strftime("%b %-d") if r["posted"] else None, names.get(r["series"], r["series"]),
+                f"{fmt_num(r['length'])} s" if isinstance(r["length"], (int, float)) else None, f"{r['pull']} pull"]
+        name = f'{i}. {title}<span class="meta">{esc(" · ".join(m for m in meta if m))}</span>'
+        body.append([name, fmt_num(r["views"]), fmt_num(r["reach"]), fmt_pct(r["retention"]),
+                     fmt_num(r["sends_1k"], 1), fmt_num(r["saves_1k"], 1), skip])
+    cols = ["Reel", "Views", "Reach", "Retention", "Sends/1k", "Saves/1k", "Skip vs median"]
+    out = head + table(f"Top {min(len(body), LEADERBOARD_TOP)} reels by views; skip rate is in points against NUMA's "
+                       "median (lower is better).", cols, body[:LEADERBOARD_TOP])
+    if len(body) > LEADERBOARD_TOP:
+        out += (f"<details><summary>Show the other {len(body) - LEADERBOARD_TOP} reels</summary>"
+                + table("The rest of the reels by views.", cols, body[LEADERBOARD_TOP:]) + "</details>")
+    return out + "</section>"
 
 
 def breakdown(title: str, hid: str, groups: list[dict], what: str) -> str:
@@ -319,7 +365,7 @@ def breakdown(title: str, hid: str, groups: list[dict], what: str) -> str:
 
 def heatmap(rows: list[dict]) -> str:
     head = ('<section aria-labelledby="hm-h"><h2 id="hm-h">Posting-time heatmap</h2>'
-            '<p class="sub">Median views by day and hour posted (Central time). Darker is better.</p>')
+            '<p class="sub">Median views by day and hour posted (Central time). Stronger colour means more views.</p>')
     cells: dict[tuple[int, int], list] = {}
     for r in rows:
         if r["posted"] and isinstance(r["views"], (int, float)):
@@ -338,12 +384,13 @@ def heatmap(rows: list[dict]) -> str:
             label = f"{DAYS[d]} {hour_label(h)}: " + (f"median {fmt_num(v)} views, {len(cells[(d, h)])} reels" if v is not None
                                                      else "no reels")
             if v is None:
-                tds.append(f'<td title="{esc(label)}"><span class="sr" aria-label="{esc(label)}"></span></td>')
+                tds.append(f'<td title="{esc(label)}"><span class="vh">{esc(label)}</span></td>')
             else:
-                a = 0.18 + 0.82 * v / top
-                ink = "color:var(--card)" if a > 0.55 else ""
-                tds.append(f'<td title="{esc(label)}" style="background:rgba(var(--heat),{a:.2f});{ink}">'
-                           f'<span aria-label="{esc(label)}">{esc(fmt_compact(v))}</span></td>')
+                a = round(0.18 + 0.82 * v / top, 2)
+                ink_l, ink_d = heat_ink(a, HEAT_LIGHT, CARD_LIGHT), heat_ink(a, HEAT_DARK, CARD_DARK)
+                tds.append(f'<td class="v" title="{esc(label)}" style="background:rgba(var(--heat),{a:.2f});'
+                           f'--ink-l:{ink_l};--ink-d:{ink_d}"><span aria-hidden="true">{esc(fmt_compact(v))}</span>'
+                           f'<span class="vh">{esc(label)}</span></td>')
         body.append(f'<tr><th scope="row">{DAYS[d]}</th>{"".join(tds)}</tr>')
     legend = ('<div class="legend" aria-hidden="true"><span>Fewer views</span>'
               '<i style="background:rgba(var(--heat),.18)"></i><i style="background:rgba(var(--heat),.5)"></i>'
@@ -495,7 +542,7 @@ def build(store: dict, notes: dict | None, comp: dict | None, today: date | None
     ]
     return ("<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-            f"<title>{esc(title)}</title><style>{CSS}</style></head><body><main>"
+            f"<title>{esc(title)}</title><style>{css()}</style></head><body><main>"
             + "\n".join(body) + "</main></body></html>\n")
 
 

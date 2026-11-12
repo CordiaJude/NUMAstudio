@@ -80,3 +80,42 @@ def test_folder_add_and_errors(nc, tmp_path, media):
     assert run(["tag", "--index", str(idx), "M0000000000", "--add", "x"]) == 1
     assert run(["query", "--index", str(tmp_path / "none.json")]) == 1
     assert run([]) == 2
+
+
+def test_people_detection_on_bundled_photos(nc, tmp_path, assets_dir, monkeypatch):
+    """Consent gate: the 5-person sauna photo is people=yes and never usable without consent."""
+    idx = tmp_path / "lib.json"
+    photos = assets_dir / "brand-photos"
+    assert run(["add", "--index", str(idx), str(photos / "sauna-people.jpg"), str(photos / "mats-bolsters.jpg"),
+                str(photos / "cold-plunge.jpg")]) == 0
+    items = {it["name"]: it for it in json.loads(idx.read_text())["items"]}
+    if not lib.face_detector().available:
+        pytest.skip("no face detector in this OpenCV build")
+    assert items["sauna-people.jpg"]["people"] is True and items["sauna-people.jpg"]["faces"] >= 3
+    assert items["sauna-people.jpg"]["consent"] == "unknown"
+    assert items["mats-bolsters.jpg"]["people"] is False and items["mats-bolsters.jpg"]["faces"] == 0
+    data = json.loads(idx.read_text())
+    usable = [r["name"] for r in lib.query(data, [], people=False, usable=True)]
+    assert "sauna-people.jpg" not in usable and "mats-bolsters.jpg" in usable
+    assert "sauna-people.jpg" not in [r["name"] for r in lib.query(data, [], usable=True)]
+
+
+def test_no_detector_means_unknown(nc, tmp_path, assets_dir, monkeypatch):
+    class NoDetector:
+        available = False
+        reason = "test"
+    monkeypatch.setattr(lib, "_DETECTOR", [NoDetector()])
+    idx = tmp_path / "lib.json"
+    assert run(["add", "--index", str(idx), str(assets_dir / "brand-photos" / "mats-bolsters.jpg")]) == 0
+    data = json.loads(idx.read_text())
+    assert data["items"][0]["people"] is None and data["items"][0]["consent"] == "unknown"
+    assert lib.query(data, [], usable=True) == [] and lib.query(data, [], people=False) == []
+
+
+def test_unreadable_file_skipped(nc, tmp_path, media, capsys):
+    bad = media["dir"] / "broken.jpg"
+    bad.write_bytes(b"not a jpeg")
+    idx = tmp_path / "lib.json"
+    assert run(["add", "--index", str(idx), str(bad), str(media["sharp"]), "--no-faces"]) == 0
+    assert "WARN: skipped" in capsys.readouterr().err
+    assert [it["name"] for it in json.loads(idx.read_text())["items"]] == ["plunge_sharp.jpg"]

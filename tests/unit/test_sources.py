@@ -31,6 +31,14 @@ def run(argv):
     ("trending sound", "trending_audio", False),
     ("unknown", "unknown", False),
     ("some blog", None, False),
+    ("no permission", "no_permission", False),
+    ("permission pending", "no_permission", False),
+    ("Asked for permission, waiting", None, False),
+    ("Written permission from Mission Fitness", "partner_permission", True),
+    ("Higgsfield free plan", "higgsfield_free", False),
+    ("Higgsfield trial", "higgsfield_free", False),
+    ("Higgsfield", "higgsfield_unstated", False),
+    ("Higgsfield ElevenLabs Music v2.5 (Plus plan)", "higgsfield_paid", True),
 ])
 def test_license_classes(nc, text, lid, ok):
     assert src.classify(text) == lid

@@ -7,9 +7,10 @@ Command line (docs/CONTRACTS.md section 9):
               [--out FILE] [--encoder libx264|videotoolbox]
     engine.py PLAN_JSON preview T1 [T2 ...] [--size WxH] [--out FILE]
 
-Full render -> OUT_DIR/video_noaudio.mp4 (``--draft``: video_noaudio_draft.mp4;
-``--from/--to``: segment_<from>_<to>.mp4) plus OUT_DIR/render.json (timings,
-frames, size, workers, encoder, sha256). Preview -> OUT_DIR/preview.jpg, 5 tiles
+Full render -> OUT_DIR/video_noaudio.mp4 (``--draft``: video_noaudio_draft.mp4)
+plus OUT_DIR/render.json (timings, frames, size, workers, encoder, sha256).
+``--from/--to`` -> segment_<from>_<to>.mp4 plus segment_<from>_<to>.json (the
+full render's render.json is left alone). Preview -> OUT_DIR/preview.jpg, 5 tiles
 per row. OUT_DIR is the plan's ``out_dir`` (default: the plan's folder).
 
 Python API (import with ``sys.path.insert(0, <scripts dir>)``; ``import engine``):
@@ -47,7 +48,13 @@ byte-identical MP4 for any ``--workers``.
 
 Video shots are decoded once per render with one seek per shot into a per-shot
 frame cache (memory-mapped, shared by the workers) at the resolution the shot
-needs; stills are prepared once per shot the same way.
+needs; stills are prepared once per shot the same way. The cache lives in a
+hidden temporary folder under OUT_DIR (or $NUMA_RENDER_CACHE), is removed after
+the render, and its size is checked against the free disk space first.
+
+Encoding: fixed 2 s segments, each one GOP from its own single-threaded x264, joined
+without re-encoding. Each segment gets a rate budget (see ``rate_budget``) whose worst
+case keeps every 2 s window under config ``render.video.maxrate``.
 """
 from __future__ import annotations
 
@@ -56,6 +63,7 @@ import hashlib
 import math
 import multiprocessing as mp
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -89,7 +97,7 @@ FADE_IN_FLOOR = 0.35         # brightness of frame 0 without a hook (never a bla
 HOOK_FADE_OUT_S = 0.3
 LINE_FADE_OUT_S = 0.35
 PREVIEW_TILE_W = 360
-GRAIN_SIGMA = 3.0            # light film grain (8-bit levels), seeded by plan.seed
+GRAIN_SIGMA = 2.0            # light film grain (8-bit levels), seeded by plan.seed
 GRAIN_BANK = 4
 
 
@@ -489,10 +497,13 @@ class Renderer:
         self._ec = None
         if not ec:
             return
-        W, H, s = self.width, self.height, self.s
+        W, H = self.width, self.height
+        # end-card unit: the width of a 9:16 frame of this height (wide or square frames are not
+        # allowed to blow the lockup up past what fits vertically)
+        s = min(W, 0.5625 * H) / 1080.0
         logo_path = ec.get("logo") or str(nc.brand_asset("wordmark"))
-        pw_ = (self.plan.get("size") or self.cfg["size"])[0]
-        lw = min(0.86 * W, float(ec.get("logo_width", 820)) * W / pw_)
+        pw_, ph_ = (self.plan.get("size") or self.cfg["size"])
+        lw = min(0.86 * W, float(ec.get("logo_width", 820)) * min(W, 0.5625 * H) / min(pw_, 0.5625 * ph_))
         logo = None
         try:
             with Image.open(logo_path) as im:
@@ -531,7 +542,20 @@ class Renderer:
             while sub.advance > 0.86 * W and px > 12:
                 px *= 0.94
                 sub = et.make_sprite(subtitle, self.font_italic, px, self.accent, 8 * s, 3 * s)
-        self._ec = {"t": float(ec["t"]), "logo": logo, "tag": tag, "sub": sub}
+        # vertical layout from the logo's real size: tagline under its bottom edge, subtitle lower down
+        logo_y = 0.469 * H
+        logo_bottom = logo_y + alpha.shape[0] / 2
+        tag_y = logo_bottom + 40 * s + (tag.baseline - tag.ink_top if tag else 0)
+        tag_bottom = tag_y + (tag.ink_bottom - tag.baseline if tag else 0)
+        sub_y = max(0.78 * H, tag_bottom + 90 * s + (sub.baseline - sub.ink_top if sub else 0))
+        if sub:
+            sub_y = min(sub_y, self.safe_bottom - (sub.ink_bottom - sub.baseline))
+        self._ec = {"t": float(ec["t"]), "logo": logo, "tag": tag, "sub": sub, "s": s,
+                    "logo_y": logo_y, "tag_y": tag_y, "sub_y": sub_y,
+                    "boxes": {"logo": (logo_y - alpha.shape[0] / 2, logo_bottom),
+                              "tag": (tag_y - (tag.baseline - tag.ink_top), tag_bottom) if tag else None,
+                              "sub": (sub_y - (sub.baseline - sub.ink_top), sub_y + (sub.ink_bottom - sub.baseline))
+                              if sub else None}}
 
     # frame -------------------------------------------------------------------
     def _view(self, i: int, t: float, extra: float = 1.0) -> np.ndarray:
@@ -663,22 +687,22 @@ class Renderer:
         ec = self._ec
         if not ec or t < ec["t"]:
             return img
-        W, H, s = self.width, self.height, self.s
+        W, s = self.width, ec["s"]
         T = ec["t"]
         veil = 1.0 - 0.22 * em.smooth((t - T) / 0.6)
         img = cv2.convertScaleAbs(img, alpha=veil)
         if ec["logo"] is not None:
             q = em.ease_out((t - T - 0.30) / 0.9)
             lg = ec["logo"]
-            et.draw_sprite(img, lg, W / 2 - lg.advance / 2, 0.469 * H + 14 * s * (1 - q), q)
+            et.draw_sprite(img, lg, W / 2 - lg.advance / 2, ec["logo_y"] + 14 * s * (1 - q), q)
         if ec["tag"] is not None:
             q = em.ease_out((t - T - 0.80) / 0.8)
             tg = ec["tag"]
-            et.draw_sprite(img, tg, W / 2 - tg.advance / 2, 0.556 * H + 10 * s * (1 - q), q)
+            et.draw_sprite(img, tg, W / 2 - tg.advance / 2, ec["tag_y"] + 10 * s * (1 - q), q)
         if ec["sub"] is not None:
             q = em.ease_out((t - T - 1.40) / 0.9)
             sb = ec["sub"]
-            et.draw_sprite(img, sb, W / 2 - sb.advance / 2, 0.78 * H + 14 * s * (1 - q), q)
+            et.draw_sprite(img, sb, W / 2 - sb.advance / 2, ec["sub_y"] + 14 * s * (1 - q), q)
         return img
 
     def _add_grain(self, img: np.ndarray, n: int) -> np.ndarray:
@@ -735,6 +759,28 @@ class Renderer:
 # on the worker count, so any --workers gives the same bytes, and encoding scales
 # across cores (x264's own threading barely does at 1080x1920).
 SEGMENT_S = 2.0
+# Rate budget per segment. Every segment starts a fresh VBV buffer, so the cap from config
+# (render.video.maxrate, e.g. 14M) is turned into a per-segment budget whose worst case holds
+# across segment joins: any window of RATE_WINDOW_S seconds or longer carries at most
+# (1 + VBV_INIT) * bufsize + rate * T <= maxrate * T bits.
+RATE_WINDOW_S = 2.0
+VBV_RATE_FRACTION = 0.85
+VBV_INIT = 0.3
+
+
+def _bits(text: str | int | float) -> float:
+    """'14M' -> 14e6 bits/s."""
+    t = str(text).strip()
+    mult = {"k": 1e3, "K": 1e3, "m": 1e6, "M": 1e6}.get(t[-1:], 1.0)
+    return float(t[:-1] if t[-1:] in "kKmM" else t) * mult
+
+
+def rate_budget(maxrate: str | float) -> tuple[int, int]:
+    """Per-segment (vbv maxrate, vbv bufsize) in bits for an overall cap of `maxrate` bits/s."""
+    cap = _bits(maxrate)
+    rate = VBV_RATE_FRACTION * cap
+    buf = (cap - rate) * RATE_WINDOW_S / (1 + VBV_INIT)
+    return int(rate), int(buf)
 
 
 def videotoolbox_available() -> bool:
@@ -753,14 +799,17 @@ def encoder_args(encoder: str, draft: bool, fps: float, segment_s: float = SEGME
     crf = cfg["draft"]["crf"] if draft else v["crf"]
     gop = str(max(1, int(round(fps * segment_s))))
     color = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"]
+    rate, buf = rate_budget(v["maxrate"])
     if encoder == "videotoolbox":
-        args = ["-c:v", "h264_videotoolbox", "-profile:v", "high", "-b:v", "10M", "-maxrate", v["maxrate"],
-                "-bufsize", v["bufsize"], "-allow_sw", "1", "-g", gop]
-        info = {"encoder": "h264_videotoolbox", "bitrate": "10M"}
+        args = ["-c:v", "h264_videotoolbox", "-profile:v", "high", "-b:v", str(int(rate * 0.8)),
+                "-maxrate", str(rate), "-bufsize", str(buf), "-allow_sw", "1", "-g", gop]
+        info = {"encoder": "h264_videotoolbox", "bitrate": int(rate * 0.8)}
     else:
         args = ["-c:v", "libx264", "-profile:v", v.get("profile", "high"), "-preset", preset, "-crf", str(crf),
-                "-maxrate", v["maxrate"], "-bufsize", v["bufsize"], "-g", gop, "-threads", "1"]
+                "-maxrate", str(rate), "-bufsize", str(buf), "-x264-params", f"vbv-init={VBV_INIT}",
+                "-g", gop, "-threads", "1"]
         info = {"encoder": "libx264", "preset": preset, "crf": crf, "encoder_threads": 1}
+    info.update({"vbv_maxrate": rate, "vbv_bufsize": buf, "rate_cap": int(_bits(v["maxrate"]))})
     args += ["-pix_fmt", v.get("pix_fmt", "yuv420p"), *color]
     info["segment_s"] = segment_s
     return args, info
@@ -859,6 +908,27 @@ def _mux(segments: list[Path], out: Path) -> None:
               "-movflags", "+faststart", "-f", "mp4", str(out), what="ffmpeg mux")
 
 
+def cache_bytes(r: "Renderer", frames: range) -> int:
+    """Disk space the render cache needs: decoded video frames and still plates of visible shots."""
+    a, b = frames.start / r.fps, (frames.stop - 1) / r.fps
+    total = 0
+    for s in r.shots:
+        if s.visible(a, b):
+            total += (s.n_frames if s.kind == "video" else 1) * s.pw * s.ph * 3
+    return total
+
+
+def _check_space(r: "Renderer", folder: Path, frames: range) -> None:
+    need = cache_bytes(r, frames)
+    # encoded segments and the joined file: at most the rate cap for the range, twice
+    need += int(2 * _bits(nc.config_value("render.video.maxrate", "14M")) / 8 * len(frames) / r.fps)
+    free = shutil.disk_usage(folder).free
+    if free < need + 256 * 1024 ** 2:
+        raise nc.UserError(f"not enough disk space for the render cache in {folder}: needs "
+                           f"{(need + 256 * 1024 ** 2) / 1e9:.1f} GB, {free / 1e9:.1f} GB free "
+                           f"(free some space or set NUMA_RENDER_CACHE to a folder on a bigger disk)")
+
+
 def render_video(plan: dict | str | os.PathLike, out_path: str | os.PathLike, *, t_from: float | None = None,
                  t_to: float | None = None, size: tuple[int, int] | None = None, draft: bool | None = None,
                  workers: int | None = None, encoder: str = "libx264", progress: bool = True,
@@ -888,7 +958,10 @@ def render_video(plan: dict | str | os.PathLike, out_path: str | os.PathLike, *,
     starts = list(range(frames.start, frames.stop, seg_len))
     timings: dict[str, float] = {}
     old_threads = cv2.getNumThreads()
-    with tempfile.TemporaryDirectory(prefix="numa-render-") as tmp:
+    scratch_root = Path(os.environ.get("NUMA_RENDER_CACHE") or plan["out_dir"]).expanduser()
+    scratch_root.mkdir(parents=True, exist_ok=True)
+    _check_space(r, scratch_root, frames)
+    with tempfile.TemporaryDirectory(prefix=".numa-render-", dir=str(scratch_root)) as tmp:
         tmpd = Path(tmp)
         cache = tmpd / "cache"
         cache.mkdir()
@@ -925,8 +998,10 @@ def render_video(plan: dict | str | os.PathLike, out_path: str | os.PathLike, *,
         t2 = time.perf_counter()
         tmp_out = tmpd / "joined.mp4"
         _mux([Path(j[3]) for j in jobs], tmp_out)
-        os.replace(tmp_out, out) if tmp_out.stat().st_dev == out.parent.stat().st_dev else \
-            out.write_bytes(tmp_out.read_bytes())
+        if tmp_out.stat().st_dev == out.parent.stat().st_dev:
+            os.replace(tmp_out, out)
+        else:
+            shutil.copyfile(tmp_out, out)
         timings["mux_s"] = round(time.perf_counter() - t2, 3)
     digest = hashlib.sha256(out.read_bytes()).hexdigest()
     timings["total_s"] = round(time.perf_counter() - t_start, 3)
@@ -1052,7 +1127,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     info = render_video(plan, out, t_from=args.t_from, t_to=args.t_to, size=size, draft=draft,
                         workers=args.workers, encoder=args.encoder)
     info["plan"] = str(Path(args.plan).expanduser().resolve())
-    nc.write_json(out_dir / "render.json", info)
+    if args.t_from is not None or args.t_to is not None:
+        a = args.t_from or 0.0
+        b = args.t_to if args.t_to is not None else float(plan["duration"])
+        nc.write_json(out_dir / f"segment_{_num(a)}_{_num(b)}.json", info)
+    else:
+        nc.write_json(out_dir / "render.json", info)
     tm = info["timings"]
     print(f"{info['output']}  {info['size'][0]}x{info['size'][1]}  {info['frames']} frames  "
           f"{tm['total_s']:.1f} s ({info['workers']} workers, {info['encoder']})")

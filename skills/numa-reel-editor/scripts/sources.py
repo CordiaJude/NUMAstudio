@@ -59,7 +59,9 @@ LICENSES: dict[str, dict[str, Any]] = {
                 "patterns": [r"\bpixabay\b"]},
     "mixkit": {"name": "Mixkit License", "url": "mixkit.co/license/", "ok": True, "patterns": [r"\bmixkit\b"]},
     "higgsfield_paid": {"name": "Higgsfield paid plan (commercial use included)", "url": "higgsfield.ai/terms",
-                        "ok": True, "patterns": [r"\bhiggsfield\b"]},
+                        "ok": True,
+                        "patterns": [r"\bhiggsfield\b.*\b(paid|plus|pro|ultra|creator|business|team|enterprise|"
+                                     r"starter|basic|subscription|annual|monthly)\b"]},
     "meta_sound_collection": {"name": "Meta Sound Collection", "url": "www.facebook.com/sound/collection/",
                               "ok": True, "patterns": [r"\bsound collection\b", r"\bmeta sound\b"]},
     "cc0": {"name": "CC0 / public domain", "url": "creativecommons.org/publicdomain/zero/1.0/", "ok": True,
@@ -69,8 +71,19 @@ LICENSES: dict[str, dict[str, Any]] = {
     "ofl": {"name": "SIL Open Font License", "url": "openfontlicense.org/", "ok": True,
             "patterns": [r"\bofl\b", r"open font license", r"\bliberation\b"]},
     "partner_permission": {"name": "Written permission from a collab partner", "url": None, "ok": True,
-                           "patterns": [r"\b(written )?permission\b", r"\bcollab partner\b"]},
+                           "patterns": [r"\b(written|signed|email(ed)?) permission\b",
+                                        r"\bpermission (granted|given|received|in writing)\b",
+                                        r"\bcollab partner\b.*\b(permission|agreement|approved)\b"]},
     # Not allowed on a business account:
+    "no_permission": {"name": "No permission (missing, pending or refused)", "url": None, "ok": False,
+                      "patterns": [r"\b(no|without|missing|pending|awaiting|requested|refused|denied|declined)\b.{0,20}"
+                                   r"\bpermission\b", r"\bpermission\b.{0,20}\b(pending|requested|asked|not|refused|"
+                                   r"denied|declined|awaiting|tbd|unclear)\b"]},
+    "higgsfield_free": {"name": "Higgsfield free plan or trial (no commercial use)", "url": "higgsfield.ai/terms",
+                        "ok": False, "patterns": [r"\bhiggsfield\b.*\b(free|trial|unpaid)\b",
+                                                  r"\b(free|trial)\b.*\bhiggsfield\b"]},
+    "higgsfield_unstated": {"name": "Higgsfield, plan not stated (only paid plans include commercial use)",
+                            "url": "higgsfield.ai/terms", "ok": False, "last": True, "patterns": [r"\bhiggsfield\b"]},
     "non_commercial": {"name": "Non-commercial only", "url": None, "ok": False,
                        "patterns": [r"non[- ]?commercial", r"\bcc[- ]by[- ]nc", r"\bnc\b"]},
     "personal_use": {"name": "Personal use only", "url": None, "ok": False, "patterns": [r"personal use"]},
@@ -81,7 +94,9 @@ LICENSES: dict[str, dict[str, Any]] = {
                 "patterns": [r"^\s*(unknown|none|n/?a|tbd|\?)\s*$", r"\bnot sure\b", r"\bfound (it )?online\b", r"\bgoogle images\b"]},
 }
 # Checked first: a "not allowed" match beats an allowed one ("Pixabay ... non-commercial").
-_ORDER = [k for k, v in LICENSES.items() if not v["ok"]] + [k for k, v in LICENSES.items() if v["ok"]]
+# Catch-alls marked "last" are tried after everything else ("Higgsfield" with no plan named).
+_ORDER = ([k for k, v in LICENSES.items() if not v["ok"] and not v.get("last")]
+          + [k for k, v in LICENSES.items() if v["ok"]] + [k for k, v in LICENSES.items() if v.get("last")])
 
 
 def classify(text: str | None) -> str | None:
@@ -246,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "licenses":
         if args.json:
-            nc.print_json({k: {kk: vv for kk, vv in v.items() if kk != "patterns"} for k, v in LICENSES.items()})
+            nc.print_json({k: {kk: vv for kk, vv in v.items() if kk not in ("patterns", "last")} for k, v in LICENSES.items()})
         else:
             for k, v in LICENSES.items():
                 print(f"{k:<22} {'allowed' if v['ok'] else 'NOT allowed':<12} {v['name']}" + (f"  {v['url']}" if v["url"] else ""))

@@ -104,3 +104,9 @@ def test_rounds_pass_and_hold(nc, tmp_path, capsys):
         run(["round", "--rounds", str(rf2), "--version", v, json.dumps(sheet(5)), "--gate-failed", "Banned claim"])
     assert json.loads(rf2.read_text())["decision"] == "hold"
     assert run(["best", "--rounds", str(rf2)]) == 1
+
+
+def test_integral_floats_accepted(nc):
+    scores, _ = cs.parse_sheet(sheet(4.0, hook=5.0))
+    assert scores["hook"] == 5 and isinstance(scores["hook"], int)
+    assert cs.evaluate(scores)["total"] == 84

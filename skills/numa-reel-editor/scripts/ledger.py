@@ -3,7 +3,7 @@
 
 Usage:
     ledger.py add    --ledger PATH --credits N --job TEXT [--category CAT] [--reel SLUG] [--model TEXT]
-                     [--outcome kept|failed-refunded|unwanted | --refunded] [--date YYYY-MM-DD]
+                     [--outcome kept|failed-refunded|unwanted | --refunded] [--date YYYY-MM-DD] [--force]
     ledger.py check  --ledger PATH [--category CAT --credits N | --job PRICE_ID] [--reel SLUG]
                      [--date YYYY-MM-DD] [--json]
     ledger.py report --ledger PATH [--month YYYY-MM] [--date YYYY-MM-DD] [--balance N] [--json]
@@ -29,16 +29,22 @@ the proposed spend plus what is already charged this month:
   the month (1..D, D = days in the month) and, with p = pacing.max_fraction_spent
   (0.55), b = pacing.by_day (15), r = max_credits_per_reel / monthly_credits:
 
-      f(d) = max(p * d / b, r)                  for d <= b
+      f(d) = max(p * (d / b) ** 0.6, r)         for d <= b
       f(d) = p + (1 - p) * (d - b) / (D - b)    for d >  b
 
-  i.e. a straight line from 0 to 55% at day 15 (never below one reel's cap, so
-  day 1 can still make a reel), then a straight line to 100% on the last day.
-  At d = 15 this is exactly the spec's "by day 15, no more than 55% spent".
+  The spec fixes only day 15 (55%), so the first half is a concave curve that
+  lets the month start faster than a straight line (about 28% by day 5, 43%
+  by day 10) and never below one reel's cap (12.5%, so day 1 can make a reel);
+  after day 15 a straight line to 100% on the last day.
 
 Credits don't roll over (budget.rollover false): every figure is per calendar
 month, so a new month starts from zero. Deterministic: the date comes from
 --date (default: today's local date).
+
+`add` runs the same rules on the job being recorded: a job that breaks one is
+not recorded (one `ERROR:` per rule, exit 1) unless --force is given (the
+credits were already spent), when it is recorded with a `WARN:` per rule.
+Refunded failures cost nothing and are always recorded.
 
 Exit codes: check 0 = allowed, 1 = blocked (one `ERROR: blocked: <reason>` line
 per broken rule); other commands 0, 1 on bad input, 2 on usage errors.
@@ -69,6 +75,7 @@ PRICE_CATEGORY = (
     ("music", "music"),
     ("voice", "voice"),
 )
+PACING_EXPONENT = 0.6  # concave start of the month (see module doc)
 MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
@@ -151,7 +158,7 @@ def pacing_fraction(d: date) -> float:
     floor = min(1.0, float(b.get("max_credits_per_reel", 150)) / monthly) if monthly else 0.0
     days = calendar.monthrange(d.year, d.month)[1]
     if d.day <= by:
-        return max(p * d.day / by, floor)
+        return max(p * (d.day / by) ** PACING_EXPONENT, floor)
     return min(1.0, p + (1.0 - p) * (d.day - by) / max(1, days - by))
 
 
@@ -324,6 +331,7 @@ def build_parser() -> nc.ArgParser:
     a.add_argument("--model", help="model or tool (default: from the price id)")
     a.add_argument("--outcome", choices=OUTCOMES, help="kept (default), failed-refunded or unwanted")
     a.add_argument("--refunded", action="store_true", help="same as --outcome failed-refunded")
+    a.add_argument("--force", action="store_true", help="record even when it breaks a budget rule (already spent)")
     _date_arg(a)
     c = sub.add_parser("check", aliases=["can-spend"], help="may this spend happen? exit 1 when blocked")
     _common(c)
@@ -420,6 +428,13 @@ def main(argv: list[str] | None = None) -> int:
             "credits": r2(credits), "charged": 0.0 if outcome == "failed-refunded" else r2(credits),
             "reel": args.reel, "outcome": outcome,
         }
+        if entry["charged"] > 0:
+            res = evaluate(led.entries(entry["month"]), d, category, entry["charged"], args.reel)
+            for reason in res["reasons"]:
+                (nc.warn if args.force else nc.error_line)(f"over budget: {reason}")
+            if res["reasons"] and not args.force:
+                nc.error_line("not recorded: re-run with --force if the credits were already spent")
+                return 1
         led.append(entry)
         s = summary(led.entries(entry["month"]), entry["month"])
         print(f"Recorded #{entry['n']} {entry['job']} {credits:g} credits ({outcome}) in {category}; "

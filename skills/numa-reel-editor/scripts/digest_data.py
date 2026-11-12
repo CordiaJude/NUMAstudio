@@ -9,7 +9,7 @@ Inputs:
 * METRICS_JSON: the metrics store (metrics.py).
 * ROWS: the "NUMA 30-Day Reel Plan" Sheet exported as JSON (a list of row
   objects, or {"rows": [...]}) or CSV with a header row. Column names are
-  matched loosely (case and punctuation ignored): Day, Date, Title, Goal,
+  matched loosely (case and punctuation ignored; dates YYYY-MM-DD or M/D/YYYY): Day, Date, Title, Goal,
   Template, Hook, Voiceover script, Shot list (or Shots), Music, Call to action,
   Status, Folder link, Reel link, and optionally Posting time, Room, Film by.
   Shots may be a list of {"shot", "room", "time_of_day", "minutes"} objects or
@@ -76,6 +76,23 @@ ALIASES = {
 }
 
 
+def parse_row_date(value: Any) -> date | None:
+    """YYYY-MM-DD (optionally with a time after it) or the Sheet's US style M/D/YYYY (or M/D/YY)."""
+    text = str(value).strip()
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        pass
+    m = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{2}|\d{4})(?:\s.*)?", text)
+    if m:
+        mo, dy, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return date(yr + 2000 if yr < 100 else yr, mo, dy)
+        except ValueError:
+            return None
+    return None
+
+
 def load_rows(path: str) -> list[dict]:
     p = Path(path).expanduser().resolve()
     if not p.exists():
@@ -97,21 +114,28 @@ def load_rows(path: str) -> list[dict]:
         d = row.get("date")
         if not d:
             continue  # blank Sheet lines
-        try:
-            row["date"] = date.fromisoformat(str(d)[:10])
-        except ValueError:
-            raise nc.UserError(f"plan rows {p}: row {i + 1}: date must be YYYY-MM-DD, got {d!r}") from None
+        row["date"] = parse_row_date(d)
+        if row["date"] is None:
+            raise nc.UserError(f"plan rows {p}: row {i + 1}: date must be YYYY-MM-DD or M/D/YYYY, got {d!r}")
         rows.append(row)
     return sorted(rows, key=lambda r: (r["date"], str(r.get("day", ""))))
+
+
+ROOM_PREFIX = re.compile(r"^\s*(?:room\s*:\s*([^|;,:]+?)\s*[|;:,]\s*|\[([^\]]+)\]\s*)", re.I)
+
+
+def split_room_prefix(text: str) -> tuple[str | None, str]:
+    """'room: sauna | wide of the benches' or '[sauna] wide ...' -> ('sauna', 'wide ...')."""
+    m = ROOM_PREFIX.match(text)
+    if not m:
+        return None, text.strip()
+    return (m.group(1) or m.group(2)).strip().lower(), text[m.end():].strip()
 
 
 def room_of(text: str, explicit: Any = None) -> str:
     if isinstance(explicit, str) and explicit.strip():
         return explicit.strip().lower()
     t = text.lower()
-    m = re.match(r"^\s*(?:room\s*:\s*([^|;,:]+)|\[([^\]]+)\])", t)
-    if m:
-        return (m.group(1) or m.group(2)).strip()
     for room, pat in ROOM_WORDS:
         if re.search(pat, t):
             return room
@@ -136,13 +160,15 @@ def shots_of(row: dict) -> list[dict]:
     items = shots if isinstance(shots, list) else [ln for ln in str(shots or "").splitlines() if ln.strip()]
     for it in items:
         if isinstance(it, dict):
-            text = str(it.get("shot") or it.get("text") or it.get("what") or "").strip()
+            prefix, text = split_room_prefix(str(it.get("shot") or it.get("text") or it.get("what") or ""))
             minutes = it.get("minutes")
+            it = {**it, "room": it.get("room") or prefix}
             room, when = room_of(text, it.get("room") or row.get("room")), time_of(text, it.get("time_of_day") or it.get("light"))
         else:
             text = re.sub(r"^\s*(\[ ?\]|[-*•]|\d+[.)])\s*", "", str(it)).strip()
             minutes = None
-            room, when = room_of(text, row.get("room")), time_of(text)
+            prefix, text = split_room_prefix(text)
+            room, when = room_of(text, prefix or row.get("room")), time_of(text)
         if not text:
             continue
         if not isinstance(minutes, (int, float)) or isinstance(minutes, bool) or minutes <= 0:
@@ -221,12 +247,13 @@ def last_week(store: dict, start: date, end: date, rows: list[dict]) -> dict:
     if with_views:
         b = max(with_views, key=lambda r: (r["views"], r["sends"] or 0, r["reel"]))
         signals = []
-        for k, label in (("retention", "retention"), ("sends_per_1k_reach", "sends per 1,000 reach"),
-                         ("saves_per_1k_reach", "saves per 1,000 reach")):
+        for k, label, fmt in (("retention", "retention", lambda x: f"{x * 100:.0f}%"),
+                              ("sends_per_1k_reach", "sends per 1,000 reach", lambda x: f"{x:.1f}"),
+                              ("saves_per_1k_reach", "saves per 1,000 reach", lambda x: f"{x:.1f}")):
             if isinstance(b[k], (int, float)) and medians[k] and b[k] > medians[k]:
-                signals.append(f"{label} {b[k]:g} vs NUMA median {medians[k]:g}")
+                signals.append(f"{label} {fmt(b[k])} vs NUMA median {fmt(medians[k])}")
         if isinstance(b["skip_rate_vs_median"], (int, float)) and b["skip_rate_vs_median"] < 0:
-            signals.append(f"skip rate {abs(b['skip_rate_vs_median']):g} points under NUMA's median")
+            signals.append(f"skip rate {abs(b['skip_rate_vs_median']):.1f} points under NUMA's median")
         best = {"reel": b["reel"], "title": b["title"], "views": b["views"], "signals": signals, "tags": b["tags"]}
     known = {r["reel"] for r in reels} | {r["title"] for r in reels}
     pending = [{"date": r["date"].isoformat(), "title": r.get("title"), "reel_link": r.get("reel_link")}
@@ -339,7 +366,8 @@ def text_draft(d: dict) -> str:
     if sl["rooms"]:
         for g in sl["rooms"]:
             L.append(f"{g['room'].upper()} (~{_n(g['minutes'])} min)")
-            L += [f"  [ ] {s['shot']}" + (f" · {s['time_of_day']}" if s["time_of_day"] != "any time" else "")
+            L += [f"  [ ] {s['shot']}" + (f" · {s['time_of_day']}" if s["time_of_day"] != "any time"
+                                         and s["time_of_day"] not in s["shot"].lower() else "")
                   + (f" · Day {s['day']}" if s.get("day") else "") for s in g["shots"]]
     else:
         L.append("- No filming needed this week.")

@@ -14,9 +14,12 @@ Usage:
 `add` probes each file (a folder adds every photo/clip inside it, recursively):
 width/height after rotation, orientation, duration (clips), sharpness
 (variance of the Laplacian on a 1080-wide grey copy, the same measure as
-analyze.py; clips use a frame from the middle) and a face count from OpenCV's
-frontal-face detector (people = yes when any face is found, unless --people is
-given; when the installed OpenCV has no Haar cascade, people stays unknown).
+analyze.py; clips use a frame from the middle) and a face count from
+vision.FaceDetector (the bundled YuNet model, Haar fallback): people = yes when
+any face is found, unless --people is given; with no detector available (or
+--no-faces) people stays unknown, which is never "usable" without consent.
+A file that cannot be read is skipped with a WARN; the rest are still indexed
+(exit 1 only when nothing could be indexed).
 Re-adding a path refreshes the probe and keeps its tags. Consent defaults to
 "unknown" for items with (or possibly with) people and "n/a" without.
 
@@ -116,30 +119,29 @@ def sharpness(im) -> float:
     return round(float(cv2.Laplacian(np.asarray(g, dtype=np.uint8), cv2.CV_64F).var()), 2)
 
 
-_FACE_WARNED = False
+_DETECTOR: list = []  # one vision.FaceDetector per process (loading the model is the slow part)
+
+
+def face_detector():
+    """vision.FaceDetector (bundled YuNet, Haar fallback), shared; warns once when no detector is available."""
+    if not _DETECTOR:
+        import vision
+        det = vision.FaceDetector()
+        if not det.available:
+            nc.warn(f"face detection unavailable ({det.reason}); people = unknown (not usable without consent) "
+                    "unless --people is given")
+        _DETECTOR.append(det)
+    return _DETECTOR[0]
 
 
 def face_count(im) -> int | None:
-    """Frontal faces found by OpenCV's Haar cascade; None when this OpenCV build has no cascade detector."""
-    global _FACE_WARNED
-    import cv2
+    """Faces found by vision.FaceDetector; None when no detector is available (people unknown)."""
     import numpy as np
-    data = getattr(cv2, "data", None)
-    if not hasattr(cv2, "CascadeClassifier") or data is None or not getattr(data, "haarcascades", None):
-        if not _FACE_WARNED:
-            nc.warn("face detection is not available in this OpenCV build; people = unknown unless --people is given")
-            _FACE_WARNED = True
+    det = face_detector()
+    if not det.available:
         return None
-    cascade = cv2.CascadeClassifier(str(Path(data.haarcascades) / "haarcascade_frontalface_default.xml"))
-    if cascade.empty():
-        return None
-    g = im.convert("L")
-    if g.width > 720:
-        g = g.resize((720, max(1, round(g.height * 720 / g.width))), resample=3)
-    a = np.asarray(g, dtype=np.uint8)
-    side = max(24, min(a.shape) // 12)
-    faces = cascade.detectMultiScale(a, scaleFactor=1.1, minNeighbors=6, minSize=(side, side))
-    return int(len(faces))
+    bgr = np.ascontiguousarray(np.asarray(im.convert("RGB"))[:, :, ::-1])
+    return len(det.detect(bgr))
 
 
 def probe(path: Path, detect_faces: bool = True) -> dict:
@@ -300,8 +302,14 @@ def main(argv: list[str] | None = None) -> int:
         data = load_index(index, create=True)
         by_path = {it["path"]: it for it in data["items"]}
         new_tags = split_tags(args.tags)
+        done = 0
         for f in files:
-            info = probe(f, detect_faces=not args.no_faces)
+            try:
+                info = probe(f, detect_faces=not args.no_faces)
+            except nc.UserError as e:
+                nc.warn(f"skipped: {e}")
+                continue
+            done += 1
             it = by_path.get(str(f)) or {"id": item_id(f), "path": str(f), "tags": [], "link": None, "consent": None}
             people = yes_no(args.people)
             if people is None:
@@ -318,8 +326,11 @@ def main(argv: list[str] | None = None) -> int:
                 data["items"].append(it)
                 by_path[str(f)] = it
             print(line(it))
-        save_index(index, data)
-        print(f"Indexed {len(files)} file(s); {len(data['items'])} in the library")
+        if done:
+            save_index(index, data)
+        print(f"Indexed {done} of {len(files)} file(s); {len(data['items'])} in the library")
+        if not done:
+            raise nc.UserError("no file could be indexed")
         return 0
 
     data = load_index(index)

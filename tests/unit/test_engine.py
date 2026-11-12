@@ -104,7 +104,7 @@ def test_draft_is_smaller_and_faster(plan_factory, tmp_path):
     assert d["timings"]["render_encode_s"] < f["timings"]["render_encode_s"]
 
 
-def test_cli_render_writes_render_json(plan_factory, tmp_path, run_script):
+def test_cli_segment_render_writes_segment_json(plan_factory, tmp_path, run_script):
     plan = short_plan(plan_factory, size=[1080, 1350], duration=1.0, endcard={"t": 0.6}, lines=[],
                       hook={"text": "Quiet heat.", "t1": 1.5},
                       shots=[dict(plan_factory()["shots"][0], t0=0.0, t1=0.6),
@@ -114,7 +114,9 @@ def test_cli_render_writes_render_json(plan_factory, tmp_path, run_script):
     r = run_script("engine.py", pj, "--draft", "--workers", "2", "--to", "0.5")
     assert r.returncode == 0, r.stderr
     out = Path(plan["out_dir"]) / "segment_0_0.5.mp4"
-    rj = json.loads((Path(plan["out_dir"]) / "render.json").read_text())
+    rj = json.loads((Path(plan["out_dir"]) / "segment_0_0.5.json").read_text())
+    assert not (Path(plan["out_dir"]) / "render.json").exists()   # a range never overwrites the full render's report
+    assert not list(Path(plan["out_dir"]).glob(".numa-render-*"))  # render cache cleaned up
     assert rj["sha256"] == sha(out) and rj["frames"] == 15 and rj["size"] == [540, 676]
     for key in ("timings", "encoder", "workers", "fps"):
         assert key in rj
@@ -493,3 +495,108 @@ def test_v1_plan_renders(plan_factory, tmp_path):
     p["endcard"].pop("logo")
     f = engine.render_frame(engine.prepare_plan(p), 8.0, size=SMALL)
     assert f.shape == (480, 270, 3)
+
+
+# --------------------------------------------------------------------------- review round 2
+def test_rate_cap_holds_over_every_two_second_window(plan_factory, tmp_path, monkeypatch, nc):
+    """Per-segment VBV budget: summed packet sizes over any 2 s window stay under the configured cap."""
+    cfg = json.loads(Path(nc.CONFIG_PATH).read_text())
+    cfg["render"]["video"]["maxrate"] = "600k"                     # far below what noise at 270x480 wants
+    cpath = tmp_path / "studio.json"
+    cpath.write_text(json.dumps(cfg))
+    monkeypatch.setenv("NUMA_CONFIG", str(cpath))
+    nc.clear_caches()
+    rng = np.random.default_rng(1)
+    noisy = tmp_path / "noise.png"
+    Image.fromarray(rng.integers(0, 256, (960, 540, 3), dtype=np.uint8)).save(noisy)
+    p = plan_factory(duration=6.0, lines=[], leaks=[], endcard={"t": 5.0})
+    p["shots"] = [{"src": str(noisy), "t0": 0.0, "t1": 3.0, "z": [1.0, 1.3]},
+                  {"src": str(noisy), "t0": 3.0, "t1": 6.0, "z": [1.3, 1.0], "tr": "flash"}]
+    info = engine.render_video(engine.prepare_plan(p), tmp_path / "rate.mp4", size=SMALL, workers=1, progress=False)
+    rate, buf = engine.rate_budget("600k")
+    assert (1 + engine.VBV_INIT) * buf + rate * 2.0 <= 600e3 * 2.0 + 1      # the worst case is within the cap
+    assert info["vbv_maxrate"] == rate and info["rate_cap"] == 600000
+    out = engine.nc.run(["ffprobe", "-v", "error", "-select_streams", "v", "-show_entries", "packet=pts_time,size",
+                         "-of", "json", str(tmp_path / "rate.mp4")]).stdout
+    pk = sorted((float(x["pts_time"]), int(x["size"])) for x in json.loads(out)["packets"])
+    sizes = [sz for _, sz in pk]
+    assert len(sizes) == 180
+    worst = max(sum(sizes[i:i + 60]) for i in range(len(sizes) - 59)) * 8 / 2.0
+    assert worst <= 600e3
+    assert worst > 300e3        # the cap is what limits this content, so the check is meaningful
+
+
+def test_disk_space_is_checked_before_caching(plan_factory, clip, tmp_path, monkeypatch):
+    p = short_plan(plan_factory)
+    p["shots"][1] = {"kind": "video", "src": str(clip), "t0": 0.7, "t1": 1.4, "tr": "whip"}
+    plan = engine.prepare_plan(p)
+
+    class Usage:
+        total, used, free = 10 ** 9, 10 ** 9, 10 ** 6
+
+    monkeypatch.setattr(engine.shutil, "disk_usage", lambda _p: Usage)
+    with pytest.raises(engine.nc.UserError, match="not enough disk space for the render cache"):
+        engine.render_video(plan, tmp_path / "x.mp4", size=SMALL, workers=1, progress=False)
+    with engine.Renderer(plan, size=SMALL) as r:
+        need = engine.cache_bytes(r, range(0, 60))
+        assert need >= r.shots[1].n_frames * r.shots[1].pw * r.shots[1].ph * 3
+
+
+@pytest.mark.parametrize("size", [(1080, 1350), (1080, 1920), (1080, 1080)])
+def test_endcard_lockup_never_overlaps(plan_factory, size):
+    """The tagline sits under the wordmark's real bottom edge and the subtitle under the tagline, at any size."""
+    p = plan_factory(size=list(size), caption_y=round(1420 * size[1] / 1920))
+    with engine.Renderer(engine.prepare_plan(p)) as r:
+        b = r._ec["boxes"]
+        assert b["logo"][1] < b["tag"][0] < b["tag"][1] < b["sub"][0]
+        assert b["logo"][0] >= 0.12 * size[1] and b["sub"][1] <= 0.90 * size[1]
+        f = r.frame(8.0)
+        logo_bottom, tag_top = int(b["logo"][1]), int(b["tag"][0])
+        gap = f[logo_bottom + 2:tag_top - 2]
+        assert gap.size and (gap.min(-1) > 245).sum() < 20                # no white ink between them
+
+
+def test_caption_fade_ends_before_the_next_line(plan_factory):
+    """A line's fade-out never overlaps the next line's first word (same spot on screen)."""
+    p = plan_factory(lines=[{"words": [["This", 0.3], ["is", 0.5], ["what", 0.7], ["Katie", 0.9, 1], ["saw.", 1.1]],
+                             "end": 2.55},
+                            {"words": [["I", 2.6], ["stayed.", 2.9]], "end": 4.0}])
+    with engine.Renderer(engine.prepare_plan(p), size=SMALL) as r:
+        first = r._lines[0]
+        assert first[4] <= 2.6 + 1e-9
+        r._lines = [first]
+        img = np.zeros((r.height, r.width, 3), np.uint8)
+        r._draw_captions(img, 2.6)
+        assert img.max() == 0
+        mid = np.zeros_like(img)
+        r._draw_captions(mid, 2.56)
+        assert 0 < mid.max() < 255
+
+
+def test_first_shot_forced_to_cut_and_short_clip_warns(plan_factory, clip, capsys):
+    p = plan_factory()
+    p["shots"][0]["tr"] = "flash"
+    p["shots"][1] = {"kind": "video", "src": str(clip), "start": 1.5, "t0": 3.0, "t1": 5.4, "tr": "punch"}
+    with engine.Renderer(engine.prepare_plan(p), size=SMALL) as r:
+        assert r.shots[0].tr == "cut"
+    err = capsys.readouterr().err
+    assert "WARN: shots[0].tr" in err and "WARN: shots[1]: the clip ends" in err
+    p["shots"][1]["start"] = 5.0
+    with engine.Renderer(engine.prepare_plan(p), size=SMALL, quiet=True):
+        pass
+    assert capsys.readouterr().err == ""                               # workers stay quiet
+    with engine.Renderer(engine.prepare_plan(p), size=SMALL):
+        pass
+    assert "past the end of the" in capsys.readouterr().err
+
+
+def test_auto_pan_speed_is_capped_on_short_shots(plan_factory, ramp_image):
+    p = plan_factory(duration=1.0, lines=[], leaks=[], endcard={"t": 0.9})
+    p["shots"] = [{"src": str(ramp_image), "t0": 0.0, "t1": 0.3, "z": [1.0, 1.02], "look": "none"},
+                  {"src": str(ramp_image), "t0": 0.3, "t1": 1.0, "z": [1.0, 1.02], "look": "none"}]
+    with engine.Renderer(engine.prepare_plan(p), size=SMALL) as r:
+        fr = r.shots[0].framing
+        x0 = fr.to_screen(0.0, fr.pw / 2, 0)[0]
+        x1 = fr.to_screen(1.0, fr.pw / 2, 0)[0]
+        assert abs(x1 - x0) <= engine.em.AUTO_PAN_MAX_SPEED * SMALL[0] * 0.3 * 1.05 + 2
+        assert abs(x1 - x0) > 5                                         # it still pans

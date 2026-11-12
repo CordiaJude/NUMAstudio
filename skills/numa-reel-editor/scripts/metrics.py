@@ -43,7 +43,7 @@ Store shape (metrics.json):
      "reels": {"<id>": {"tags": {...},
                         "pulls": {"48h": {"pulled_at": ISO|null, "metrics": {...}, "computed": {...}}},
                         "computed": {..., "from_pull": "7d"}}},
-     "account": {"daily": {"YYYY-MM-DD": {"reach": 812, ...}},
+     "account": {"daily": {"YYYY-MM-DD": {"reach": 812, ...}},   (dated by period start = end_time - 1 day)
                  "totals": {"YYYY-MM-DD": {"accounts_engaged": 120, ...}}}}
 """
 from __future__ import annotations
@@ -163,6 +163,17 @@ def load_json_arg(value: str, what: str) -> Any:
     return nc.read_json(Path(value).expanduser(), what)
 
 
+def check_composio(obj: Any, where: str) -> None:
+    """A Composio envelope with successful: false carries the API error: report it instead of 'no insights'."""
+    if isinstance(obj, dict) and obj.get("successful") is False:
+        err = obj.get("error")
+        if not err and isinstance(obj.get("data"), dict):
+            err = obj["data"].get("error")
+        if isinstance(err, dict):
+            err = err.get("message") or json.dumps(err, sort_keys=True)
+        raise nc.UserError(f"{where}: the Composio call failed: {err or 'no error message'}")
+
+
 def insight_items(obj: Any) -> list[dict] | None:
     """The Graph `data` list of {name, values|total_value} inside a Composio response, else None."""
     if isinstance(obj, list) and obj and all(isinstance(x, dict) and "name" in x for x in obj):
@@ -197,6 +208,7 @@ def reject_retired(names: list[str], where: str) -> None:
 
 def parse_media_insights(obj: Any, where: str) -> tuple[dict, list[str]]:
     """Per-reel metrics {store name: number} and a list of ignored names."""
+    check_composio(obj, where)
     items = insight_items(obj)
     raw: dict[str, Any] = {}
     if items is None:
@@ -235,6 +247,7 @@ def parse_media_insights(obj: Any, where: str) -> tuple[dict, list[str]]:
 
 def parse_user_insights(obj: Any, where: str, day: str | None) -> tuple[dict, dict]:
     """Account insights -> ({date: {metric: value}} daily series, {date: {metric: value}} totals)."""
+    check_composio(obj, where)
     items = insight_items(obj)
     if items is None:
         raise nc.UserError(f"{where}: no insights found (expected Graph 'data[].name' with values or total_value)")
@@ -257,7 +270,8 @@ def parse_user_insights(obj: Any, where: str, day: str | None) -> tuple[dict, di
             if isinstance(v["value"], dict):
                 continue  # demographic breakdowns are not kept
             when = v.get("end_time")
-            d = parse_time(when, f"{where}: {name} end_time").date().isoformat() if when else day
+            # a daily value's end_time is the end of its day: the period started one day earlier
+            d = (parse_time(when, f"{where}: {name} end_time") - timedelta(days=1)).date().isoformat() if when else day
             if d is None:
                 raise nc.UsageError(f"{where}: {name} values have no end_time; pass --date YYYY-MM-DD")
             daily.setdefault(d, {})[name] = _number(v["value"], f"{where}: {name}")

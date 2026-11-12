@@ -38,7 +38,9 @@ def test_price_lookup(nc, capsys):
 def test_pacing_formula(nc):
     assert lg.pacing_fraction(date(2026, 12, 15)) == pytest.approx(0.55)
     assert lg.pacing_fraction(date(2026, 12, 1)) == pytest.approx(150 / 1200)   # one reel's cap floor
-    assert lg.pacing_fraction(date(2026, 12, 10)) == pytest.approx(0.55 * 10 / 15)
+    assert lg.pacing_fraction(date(2026, 12, 5)) == pytest.approx(0.55 * (5 / 15) ** 0.6)  # about 28%
+    assert lg.pacing_fraction(date(2026, 12, 10)) == pytest.approx(0.55 * (10 / 15) ** 0.6)
+    assert lg.pacing_fraction(date(2026, 12, 10)) > 0.55 * 10 / 15  # looser than a straight line
     assert lg.pacing_fraction(date(2026, 12, 31)) == pytest.approx(1.0)
     assert lg.pacing_fraction(date(2026, 12, 23)) == pytest.approx(0.55 + 0.45 * 8 / 16)
 
@@ -47,7 +49,7 @@ def test_day15_overspend_blocks(nc, tmp_path, capsys):
     led = tmp_path / "ledger.json"
     for i in range(11):  # 11 x 60 = 660 = exactly 55% of 1,200
         cat = "reserve" if i == 0 else "kling_motion"
-        assert add(led, "--job", "batch", "--category", cat, "--credits", 60, "--date", f"2026-12-{1 + i:02d}") == 0
+        assert add(led, "--job", "batch", "--category", cat, "--credits", 60, "--date", "2026-12-15") == 0
     capsys.readouterr()
     assert run(["check", "--ledger", str(led), "--date", "2026-12-15"]) == 0  # exactly at the cap is allowed
     # 660 used by day 15: anything more breaks the pacing rule
@@ -108,3 +110,19 @@ def test_sheet_csv_and_errors(nc, tmp_path, capsys):
     assert run(["add", "--ledger", str(led), "--job", "custom", "--credits", "3"]) == 2  # category needed
     assert run(["check", "--ledger", str(led), "--category", "bogus", "--credits", "1"]) == 2
     assert run([]) == 2
+
+
+def test_add_refuses_overspend_unless_forced(nc, tmp_path, capsys):
+    led = tmp_path / "l.json"
+    assert run(["add", "--ledger", str(led), "--job", "big", "--category", "voice", "--credits", "11",
+                "--date", "2026-12-20"]) == 1
+    err = capsys.readouterr().err
+    assert "over budget: category voice" in err and "--force" in err
+    assert not led.exists()
+    assert run(["add", "--ledger", str(led), "--job", "big", "--category", "voice", "--credits", "11",
+                "--date", "2026-12-20", "--force"]) == 0
+    assert "WARN: over budget" in capsys.readouterr().err
+    assert lg.summary(lg.Ledger(led).entries("2026-12"), "2026-12")["categories"]["voice"]["left"] == -1
+    # refunded failures cost nothing, so they are always recorded
+    assert run(["add", "--ledger", str(led), "--job", "big", "--category", "voice", "--credits", "11",
+                "--refunded", "--date", "2026-12-20"]) == 0

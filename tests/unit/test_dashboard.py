@@ -92,3 +92,33 @@ def test_bad_inputs(nc, tmp_path):
     assert run([str(m), str(tmp_path / "o.html"), "--notes", str(bad)]) == 1
     assert run([str(m), str(tmp_path / "o.html"), "--today", "12/11/2026"]) == 2
     assert run([]) == 2
+
+
+def test_heatmap_and_text_contrast(nc):
+    """Every heat cell's text and the muted ink reach WCAG AA 4.5:1 in both themes."""
+    for heat, card in ((db.HEAT_LIGHT, db.CARD_LIGHT), (db.HEAT_DARK, db.CARD_DARK)):
+        for i in range(18, 101):
+            a = i / 100
+            ink = (0, 0, 0) if db.heat_ink(a, heat, card) == "#000" else (255, 255, 255)
+            assert db.contrast(db.blend(heat, a, card), ink) >= 4.5, (heat, a)
+    hexrgb = lambda h: tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))  # noqa: E731
+    css = db.css()
+    light_muted = re.search(r"--muted:(#[0-9a-f]{6})", css).group(1)
+    dark_muted = re.findall(r"--muted:(#[0-9a-f]{6})", css)[1]
+    assert db.contrast(hexrgb(light_muted), hexrgb("#faf6ee")) >= 4.5
+    assert db.contrast(hexrgb(dark_muted), hexrgb("#211f1c")) >= 4.5
+
+
+def test_leaderboard_cards_and_cap(nc, tmp_path):
+    store = fixture_store()
+    base = store["reels"]["r0"]
+    for i in range(6, 26):
+        store["reels"][f"r{i}"] = json.loads(json.dumps(base))
+    m = tmp_path / "metrics.json"
+    m.write_text(json.dumps(store))
+    out = tmp_path / "o.html"
+    assert run([str(m), str(out)]) == 0
+    html = out.read_text()
+    assert 'class="cards"' in html and 'data-label="Views"' in html and "table.cards td::before" in html
+    assert "Show the other 6 reels" in html
+    assert 'class="sr"' not in html and "Darker is better" not in html

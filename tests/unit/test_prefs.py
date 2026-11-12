@@ -27,6 +27,15 @@ def run(argv):
     ("fewer flashes", "max_flashes", 1),
     ("it feels too choppy", "min_shot_seconds", 1.0),
     ("shorter captions", "max_caption_chars", 50),
+    ("the captions are too long", "max_caption_chars", 50),
+    ("hooks are too long", "max_hook_words", 6),
+    ("the reels are too long", "max_duration", 45),
+    ("no more whips", "max_whips", 0),
+    ("don't use whips", "max_whips", 0),
+    ("Don’t use any whips", "max_whips", 0),
+    ("no more flashes", "max_flashes", 0),
+    ("stop using the flashes", "max_flashes", 0),
+    ("cut down on light leaks", "max_leaks", 1),
 ])
 def test_rule_mapping(nc, note, key, value):
     r = prefs.match_rule(note)
@@ -91,3 +100,9 @@ def test_errors(nc, tmp_path, capsys):
     assert run(["list", "--file", str(f)]) == 1
     assert run(["add", "--file", str(f), "x", "--date", "Dec 1"]) == 2
     assert run([]) == 2
+
+
+@pytest.mark.parametrize("note", ["it's too long", "make it pop", "the intro is too long"])
+def test_vague_length_notes_set_no_duration(nc, note):
+    r = prefs.match_rule(note)
+    assert r is None or r.key != "max_duration"
