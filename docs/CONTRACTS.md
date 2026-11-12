@@ -607,7 +607,8 @@ timing unchanged. `--dry-run` prints the corrections without writing.
 ### baseline_plan.py [T4]
 ```
 baseline_plan.py WORK_DIR [--duration S] [--hook TEXT] [--subtitle TEXT]
-                 [--seed N] [--prefs FILE] [--out FILE]
+                 [--seed N] [--prefs FILE] [--out FILE] [--script FILE]
+                 [--before SHOT_ID --after SHOT_ID] [--turn S]
 ```
 Reads `WORK/analysis.json`; writes a valid, beat-synced schema_version 2 plan
 to `WORK/plan.json` (or `--out`) with `out_dir = WORK`, brand.json defaults

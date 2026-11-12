@@ -272,6 +272,8 @@ def normalize_to(src: str | Path, dst: str | Path, *, prefilter: str = "", secon
             f"loudnorm=I={cfg['i']}:TP={cfg['tp']}:LRA={cfg['lra']}:measured_I={m['input_i']:.2f}"
             f":measured_TP={m['input_tp']:.2f}:measured_LRA={m['input_lra']:.2f}"
             f":measured_thresh={m['input_thresh']:.2f}:offset={m['target_offset']:.2f}:linear=true")
+    if seconds:
+        chain += f",apad=whole_dur={seconds:.3f},atrim=0:{seconds:.3f}"  # exactly `seconds` long
     nc.run(base + ["-af", chain + f",aresample={SAMPLE_RATE}"] + tail, what="ffmpeg normalize")
 
 
@@ -473,7 +475,8 @@ def transcribe(path: str | Path, notes: Notes) -> list[dict] | None:
             condition_on_previous_text=False, hallucination_silence_threshold=2.0)
         return filter_segments(list(segments))
     except Exception as e:  # noqa: BLE001 - a failed transcript never kills analyze (R24)
-        notes.warn(f"transcription failed ({type(e).__name__}: {" ".join(str(e).split())}); the reel gets no captions "
+        detail = " ".join(str(e).split())
+        notes.warn(f"transcription failed ({type(e).__name__}: {detail}); the reel gets no captions "
                    "unless a script is given")
         return None
 
@@ -761,8 +764,8 @@ def analyze(raw: Path, work: Path, *, voice: Path | None = None, music: Path | N
         sheet_photos = contact_sheet(photo_imgs, work / "contact_photos.jpg")
         sheet_clips = contact_sheet(clip_imgs, work / "contact_clips.jpg")
     if not photos and not clips:
-        raise nc.UserError(f"no usable photos or clips in {raw}: the Director's fallback is the bundled brand photos "
-                           f"({nc.BRAND_PHOTOS_DIR})")
+        notes.warn(f"no usable photos or clips in {raw}: the Director's fallback is the bundled brand photos "
+                   f"({nc.BRAND_PHOTOS_DIR})")
 
     clip_audio = []
     for c in clips:
@@ -813,7 +816,7 @@ def analyze(raw: Path, work: Path, *, voice: Path | None = None, music: Path | N
     elif clip_audio:
         usable = [c for c in clips if c["id"] in {ca["id"] for ca in clip_audio}]
         concat_clip_audio(usable, master_wav, notes)
-        audio.update(combined=True)
+        audio.update(combined=False)
         beat_src, transcribe_src, source = master_wav, master_wav, "clips"
         notes.warn("no voiceover or music file: master.wav is the clips' own sound")
     elif pad_seconds > 0:

@@ -158,8 +158,8 @@ def test_voice_and_music_ducked_mix(nc, tmp_path, make_image, make_audio):
     a = run_analyze(raw, tmp_path / "work")
     master = Path(a["audio"]["master"])
     assert a["audio"]["voice"].endswith("voiceover.wav") and a["audio"]["music"].endswith("music.wav")
-    assert abs(nc.media_duration(master) - (4 + 7.5)) <= 0.1
-    assert abs(a["duration"] - 11.5) <= 0.1
+    assert abs(nc.media_duration(master) - (4 + 7.5)) <= 0.01
+    assert a["duration"] == 11.5
     rate, ch, y = read_pcm(master)
     assert rate == 48000 and ch == 2
     during = band_level(y, rate, 1.0, 3.0, 1000)
@@ -177,7 +177,7 @@ def test_mix_length_capped_at_60s(nc, tmp_path):
     sine(music, nc, 10, 800)
     total = an.mix_voice_music(voice, music, tmp_path / "master.wav", an.Notes())
     assert total == 60.0
-    assert abs(nc.media_duration(tmp_path / "master.wav") - 60.0) <= 0.1
+    assert abs(nc.media_duration(tmp_path / "master.wav") - 60.0) <= 0.01
 
 
 def test_combined_track_normalized(nc, tmp_path, make_image, make_audio):
@@ -284,7 +284,7 @@ def test_clips_only_uses_clip_sound_and_clip_info(nc, tmp_path, make_video):
     assert c1["has_audio"] is False and c1["fps"] == 25 and c1["size"] == [240, 320]
     for c in (c0, c1):
         assert c["sharpness"] >= 0 and 0 <= c["brightness"] <= 1 and c["shake"] >= 0
-    assert a["audio"]["source"] == "clips" and a["audio"]["master"]
+    assert a["audio"]["source"] == "clips" and a["audio"]["master"] and a["audio"]["combined"] is False
     assert [x["id"] for x in a["audio"]["clip_audio"]] == ["C0"]
     assert (work / "contact_clips.jpg").is_file() and not (work / "contact_photos.jpg").exists()
     assert a["contact_sheets"] == {"photos": None, "clips": str(work.resolve() / "contact_clips.jpg")}
@@ -332,9 +332,18 @@ def test_errors(nc, tmp_path, make_audio, run_script):
     (tmp_path / "empty").mkdir()
     r = run_script("analyze.py", tmp_path / "empty", tmp_path / "work")
     assert r.returncode == 1 and "no photos, clips or audio" in r.stderr
-    make_audio(tmp_path / "audio_only" / "music.mp3", seconds=1.0)
-    r = run_script("analyze.py", tmp_path / "audio_only", tmp_path / "work")
-    assert r.returncode == 1 and "brand photos" in r.stderr
+
+
+def test_audio_only_folder_still_analyzed(nc, tmp_path, make_audio, run_script):
+    make_audio(tmp_path / "audio_only" / "music.mp3", seconds=4.0, kind="music")
+    work = tmp_path / "work"
+    r = run_script("analyze.py", tmp_path / "audio_only", work, "--json")
+    assert r.returncode == 0, r.stderr
+    assert "WARN: no usable photos or clips" in r.stderr and "brand photos" in r.stderr
+    doc = json.loads((work / "analysis.json").read_text())
+    assert doc["photos"] == [] and doc["clips"] == [] and doc["duration"] > 0
+    assert doc["contact_sheets"] == {"photos": None, "clips": None}
+    assert nc.schema_errors("analysis", doc) == []
 
 
 def test_unreadable_file_skipped_and_cli_json(nc, tmp_path, make_image, run_script):
@@ -352,3 +361,36 @@ def test_unreadable_file_skipped_and_cli_json(nc, tmp_path, make_image, run_scri
     assert nc.schema_errors("analysis", doc) == []
     assert doc["photos"][0]["path"] == str((raw / "good.jpg").resolve())
     assert all(os.path.isabs(p["path"]) for p in doc["photos"])
+
+
+def test_script_captions_on_combined_track_without_vad(nc, tmp_path, make_image, make_audio, monkeypatch):
+    """Whisper unavailable (and with it Silero VAD): captions come from the script,
+    voice_present is true, and the energy fallback keeps them out of the music outro."""
+    raw = tmp_path / "raw"
+    make_image(raw / "p.jpg", size=(200, 300))
+    make_audio(raw / "voiceover_and_music.mp3", seconds=20.0, kind="music")
+    script = tmp_path / "script.txt"
+    script.write_text("Walk out wide awake. Three minutes of cold, and the whole day changes.")
+    monkeypatch.setitem(sys.modules, "faster_whisper", None)
+    monkeypatch.setitem(sys.modules, "faster_whisper.vad", None)
+    rc = an.main([str(raw), str(tmp_path / "work"), "--script", str(script)])
+    assert rc == 0
+    doc = json.loads((tmp_path / "work" / "analysis.json").read_text())
+    assert doc["voice_present"] is True
+    assert [w["w"] for w in doc["words"]][:2] == ["Walk", "out"] and len(doc["words"]) == 13
+    assert doc["words"][-1]["end"] <= doc["duration"] - 7.5 + 0.01
+    assert nc.schema_errors("analysis", doc) == []
+
+
+YEAR_ONE = os.environ.get("NUMA_TEST_PACK")
+
+
+@needs_whisper
+@pytest.mark.skipif(not YEAR_ONE, reason="set NUMA_TEST_PACK to the test-pack folder to run the Year One check")
+def test_year_one_golden(nc, tmp_path):
+    pack = Path(YEAR_ONE)
+    raw = pack / "2026-11-09 Year One" if (pack / "2026-11-09 Year One").is_dir() else pack
+    a = an.analyze(raw, tmp_path / "work")
+    assert abs(a["bpm"] - 107.7) <= 1
+    assert "Mobile" in a["transcript"]
+    assert nc.schema_errors("analysis", a) == []

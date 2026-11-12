@@ -184,6 +184,7 @@ class Shot:
                 faces = [[(b[0] * fw - l) / sw, (b[1] * fh - t) / sh, b[2] * fw / sw, b[3] * fh / sh] for b in faces]
             self.panorama = em.is_panorama(sw, sh, W, H)
         focus = [min(1.0, max(0.0, focus[0])), min(1.0, max(0.0, focus[1]))]
+        self.aspect = sw / sh
         self.pw, self.ph = em.plate_geometry(sw, sh, W, H, zmax, self.panorama)
         self.framing = em.make_framing(self.pw, self.ph, W, H, z, d.get("pan", [0, 0]), focus, i,
                                        self.panorama, sw / sh)
@@ -198,18 +199,10 @@ class Shot:
         x, y, w, h = b
         if self.panorama:
             fh = em.FILL_FOREGROUND_HEIGHT * self.ph
-            aspect = self._src_aspect()
-            fw = fh * aspect
+            fw = fh * self.aspect
             ox, oy = (self.pw - fw) / 2, (self.ph - fh) / 2
             return (ox + x * fw, oy + y * fh, w * fw, h * fh)
         return (x * self.pw, y * self.ph, w * self.pw, h * self.ph)
-
-    def _src_aspect(self) -> float:
-        if self.kind == "video":
-            info = em.video_info(self.src, self.what)
-            return info["width"] / info["height"]
-        sw, sh = em.image_size(self.src, self.d.get("crop"), self.what)
-        return sw / sh
 
     def progress(self, t: float) -> float:
         return (t - self.t0) / self.len

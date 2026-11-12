@@ -32,7 +32,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numa_common as nc  # noqa: E402
 
 APPEAR_LEAD_S = 0.4          # caption appear = max(start, end - 0.4) (spec p.17)
-GARBAGE_RATIO = 0.3          # below this similarity to the script the transcript is replaced by the script
+GARBAGE_RATIO = 0.3          # below this similarity to the script the transcript may be unusable...
+GARBAGE_MEAN_PROB = 0.5      # ...when the recognizer was also unsure on average...
+GARBAGE_FEW_WORDS = 0.25     # ...or heard fewer words than this fraction of the script
+SCRIPT_MISMATCH_WARNING = ("transcript differs from the shoot-card script (confident recognition kept; "
+                           "the voiceover may be ad-libbed)")
 WORD_SIMILARITY = 0.5        # misheard word vs script word: replace when this similar (or anchored by context)
 MAX_BLOCK = 4                # longest mismatch run (words) the aligner rewrites
 SCRIPT_FALLBACK_WARNING = "captions from the script, timed to the audio (transcript missing or unusable)"
@@ -350,25 +354,36 @@ def silero_spans(audio, sr: int = 16000) -> list[tuple[float, float]] | None:
 
 def speech_spans(analysis: dict) -> list[tuple[float, float]]:
     """Where the voice is in the reel's audio: the voiceover file by energy (it is dry),
-    a combined track by Silero VAD; else the whole track minus the music outro."""
+    a combined track by Silero VAD (else frame energy). Without Silero the spans
+    stop before the music outro so script captions never run into it."""
     audio = analysis.get("audio") or {}
     duration = float(analysis.get("duration") or 0.0)
     voice, master = audio.get("voice"), audio.get("master")
     spans: list[tuple[float, float]] | None = None
+    exact = False
     try:
         if voice and Path(voice).is_file():
             data = _decode_16k(voice)
-            spans = silero_spans(data) or energy_spans(data)
+            spans = silero_spans(data)
+            exact = True  # a dry voiceover: energy is reliable too
+            spans = spans or energy_spans(data)
         elif master and Path(master).is_file():
-            spans = silero_spans(_decode_16k(master))
+            data = _decode_16k(master)
+            spans = silero_spans(data)
+            exact = spans is not None
+            if spans is None:
+                spans = energy_spans(data)
     except nc.UserError:
         spans = None
+    outro = float(nc.config_value("render.outro_music_only_s.default", 7.5) or 7.5)
+    has_music = bool(audio.get("music") or audio.get("combined") or audio.get("source") in ("combined", "clips"))
+    limit = duration
+    if not exact and has_music and duration > outro + 3:
+        limit = duration - outro
     if duration > 0:
-        spans = [(s, min(e, duration)) for s, e in (spans or []) if s < duration]
-    if not spans and duration > 0:
-        outro = float(nc.config_value("render.outro_music_only_s.default", 7.5) or 7.5)
-        end = duration - outro if (audio.get("music") and duration > outro + 3) else duration
-        spans = [(min(0.3, end / 4), max(end - 0.3, 0.5))]
+        spans = [(s, min(e, limit)) for s, e in (spans or []) if s < limit - 0.1]
+    if not spans and limit > 0:
+        spans = [(min(0.3, limit / 4), max(limit - 0.3, 0.5))]
     return spans or []
 
 
@@ -420,7 +435,14 @@ def correct(analysis: dict, script: Sequence[str] | None = None, brand: dict | N
     confirmed: set[int] = set()
     if script:
         ratio = script_ratio(words, script)
-        if (not words or ratio < GARBAGE_RATIO) and allow_script_timing:
+        probs = [float(w.get("p", 1.0)) for w in words]
+        unsure = bool(probs) and sum(probs) / len(probs) < GARBAGE_MEAN_PROB
+        few = len(words) < max(3, GARBAGE_FEW_WORDS * len(script))
+        garbage = not words or (ratio < GARBAGE_RATIO and (unsure or few))
+        if words and ratio < GARBAGE_RATIO and not garbage and SCRIPT_MISMATCH_WARNING not in warnings:
+            nc.warn(SCRIPT_MISMATCH_WARNING)
+            warnings.append(SCRIPT_MISMATCH_WARNING)
+        if garbage and allow_script_timing:
             spans = speech_spans(analysis)
             new = words_from_script(script, spans)
             if new:
@@ -431,8 +453,7 @@ def correct(analysis: dict, script: Sequence[str] | None = None, brand: dict | N
                 confirmed = set(range(len(words)))
                 if SCRIPT_FALLBACK_WARNING not in warnings:
                     warnings.append(SCRIPT_FALLBACK_WARNING)
-                analysis["voice_present"] = bool(analysis.get("voice_present")) or bool(
-                    (analysis.get("audio") or {}).get("voice"))
+                analysis["voice_present"] = True  # captions exist, so the voice chain and captions apply
         elif words:
             words, script_corr, confirmed = align_to_script(words, script)
             corrections.extend(script_corr)
@@ -471,7 +492,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     tokens = read_script(args.script) if args.script else None
     before = len(analysis.get("corrections") or [])
     audio = analysis.get("audio") or {}
-    music_only = not audio.get("voice") and not audio.get("combined") and not analysis.get("voice_present")
+    music_only = (not audio.get("voice") and not audio.get("combined") and audio.get("source") != "clips"
+                  and not analysis.get("voice_present"))
     correct(analysis, tokens, allow_script_timing=not music_only)
     new = analysis["corrections"][before:]
     from_script = any(w.get("source") == "script" for w in analysis["words"])

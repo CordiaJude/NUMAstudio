@@ -125,7 +125,10 @@ def test_words_from_script_spread_over_spans():
 
 def test_garbage_transcript_replaced_by_script_timed_to_voice(nc, analysis_doc, make_audio, tmp_path):
     voice = make_audio(tmp_path / "voice.wav", seconds=6.0, kind="voice")
-    doc = analysis_doc(words_of("la la la la la la"), duration=6.0)
+    garbage = words_of("la la la la la la")
+    for w in garbage:
+        w["p"] = 0.3   # the recognizer was unsure: garbage, not an ad-lib
+    doc = analysis_doc(garbage, duration=6.0)
     doc["audio"]["voice"] = str(voice)
     script = ft.script_tokens("Walk out wide awake. Three minutes of cold.")
     ft.correct(doc, script)
@@ -188,3 +191,24 @@ def test_cli_errors(nc, run_script, tmp_path):
     assert r.returncode == 1 and "re-run analyze.py" in r.stderr and "Traceback" not in r.stderr
     r = run_script("fix_transcript.py", tmp_path / "missing.json")
     assert r.returncode == 1 and r.stderr.startswith("ERROR:")
+
+
+def test_confident_transcript_kept_when_script_unrelated(nc, analysis_doc):
+    words = words_of("today we are opening the doors to our new studio space for everyone")
+    for w in words:
+        w["p"] = 0.95
+    doc = analysis_doc(words)
+    ft.correct(doc, ft.script_tokens("Cold water resets the nervous system in three minutes flat."))
+    assert doc["transcript"] == " ".join(w["w"] for w in words)
+    assert not any(w.get("source") == "script" for w in doc["words"])
+    assert ft.SCRIPT_MISMATCH_WARNING in doc["warnings"]
+
+
+def test_unsure_transcript_replaced_by_script(nc, analysis_doc):
+    words = words_of("uh the of a an the of uh")
+    for w in words:
+        w["p"] = 0.2
+    doc = analysis_doc(words, duration=10.0)
+    ft.correct(doc, ft.script_tokens("Cold water resets the nervous system."))
+    assert doc["transcript"] == "Cold water resets the nervous system."
+    assert doc["voice_present"] is True
