@@ -65,12 +65,30 @@ Think like a senior agency editor. You choose; don't offer Katie options. Write 
 10. **Leaks:** add `[time, duration, strength]` light leaks at 4-8 key transitions (strength 0.3-0.45).
 11. **End card:** last 4-5 s, `flash` transition, ripple background, tagline "Wellness Collective", plus a sign-off subtitle written for this reel in NUMA's voice.
 
-## Step 5: Higgsfield motion clips (the premium layer)
-Turn the 2-4 best hero **photos** into real 5-second moving shots (steam rising, water rippling, a slow camera push, people breathing).
-1. Call `balance`. Price one clip first with `generate_video` + `get_cost: true` (model `seedance_2_5`, `aspect_ratio` "9:16", `duration` 5).
-2. **Budget:** spend at most 150 credits per reel (or the monthly budget set at setup, whichever is lower). Never ask for more; skip extra clips instead. If the balance can't cover even one clip, skip this step and note it in Decisions.
-3. Upload each photo with `media_upload` → curl PUT → `media_confirm`. Then generate with its media_id. Prompts must ask for subtle, realistic, slow motion and protect faces and logos, e.g. *"Slow cinematic dolly push-in. Gentle steam rises and drifts through warm cedar light. Keep the room, the people and the logo exactly as they are. No new objects, no text, photorealistic."* Use `generate_video_batch` for several, then `jobs_wait`.
-4. Download the results and use each one as a `kind: "video"` shot in the plan (`start` 0.3, `look` "warm"). Look at a frame of every clip and drop any with warped faces, melted text or extra limbs.
+## Step 5: Higgsfield at full power (Plus plan, 1,200 credits a month)
+Re-check every price with `get_cost` before a job. Prices checked Nov 12, 2026: Kling 3.0 5 s pro no sound 8.75, standard no sound 7.5; Seedance 2.5 5 s 720p 35, 1080p 80; outpaint image 2; upscale image 2K 2; ElevenLabs Music v2.5 40 s instrumental 5.82; Seed Audio voice line 0.5; reframe a 20 s video 245 (never use it; crop in the engine).
+Use these on every reel, in this order of value:
+1. **Outpaint** every landscape photo to 9:16 (extend only walls, floor, sky or background; never invent equipment or people).
+2. **Upscale** weak phone photos to 2K.
+3. **Motion clips:** Kling 3.0 pro, sound off, for 2-3 hero stills per reel. Seedance 2.5 only for the one signature shot a week.
+4. **Before/after:** Kling with a start image (before) and an end image (after, same angle) for transformation reels.
+5. **Music:** generate an instrumental bed (ElevenLabs Music v2.5, force_instrumental) at the reel's exact length and tempo when no licensed track is supplied.
+6. **Voice fallback:** Seed Audio preset voice, or Katie's cloned voice only if her consent is in the Consent List.
+7. **Virality predictor** on the final cut as a second opinion for the critic (never a gate).
+Prompt rules: the image sets composition; the prompt describes only motion and camera; one main motion plus at most one subtle extra; name what must not change (faces, bodies, logo, sign, lettering, room); no new objects, no text; 9:16. Example: "Slow push-in toward the water. Gentle ripples spread across the surface. Keep the tub, the room and any person exactly as they are. No new objects, no text. Photorealistic, 9:16."
+Inspect a frame of every result; re-roll once with lower motion if a face, hand, logo or text warps, then fall back to the still with engine motion.
+**Monthly budget (1,200):** motion 510, signature shots 140, photo prep 220, music 120, voice 10, re-rolls and reserve 200. Keep a running ledger; by day 15 no more than 55% spent. Never exceed the monthly budget; skip extras instead.
+
+## Rules from research (Nov 2026)
+- Ranking: watch time, sends per reach and likes per reach matter most; sends drive reach to new people. Hook hard in the first 1.5 s with movement, the strongest image and on-screen hook text; end most scripts with a reason to send it to a friend.
+- Length: reach reels 8-15 s, story reels 20-35 s, milestone pieces up to 45 s. Cut long voiceovers down; never pad.
+- Every reel must work muted: hook text on screen, captions for every word, payoff visible.
+- Music: NUMA is a business account, so never use trending or popular songs. Use a generated instrumental, Meta Sound Collection at posting time, or a commercial library whose license names social media. Record the source in sources.txt.
+- Claims: no health or results claims (cures, treats, burns fat, boosts immunity, detox). Use experience language ("feel reset"). Hedges like "may" don't make a claim OK.
+- Cadence: 4-5 reels a week; other days get Stories and carousels cut from the same material.
+
+## Critic hard gates (any one fails the reel)
+A health claim; a recognizable person not on the Consent List; music with no recorded license source; silent, clipped or non-48 kHz audio, or not 1080x1920; NUMA misspelled or a wrong price, date or offer; an AI shot that warps a face, hand, logo or text, or shows something NUMA doesn't have; black bars, mirrored edges or frozen frames. Otherwise score hook 20, retention 15, story 15, shareability 10, beat sync 10, captions 10, brand look 10, audio 10; pass at 80+ with nothing below 3 and hook at least 4; max 3 fix rounds.
 
 ## Step 6: Render
 1. Write `plan.json` in the work folder (schema below). Preview first: `python3 <skill>/scripts/engine.py plan.json preview <5-10 times>` writes `preview.jpg`. **Look at it.** Check: no mirrored edges, captions readable and not covering faces (otherwise move `caption_y` within 1300-1500), the right shot on each line, a clean end card. Fix and repeat.

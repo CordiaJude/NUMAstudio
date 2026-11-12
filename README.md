@@ -23,6 +23,6 @@ Then connect **Google Drive** and **Higgsfield** under Settings → Connectors a
 | `commands/numa-setup` | Readiness check for packages, Drive and Higgsfield |
 
 ## Costs
-Higgsfield motion clips cost about 35 credits each; a reel uses 2-4 (capped at 150 credits without asking). With no credits, reels are still made, just without AI motion clips.
+Plan on Higgsfield Plus (1,200 credits a month). Kling 3.0 motion clips cost about 9 credits each, photo outpaint and upscale 2, a custom music bed about 6. With no credits, reels are still made, just without AI motion.
 
 Fonts: Liberation Serif (SIL Open Font License, see `skills/numa-reel-editor/assets/fonts/LICENSE`). Brand assets © NUMA Wellness Collective.
