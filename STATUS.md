@@ -21,3 +21,4 @@
 - T0: brand.json outcome_verbs misses "good for your joints/heart".
 
 ## Traceability (filled in Phase 5)
+- T2: R13/R14/R18/R102 instruction rows go to T8 (librarian.md, analyst.md, make-reel.md): fix_transcript --script order.
