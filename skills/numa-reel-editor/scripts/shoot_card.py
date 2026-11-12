@@ -71,8 +71,10 @@ MONTH_JSON: {"month": "2026-12", "rows": [row, ...], "events": [{"name", "date"}
 "closures": ["YYYY-MM-DD" | {"date", "name"}], "mix": {pillar: share},
 "mix_tolerance": 0.10} or a bare list of rows. A row has at least day, date and
 kind (reel, trial_reel, carousel, stories); reel rows carry the script.json
-fields once scripted. Defaults: topic = title; sales = goal is offer; invites =
-sales, an event teaser, or a booking-style CTA; mix = brand.json
+fields once scripted. Defaults: topic = title; sales = goal is offer, or an
+offer or booking ask ("book", "$49", a brand.json offer name such as Discover
+NUMA) in the CTA, hook, lines or on-screen text (`sales: true` forces it; false
+never hides it); invites = sales, an event teaser, or a booking-style CTA; mix = brand.json
 positioning.content_mix. --closures FILE: JSON (list of dates or
 {"date", "name"} objects, or {"closures": [...]}) or CSV with a Date column;
 merged with MONTH_JSON closures and brand.json closures.known.
@@ -119,6 +121,9 @@ TEMPLATES_PATH = nc.PLUGIN_ROOT / "skills" / "numa-scriptwriter" / "templates.js
 INVITE_CTA = re.compile(
     r"\b(book|booking|come in|come by|join us|see you|sign up|try (?:a|your first) (?:month|session|class)|"
     r"discover numa|first month|drop[- ]in|reserve|rsvp|tickets?|visit us|walk in)\b", re.I)
+SALES_TEXT = re.compile(
+    r"\b(book|booking|first month|try a month|discover numa|drop[- ]in|membership|sign up|tickets?)\b|\$\s?\d+",
+    re.I)
 SAFETY_TOPIC = re.compile(r"\b(plunge|cold|ice|sauna|heat|hot)\b", re.I)
 
 # Default week (spec p.34). Fri alternates offer weeks and collab weeks (one sales moment a week).
@@ -270,7 +275,6 @@ def skeleton(year: int, month: int) -> dict:
             "folder": day_folder(day, d, None), "title": None, "status": "Planned",
         }
         row.update(slot)
-        row["sales"] = row.get("goal") == "offer"
         if row["kind"] == "trial_reel":
             row["trial_reel"] = True
         if row["slot"] == "carousel":
@@ -371,8 +375,26 @@ def row_topic(r: dict) -> str | None:
     return norm_topic(t) + (f" #{r['event_role']}" if r.get("event_role") else "")
 
 
+def offer_words() -> re.Pattern:
+    names = [str(o.get("name")) for o in (nc.brand_value("offerings.offers", []) or [])
+             if isinstance(o, dict) and o.get("name")]
+    alt = "|".join(re.escape(n) for n in names)
+    return re.compile(SALES_TEXT.pattern + (rf"|\b(?:{alt})\b" if alt else ""), re.I)
+
+
+def row_texts(r: dict) -> str:
+    parts = [r.get("cta"), r.get("hook_text"), *(r.get("lines") or []), *(r.get("on_screen") or [])]
+    return " ".join(str(x) for x in parts if isinstance(x, str))
+
+
 def is_sales(r: dict) -> bool:
-    return bool(r["sales"]) if "sales" in r else r.get("goal") == "offer"
+    """A sales-focused post: goal offer, or an offer/booking ask in its CTA, hook, lines or on-screen text.
+
+    `sales: true` forces it on; a `false` never hides a goal or text that sells.
+    """
+    if r.get("sales") is True or r.get("goal") == "offer":
+        return True
+    return bool(offer_words().search(row_texts(r)))
 
 
 def is_invite(r: dict) -> bool:
@@ -448,7 +470,7 @@ def script_problems(s: dict, templates: dict | None = None, where: str = "script
         warns.append(f"{where}: no batch_room; the digest cannot group these shots by room")
     if templates is not None and s["template"] not in templates:
         errs.append(f"{where}: unknown template {s['template']!r} (skills/numa-scriptwriter/templates.json)")
-    if s.get("series") == "ask_the_dpt" and (is_sales(s) or INVITE_CTA.search(s["cta"])):
+    if s.get("series") == "ask_the_dpt" and (is_sales(s) or INVITE_CTA.search(row_texts(s))):
         errs.append(f"{where}: Ask the DPT is education only; no booking pitch or offer in the same reel")
     hook_words = set(norm_topic(s["hook_text"]).split())
     if hook_words and not hook_words & set(norm_topic(lines[0]).split()):
