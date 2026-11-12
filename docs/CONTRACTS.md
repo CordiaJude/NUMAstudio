@@ -144,6 +144,11 @@ Drive folder name, e.g. `Day 07 - 2026-12-09 - Your first plunge`).
 
 ---
 
+### Local state folder and run files (instruction layer)
+
+- `STUDIO` = `~/NUMA Studio` (the desktop/sandbox working root); `STATE` = `STUDIO/_Plan`, mirrored to Drive `NUMA Reels/_Plan/`. It holds `preferences.json` (prefs.py), `credit_ledger/` (ledger.py folder mode, `ledger_YYYY-MM.json`), `media_library.json` (library.py), `consent_list.json` (export of the Consent List Sheet), `competitors_YYYY-MM.json` (Scout log read by dashboard.py), `metrics.json` (metrics.py).
+- Per-reel work files written by the crew: `work/script.txt` (shoot-card script), `work/plan_row.json`, `work/inventory.json` (librarian), `work/ratings.json` (analyst), `work/scout.json`, `work/material.json`, `work/motion.json` (motion crew), `work/decisions.md` (Decisions log), `work/critic_r<N>.json` + `work/critic_rounds.json` (critic_score.py), `work/versions/r<N>/`, `work/upload_queue.json`, `work/delivered.json`; extra material under `raw/scout/`, `raw/library/`, `raw/generated/`.
+
 ## 3. analysis.json
 
 Schema: `schemas/analysis.schema.json` (schema_version 2). Written by
