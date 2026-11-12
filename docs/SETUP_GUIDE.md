@@ -22,7 +22,8 @@ Nothing in the code can replace these (spec p.2):
    - [ ] Google Sheets (same Google account).
    - [ ] Higgsfield, on the **Plus** plan (1,200 credits a month; config `higgsfield.plan`).
    - [ ] Composio with the **Instagram** toolkit: NUMA's Instagram must be a **Business or Creator** account; it uses Instagram Login, so no Facebook Page is needed and no Meta app review applies. Scopes: config `instagram.scopes` (instagram_business_basic, instagram_business_manage_insights, instagram_business_content_publish).
-   - [ ] Gmail, if the Monday digest should arrive by email (Katie's answer to Q38) and for your own one-line escalations.
+   - [ ] Gmail, if the Monday digest should arrive by email (Katie's answer to Q38) or your one-line escalations should (/numa-setup asks you once for your escalation channel and keeps it only in `_Plan/brand.json`, never in the public repo).
+   - [ ] Google Docs (shoot cards and digests are Docs).
 5. [ ] **Claude in Chrome:** install the extension in a Chrome profile that is signed in to NUMA's Instagram, Facebook and Google Business accounts.
 6. [ ] **Drive:** `/numa-setup` step 5 creates whatever is missing: `NUMA Reels/` with `_Plan/`, `_Plan/Music Library/`, `_Plan/Digests/`, a **Consent List** Sheet (columns exactly `name`, `photo`, `date consented`, `scope`) and a **Closures** Sheet (columns `Date`, `Name`, `Note`). Check them afterwards.
 7. [ ] **Voice (optional, strongly recommended):** Katie records a 1-minute voice sample for her cloned voice, and her written consent goes into the Consent List (scope `voice clone`). Without both, reels without her voiceover use a preset voice or on-screen text.
@@ -75,6 +76,8 @@ The plugin already handles both outcomes of each (DECISIONS D7, D8). Record each
 Card renewals on Claude or Higgsfield come to you as a one-line message; credits are never bought beyond the monthly budget.
 
 ## Research prompts (re-run quarterly)
+
+Reminder: /numa-setup creates the scheduled task "Quarterly research re-check" (the 12th of Feb, May, Aug and Nov, 10 am Central) that sends Jude this list as a one-line nudge.
 
 All five were run on November 12, 2026 and their findings are folded into the brief. Re-run them every quarter (next: February 12, 2027) because prices, models and platform rules change. Afterwards update config/studio.json (Higgsfield `prices` and `prices_verified_on`, Instagram `graph_api_version`) and brand.json `claims` through `/brand-setup`, and note the changes for the next Monday digest.
 

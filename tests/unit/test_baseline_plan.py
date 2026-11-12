@@ -305,3 +305,145 @@ def test_music_license_from_sources_json(make_job):
     plan = build(work, A)
     assert plan["music"]["license"] == "Owned by NUMA"
     assert not [i for i in vp.validate(plan, A) if i.rule == 29]
+
+
+# ---- templates (R194), text cards (R195), preferences (R278), consent (rule 41) ------------------
+SCRIPT = ("3 things to know before your first cold plunge.\nOne: start with three minutes.\n"
+          "Two: breathe out slowly.\nThree: walk out wide awake.\nSave this for your first visit.")
+TEMPLATE_IDS = [t["id"] for key in ("templates", "presets")
+                for t in json.loads(bp.TEMPLATES_PATH.read_text())[key]]
+
+
+@pytest.mark.parametrize("tid", TEMPLATE_IDS)
+@pytest.mark.parametrize("shape", ["voice_music", "music_only"])
+def test_every_template_yields_a_valid_plan(make_job, tid, shape):
+    work, A = make_job(shape, duration=60.0)
+    T = bp.load_template(tid)
+    plan = build(work, A, template=T, script=SCRIPT if shape == "music_only" else None)
+    iss = vp.validate(plan, A)
+    assert errors(iss) == [], errors(iss)
+    assert plan["template"] == tid and plan["meta"]["hook_type"] == T["hook_style"]
+    assert plan["duration"] == min(60.0, T["default_length_s"])
+    assert plan["signature"]["type"] == "flash"  # a wipe needs a true before/after pair
+    allowed = set(T["transitions"]) | {"flash", "fade"}   # flash/fade: the end card
+    assert {s["tr"] for s in plan["shots"]} <= allowed | {"cut"}
+    if T["kinetic_type"]:
+        assert plan["cards"], "kinetic template without text cards"
+    else:
+        assert "cards" not in plan
+    if "reach_cut" in plan.get("formats", {}):
+        assert plan["formats"]["reach_cut"]["hook"] != plan["hook"]["text"]
+
+
+def test_template_pacing_and_signature_position(make_job):
+    work, A = make_job("voice_music", duration=60.0)
+    fast = build(work, A, template=bp.load_template("event_teaser"))      # 1-3 beats a shot
+    slow = build(work, A, template=bp.load_template("founder_message"))   # 3-4 beats a shot
+    assert len(fast["shots"]) / fast["duration"] > len(slow["shots"]) / slow["duration"]
+    T = bp.load_template("myth_vs_fact")
+    plan = build(work, A, template=T)
+    assert plan["signature"]["t"] < 0.5 * plan["duration"]  # at 0.35 of the voiced part
+
+
+def test_transformation_template_wipe_and_before_look(make_job):
+    work, A = make_job("photos", duration=60.0)
+    plan = build(work, A, template=bp.load_template("transformation"), before="P2", after="P4")
+    assert plan["signature"]["type"] == "wipe"
+    wipe_t = plan["signature"]["t"]
+    assert {s["look"] for s in plan["shots"][:-1] if s["t1"] <= wipe_t + 1e-6} == {"before"}
+    assert errors(vp.validate(plan, A)) == []
+
+
+def test_education_preset_number_cards(make_job):
+    work, A = make_job("music_only", duration=60.0)
+    plan = build(work, A, template=bp.load_template("education_three_things"), script=SCRIPT)
+    cards = plan["cards"]
+    assert [c["text"] for c in cards if c["style"] == "number"] == ["1", "2", "3"]
+    assert cards[0]["t0"] == 0.0 and cards[0]["style"] == "statement" and "*" in cards[0]["text"]
+    cuts = {s["t0"] for s in plan["shots"]}
+    assert all(c["t0"] in cuts for c in cards)
+    assert all(a["t1"] <= b["t0"] for a, b in zip(cards, cards[1:]))
+    assert cards[-1]["t1"] <= plan["endcard"]["t"]
+    assert plan["meta"]["goal"] == "education" and plan["meta"]["length_class"] == "growth"
+
+
+def test_unknown_template_is_a_clean_error(make_job, run_script):
+    work, _ = make_job("photos")
+    r = run_script("baseline_plan.py", work, "--template", "nope")
+    assert r.returncode == 1 and "Traceback" not in r.stderr
+    assert "unknown template 'nope'" in r.stderr and "education_three_things" in r.stderr
+    r = run_script("baseline_plan.py", work, "--template", "education_three_things", "--duration", "45")
+    assert r.returncode == 0, r.stderr
+    assert json.loads((work / "plan.json").read_text())["template"] == "education_three_things"
+
+
+@pytest.mark.parametrize("key,value,check", [
+    ("max_whips", 0, lambda p: not [s for s in p["shots"] if s["tr"] == "whip"]),
+    ("max_flashes", 1, lambda p: sum(s["tr"] == "flash" for s in p["shots"]) == 1),
+    ("max_flashes", 0, lambda p: not [s for s in p["shots"] if s["tr"] == "flash"] and "signature" not in p),
+    ("max_leaks", 0, lambda p: not p["leaks"] and not [s for s in p["shots"] if s["tr"] == "leakfade"]),
+    ("max_leak_strength", 0.2, lambda p: all(lk[2] <= 0.2 for lk in p["leaks"])),
+    ("caption_px", 104, lambda p: p["caption_px"] == 104),
+    ("max_hook_words", 3, lambda p: len(p["hook"]["text"].split()) <= 3),
+    ("max_caption_chars", 25, lambda p: max(len(" ".join(w[0] for w in ln["words"])) for ln in p["lines"]) <= 25),
+    ("max_gold_words", 1, lambda p: all(sum(len(w) > 2 for w in ln["words"]) <= 1 for ln in p["lines"])),
+    ("max_duration", 20, lambda p: p["duration"] == 20),
+    ("min_duration", 40, lambda p: p["duration"] == 40),
+    ("max_shot_seconds", 1.5, lambda p: max(s["t1"] - s["t0"] for s in p["shots"][:-1]) <= 1.5 + 1e-6),
+    ("min_shot_seconds", 2.0, lambda p: sorted(s["t1"] - s["t0"] for s in p["shots"][:-1])[1] >= 2.0 - 1e-6),
+])
+def test_each_pref_changes_the_plan(make_job, key, value, check):
+    work, A = make_job("voice_music", duration=60.0)
+    plain = build(work, A, duration=35.0)
+    assert not check(plain), f"{key}: the default plan already satisfies the check"
+    plan = build(work, A, duration=35.0, prefs={key: value})
+    assert check(plan), key
+    iss = vp.validate(plan, A, {key: value})
+    assert errors(iss) == [], errors(iss)
+    assert not [i for i in iss if i.rule == 38 and key in i.message], iss
+
+
+def _faces_job(make_job, consent=None, n_faced=2):
+    work, A = make_job("photos", duration=40.0)
+    for p in A["photos"][:n_faced]:
+        p["faces"] = [[0.4, 0.2, 0.2, 0.15]]
+        p["sharpness"] = 500.0
+        if consent is not None:
+            p["consent"] = consent
+    return work, A
+
+
+def test_faces_with_consent_are_marked_people(make_job):
+    work, A = _faces_job(make_job, consent=True)
+    plan = build(work, A)
+    faced = {p["path"] for p in A["photos"][:2]}
+    shots = [s for s in plan["shots"] if s["src"] in faced]
+    assert shots and all(s["people"] is True and s["consent"] is True for s in shots)
+    assert errors(vp.validate(plan, A)) == []
+
+
+def test_faces_without_consent_are_left_out_or_blurred(make_job, capsys):
+    work, A = _faces_job(make_job)
+    plan = build(work, A)
+    faced = {p["path"] for p in A["photos"][:2]}
+    assert not [s for s in plan["shots"] if s["src"] in faced]
+    assert "no recorded consent" in capsys.readouterr().err
+    assert errors(vp.validate(plan, A)) == []
+    work, A = _faces_job(make_job, n_faced=5)   # too little other material: blur instead
+    plan = build(work, A)
+    blurred = [s for s in plan["shots"] if s.get("faces")]
+    assert blurred and all(s["blur"] and "people" not in s for s in blurred)
+    assert errors(vp.validate(plan, A)) == []
+
+
+def test_library_consent_and_min_people_shots(make_job, tmp_path):
+    work, A = _faces_job(make_job)
+    lib = tmp_path / "library.json"
+    lib.write_text(json.dumps({"schema_version": 1, "items": [
+        {"id": "L1", "path": A["photos"][0]["path"], "kind": "photo", "consent": "yes"}]}))
+    consent = bp.library_consent(lib)
+    plan = build(work, A, library=consent)
+    base_people = sum(1 for s in plan["shots"] if s.get("people"))
+    more = build(work, A, library=consent, prefs={"min_people_shots": base_people + 2})
+    assert sum(1 for s in more["shots"] if s.get("people")) == base_people + 2
+    assert errors(vp.validate(more, A)) == []

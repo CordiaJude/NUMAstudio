@@ -97,11 +97,11 @@ The copy file's `MUSIC:` line asking for a Sound Collection track at posting fol
 
 ## 8. Errors, retries and Jude-only escalations
 
-Send each escalation as one line to brand.json `escalation.contact` (Gmail when connected, else the run's notification), at most once a day per kind (once every 7 days for the legal review), dated in `STATE/escalations.json`. Never to Katie.
+Send each escalation as one line to brand.json `escalation.contact` through `escalation.channel` (read from `STATE/brand.json`; an email address goes by Gmail when connected, anything else or no Gmail goes as the run's notification), at most once a day per kind (once every 7 days for the legal review), dated in `STATE/escalations.json`. Never to Katie.
 
 | Error | What to do |
 |---|---|
-| Meta error 190 (token invalid or expired) | No retry. One line to Jude: "NUMA Studio: Instagram disconnected (Meta error 190). Fix: reconnect Instagram in Composio (Claude Settings > Connectors)." Queue the post (section 9), row "Ready to post". |
+| Meta error 190 (token invalid or expired) | No retry. One line to Jude: "NUMA Studio: Instagram disconnected (Meta error 190). Fix: in the Composio dashboard, open the Instagram toolkit and reconnect NUMA's Instagram (Business or Creator, Instagram Login)." Queue the post (section 9), row "Ready to post". |
 | Rate limit (Graph codes 4, 17, 32, 613) or Composio 429 | Wait 15 minutes and retry, twice; then queue. |
 | Composio or Meta unreachable, 5xx, timeout | Retry after 1, 5 and 15 minutes (failure row F15); then queue. |
 | Container `ERROR` | Create one new container (fresh public URL); a second `ERROR`: queue and add a digest heads-up with Meta's error text. |

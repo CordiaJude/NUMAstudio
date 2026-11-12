@@ -479,9 +479,16 @@ def run_checks(skip_render: bool, download_model: bool) -> tuple[list[Result], d
         guarded(f"import {module}", lambda m=module: check_import(m))
     guarded("ffmpeg", check_ffmpeg)
     guarded("ffprobe", check_ffprobe)
-    guarded("fonts", check_fonts)
-    guarded("assets", check_assets)
-    guarded("brand.json", check_brand)
+    try:  # fonts and assets come from brand.json: check it first, report it in its usual place
+        brand = check_brand()
+    except Exception as e:  # noqa: BLE001
+        brand = failed("brand.json", f"check crashed: {type(e).__name__}: {one_line(e)}", "run with NUMA_DEBUG=1 and report it")
+    for name, fn in (("fonts", check_fonts), ("assets", check_assets)):
+        if brand.status == "fail":
+            results.append(failed(name, "blocked by brand.json (fonts and asset paths come from it)", brand.fix))
+        else:
+            guarded(name, fn)
+    results.append(brand)
     guarded("config", check_config)
     guarded("face model", check_face_model)
     guarded("disk", check_disk)

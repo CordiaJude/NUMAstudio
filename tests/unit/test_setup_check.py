@@ -119,8 +119,12 @@ def test_broken_brand_json_fails(run_script, tmp_path):
     bad.write_text('{"schema_version": 2}')
     proc = run_check(run_script, "--skip-render", "--json", env={"NUMA_BRAND": str(bad)})
     assert proc.returncode == 1
-    b = by_name(json.loads(proc.stdout))["brand.json"]
+    checks = by_name(json.loads(proc.stdout))
+    b = checks["brand.json"]
     assert b["status"] == "fail" and "/brand-setup" in b["fix"]
+    for name in ("fonts", "assets"):
+        assert checks[name]["status"] == "fail" and "blocked by brand.json" in checks[name]["detail"]
+        assert checks[name]["fix"] == b["fix"] and "reinstall" not in checks[name]["fix"]
 
 
 def test_usage_error_exits_2(run_script):

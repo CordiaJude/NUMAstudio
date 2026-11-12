@@ -42,7 +42,8 @@ Confirm each with one real, harmless call. Tool names differ by connector versio
 | Google Drive | Search for the folder named brand.json `drive.root` ("NUMA Reels") and list its children | The folder list comes back | Claude Settings > Connectors > Google Drive > Connect, signed in as the Drive owner |
 | Google Sheets | Read the header row of the Consent List Sheet (step 5 creates it on a first install) | The header row comes back | Connect Google Sheets in Claude Settings > Connectors (same Google account as Drive) |
 | Higgsfield | The balance tool, then a dry run of one Kling 3.0 pro 5 s image-to-video job with `get_cost: true` (price id `kling_pro_5s`; nothing is submitted) | A balance and a credit quote come back; a quote different from config `higgsfield.prices` is noted for Jude | Connect Higgsfield in Claude Settings > Connectors; buy the Plus plan (config `higgsfield.plan`) at higgsfield.ai |
-| Composio Instagram | The Instagram toolkit's account/user info tool for NUMA's account (find it with COMPOSIO_SEARCH_TOOLS), with `graph_api_version` = config `instagram.graph_api_version` | Username matches brand.json `socials.instagram`, account type Business or Creator, scopes cover config `instagram.scopes` | Composio dashboard > Instagram toolkit > reconnect with NUMA's Instagram (Business or Creator, Instagram Login, no Facebook Page needed) |
+| Composio Instagram | The Instagram toolkit's account/user info tool for NUMA's account (find it with COMPOSIO_SEARCH_TOOLS), with `graph_api_version` = config `instagram.graph_api_version` | Username matches brand.json `socials.instagram`, account type Business or Creator, scopes cover config `instagram.scopes` | "NUMA Studio: Instagram disconnected (Meta error 190). Fix: in the Composio dashboard, open the Instagram toolkit and reconnect NUMA's Instagram (Business or Creator, Instagram Login)." (the same line /post-reel sends Jude on error 190; no Facebook Page needed) |
+| Google Docs | Create the Doc "NUMA setup check" in brand.json `drive.plan_dir`, read it back, then delete it (the shoot cards and digests are Docs) | The text comes back | Connect Google Docs in Claude Settings > Connectors (same Google account as Drive) |
 | Gmail (only when the digest or Jude's escalations go by email: brand.json `posting.digest_destination`) | List the labels | Labels come back | Connect Gmail in Claude Settings > Connectors |
 | Claude in Chrome (optional) | Read the title of the open tab or open instagram.com | The page answers, signed in as NUMA | Install the Claude in Chrome extension in the Chrome profile signed in to NUMA's Instagram, Facebook and Google Business accounts (spec p.49 step 5) |
 
@@ -61,6 +62,10 @@ Ask Jude this one question, once: "Which Google Drive folder holds NUMA's reel m
 - Store the answer: the folder name goes into brand.json `drive.root` and the folder link into `drive.root_link`, written into the plugin's brand.json, validated (step 2's command with `--skip-render`; the brand.json line must be ✅), and saved the same way /brand-setup saves (its section 4). Every later run reads it from there and never asks again.
 - A setup re-run with `drive.root` already set shows the stored folder and moves on.
 
+### Jude's escalation channel: ask once
+
+Ask Jude this one question, once: "Where should NUMA Studio send you its rare one-line fixes (Meta error 190, a declined card, the legal review): an email address, or the Claude app notification?" Store the answer as brand.json `escalation.channel` (an email address, or `notification`) in `STATE/brand.json` only (validated with `NUMA_BRAND="$STATE/brand.json" python3 "$S/setup_check.py" --skip-render`, uploaded to Drive `drive.plan_dir`). Never write it into the plugin's brand.json or the repo: the repo is public. A re-run with `escalation.channel` already set moves on.
+
 ## 5. Drive structure (spec p.49 step 6): create what is missing
 
 Create only what does not exist yet (search first; never duplicate, never rename or delete Katie's files). Names come from brand.json `drive`.
@@ -78,7 +83,7 @@ The plan Sheet (`drive.plan_sheet`) and the metrics Sheet (`drive.metrics_sheet`
 
 ## 6. Pre-approve connector tools so scheduled runs never stall (R264)
 
-Follow docs/SCHEDULED_TASKS.md section "So runs never stall": every tool of Google Drive, Google Sheets, Google Docs, Gmail, Higgsfield, Composio and Claude in Chrome set to **Always allow** in Claude's settings (Claude Code: `permissions.allow` entries `mcp__Google_Drive__*`, `mcp__Google_Sheets__*`, `mcp__Higgsfield__*`, `mcp__Composio__*`, `mcp__claude-in-chrome__*`, plus `Bash(python3:*)`). Then run the step 3 calls once more: any permission prompt that still appears is a tool not yet set to Always allow.
+Follow docs/SCHEDULED_TASKS.md section "So runs never stall": every tool of Google Drive, Google Sheets, Google Docs, Gmail, Higgsfield, Composio and Claude in Chrome set to **Always allow** in Claude's settings (Claude Code: `permissions.allow` entries `mcp__Google_Drive__*`, `mcp__Google_Sheets__*`, `mcp__Google_Docs__*`, `mcp__Gmail__*`, `mcp__Higgsfield__*`, `mcp__Composio__*`, `mcp__claude-in-chrome__*`, plus `Bash(python3:*)`). Then run the step 3 calls once more: any permission prompt that still appears is a tool not yet set to Always allow.
 
 ## 7. Desktop app settings (spec p.15, p.49 step 2)
 
@@ -102,7 +107,8 @@ Only after step 9 passed, create the six scheduled tasks from docs/SCHEDULED_TAS
 1. Name = the task name in the table; schedule = its cron line in `schedule.timezone` (Central); prompt = the task's text under "Exact prompts to paste", copied **exactly** (do not reword it); notifications on.
 2. Where this session has the scheduled-task tool, create them yourself; otherwise Jude pastes each one in the app's Scheduled section while you read it out.
 3. Check that the connector tools are approved (step 6), then "Run now" each task once and confirm it finishes with no permission prompt. A task that stops on a prompt: set that tool to Always allow and run it again.
-4. Record the six task names and their next run times in `STATE/setup.json` (`scheduled_tasks`).
+4. Also create a seventh, quarterly reminder task, "Quarterly research re-check": cron `CRON_TZ=America/Chicago 0 10 12 2,5,8,11 *` (the 12th of Feb, May, Aug and Nov, 10 am Central), notifications on, prompt: "NUMA Studio quarterly reminder for Jude: re-run the five research prompts in docs/SETUP_GUIDE.md (Research prompts), then update config/studio.json higgsfield.prices and prices_verified_on and instagram.graph_api_version, and brand.json claims through /brand-setup. Send this as one line to the escalation channel in STATE/brand.json; change nothing yourself and ask nobody anything."
+5. Record the seven task names and their next run times in `STATE/setup.json` (`scheduled_tasks`).
 
 ## 11. Finish
 

@@ -21,7 +21,17 @@ DOCS = {"guide": REPO / "docs" / "SETUP_GUIDE.md", "questions": REPO / "docs" / 
 
 # brand.json keys the questionnaire writes that the shipped brand.json does not carry yet
 # (requested shared-file change, T10 report). The integration task empties this set.
-PENDING_BRAND_KEYS: set[str] = set()
+# brand.json keys the questionnaire writes (all present in the shipped brand.json).
+QUESTIONNAIRE_KEYS = {
+    "positioning.differentiator", "positioning.join_reasons", "positioning.hesitations",
+    "positioning.member_stories", "positioning.goals_90d", "offerings.priority_offer",
+    "offerings.upcoming", "assets.logo_credit", "voice.inspiration_accounts", "voice.off_limits_topics",
+    "team.voiceover", "socials.instagram_account", "business.account_owners", "positioning.paid_ads",
+    "positioning.past_best_posts", "positioning.past_flops", "positioning.audience_size",
+    "positioning.ask_the_dpt", "offerings.rates_considered", "posting.legal_counsel", "drive.root_link",
+}
+# Private keys written only to STATE/brand.json, never to the public repo copy (checked against the schema below).
+STATE_ONLY_KEYS = {"escalation.channel"}
 
 # One distinctive phrase per question (spec p.54-57), in order.
 QUESTIONS = [
@@ -169,7 +179,7 @@ def test_key_paths_resolve(texts, brand, config):
         for seg in set(re.findall(r"`([a-z_]+(?:\.[a-z_0-9]+)+)`", text)):
             top = seg.split(".")[0]
             if top in brand and top not in config:
-                ok = resolve(brand, seg) or seg in PENDING_BRAND_KEYS
+                ok = resolve(brand, seg) or seg in STATE_ONLY_KEYS
             elif top in config and top not in brand:
                 ok = resolve(config, seg)
             else:
@@ -179,12 +189,62 @@ def test_key_paths_resolve(texts, brand, config):
     assert not problems, "\n".join(problems)
 
 
-def test_pending_keys_really_missing_and_listed(brand):
-    # once the integration task adds a key to brand.json, it must leave this set
-    assert not [k for k in PENDING_BRAND_KEYS if resolve(brand, k)]
-    tail = body(CMD["brand-setup"])
-    for k in PENDING_BRAND_KEYS - {"drive.root_link"}:
-        assert f"`{k}`" in tail, k
+def test_state_only_keys_pass_the_schema(brand):
+    import copy
+    import numa_common as nc
+    b = copy.deepcopy(brand)
+    b["escalation"]["channel"] = "notification"
+    assert nc.schema_errors("brand", b) == []
+    assert "channel" not in brand["escalation"], "private channel must not be committed"
+
+
+def test_questionnaire_keys_exist(brand):
+    assert not [k for k in QUESTIONNAIRE_KEYS if not resolve(brand, k)]
+
+
+def test_q24_claim_rule_template_validates(brand, tmp_path, monkeypatch):
+    """The new-claims-rule template in brand-setup.md, filled in, keeps brand.json schema-valid."""
+    import copy
+    import numa_common as nc
+    text = body(CMD["brand-setup"])
+    tmpl = re.search(r"\*\*New claims rule \(Q24\)\.\*\* For each claim: `(\{.*?\})`", text).group(1)
+    rule = json.loads(tmpl.replace("<snake_case>", "immune_boost").replace("<plain words>", "immune boost")
+                      .replace("<python regex>", "\\\\bimmune\\\\s+boost\\\\w*"))
+    assert "source" not in rule
+    b = copy.deepcopy(brand)
+    b["claims"]["banned"].append(rule)
+    path = tmp_path / "brand.json"
+    path.write_text(json.dumps(b))
+    monkeypatch.setenv("NUMA_BRAND", str(path))
+    nc.clear_caches()
+    try:
+        assert nc.schema_errors("brand", b) == []
+        nc.load_brand()  # schema + every pattern compiles
+        bad = copy.deepcopy(b)
+        bad["claims"]["banned"][-1]["source"] = "Katie Q24"
+        assert nc.schema_errors("brand", bad), "schema should reject extra rule keys"
+    finally:
+        nc.clear_caches()
+
+
+def test_brand_setup_saves_state_copy_per_d18(texts):
+    t = texts["brand-setup"]
+    sec = t[t.find("## 4. Validate and save"):t.find("## 5.")]
+    assert "`STATE/brand.json`" in sec and "D18" in sec and "NUMA_BRAND" in sec
+    assert "Keys added by this questionnaire" not in t
+
+
+def test_escalation_channel_and_quarterly_reminder(texts):
+    s = texts["numa-setup"]
+    assert "`escalation.channel`" in s and "STATE/brand.json` only" in s
+    assert "Quarterly research re-check" in s and "0 10 12 2,5,8,11 *" in s
+    assert "Quarterly research re-check" in texts["guide"]
+    assert "`mcp__Google_Docs__*`" in s and "`mcp__Gmail__*`" in s and "| Google Docs |" in s
+
+
+def test_error_190_line_identical(texts):
+    line = re.search(r'"(NUMA Studio: Instagram disconnected \(Meta error 190\)\. Fix: [^"]+)"', texts["post-reel"]).group(1)
+    assert "Composio dashboard" in line and line in texts["numa-setup"]
 
 
 def test_setup_check_cli_matches_contract():

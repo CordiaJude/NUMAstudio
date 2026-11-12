@@ -426,8 +426,20 @@ def merge_anchors(anchors: list[int], fixed: set[int], min_gap: int = 2) -> list
     return kept
 
 
-def pieces(g: int, step: int) -> list[int]:
-    """Split a gap of g beats into 2-beat (step 2) or 4-beat pieces; an odd gap gets one 3-beat (or 1-beat) piece."""
+def pieces(g: int, step: int, lo: int = 2, hi: int = 4) -> list[int]:
+    """Split a gap of g beats into shots. Default pacing (2-4 beats): 2-beat (step 2) or 4-beat pieces, an odd
+    gap gets one 3-beat (or 1-beat) piece. Other pacing (a template's beats_per_shot, shot-length prefs):
+    pieces of about `step` beats, each within lo..hi where the gap allows."""
+    if (lo, hi) != (2, 4):
+        if g <= max(lo, 1) or g <= step:
+            return [g]
+        n = max(1, round(g / step))
+        while g / n > hi:
+            n += 1
+        while n > 1 and g / n < lo:
+            n -= 1
+        base, rem = divmod(g, n)
+        return [base + 1] * rem + [base] * (n - rem)
     if g <= 2:
         return [g]
     out: list[int] = []
@@ -442,39 +454,171 @@ def pieces(g: int, step: int) -> list[int]:
     return out
 
 
-def fill(points: list[float], anchors: list[int], tense_end: float) -> list[int]:
-    """Cut indices into `points`: anchors kept, gaps filled with 2-beat (tense) or 4-beat pieces."""
+def fill(points: list[float], anchors: list[int], tense_end: float, lo: int = 2, hi: int = 4) -> list[int]:
+    """Cut indices into `points`: anchors kept, gaps filled with short (tense, `lo` beats) or long (`hi`) pieces."""
     cuts = [anchors[0]]
     for a, b in zip(anchors, anchors[1:]):
-        step = 2 if points[a] < tense_end - 1e-6 else 4
+        step = lo if points[a] < tense_end - 1e-6 else hi
         idx = a
-        for n in pieces(b - a, step):
+        for n in pieces(b - a, step, lo, hi):
             idx += n
             cuts.append(idx)
     return cuts
 
 
+# ---------------------------------------------------------------------------
+# Templates (skills/numa-scriptwriter/templates.json, R194)
+# ---------------------------------------------------------------------------
+TEMPLATES_PATH = Path(__file__).resolve().parents[2] / "numa-scriptwriter" / "templates.json"
+
+
+def load_template(name: str, path: Path | None = None) -> dict:
+    """A template or preset from the scriptwriter's library by id; UserError listing the valid ids otherwise."""
+    p = path or TEMPLATES_PATH
+    data = nc.read_json(p, "template library")
+    entries = [t for key in ("templates", "presets") for t in (data.get(key) or []) if isinstance(t, dict)]
+    for t in entries:
+        if t.get("id") == name:
+            return t
+    ids = ", ".join(sorted(str(t.get("id")) for t in entries))
+    raise nc.UserError(f"unknown template {name!r}; valid templates: {ids}")
+
+
+def shorten(text: str, n: int) -> str:
+    """At most n words: the first clause when it fits, else the first words without a dangling stop word."""
+    words = text.replace("*", "").split()
+    if len(words) <= n:
+        return " ".join(words)
+    clause = re.split(r"[,;:—]|\s-\s", " ".join(words))[0].split()
+    if 2 <= len(clause) <= n:
+        return " ".join(clause).rstrip(".,;:!?") + "."
+    cut = words[:n]
+    while len(cut) > 1 and _clean(cut[-1]) in STOP:
+        cut.pop()
+    return " ".join(cut).rstrip(".,;:!?") + "."
+
+
+def card_statement(text: str, max_words: int) -> str:
+    """A spoken line as statement-card text: shortened, its key word marked gold."""
+    short = shorten(text, max_words)
+    words = short.split()
+    gold = pick_gold(words, 1)
+    return " ".join(f"*{w}*" if i in gold else w for i, w in enumerate(words))
+
+
+def beat_windows(arc: list[dict], lines: list[dict], voiced: float) -> list[tuple[str, float, float, dict | None]]:
+    """(beat, start, end, first line) for each spoken beat of the arc (the music-only outro is left out).
+
+    One spoken line per beat; extra lines go to the beats in order; beats without a line split the
+    remaining voiced time evenly."""
+    names = [b.get("beat") for b in arc if b.get("beat") != "outro"]
+    nb = len(names)
+    if nb == 0:
+        return []
+    owner: dict[int, list[dict]] = {}
+    if lines:
+        for j, ln in enumerate(lines):
+            k = min(nb - 1, j * nb // len(lines)) if len(lines) >= nb else j
+            owner.setdefault(k, []).append(ln)
+    known = {k: float(v[0]["words"][0][1]) for k, v in owner.items()}
+    starts: list[float] = []
+    for k in range(nb):
+        if k == 0:
+            starts.append(0.0)
+        elif k in known:
+            starts.append(max(known[k], starts[-1]))
+        else:  # no line of its own: an even share of the time up to the next beat that has one
+            nk = next((j for j in range(k + 1, nb) if j in known), None)
+            nxt_t, nxt_i = (known[nk], nk) if nk is not None else (voiced, nb)
+            starts.append(starts[-1] + max(0.0, nxt_t - starts[-1]) / (nxt_i - (k - 1)))
+    out = []
+    for k in range(nb):
+        end = starts[k + 1] if k + 1 < nb else voiced
+        out.append((names[k], r3(starts[k]), r3(max(end, starts[k])), owner[k][0] if k in owner else None))
+    return out
+
+
+def _num_pref(prefs: dict, key: str) -> float | None:
+    v = prefs.get(key)
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def face_blur(faces: list) -> list[list[float]]:
+    """Blur boxes over face boxes, 15% bigger on every side, inside the frame."""
+    out = []
+    for x, y, w, h in faces:
+        x0, y0 = max(0.0, x - 0.15 * w), max(0.0, y - 0.15 * h)
+        x1, y1 = min(1.0, x + 1.15 * w), min(1.0, y + 1.15 * h)
+        out.append([r3(x0), r3(y0), r3(x1 - x0), r3(y1 - y0)])
+    return out
+
+
+def consent_gate(media: list[Media]) -> list[Media]:
+    """Rule 41: material with faces is used only with consent. Faces without known consent are left out when
+    there is enough other material, else blurred."""
+    risky = [m for m in media if m.faces and m.consent is not True]
+    if not risky:
+        return media
+    safe = [m for m in media if m not in risky]
+    if len(safe) >= 3:
+        nc.warn(f"left out {len(risky)} photo(s)/clip(s) with faces and no recorded consent "
+                f"({', '.join(m.id for m in risky)}); record consent to use them")
+        return safe
+    for m in risky:
+        m.blur = face_blur(m.faces)
+    nc.warn(f"faces without recorded consent are blurred in {', '.join(m.id for m in risky)} "
+            f"(not enough other material); record consent to show them")
+    return media
+
+
 def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str | None = None,
                subtitle: str | None = None, seed: int = 0, prefs: dict | None = None,
                script: str | None = None, before: str | None = None, after: str | None = None,
-               turn: float | None = None) -> dict:
+               turn: float | None = None, template: dict | None = None,
+               library: dict[str, bool] | None = None) -> dict:
     prefs = prefs or {}
+    T = template or {}
+    pacing = T.get("pacing") or {}
+    if T and duration is None and T.get("default_length_s"):
+        duration = float(T["default_length_s"])
+    elif T and duration is not None and T.get("typical_length_s"):
+        lo_t, hi_t = T["typical_length_s"]
+        if not lo_t <= duration <= hi_t:
+            nc.warn(f"--duration {duration:g} s is outside the {T['id']} template's typical {lo_t:g}-{hi_t:g} s")
     audio_d = float(A.get("duration") or 0.0)
     if audio_d > 0:
         D = min(x for x in (duration, audio_d, MAX_LEN_S) if x)
     else:
         D = min(duration or DEFAULT_NO_AUDIO_S, MAX_LEN_S)
         nc.warn(f"analysis has no audio: building a {D:g} s plan without music")
-    if isinstance(prefs.get("max_duration"), (int, float)):
-        D = min(D, float(prefs["max_duration"]))
+    if _num_pref(prefs, "min_duration") is not None:
+        D = max(D, min(_num_pref(prefs, "min_duration"), audio_d if audio_d > 0 else MAX_LEN_S, MAX_LEN_S))
+    if _num_pref(prefs, "max_duration") is not None:
+        D = min(D, _num_pref(prefs, "max_duration"))
     D = r3(D)
     if D <= 1.0:
         raise nc.UserError(f"reel length {D:g} s is too short to build a plan")
     fps = int(_cfg("render.fps", 30))
     grid, period = beat_grid(A, D)
-    media = collect_media(A)
-    by_id = {m.id: m for m in media}
-    meter = RowMeter()
+    media = consent_gate(collect_media(A, library))
+    by_id = {m.id: m for m in collect_media(A, library)}
+    by_id.update({m.id: m for m in media})
+    caption_px = _num_pref(prefs, "caption_px")
+    max_chars = int(_num_pref(prefs, "max_caption_chars") or 70)
+    max_gold = int(_num_pref(prefs, "max_gold_words") if _num_pref(prefs, "max_gold_words") is not None else 2)
+    meter = RowMeter(caption_px, max_chars, max_gold)
+
+    # shot lengths in beats: the template's pacing, then the shot-length preferences
+    max_beats = int(_cfg("render.max_shot_beats", 4))
+    lo_b, hi_b = (int(x) for x in (pacing.get("beats_per_shot") or [2, 4]))
+    hi_b = max(1, min(hi_b, max_beats))
+    lo_b = max(1, min(lo_b, hi_b))
+    if _num_pref(prefs, "max_shot_seconds"):
+        hi_b = max(1, min(hi_b, int(math.floor(_num_pref(prefs, "max_shot_seconds") / period + 1e-6))))
+        lo_b = min(lo_b, hi_b)
+    if _num_pref(prefs, "min_shot_seconds"):
+        lo_b = max(lo_b, int(math.ceil(_num_pref(prefs, "min_shot_seconds") / period - 1e-6)))
+        hi_b = max(hi_b, lo_b)
 
     # end card on the last beats, held 3.5-5 s
     lo, hi = float(_cfg("render.endcard.min_hold_s", 3.5)), float(_cfg("render.endcard.max_hold_s", 5.0))
@@ -486,10 +630,14 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
 
     # captions
     voice_words = [w for w in A.get("words") or [] if A.get("voice_present", True)]
+    outro_s = float(pacing.get("outro_s") or 0.0)
     if voice_words:
         lines = lines_from_words(voice_words, body_end, D, meter)
     elif script:
-        lines = lines_from_script(script, grid, body_end, meter)
+        spread = None
+        if T and outro_s:
+            spread = max(0.5 * body_end, min(body_end, D - outro_s) - 2.5)
+        lines = lines_from_script(script, grid, body_end, meter, spread_to=spread)
     else:
         lines = []
 
@@ -497,15 +645,38 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
     body_pts = [g for g in grid if 0.3 <= g <= body_end - 0.3]
     montage_start = None
     montage_pts: list[float] = []
+    stride = max(2, lo_b) if (lo_b, hi_b) != (2, 4) else 2
+    stride = max(1, min(stride, hi_b))
     if voice_words and lines:
         last_word = max(float(w["end"]) for w in voice_words if float(w["appear"]) < body_end)
         tail = [g for g in body_pts if g >= last_word + 0.1]
-        n = min(8, len(tail) // 2)
+        n = min(8, len(tail) // stride)
         if n >= 3:
-            montage_pts = tail[len(tail) - 2 * n::2]
+            montage_pts = tail[len(tail) - stride * n::stride]
             montage_start = montage_pts[0]
     story_end = montage_start if montage_start is not None else body_end
     points = [0.0] + [g for g in body_pts if 0.3 <= g <= story_end - 0.3] + [story_end]
+
+    # the voiced part and the template's story beats
+    if voice_words:
+        voiced = max(float(w["end"]) for w in voice_words if float(w["appear"]) < body_end)
+    elif lines:
+        voiced = max(float(lines[-1]["end"]), min(body_end, D - outro_s) if outro_s else 0.0)
+    else:
+        voiced = max(0.3 * D, D - outro_s) if outro_s else story_end
+    voiced = min(voiced, story_end)
+    windows = beat_windows(T.get("arc") or [], lines, voiced) if T else []
+    win_by_beat = {w[0]: w for w in windows}
+    if T and turn is None and isinstance(T.get("turn"), dict):
+        turn = float(T["turn"]["at"]) * voiced
+    card_specs = []
+    if T.get("kinetic_type"):
+        for spec in T.get("text_cards") or []:
+            w = win_by_beat.get(spec.get("beat"))
+            if w is None:
+                nc.warn(f"template {T['id']}: text card beat {spec.get('beat')!r} has no place in this reel")
+                continue
+            card_specs.append((spec, w))
 
     # turn, tense section, signature
     turn_idx = snap(turn, points) if turn is not None and 0 < turn < story_end else None
@@ -523,6 +694,8 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
         t = float(ln["words"][0][1])
         if 1.2 <= t < story_end - 0.3:  # a cut right under the hook would cut the opener short
             line_anchor.append((snap(t, points), ln))
+    card_anchor = [snap(w[1], points) for _, w in card_specs if w[1] > 0]
+    card_anchor = [i for i in card_anchor if 0 < i < len(points) - 1]
     big = None
     cands = [(i, ln) for i, ln in line_anchor if 0 < i < len(points) - 1]
     if cands:
@@ -530,7 +703,14 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
     mid = snap(story_end * 0.5, points) if len(points) > 2 else None
     if mid is not None and not (0 < mid < len(points) - 1):
         mid = None
-    sig_idx = turn_idx if (before and turn_idx) else (big if big is not None else mid)
+    tsig = None
+    if isinstance(T.get("signature_moment"), dict) and len(points) > 2:
+        target = float(T["signature_moment"]["at"]) * voiced
+        near = [i for i in card_anchor if abs(points[i] - target) <= 1.5]
+        tsig = min(near, key=lambda i: (abs(points[i] - target), i)) if near else snap(target, points)
+        if not 0 < tsig < len(points) - 1:
+            tsig = None
+    sig_idx = turn_idx if (before and turn_idx) else (tsig if tsig is not None else (big if big is not None else mid))
     if before and turn_idx is None and sig_idx is not None:
         turn_idx = sig_idx
     if turn_idx is not None:
@@ -539,11 +719,11 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
         first_end = float(lines[0]["end"]) if lines else 0.0
         tense_end = min(0.3 * story_end, max(0.15 * story_end, first_end))
 
-    anchors = sorted({0, len(points) - 1, *(i for i, _ in line_anchor),
-                      *([sig_idx] if sig_idx is not None else []), *([turn_idx] if turn_idx is not None else [])})
     fixed = {0, len(points) - 1, *([sig_idx] if sig_idx is not None else []),
-             *([turn_idx] if turn_idx is not None else [])}
-    cut_idx = fill(points, merge_anchors(anchors, fixed), tense_end)
+             *([turn_idx] if turn_idx is not None else []), *card_anchor}
+    anchors = sorted({*fixed, *(i for i, _ in line_anchor)})
+    cut_idx = fill(points, merge_anchors(anchors, fixed, max(2, lo_b) if (lo_b, hi_b) != (2, 4) else 2),
+                   tense_end, lo_b, hi_b)
     times = [points[i] for i in cut_idx] + montage_pts[1:] + ([end_t] if end_t is not None else []) + [D]
     times = [r3(t) for t in times]
     dedup = [times[0]]
@@ -589,40 +769,85 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
             assign[wipe_i] = by_id[after]
         else:
             wipe_i = None
+    min_people = _num_pref(prefs, "min_people_shots")
+    if min_people:
+        assign = more_people(assign, media, int(min_people), {0, endcard_i, wipe_i, (wipe_i or 0) - 1})
 
+    max_flashes = _num_pref(prefs, "max_flashes")
     flash_i = None if wipe_i is not None else (times.index(sig_t) if sig_t in times and times.index(sig_t) > 0 else None)
+    no_flash = flash_i is not None and max_flashes is not None and max_flashes < 1
+    if no_flash:
+        nc.warn("preference max_flashes = 0: the reel has no flash reveal (signature moment)")
+        flash_i = None
+    flashes = 1 if flash_i is not None else 0
+    endcard_tr = "flash" if max_flashes is None or flashes < max_flashes else "fade"
+
+    leaks = []
+    if sig_t is not None and not no_flash:
+        leaks.append([sig_t, r3(min(1.0, D - sig_t)), 0.35])
+    if end_t is not None:
+        leaks.append([r3(end_t), r3(min(1.4, D - end_t)), 0.4])
+    max_leaks = _num_pref(prefs, "max_leaks")
+    if max_leaks is not None:
+        leaks = leaks[: int(max_leaks)]
+    max_strength = _num_pref(prefs, "max_leak_strength")
+    if max_strength is not None:
+        leaks = [[t, d, r3(min(a, max_strength))] for t, d, a in leaks]
+    leakfade_budget = None if max_leaks is None else max(0, int(max_leaks) - len(leaks))
+    if max_strength is not None and max_strength < 0.55:  # engine's automatic leakfade leak strength
+        leakfade_budget = 0
+
+    allowed = list(T.get("transitions") or [])
+    rotation = [t for t in allowed if t not in ("wipe", "flash", "whip")] or (["cut"] if T else [])
+    whip_ok = not T or "whip" in allowed
+    plain = next((t for t in rotation if t in ("cut", "punch")), "cut")
+
     max_whips = prefs.get("max_whips")
     clip_cursor: dict[str, float] = {}
     shots = []
     last_whip = -99
     whips = 0
     zoom_dir = 0
+    look_default = (T.get("look") or {}).get("default") or "warm"
+    look_before = (T.get("look") or {}).get("before_turn") if T else "before"
     for i in range(n_shots):
         t0, t1 = times[i], times[i + 1]
         if i == endcard_i:
             shots.append({"src": str(nc.brand_asset("endcard_background")), "look": "none", "t0": t0, "t1": t1,
-                          "z": [1.0, 1.08], "pan": [0, 0], "tr": "flash"})
+                          "z": [1.0, 1.08], "pan": [0, 0], "tr": endcard_tr})
             continue
         m = assign[i]
+        short = (t1 - t0) < 1.0 or (i > 0 and (times[i] - times[i - 1]) < 1.0)
         if i == 0:
             tr = "cut"
         elif i == wipe_i:
             tr = "wipe"
         elif i == flash_i:
             tr = "flash"
-        elif i - last_whip >= 3 and i % 3 == 0 and (max_whips is None or whips < max_whips) \
+        elif whip_ok and i - last_whip >= 3 and i % 3 == 0 and (max_whips is None or whips < max_whips) \
                 and i + 1 != wipe_i and i + 1 != flash_i:
             tr = "whip"
         elif i in montage_set:
-            tr = "punch" if i % 2 else "cut"
+            if T:
+                tr = rotation[i % len(rotation)]
+            else:
+                tr = "punch" if i % 2 else "cut"
+        elif T:
+            tr = rotation[i % len(rotation)]
         else:
-            short = (t1 - t0) < 1.0 or (times[i] - times[i - 1]) < 1.0
             tr = ["punch", "leakfade", "punch", "cut"][i % 4]
-            if tr == "leakfade" and short:
-                tr = "punch"
+        if tr in ("leakfade", "fade") and short:
+            tr = "punch" if (not T or "punch" in allowed) else plain
+        if tr == "leakfade" and leakfade_budget is not None:
+            if leakfade_budget > 0:
+                leakfade_budget -= 1
+            else:
+                tr = "fade" if (not T or "fade" in allowed) else plain
         if tr == "whip":
             last_whip, whips = i, whips + 1
-        if turn_t is not None:
+        if T:
+            look = (look_before or look_default) if turn_t is not None and t1 <= turn_t + 1e-6 else look_default
+        elif turn_t is not None:
             look = "before" if t1 <= turn_t + 1e-6 else "warm"
         else:
             look = "warm"
@@ -660,6 +885,11 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
             shot["focus"] = list(m.focus)
         if m.faces:
             shot["faces"] = [list(b) for b in m.faces]
+            if m.consent is True:
+                shot["people"] = True
+                shot["consent"] = True
+            elif m.blur:
+                shot["blur"] = [list(b) for b in m.blur]
         shots.append(shot)
 
     plan: dict[str, Any] = {
@@ -675,19 +905,26 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
         "font_regular": str(nc.brand_font("regular")),
         "font_italic": str(nc.brand_font("italic")),
     }
+    if caption_px:
+        plan["caption_px"] = caption_px
+    if T:
+        plan["template"] = T["id"]
     hook_text = hook.strip() if hook and hook.strip() else (" ".join(w[0] for w in lines[0]["words"]) if lines else None)
+    max_hook = _num_pref(prefs, "max_hook_words")
+    if hook_text and max_hook and len(hook_text.replace("*", "").split()) > max_hook:
+        short_hook = shorten(hook_text, int(max_hook))
+        nc.warn(f"preference max_hook_words = {max_hook:g}: hook shortened to \"{short_hook}\"")
+        hook_text = short_hook
     if hook_text:
-        plan["hook"] = {"text": hook_text, "t1": r3(min(D, max(float(_cfg("render.hook.min_visible_s", 1.5)), 2.0)))}
+        hook_s = float(pacing.get("hook_s") or 2.0)
+        plan["hook"] = {"text": hook_text,
+                        "t1": r3(min(D, max(float(_cfg("render.hook.min_visible_s", 1.5)), hook_s)))}
     plan["shots"] = shots
     plan["lines"] = lines
-
-    leaks = []
-    if sig_t is not None:
-        leaks.append([sig_t, r3(min(1.0, D - sig_t)), 0.35])
-    if end_t is not None:
-        leaks.append([r3(end_t), r3(min(1.4, D - end_t)), 0.4])
-    if isinstance(prefs.get("max_leaks"), (int, float)):
-        leaks = leaks[: int(prefs["max_leaks"])]
+    if card_specs:
+        cards = make_cards(card_specs, times, end_t if end_t is not None else D)
+        if cards:
+            plan["cards"] = cards
     plan["leaks"] = leaks
     if end_t is not None:
         plan["endcard"] = {
@@ -701,6 +938,8 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
                 del plan["endcard"][k]
     if sig_t is not None and (wipe_i is not None or flash_i is not None):
         plan["signature"] = {"type": "wipe" if wipe_i is not None else "flash", "t": sig_t}
+    if T and (T.get("signature_moment") or {}).get("type") == "wipe" and wipe_i is None:
+        nc.warn(f"template {T['id']}: its signature is a before/after wipe; without --before/--after it is a flash")
 
     audio = A.get("audio") or {}
     if audio.get("generated_pad") and audio.get("music"):
@@ -714,10 +953,76 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
     plan["ai"] = {"people": False, "scenes": False, "label_required": False}
     job_name = work.parent.name if work.name == "work" else work.name
     plan["meta"] = {"slug": nc.slugify(job_name)}
+    if T:
+        for key, val in (("hook_type", T.get("hook_style")), ("goal", T.get("goal")),
+                         ("pillar", (T.get("pillars") or [None])[0]), ("length_class", T.get("length_class"))):
+            if val:
+                plan["meta"][key] = val
     formats = make_formats(plan, lines, sig_t, story_end, grid, hook_text)
     if formats:
         plan["formats"] = formats
     return plan
+
+
+def more_people(assign: list, media: list[Media], want: int, keep: set) -> list:
+    """min_people_shots: swap body shots to consented people material until `want` shots show people."""
+    people = [m for m in media if m.faces and m.consent is True]
+    have = sum(1 for m in assign if m is not None and m in people)
+    if have >= want:
+        return assign
+    if not people:
+        nc.warn(f"preference min_people_shots = {want}: no photos or clips with consented people in the material")
+        return assign
+    out = list(assign)
+    k = 0
+    for i in range(len(out)):
+        if have >= want:
+            break
+        if i in keep or out[i] is None or out[i] in people:
+            continue
+        cand = people[k % len(people)]
+        if (i > 0 and out[i - 1] is cand) or (i + 1 < len(out) and out[i + 1] is cand):
+            if len(people) == 1:
+                continue
+            k += 1
+            cand = people[k % len(people)]
+        out[i] = cand
+        k += 1
+        have += 1
+    if have < want:
+        nc.warn(f"preference min_people_shots = {want}: only {have} shot(s) with consented people fit")
+    return out
+
+
+def make_cards(specs: list, times: list[float], limit: float) -> list[dict]:
+    """Text cards for a kinetic-type template: one per text_cards entry, on its beat, starting on a cut."""
+    cards: list[dict] = []
+    cuts = [t for t in times if t < limit - 1e-6]
+    for j, (spec, (beat, start, end, line)) in enumerate(specs):
+        max_words = int(spec.get("max_words") or 8)
+        if spec.get("source") == "label" and spec.get("text"):
+            text = str(spec["text"])
+            style = "number" if len(text.split()) == 1 and len(text) <= 5 else "statement"
+        elif line is not None:
+            text = card_statement(" ".join(w[0] for w in line["words"]), max_words)
+            style = "statement"
+        else:
+            nc.warn(f"text card for beat {beat!r}: no spoken or script line to show; left out")
+            continue
+        t0 = 0.0 if start <= 1e-6 else min(cuts, key=lambda c: (abs(c - start), c))
+        nxt = [s for _, (_, s, _, _) in specs[j + 1:] if s > t0 + 0.5]
+        n = len(text.replace("*", "").split())
+        need = 0.6 + 0.25 * n
+        t1 = min(max(end, t0 + need + 0.6), t0 + 3.5, limit)
+        if nxt:
+            t1 = min(t1, min(cuts, key=lambda c: (abs(c - nxt[0]), c)))
+        if cards and t0 < cards[-1]["t1"]:
+            t0 = cards[-1]["t1"]
+        if t1 - t0 < need:
+            nc.warn(f"text card for beat {beat!r}: only {max(0.0, t1 - t0):.1f} s free; left out")
+            continue
+        cards.append({"t0": r3(t0), "t1": r3(t1), "text": text, "style": style})
+    return cards
 
 
 def recorded_license(work: Path, path: str) -> str | None:
@@ -737,6 +1042,10 @@ def recorded_license(work: Path, path: str) -> str | None:
     return None
 
 
+def _hook_key(text: str) -> str:
+    return " ".join(re.sub(r"[^\w' ]+", " ", text.replace("*", "").lower()).split())
+
+
 def make_formats(plan: dict, lines: list[dict], sig_t: float | None, story_end: float, grid: list[float],
                  hook_text: str | None) -> dict:
     D = plan["duration"]
@@ -745,7 +1054,13 @@ def make_formats(plan: dict, lines: list[dict], sig_t: float | None, story_end: 
     longest = max(texts, key=len) if texts else None
     centre = sig_t if sig_t is not None else story_end / 2
     lo, hi = _cfg("render.length_s.reach_cut", [8, 12])
-    reach_hook = hook_text or longest
+    # the reach cut opens on new hook text (formats.py warns when it repeats the reel's hook): the meta
+    # title, else the strongest other line (the longest one that still reads as a hook)
+    own = _hook_key(hook_text or "")
+    others = [t for t in texts if _hook_key(t) != own and len(t.split()) >= 3]
+    title = (plan.get("meta") or {}).get("title")
+    reach_hook = title if title and _hook_key(title) != own else \
+        (max(others, key=lambda t: (len(t) <= 60, len(t))) if others else None)
     if story_end >= lo and reach_hook:
         pts = [0.0] + [g for g in grid if g <= story_end]
         t0 = max([p for p in pts if p <= max(0.0, centre - 3.0)] or [0.0])
@@ -787,6 +1102,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--before", metavar="ID", help="before shot id (P3, C0, ...) for the before/after wipe")
     ap.add_argument("--after", metavar="ID", help="after shot id for the before/after wipe")
     ap.add_argument("--turn", type=float, metavar="S", help="turning point: 'before' look and 2-beat cuts up to here")
+    ap.add_argument("--template", metavar="NAME", help="reel template or preset id from the scriptwriter's "
+                    "templates.json (arc, length, pacing, look, signature, transitions, hook style, text cards)")
+    ap.add_argument("--library", metavar="FILE", help="library.py index: consent per photo/clip path")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
     if args.duration is not None and args.duration <= 0:
         raise nc.UsageError("--duration must be positive")
@@ -800,6 +1118,8 @@ def main(argv: list[str] | None = None) -> int:
     A = nc.read_json(apath, "analysis")
     nc.validate_against("analysis", A, what=str(apath))
     prefs = validate_plan.load_prefs(args.prefs) if args.prefs else {}
+    template = load_template(args.template) if args.template else None
+    library = library_consent(args.library) if args.library else None
     script = None
     if args.script:
         sp = Path(args.script).expanduser().resolve()
@@ -810,7 +1130,8 @@ def main(argv: list[str] | None = None) -> int:
             nc.info("script given but the analysis has a transcript: captions follow the voice")
 
     plan = build_plan(work, A, duration=args.duration, hook=args.hook, subtitle=args.subtitle, seed=args.seed,
-                      prefs=prefs, script=script, before=args.before, after=args.after, turn=args.turn)
+                      prefs=prefs, script=script, before=args.before, after=args.after, turn=args.turn,
+                      template=template, library=library)
     errs = nc.schema_errors("plan", plan)
     if errs:
         raise nc.UserError("built plan does not match plan.schema.json: " + "; ".join(errs[:5]))

@@ -50,7 +50,7 @@ Every key in section 6 is a fact `{"value", "status", "source", "note"}` (except
 | Q48 consent coverage | true only if the signed form's wording covers it |
 | Q17 fonts | A new font needs its files under `skills/numa-reel-editor/assets/fonts/` and a license; without them keep the current fonts and note her choice |
 
-**New claims rule (Q24).** For each claim: `{"id": "<snake_case>", "label": "<plain words>", "severity": "fail", "patterns": ["<python regex>"], "applies_to": "all", "source": "Katie Q24 (YYYY-MM-DD)"}`; patterns are case-insensitive regexes with word boundaries (`\\bimmune\\s+boost\\w*`). Prove each one: `python3 "$S/claims_scan.py" "<the claim in her words>"` must exit 1, and a harmless sentence about the same room must exit 0.
+**New claims rule (Q24).** For each claim: `{"id": "<snake_case>", "label": "<plain words>", "severity": "fail", "patterns": ["<python regex>"], "applies_to": "all"}` (exactly these keys: the schema rejects any other, so record where each rule came from in `STATE/brand_setup.json` `claims_added` [{"id", "question": 24, "date"}] and in the summary); patterns are case-insensitive regexes with word boundaries (`\\bimmune\\s+boost\\w*`). Prove each one: `python3 "$S/claims_scan.py" "<the claim in her words>"` must exit 1, and a harmless sentence about the same room must exit 0.
 
 **Closures (Q3, Q16).** Also add one row per date to the Closures Sheet (brand.json `closures.location`; columns Date, Name, Note).
 
@@ -62,15 +62,16 @@ The same command changes any brand value later, outside the questionnaire: colou
 
 ## 4. Validate and save (every time)
 
-1. Validate brand.json against schemas/brand.schema.json (and compile every claims pattern):
+1. Validate brand.json against schemas/brand.schema.json (and compile every claims pattern); validate `STATE/brand.json` the same way with `NUMA_BRAND` pointing at it:
    ```
    python3 "$S/setup_check.py" --skip-render --json
+   NUMA_BRAND="$STATE/brand.json" python3 "$S/setup_check.py" --skip-render --json
    ```
    The `brand.json` check must be `pass`; on `fail` its detail names the field (e.g. `palette.value.cream`). Fix it and run again. Never leave brand.json invalid: every script refuses to run on it.
 2. Save it where every run reads it:
-   - `BRAND` (the installed plugin's brand.json; scripts read it through `numa_common.load_brand()`);
-   - a copy to Drive brand.json `drive.plan_dir` as `brand.json` (backup, and what Jude restores after a plugin update);
-   - Jude commits the same file to the plugin's GitHub repo (the marketplace source, spec p.13 step 2) so cloud scheduled tasks and reinstalls carry the answers.
+   - `STATE/brand.json` (the run-time copy, DECISIONS D18: run commands point `NUMA_BRAND` at it when it is newer than the bundled file), uploaded to Drive brand.json `drive.plan_dir` as `brand.json` so cloud runs get it at once;
+   - `BRAND` (the installed plugin's brand.json; scripts read it through `numa_common.load_brand()` when `NUMA_BRAND` is not set);
+   - Jude commits the same file to the plugin's GitHub repo (the marketplace source, spec p.13 step 2) so reinstalls carry the answers, **without** `escalation.channel` (a private address lives only in `STATE/brand.json`, never in the public repo).
 3. Summary for Jude: answered, still open ("don't know" list with question numbers), rules applied, new claims rules, and the brand.json line from step 1.
 
 ## 5. Status meaning (docs/CONTRACTS.md section 6)
@@ -169,7 +170,6 @@ The same command changes any brand value later, outside the questionnaire: colou
 | 49 | Would NUMA partner with Mission Fitness, barre3 Mobile, Pure Barre Mobile, run clubs or University of South Alabama teams for collab posts? Any existing relationships? | `positioning.collab_partners` | keep yes-partners in her order, drop no's; add `relationship` to each existing one | keep the research order |
 | 50 | Would NUMA offer a rate for healthcare workers or students, or a bring-a-friend first plunge? | `offerings.rates_considered`, `offerings.offers` | rates_considered value = [{name, yes_no_maybe}]; a confirmed offer with price also goes into `offerings.offers` | null: never promote an unconfirmed rate |
 | 51 | Is there an advertising lawyer NUMA already works with to review the claims policy once? | `posting.legal_counsel` | value = {name, firm, contact}; `posting.legal_review_done` stays false until that review is done (edit mode) | null: Jude finds counsel; auto-posting stays gated |
-Keys added by this questionnaire that the shipped brand.json does not carry yet (each a fact in a section that accepts new facts): `positioning.differentiator`, `positioning.join_reasons`, `positioning.hesitations`, `positioning.member_stories`, `positioning.goals_90d`, `offerings.priority_offer`, `offerings.upcoming`, `assets.logo_credit`, `voice.inspiration_accounts`, `voice.off_limits_topics`, `team.voiceover`, `socials.instagram_account`, `business.account_owners`, `positioning.paid_ads`, `positioning.past_best_posts`, `positioning.past_flops`, `positioning.audience_size`, `positioning.ask_the_dpt`, `offerings.rates_considered`, `posting.legal_counsel`. When one is missing, create it as `{"value": <answer>, "status": "confirmed", "source": ...}` (or `{"value": null, "status": "needs_katie", "source": "spec p.54-57 Q<n>"}` for "don't know").
 
 ## 7. Done means
 
