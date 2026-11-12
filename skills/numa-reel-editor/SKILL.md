@@ -107,8 +107,10 @@ These rules are the product's IP. The validator enforces the ones marked (rule N
 | End card | holds 3.5-5 s and starts on a shot boundary | rules 31-32 |
 | Shortest shot | 0.3 s | rule 3 (WARN) |
 
-### 4.4 The signature moment (exactly one)
+### 4.4 Matching and the signature moment
 
+- The picture on screen illustrates the word being said at that moment ("breathe" -> breathwork); a cut lands where the line changes subject.
+- Exactly one signature moment per reel:
 - A true before and after of the same subject (building, room) exists: a `wipe` from the before shot to the after shot. Set `signature` = {`type`: `wipe`, `t`: the after shot's `t0`}.
 - Otherwise: a white `flash` reveal on the reel's biggest line, `signature` = {`type`: `flash`, `t`}.
 - Never two wipes; the end card's flash does not count (rule 18).
