@@ -76,6 +76,8 @@ class Media:
     faces: list = field(default_factory=list)
     focus: list | None = None
     logo: bool = False
+    consent: bool | None = None   # True: everyone recognizable is on the consent list; False: known not
+    blur: list = field(default_factory=list)
 
 
 def _cfg(dotted: str, default: Any) -> Any:
@@ -109,7 +111,38 @@ def _image_size(path: Path) -> tuple[int, int] | None:
         return None
 
 
-def collect_media(A: dict) -> list[Media]:
+def _consent_value(v: Any) -> bool | None:
+    if v is True or (isinstance(v, str) and v.strip().lower() == "yes"):
+        return True
+    if v is False or (isinstance(v, str) and v.strip().lower() == "no"):
+        return False
+    return None
+
+
+def _src_faces(item: dict) -> list:
+    """Faces of the file used as the shot source (faces describe prepared_path when set; else orig_faces)."""
+    return [list(b) for b in (item.get("faces") or item.get("orig_faces") or [])]
+
+
+def library_consent(path: str | Path | None) -> dict[str, bool]:
+    """{resolved path: consent} from a library.py index (consent yes/no); unknown entries are left out."""
+    if not path:
+        return {}
+    data = nc.read_json(Path(path).expanduser().resolve(), "library index")
+    items = data.get("items") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        raise nc.UserError(f"library index {path}: expected an object with an 'items' list")
+    out: dict[str, bool] = {}
+    for it in items:
+        if isinstance(it, dict) and isinstance(it.get("path"), str):
+            c = _consent_value(it.get("consent"))
+            if c is not None:
+                out[str(Path(it["path"]).expanduser().resolve())] = c
+    return out
+
+
+def collect_media(A: dict, library: dict[str, bool] | None = None) -> list[Media]:
+    library = library or {}
     items: list[Media] = []
     sharp = [p.get("sharpness") for p in A.get("photos", []) + A.get("clips", []) if p.get("sharpness") is not None]
     top = max(sharp) if sharp else 0.0
@@ -131,12 +164,20 @@ def collect_media(A: dict) -> list[Media]:
         """A photo with the logo in it (e.g. sauna-logo.jpg): fine in the body, never the opener."""
         return "logo" in Path(path).stem.lower()
 
+    def consent_of(item: dict) -> bool | None:
+        c = _consent_value(item.get("consent"))
+        if c is None:
+            for key in ("path", "orig_path", "prepared_path"):
+                if item.get(key) and str(Path(item[key]).resolve()) in library:
+                    return library[str(Path(item[key]).resolve())]
+        return c
+
     for p in A.get("photos", []):
         src = p.get("prepared_path") or p["path"]
         s = (p.get("sharpness") or 0.0) / top if top else 0.0
         s += 0.15 * min(1.0, len(p.get("faces") or []))
         items.append(Media(p["id"], "image", src, tuple(p["size"]) if p.get("size") else None, s,
-                           faces=list(p.get("faces") or []), focus=p.get("focus"), logo=is_logo(src)))
+                           faces=_src_faces(p), focus=p.get("focus"), logo=is_logo(src), consent=consent_of(p)))
     for c in A.get("clips", []):
         src = c.get("prepared_path") or c["path"]
         s = (c.get("sharpness") or 0.0) / top if top else 0.0
@@ -147,7 +188,7 @@ def collect_media(A: dict) -> list[Media]:
         s += 0.25  # a clip moves from frame 1
         items.append(Media(c["id"], "video", src, tuple(c["size"]) if c.get("size") else None, s,
                            duration=float(c.get("duration") or 0.0), window=win,
-                           faces=list(c.get("faces") or []), focus=c.get("focus"), logo=is_logo(src)))
+                           faces=_src_faces(c), focus=c.get("focus"), logo=is_logo(src), consent=consent_of(c)))
     if not any(p.get("sharpness") is not None or p.get("windows") or p.get("faces")
                for p in A.get("photos", []) + A.get("clips", [])):
         for m in items:  # no analysis scores: folder order decides
