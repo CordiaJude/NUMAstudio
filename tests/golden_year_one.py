@@ -13,7 +13,8 @@ What it does, with no other input:
      check_output -> qa_frames -> formats:
        example   assets/example-plan-year-one-v2.json (the hand-built Year One edit) rewritten to
                  the pack: /YEAR_ONE_PACK and /NUMA_PLUGIN prefixes, the build machine's file
-                 names mapped to the pack's, crops dropped where the pack photo is already cropped;
+                 names mapped to the pack's, crops dropped where the pack photo is already cropped,
+                 caption words re-synced to this transcript (moves are reported);
        baseline  baseline_plan.py --template transformation with the before/after pair the
                  Director would pick (old house -> finished exterior) and the pack's consent
                  recorded through library.py (stands in for the Consent List);
@@ -292,7 +293,36 @@ def example_plan(job: nc.JobPaths, analysis: dict, out_dir: Path) -> dict:
             plan["music"]["path"] = str(tracks[0])
         plan["music"]["source"] = "folder"
     plan.setdefault("meta", {})["slug"] = "year-one-example"
+    plan["_retimed"] = retime_captions(plan, analysis.get("words", []))
     return plan
+
+
+def retime_captions(plan: dict, words: list[dict], window: float = 1.5) -> dict:
+    """Put the example plan's hand-timed caption words on this transcript's times, the way the Editor
+    re-syncs captions after a fresh analysis: each caption word moves to the same word in the
+    transcript (in order, within `window` s); a word the voice does not say is dropped."""
+    moved, dropped, worst = 0, [], 0.0
+    pos = 0
+    for line in plan.get("lines", []):
+        kept = []
+        for item in line.get("words", []):
+            key, t = norm_word(item[0]), float(item[1])
+            hit = next((k for k in range(pos, len(words)) if norm_word(words[k]["w"]) == key
+                        and abs(float(words[k]["appear"]) - t) <= window), None)
+            if hit is None:
+                dropped.append(f"{item[0]}@{t:.2f}")
+                continue
+            pos = hit + 1
+            new_t = round(float(words[hit]["appear"]), 3)
+            if abs(new_t - t) > 1e-3:
+                moved += 1
+                worst = max(worst, abs(new_t - t))
+            kept.append([item[0], new_t, *item[2:]])
+        line["words"] = kept
+        if kept:
+            line["end"] = round(max(float(line.get("end", 0.0)), kept[-1][1] + 0.4), 3)
+    plan["lines"] = [ln for ln in plan.get("lines", []) if ln.get("words")]
+    return {"moved": moved, "max_shift_s": round(worst, 3), "dropped": dropped}
 
 
 def story_arc(plan: dict) -> list[str]:
@@ -455,7 +485,11 @@ def main(argv=None) -> int:
             t0 = time.time()
             try:
                 if name == "example":
-                    nc.write_json(plan_path, example_plan(job, A, out_dir))
+                    EP = example_plan(job, A, out_dir)
+                    retimed = EP.pop("_retimed")
+                    nc.write_json(plan_path, EP)
+                    print(f"  captions retimed to this transcript: {retimed['moved']} words moved "
+                          f"(max {retimed['max_shift_s']} s), dropped {retimed['dropped'] or 'none'}", flush=True)
                 else:
                     idx = job.work / "library.json"
                     pics = [str(job.raw / f) for f in sorted(os.listdir(job.raw)) if MEDIA.search(f)
@@ -474,6 +508,8 @@ def main(argv=None) -> int:
                     nc.write_json(plan_path, P)
                 plan_s = time.time() - t0
                 res = run_plan(name, job, plan_path, A, {**base, "plan": plan_s}, report_dir)
+                if name == "example":
+                    res["captions_retimed"] = retimed
             except Failed as e:
                 res = {"plan": name, "ok": False, "error": str(e), "checks": {}}
                 print(f"  FAILED: {e}", flush=True)
@@ -540,6 +576,10 @@ def render_markdown(r: dict) -> str:
         if p.get("timings"):
             L += ["", "Timings: " + ", ".join(f"{k} {v:g} s" for k, v in p["timings"].items())
                   + (f"; drop-to-file {p['drop_to_file_s'] / 60:.1f} min" if p.get("drop_to_file_s") else "")]
+        if p.get("captions_retimed"):
+            c = p["captions_retimed"]
+            L += ["", f"Example captions re-synced to this transcript: {c['moved']} words moved (max "
+                      f"{c['max_shift_s']} s), dropped: {', '.join(c['dropped']) or 'none'}"]
         if p.get("vs_reference"):
             v = p["vs_reference"]
             L += ["", f"Against the reference: length diff {v['duration_diff_s']} s, loudness diff {v['lufs_diff']} LU, "
