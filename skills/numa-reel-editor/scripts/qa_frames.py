@@ -24,6 +24,7 @@ import numa_common as nc  # noqa: E402
 
 # How long after a cut the incoming transition has settled (engine transition timings, CONTRACTS §4).
 SETTLE_S = {"cut": 0.10, "punch": 0.30, "whip": 0.20, "flash": 0.40, "fade": 0.55, "leakfade": 0.55, "wipe": 1.05}
+LAST_BEFORE_END_S = 0.5  # "last second" frame time before the end
 MIN_GAP_S = 0.25        # filler frames keep at least this far from frames already chosen
 JPEG_QUALITY = 90
 
@@ -64,7 +65,8 @@ def select_times(plan: dict, duration: float, count: int = 12, fps: float = 30.0
     frame = 1.0 / (fps or 30.0)
     last_t = max(0.0, duration - 2 * frame)
     first = {"t": 0.0, "why": "first second"}
-    last = {"t": round(max(0.0, min(duration - 1.0, last_t)), 3), "why": "last second"}
+    # the last second: its final settled frame, half a second before the end
+    last = {"t": round(max(0.0, min(duration - LAST_BEFORE_END_S, last_t)), 3), "why": "last second"}
 
     cuts: list[dict[str, Any]] = []
     for i, shot in enumerate(shots[1:], start=1):
@@ -72,8 +74,8 @@ def select_times(plan: dict, duration: float, count: int = 12, fps: float = 30.0
         t1 = float(shot.get("t1", duration))
         tr = shot.get("tr", "cut")
         t = t0 + SETTLE_S.get(tr, 0.10)
-        t = min(t, t0 + max(frame, (t1 - t0) - frame), last_t)
-        if 0.0 < t < duration:
+        t = min(t, t0 + max(frame, (t1 - t0) - frame), last["t"] - frame)
+        if 0.0 < t < last["t"]:
             cuts.append({"t": round(t, 3), "why": f"cut {i} ({tr})"})
     chosen = [first] + evenly(cuts, count - 2) + [last]
 

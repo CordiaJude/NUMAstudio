@@ -24,7 +24,7 @@ def test_more_cuts_than_slots_is_even_and_keeps_first_and_last():
     sel = qa_frames.select_times(plan, 50.0, 12)
     assert len(sel) == 12
     assert sel[0] == {"t": 0.0, "why": "first second"} and sel[-1]["why"] == "last second"
-    assert sel[-1]["t"] == pytest.approx(49.0)
+    assert sel[-1]["t"] == pytest.approx(49.5)
     cuts = [s for s in sel if s["why"].startswith("cut")]
     assert len(cuts) == 10
     assert cuts[0]["why"].startswith("cut 1 ") and cuts[-1]["why"].startswith("cut 24 ")
@@ -46,7 +46,16 @@ def test_few_cuts_still_give_count_frames_spread_out():
     ts = [s["t"] for s in sel]
     assert len(sel) == 12 and len(set(ts)) == 12
     assert min(b - a for a, b in zip(ts, ts[1:])) >= qa_frames.MIN_GAP_S
-    assert max(ts) == pytest.approx(9.0)
+    assert max(ts) == pytest.approx(9.5) and sel[-1]["why"] == "last second"
+
+
+def test_last_second_stays_last_after_a_late_cut():
+    plan = {"duration": 10.0, "shots": [{"t0": 0.0, "t1": 9.2, "tr": "cut"}, {"t0": 9.2, "t1": 10.0, "tr": "fade"}]}
+    sel = qa_frames.select_times(plan, 10.0, 12)
+    assert sel[-1] == {"t": 9.5, "why": "last second"}
+    cut = next(s for s in sel if s["why"].startswith("cut 1"))
+    assert 9.2 < cut["t"] < 9.5
+    assert [s["t"] for s in sel] == sorted(s["t"] for s in sel)
 
 
 def test_count_below_two_is_a_usage_error():

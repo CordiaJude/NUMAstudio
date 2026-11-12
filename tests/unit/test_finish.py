@@ -25,7 +25,7 @@ def ff(*args):
 
 def make_video(path: Path, seconds=DUR, size=(1080, 1920)):
     ff("-f", "lavfi", "-i", f"testsrc2=size={size[0]}x{size[1]}:rate=30:duration={seconds}",
-       "-c:v", "libx264", "-profile:v", "high", "-preset", "veryfast", "-crf", "30", "-pix_fmt", "yuv420p", path)
+       "-c:v", "libx264", "-profile:v", "high", "-preset", "superfast", "-crf", "30", "-pix_fmt", "yuv420p", path)
     return path
 
 
@@ -131,11 +131,11 @@ def test_voice_chain_has_every_stage():
     assert "highpass" not in finish.mastering_filters(False, False, 30.0, {"i": -15, "tp": -1.5, "lra": 9})
 
 
-def test_pass_two_uses_measurements_and_linear_mode():
-    m = {"input_i": "-23.1", "input_tp": "-6.0", "input_lra": "12.0", "input_thresh": "-33.4", "target_offset": "0.2"}
-    f = finish.loudnorm_filter({"i": -15, "tp": -1.5, "lra": 9}, m)
-    assert "measured_I=-23.1" in f and "linear=true" in f and "offset=0.2" in f
-    assert "LRA=12.1" in f  # target LRA raised above the measured range so loudnorm stays linear
+def test_pass_two_is_linear_gain_plus_oversampled_limiter():
+    f = finish.gain_limiter_filter(7.5, -2.0)
+    assert f.startswith("volume=7.500dB,aresample=192000,alimiter=limit=0.794328")
+    assert "level=false" in f and f.endswith("aresample=48000")
+    assert "loudnorm=I=-15:TP=-1.5" in finish.loudnorm_measure_filter({"i": -15, "tp": -1.5, "lra": 9})
 
 
 # --------------------------------------------------------------------------- output (R38, R39, R40, R291, R292)
@@ -171,7 +171,7 @@ def test_aud_wav_and_qa_strip_and_report(finished):
     assert report["formats"] == {"files": []}, "other sections must survive"
     sec = report["finish"]
     assert sec["output"] == str(finished["out"]) and sec["nat_bursts"] == 1 and sec["voice_chain"] is True
-    assert sec["normalization"] in ("linear", "dynamic")
+    assert sec["normalization"] == "linear gain + true-peak limiter" and sec["ok"] and sec["errors"] == []
 
 
 def test_byte_identical_reruns(finished, tmp_path):
@@ -224,29 +224,90 @@ def test_no_master_falls_back_and_is_never_silent(media, tmp_path, music_path, b
     assert any("pad" in w or "music file" in w for w in sec["warnings"])
 
 
-def test_quiet_input_warns(media, tmp_path, capsys):
+def fake_final(monkeypatch, **override):
+    """Make finish's measurement of the delivered .mp4 report other numbers (passes stay real)."""
+    real = finish.measure_audio
+    calls: list[str] = []
+
+    def fake(path):
+        res = real(path)
+        calls.append(Path(path).suffix)
+        return dict(res, **override) if Path(path).suffix == ".mp4" else res
+
+    monkeypatch.setattr(finish, "measure_audio", fake)
+    return calls
+
+
+def test_quiet_output_warns(media, tmp_path, monkeypatch, capsys):
+    fake_final(monkeypatch, mean_db=-33.0)
     work = make_job(tmp_path, media, nat=False)
+    assert finish.main([str(work), str(tmp_path / "q.mp4"), "--no-qa"]) == 0
+    assert re.search(r"WARN: .*very quiet: mean level -33.0 dB", capsys.readouterr().err)
+
+
+def test_out_of_spec_result_is_an_error(media, tmp_path, monkeypatch, capsys):
+    fake_final(monkeypatch, integrated_lufs=-21.9, true_peak_db=-0.5)
+    work = make_job(tmp_path, media, nat=False)
+    assert finish.main([str(work), str(tmp_path / "e.mp4"), "--no-qa"]) == 1
+    cap = capsys.readouterr()
+    assert "ERROR: e.mp4: true peak -0.5 dB" in cap.err and "ERROR: e.mp4: integrated loudness -21.9 LUFS" in cap.err
+    assert cap.out.startswith("FAIL")
+    report = json.loads((tmp_path / "report.json").read_text())
+    assert report["finish"]["ok"] is False and len(report["finish"]["errors"]) == 2
+
+
+def test_silent_master_falls_back(media, tmp_path):
+    work = make_job(tmp_path, media, nat=False, music_path=False)
     ff("-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={DUR}", work / "master.wav")
-    finish.main([str(work), str(tmp_path / "q.mp4"), "--no-qa"])
-    err = capsys.readouterr().err
-    assert re.search(r"WARN: .*very quiet", err)
+    out = tmp_path / "out" / "s.mp4"
+    sec = finish.finish(work, out, qa=False)
+    assert sec["audio_bed"] == "generated_pad" and sec["ok"]
+    assert any("master.wav is silent" in w for w in sec["warnings"])
+    i_lufs, tp = ebur128(out)
+    assert abs(i_lufs + 15) <= 1.0 and tp <= -1.5
+
+
+@pytest.mark.parametrize("src,codec", [
+    # high crest: sparse full-scale clicks over a quiet tone (needs gain + limiting)
+    ("aevalsrc='0.01*sin(2*PI*220*t)+0.98*lt(mod(t,0.5),0.003)*sin(2*PI*2500*t)':s=48000:d={d}", "pcm_s16le"),
+    # pre-mix far above 0 LUFS (float WAV beyond full scale)
+    ("aevalsrc='4*sgn(sin(2*PI*110*t))':s=48000:d={d}", "pcm_f32le"),
+])
+def test_extreme_inputs_still_meet_spec(media, tmp_path, src, codec):
+    work = make_job(tmp_path, media, nat=False, voice=False)
+    ff("-f", "lavfi", "-i", src.format(d=DUR), "-ac", "2", "-c:a", codec, work / "master.wav")
+    out = tmp_path / "out" / "x.mp4"
+    sec = finish.finish(work, out, qa=False)
+    i_lufs, tp = ebur128(out)
+    assert abs(i_lufs + 15) <= 1.0 and tp <= -1.5, (i_lufs, tp, sec)
+    assert sec["ok"]
 
 
 def test_true_peak_over_limit_is_corrected(media, tmp_path, monkeypatch):
     real = finish.measure_audio
-    calls = []
+    encoded = []
 
     def fake(path):
         res = real(path)
-        calls.append(res)
-        if len(calls) == 1:
-            res = dict(res, true_peak_db=-0.8)  # pretend the AAC encode overshot
+        if Path(path).suffix == ".m4a":
+            encoded.append(res)
+            if len(encoded) == 1:
+                res = dict(res, true_peak_db=-0.8)  # pretend the AAC encode overshot
         return res
 
     monkeypatch.setattr(finish, "measure_audio", fake)
     work = make_job(tmp_path, media, nat=False)
     sec = finish.finish(work, tmp_path / "out" / "tp.mp4", qa=False)
-    assert len(calls) == 2 and sec["true_peak_ceiling_db"] < -1.5
+    assert len(encoded) == 2 and sec["passes"] == 2
+    assert sec["true_peak_ceiling_db"] < -1.5 - finish.TP_HEADROOM_DB and sec["ok"]
+
+
+def test_non_list_nat_is_a_warning():
+    warnings: list[str] = []
+    assert finish.plan_bursts({"nat": "splash"}, DUR, warnings) == []
+    assert len(warnings) == 1 and "must be a list" in warnings[0]
+    warnings.clear()
+    assert finish.plan_bursts({"nat": [5]}, DUR, warnings) == [] and "must be an object" in warnings[0]
 
 
 # --------------------------------------------------------------------------- CLI errors

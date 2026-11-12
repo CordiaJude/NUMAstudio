@@ -661,7 +661,9 @@ finish.py WORK_DIR OUTPUT_MP4 [--video FILE] [--plan PLAN_JSON] [--clean-voice] 
 ```
 Masters `WORK/master.wav` (voice chain: HP 85 Hz, -2.5 dB at 180 Hz, -4 dB at
 3.8 kHz, -2.5 dB at 7 kHz, LP 11 kHz, optional short room echo unless
-`--clean-voice`, 2:1 compression, two-pass loudnorm to -15 LUFS / TP -1.5 dB,
+`--clean-voice`, 2:1 compression, loudness measured (loudnorm pass 1) then one
+linear gain to -15 LUFS plus an oversampled true-peak limiter (TP <= -1.5 dB),
+re-measured after AAC encoding,
 48 kHz, fades), mixes the plan's `nat` bursts (plan defaults to
 `WORK/plan.json`), muxes with `WORK/video_noaudio.mp4` (or `--video`) as H.264
 copy + AAC 192k 48 kHz stereo `+faststart` into `OUTPUT_MP4`, measures the

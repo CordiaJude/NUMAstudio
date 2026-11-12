@@ -19,7 +19,7 @@ def ff(*args):
 
 
 def h264(*extra):
-    return ["-c:v", "libx264", "-profile:v", "high", "-preset", "veryfast", "-crf", "30", "-pix_fmt", "yuv420p", *extra]
+    return ["-c:v", "libx264", "-profile:v", "high", "-preset", "superfast", "-crf", "30", "-pix_fmt", "yuv420p", *extra]
 
 
 @pytest.fixture(scope="module")
@@ -49,6 +49,12 @@ def files(tmp_path_factory):
     f["letterbox"] = root / "letterbox.mp4"
     ff("-f", "lavfi", "-i", f"testsrc2=size=1080x1500:rate=30:duration={DUR}", "-i", good, "-map", "0:v",
        "-vf", "pad=1080:1920:0:210:black", *h264(), *aud, f["letterbox"])
+    f["graded_bars"] = root / "graded_bars.mp4"  # lifted, grainy "black" (luma ~22) letterbox
+    ff("-f", "lavfi", "-i", f"testsrc2=size=1080x1500:rate=30:duration={DUR}", "-i", good, "-map", "0:v",
+       "-vf", "pad=1080:1920:0:210:color=0x161616,noise=alls=6:allf=t", *h264(), *aud, f["graded_bars"])
+    f["dark_top"] = root / "dark_top.mp4"  # a dark, flat region on one side only: picture, not a bar
+    ff("-f", "lavfi", "-i", f"testsrc2=size=1080x1440:rate=30:duration={DUR}", "-i", good, "-map", "0:v",
+       "-vf", "pad=1080:1920:0:480:color=0x080808", *h264(), *aud, f["dark_top"])
     f["frozen"] = root / "frozen.mp4"
     ff("-f", "lavfi", "-i", f"testsrc2=size=1080x1920:rate=30:duration={DUR},loop=loop=45:size=1:start=15",
        "-i", good, "-map", "0:v", "-t", str(DUR), *h264(), *aud, f["frozen"])
@@ -83,6 +89,7 @@ def test_reel_length_rule(files):
     ("no_faststart", "faststart"),
     ("silent", "silent"),
     ("letterbox", "letterbox"),
+    ("graded_bars", "letterbox"),
     ("frozen", "frozen frame"),
 ])
 def test_each_violation_is_caught(files, name, needle):
@@ -101,16 +108,25 @@ def test_endcard_hold_is_exempt_from_freeze(files, tmp_path):
     assert not any("frozen" in e for e in errors_of(files["frozen"], plan=plan))
 
 
+def test_dark_region_on_one_side_is_not_a_bar(files):
+    assert not any("bar" in e for e in errors_of(files["dark_top"]))
+
+
 def test_bar_sizes_on_synthetic_frames():
     import numpy as np
-    frame = np.full((480, 270), 120, dtype=np.float32)
-    frame[:30] = 0
-    frame[-30:] = 0
+    rng = np.random.default_rng(0)
+    frame = rng.uniform(40, 220, size=(480, 270)).astype(np.float32)  # busy picture
+    frame[:30] = 22 + rng.normal(0, 1.5, size=(30, 270))                # graded, grainy bars
+    frame[-30:] = 22 + rng.normal(0, 1.5, size=(30, 270))
     s = check_output.bar_sizes(frame)
-    assert s["top"] == pytest.approx(30 / 480) and s["left"] == 0
-    noisy = frame.copy()
-    noisy[:30] = np.tile([0, 40], (30, 135))  # dark but textured: not a bar
-    assert check_output.bar_sizes(noisy)["top"] == 0
+    assert s["top"][0] == pytest.approx(30 / 480) and s["bottom"][0] == pytest.approx(30 / 480)
+    assert s["left"][0] == 0
+    textured = frame.copy()
+    textured[:30] = np.tile([0, 40], (30, 135))  # dark but textured: not a bar
+    assert check_output.bar_sizes(textured)["top"][0] == 0
+    ramp = frame.copy()
+    ramp[:60] = np.linspace(2, 38, 60)[:, None]  # a soft gradient into the picture: not uniform
+    assert check_output.bar_sizes(ramp)["top"][0] < 0.02
 
 
 def test_mp4_box_order(files):

@@ -400,6 +400,7 @@ def finish(work: Path, out: Path, video: Path | None = None, plan_path: Path | N
         prev: tuple[float, float, float] | None = None
         m4a = Path(tmpd) / "audio.m4a"
         for passes in range(1, MAX_PASSES + 1):
+            used = (gain, ceiling)
             normalize_pass(pre, gain, ceiling, aud, duration)
             encode_audio(aud, m4a, duration, audio_cfg)
             loud = measure_audio(m4a)
@@ -420,9 +421,9 @@ def finish(work: Path, out: Path, video: Path | None = None, plan_path: Path | N
             if i_off:
                 # secant step: under heavy limiting 1 dB of gain buys less than 1 LU
                 slope = 1.0
-                if prev is not None and prev[2] == ceiling and abs(gain - prev[0]) > 0.05:
-                    slope = min(1.0, max(0.25, (i_now - prev[1]) / (gain - prev[0])))
-                prev = (gain, i_now, ceiling)
+                if prev is not None and prev[2] == used[1] and abs(used[0] - prev[0]) > 0.05:
+                    slope = min(1.0, max(0.25, (i_now - prev[1]) / (used[0] - prev[0])))
+                prev = (used[0], i_now, used[1])
                 gain = max(-MAX_GAIN_DB, min(MAX_GAIN_DB, gain + (target["i"] - i_now) / slope))
             else:
                 prev = None

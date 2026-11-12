@@ -28,15 +28,20 @@ KINDS = ("reel", "reach", "story", "hook")
 FALLBACK_LENGTHS = {"reel": (15.0, 60.0), "reach": (8.0, 12.0), "story": (0.0, 15.0), "hook": (0.0, 15.0)}
 LENGTH_TOLERANCE_S = 0.05
 VIDEO_BITRATE_TOLERANCE = 1.05      # "about 14 Mbps max"
-AUDIO_BITRATE_RANGE = (0.8, 1.2)    # AAC 192k is average bitrate; allow +/- 20 %
+AUDIO_BITRATE_RANGE = (0.8, 1.2)    # AAC 192k is average bitrate; outside +/- 20 % is a WARN
 SILENT_LUFS = -60.0                 # integrated loudness below this (or -inf) = silent
 SILENT_MAX_DB = -50.0               # or no sample louder than this
 CLIP_SAMPLE_DB = -0.1               # a sample at full scale = clipped
 FREEZE_MIN_S = 1.0
 FREEZE_NOISE = "-60dB"
-BAR_FRACTION = 0.02                 # uniform near-black border wider than 2 % of the frame = bar
-BAR_LUMA = 16.0                     # near-black (0-255)
-BAR_STD = 4.0                       # uniform row/column
+BAR_FRACTION = 0.02                 # a border band wider than 2 % of the frame can be a bar
+BAR_LUMA = 40.0                     # dark: graded "black" bars sit up to about luma 40 (0-255)
+BAR_STD = 6.0                       # flat: grain allowed, picture detail not
+BAR_DRIFT = 4.0                     # uniform: every row of the band within this of the band's level
+BAR_EDGE = 15.0                     # sharp: the rows just inside differ by at least this (mean shift + std)
+BAR_INTERIOR = 20.0                 # the picture inside is clearly brighter or busier than the band
+BAR_PAIR_LUMA = 10.0                # both bars of a pair have about the same level
+BAR_SIZE_MATCH = 0.02               # a bar keeps its size (fraction) across the frames it is seen on
 ANALYSIS_SIZE = (270, 480)          # frames are downscaled for bar detection
 
 
@@ -154,34 +159,57 @@ def _gray_frames(path: str | Path, times: list[float]):
     return frames
 
 
-def _band(lines) -> int:
-    """How many leading rows (of a 2-D array) are uniform near-black."""
+def _band(lines) -> tuple[float, float]:
+    """(fraction, level) of a bar along one edge of a 2-D array whose first row is the edge; (0, 0) when none.
+
+    A bar is a run of rows that are dark (mean <= BAR_LUMA), flat (std <= BAR_STD) and uniform
+    (all within BAR_DRIFT of each other), ending in a sharp edge, with a picture beyond it that is
+    clearly brighter or busier than the band."""
+    total = lines.shape[0]
+    means = lines.mean(axis=1)
+    stds = lines.std(axis=1)
+    if means[0] > BAR_LUMA or stds[0] > BAR_STD:
+        return 0.0, 0.0
+    level = float(means[0])
     n = 0
-    for row in lines:
-        if row.mean() <= BAR_LUMA and row.std() <= BAR_STD:
-            n += 1
-        else:
-            break
-    return n
+    while n < total and means[n] <= BAR_LUMA and stds[n] <= BAR_STD and abs(means[n] - level) <= BAR_DRIFT:
+        n += 1
+    if n == 0 or n >= total - 2:
+        return 0.0, 0.0
+    level = float(means[:n].mean())
+    flat = float(stds[:n].mean())
+    edge = max(abs(float(means[k]) - level) + float(stds[k]) for k in range(n, min(n + 3, total)))
+    inner = lines[n:min(total, n + max(8, n))]
+    interior = max(float(inner.mean()) - level, float(inner.std()) - flat)
+    if edge < BAR_EDGE or interior < BAR_INTERIOR:
+        return 0.0, 0.0
+    return n / total, level
 
 
-def bar_sizes(frame) -> dict[str, float]:
-    """Fractions of height (top/bottom) and width (left/right) covered by uniform near-black borders."""
-    h, w = frame.shape
+def bar_sizes(frame) -> dict[str, tuple[float, float]]:
+    """{side: (fraction, level)} for top/bottom (fraction of height) and left/right (of width)."""
     return {
-        "top": _band(frame) / h,
-        "bottom": _band(frame[::-1]) / h,
-        "left": _band(frame.T) / w,
-        "right": _band(frame.T[::-1]) / w,
+        "top": _band(frame),
+        "bottom": _band(frame[::-1]),
+        "left": _band(frame.T),
+        "right": _band(frame.T[::-1]),
     }
+
+
+def _pair(sizes: dict, a: str, b: str) -> tuple[float, float] | None:
+    (fa, la), (fb, lb) = sizes[a], sizes[b]
+    if fa > BAR_FRACTION and fb > BAR_FRACTION and abs(la - lb) <= BAR_PAIR_LUMA:
+        return fa, fb
+    return None
 
 
 def detect_black_bars(path: str | Path, duration: float,
                       exempt: list[tuple[float, float]] | None = None) -> list[str]:
-    """Descriptions of black bars found on frames sampled once a second (skipping fades and exempt windows).
+    """Descriptions of letterbox/pillarbox bars on frames sampled once a second (skipping fades and exempt windows).
 
-    A bar counts when both opposite sides have one (letterbox/pillarbox) on a frame, or when the
-    same single side has one on two or more sampled frames."""
+    Bars come in matching pairs (top+bottom or left+right, same level) and must be stable: the same
+    size on at least two sampled frames (or on the only frame sampled). A dark sky or a dark top
+    region alone is a picture, not a bar."""
     exempt = exempt or []
     end = duration - 1.0  # the global fade-out
     times = []
@@ -192,28 +220,37 @@ def detect_black_bars(path: str | Path, duration: float,
         t += 1.0
     if not times and duration > 0.4:
         times = [round(duration / 2, 3)]
-    boxed: dict[str, list[tuple[float, float, float]]] = {}
-    single: dict[str, list[float]] = {}
-    for t, frame in _gray_frames(path, times):
-        s = bar_sizes(frame)
-        bars = {k: v for k, v in s.items() if v > BAR_FRACTION}
-        if "top" in bars and "bottom" in bars:
-            boxed.setdefault("letterbox", []).append((t, bars["top"], bars["bottom"]))
-        elif "left" in bars and "right" in bars:
-            boxed.setdefault("pillarbox", []).append((t, bars["left"], bars["right"]))
-        else:
-            for side in bars:
-                single.setdefault(side, []).append(t)
+    frames = _gray_frames(path, times)
+    hits: dict[str, list[tuple[float, float, float]]] = {"letterbox": [], "pillarbox": []}
+    for t, frame in frames:
+        sizes = bar_sizes(frame)
+        lb = _pair(sizes, "top", "bottom")
+        if lb:
+            hits["letterbox"].append((t, *lb))
+        pb = _pair(sizes, "left", "right")
+        if pb:
+            hits["pillarbox"].append((t, *pb))
     found: list[str] = []
-    for kind, hits in sorted(boxed.items()):
-        a = max(h[1] for h in hits)
-        b = max(h[2] for h in hits)
-        sides = ("top", "bottom", "height") if kind == "letterbox" else ("left", "right", "width")
-        found.append(f"black bars ({kind}, {sides[0]} {a:.0%} and {sides[1]} {b:.0%} of the {sides[2]}) "
-                     f"at {_times(h[0] for h in hits)}")
-    for side, ts in sorted(single.items()):
-        if len(ts) >= 2:
-            found.append(f"black bar on the {side} edge at {_times(ts)}")
+    for kind, seen in hits.items():
+        if not seen:
+            continue
+        # stable: group frames whose bar sizes match, keep groups seen at least twice
+        groups: list[list[tuple[float, float, float]]] = []
+        for h in seen:
+            for g in groups:
+                if abs(g[0][1] - h[1]) <= BAR_SIZE_MATCH and abs(g[0][2] - h[2]) <= BAR_SIZE_MATCH:
+                    g.append(h)
+                    break
+            else:
+                groups.append([h])
+        need = 1 if len(frames) == 1 else 2
+        for g in groups:
+            if len(g) < need:
+                continue
+            a, b = max(h[1] for h in g), max(h[2] for h in g)
+            sides = ("top", "bottom", "height") if kind == "letterbox" else ("left", "right", "width")
+            found.append(f"black bars ({kind}, {sides[0]} {a:.0%} and {sides[1]} {b:.0%} of the {sides[2]}) "
+                         f"at {_times(h[0] for h in g)}")
     return found
 
 
@@ -335,7 +372,8 @@ def check_file(path: str | Path, kind: str = "reel", size: tuple[int, int] | Non
         abr = _audio_bitrate(p)
         want_abr = _rate_value(audio_cfg.get("bitrate", "192k"))
         if abr is not None and not (want_abr * AUDIO_BITRATE_RANGE[0] <= abr <= want_abr * AUDIO_BITRATE_RANGE[1]):
-            errors.append(f"audio bitrate: {abr / 1000:.0f} kbps, expected about {want_abr / 1000:.0f} kbps")
+            # AAC is average-bitrate: sparse or quiet audio legitimately encodes far below the setting
+            warnings.append(f"audio bitrate: {abr / 1000:.0f} kbps, expected about {want_abr / 1000:.0f} kbps")
 
         loud = measure_audio(p)
         i_lufs, tp, mean, mx = loud["integrated_lufs"], loud["true_peak_db"], loud["mean_db"], loud["max_db"]
@@ -441,10 +479,16 @@ def main(argv: list[str] | None = None) -> int:
         nc.print_json({"file": str(path), "kind": args.kind, **result})
     else:
         lo = result["loudness"] or {}
+
+        def show(key: str, unit: str) -> str:
+            v = lo.get(key)
+            return "n/a" if v is None else f"{v} {unit}"
+
         state = "OK" if result["ok"] else f"FAIL ({len(result['errors'])} errors)"
         print(f"{state} {path.name}: {result['probe']['width']}x{result['probe']['height']} "
               f"{result['probe']['duration'] or 0:.2f} s {result['probe']['size_mb']} MB, "
-              f"{lo.get('integrated_lufs')} LUFS, TP {lo.get('true_peak_db')} dB, mean {lo.get('mean_db')} dB")
+              f"loudness {show('integrated_lufs', 'LUFS')}, true peak {show('true_peak_db', 'dB')}, "
+              f"mean {show('mean_db', 'dB')}")
     return 0 if result["ok"] else 1
 
 
