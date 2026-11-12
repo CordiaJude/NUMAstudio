@@ -15,7 +15,7 @@
 | T9 30-day system | ACCEPTED (re-review 6/6 PASS) | 2 | |
 | T10 Setup/posting | ACCEPTED (re-review 7/7 PASS; 2 minors fixed by orchestrator) | 2 | |
 | T12 Templates/prefs/kinetic/rule41 | IN PROGRESS | 1 | |
-| T11 Integration | PENDING | 0 | |
+| T11 Integration | IN PROGRESS | 1 | |
 
 ## Minor findings for final polish
 - T0: example-plan-year-one-v2.json whips on shots 10,12,14,16 violate "at most every third cut" (fix after T4 adds spacing check).

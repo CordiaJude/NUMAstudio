@@ -497,14 +497,20 @@ def load_template(name: str, path: Path | None = None) -> dict:
     raise nc.UserError(f"unknown template {name!r}; valid templates: {ids}")
 
 
+DETERMINERS = {"a", "an", "the", "your", "our", "my", "their", "his", "her", "its", "this", "that", "these", "those"}
+
+
 def shorten(text: str, n: int) -> str:
     """At most n words: the first clause when it fits, else the first words without a dangling stop word."""
     words = text.replace("*", "").split()
     if len(words) <= n:
         return " ".join(words)
-    clause = re.split(r"[,;:—]|\s-\s", " ".join(words))[0].split()
+    clause = re.split(r"[,;:\u2014]|\s-\s", " ".join(words))[0].split()
     if 2 <= len(clause) <= n:
         return " ".join(clause).rstrip(".,;:!?") + "."
+    lean = [w for w in words if _clean(w) not in DETERMINERS]   # "before your first plunge" -> "before first plunge"
+    if 2 <= len(lean) <= n:
+        return " ".join(lean)
     cut = words[:n]
     while len(cut) > 1 and _clean(cut[-1]) in STOP:
         cut.pop()
