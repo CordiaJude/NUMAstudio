@@ -249,7 +249,7 @@ level and ignored. Any other unknown key is a schema error (typos fail loudly).
 
 | Field | Type | Default | Meaning |
 |-------|------|---------|---------|
-| `text` | string | required | Hook text, full opacity from frame 0 |
+| `text` | string | required | Hook text, full opacity from frame 0. Wrap words in `*asterisks*` for gold italic; with no markup the last word is gold |
 | `t1` | number >= 1.5 | 2.0 | When the hook text fades out (visible at least 1.5 s, interpretation 6) |
 | `y` | px | just below the top safe area (0.12 x height) | Vertical centre |
 
@@ -647,7 +647,10 @@ engine.py PLAN_JSON preview T1 [T2 ...] [--size WxH] [--out FILE]
   `--workers N` (default: CPU count) renders frames in parallel with output
   byte-identical to `--workers 1`. `--encoder videotoolbox` (macOS hardware)
   falls back to libx264 when unavailable and is never used for golden or
-  determinism tests. Writes `OUT_DIR/render.json`.
+  determinism tests. Encoding runs in fixed 2 s segments (one GOP each, encoded
+  single-threaded, then concatenated and faststarted) so output is identical
+  for any worker count. Writes `OUT_DIR/render.json` with keys `sha256`,
+  `timings`, `frames`, `size`, `workers`, `encoder`, `preset`, `crf`, `segment_s`.
 - Preview: renders the listed times into one grid `OUT_DIR/preview.jpg`
   (5 tiles per row).
 - Reads only the plan, bundled assets/fonts and brand.json defaults (R9).
