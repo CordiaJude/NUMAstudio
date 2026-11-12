@@ -1,0 +1,1419 @@
+{
+  "schema_version": 1,
+  "_source": "spec p.35 (template library: arc, beat count, typical length, signature moment), p.30 #13 (named presets), p.17-19 (edit grammar), REQUIREMENTS R192-R195",
+  "_fields": {
+    "id": "What the plan Sheet's Template column and script.json `template` hold; baseline_plan.py --template NAME takes it (T12).",
+    "kind": "template (the spec p.35 library) or preset (spec #13: a named, fully resolved variant of a template).",
+    "base": "Presets only: the template id it specializes.",
+    "arc": "Ordered story beats [{beat, does}]. One spoken line per beat (lines may exceed beats for long reels); the outro beat is music-only.",
+    "beat_count": "len(arc).",
+    "typical_length_s": "[min, max] seconds including the outro; default_length_s is the planner's --duration when the row gives none.",
+    "length_class": "growth (45-60 s) or atmosphere (15-30 s), config render.length_s; validated by shoot_card.py check rule 2.",
+    "signature_moment": "{type, at, what}: type is plan.json signature.type (wipe needs a true before/after pair, else flash); at is the fraction of the voiced part (duration - outro) where it lands; what is the intent.",
+    "turn": "{at, what} or null: the story turn as a fraction of the voiced part; baseline_plan.py --turn S = at x voiced seconds.",
+    "pacing": "{beats_per_shot: [min, max], hook_s, outro_s}: shot lengths in beats (never over config render.max_shot_beats except the peak), hook text visible for hook_s, outro_s music-only seconds.",
+    "look": "{default, before_turn}: plan shot.look values (warm, before, none); before_turn applies to shots before the turn (transformation only).",
+    "transitions": "Allowed plan shot.tr values for this template, in order of preference.",
+    "hook_style": "plan meta.hook_type and the metrics tag hook_type: question, contrast, tease, local, myth, number, first_timer, reveal, announcement, quote, behind_the_scenes.",
+    "goal": "Default Sheet Goal (awareness, offer, community, education).",
+    "pillars": "brand.json positioning.content_mix keys this template usually serves.",
+    "series": "brand.json positioning.series ids it fits (empty: any).",
+    "needs": "Material the template depends on; the scriptwriter puts it on the card and the Director checks it the night before.",
+    "kinetic_type": "true: the reel uses large animated text cards (engine kinetic type, R195).",
+    "text_cards": "[{beat, source: line|label, text?, max_words}]: a card shows the beat's spoken line (shortened to max_words) or a fixed label.",
+    "cta_style": "How the CTA is matched to the goal.",
+    "example_hook": "One hook in NUMA's voice that passes claims_scan.py."
+  },
+  "templates": [
+    {
+      "id": "transformation",
+      "name": "Transformation (before/after)",
+      "kind": "template",
+      "what": "A before/after of the space, a room setup or an event night: the old state, the work, the reveal.",
+      "example_hook": "This was a parking lot.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "Tease the finished result in frame zero"
+        },
+        {
+          "beat": "before",
+          "does": "The old state, plain and honest"
+        },
+        {
+          "beat": "work",
+          "does": "Hands, tools, the slow build"
+        },
+        {
+          "beat": "turn",
+          "does": "The wipe: same angle, before becomes after"
+        },
+        {
+          "beat": "after",
+          "does": "The finished space, warm light, someone using it"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 6,
+      "typical_length_s": [
+        30,
+        45
+      ],
+      "default_length_s": 40,
+      "length_class": "growth",
+      "signature_moment": {
+        "type": "wipe",
+        "at": 0.5,
+        "what": "Before/after wipe on the turn line, same camera angle"
+      },
+      "turn": {
+        "at": 0.5,
+        "what": "The reveal line ('And then this.')"
+      },
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          3
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": "before"
+      },
+      "transitions": [
+        "cut",
+        "wipe",
+        "leakfade"
+      ],
+      "hook_style": "reveal",
+      "goal": "awareness",
+      "pillars": [
+        "local_seasonal",
+        "community"
+      ],
+      "series": [],
+      "needs": [
+        "a true before/after pair from the same angle (else the signature falls back to a flash reveal)"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "Share line or soft invite; no outcome claims"
+    },
+    {
+      "id": "class_spotlight",
+      "name": "Class spotlight",
+      "kind": "template",
+      "what": "One class or session (Embodiment Flow Yoga, a guided breathwork class, the NUMA Experience): the energy, who it's for, how it feels.",
+      "example_hook": "Tuesday, 6 pm. This room.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "Class energy in frame zero"
+        },
+        {
+          "beat": "who",
+          "does": "Who it's for, in plain words"
+        },
+        {
+          "beat": "moments",
+          "does": "Three moments of the class, one per line"
+        },
+        {
+          "beat": "feeling",
+          "does": "How it feels at the end (experience language)"
+        },
+        {
+          "beat": "invite",
+          "does": "When it runs and how to join"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 6,
+      "typical_length_s": [
+        30,
+        45
+      ],
+      "default_length_s": 35,
+      "length_class": "atmosphere",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.6,
+        "what": "Flash cut into the quiet moment at the end of class"
+      },
+      "turn": {
+        "at": 0.6,
+        "what": "The room goes quiet"
+      },
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          4
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "punch",
+        "flash",
+        "leakfade"
+      ],
+      "hook_style": "behind_the_scenes",
+      "goal": "community",
+      "pillars": [
+        "community",
+        "collective_collabs"
+      ],
+      "series": [
+        "regulate",
+        "meet_the_collective"
+      ],
+      "needs": [
+        "class footage filmed during the class (capture moment)",
+        "consented people for any face"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "Class time and the booking link from brand.json business.cta_link"
+    },
+    {
+      "id": "member_story",
+      "name": "Member story",
+      "kind": "template",
+      "what": "One member or first-timer in their own words: why they came, the first time, what it's like now. Consent required.",
+      "example_hook": "I told everyone I would never get in that plunge.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "Their line, on screen and spoken"
+        },
+        {
+          "beat": "before",
+          "does": "Why they came"
+        },
+        {
+          "beat": "first_time",
+          "does": "The first seconds in the cold or the heat"
+        },
+        {
+          "beat": "now",
+          "does": "What it's like now (feelings, not outcomes)"
+        },
+        {
+          "beat": "share",
+          "does": "Share line: send it to the friend who 'could never'"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 6,
+      "typical_length_s": [
+        45,
+        60
+      ],
+      "default_length_s": 50,
+      "length_class": "growth",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.55,
+        "what": "Flash on the first-plunge moment"
+      },
+      "turn": {
+        "at": 0.55,
+        "what": "The first seconds in the water"
+      },
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          4
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "flash",
+        "fade",
+        "leakfade"
+      ],
+      "hook_style": "first_timer",
+      "goal": "community",
+      "pillars": [
+        "community"
+      ],
+      "series": [
+        "first_plunge"
+      ],
+      "needs": [
+        "a consented member (consent list only)",
+        "their voice memo or Katie reading their words"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "Share line; no booking pitch needed"
+    },
+    {
+      "id": "modality_explainer",
+      "name": "Modality explainer",
+      "kind": "template",
+      "what": "What a modality is and how a session goes (sauna, cold plunge, red light, breathwork), education only, within the claims policy.",
+      "example_hook": "Sauna vs infrared vs red light: what's different?",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "The question, on screen and spoken"
+        },
+        {
+          "beat": "what",
+          "does": "What it is, in one plain sentence"
+        },
+        {
+          "beat": "how",
+          "does": "How a session at NUMA goes"
+        },
+        {
+          "beat": "feel",
+          "does": "What people say it feels like (experience, never outcome)"
+        },
+        {
+          "beat": "safety",
+          "does": "Who should check with their doctor first, when it's heat or cold"
+        },
+        {
+          "beat": "save",
+          "does": "Save or send ask"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 7,
+      "typical_length_s": [
+        45,
+        60
+      ],
+      "default_length_s": 50,
+      "length_class": "growth",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.5,
+        "what": "Flash into the water or the steam on the 'how' line"
+      },
+      "turn": null,
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          4
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "punch",
+        "fade",
+        "leakfade"
+      ],
+      "hook_style": "question",
+      "goal": "education",
+      "pillars": [
+        "education"
+      ],
+      "series": [
+        "ask_the_dpt",
+        "regulate"
+      ],
+      "needs": [
+        "Katie on camera or her voice (Ask the DPT)",
+        "the room the modality lives in"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "Save it or send it; never booking in an Ask the DPT reel"
+    },
+    {
+      "id": "offer_promo",
+      "name": "Offer promo",
+      "kind": "template",
+      "what": "One offer (Discover NUMA, one month for $49 from brand.json offerings.offers): what it is, what a first visit feels like, how to start.",
+      "example_hook": "Your first month at NUMA: $49.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "The offer and price in frame zero"
+        },
+        {
+          "beat": "what",
+          "does": "What's included, in plain words"
+        },
+        {
+          "beat": "visit",
+          "does": "What a first visit feels like"
+        },
+        {
+          "beat": "how",
+          "does": "How to start (the link)"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 5,
+      "typical_length_s": [
+        20,
+        30
+      ],
+      "default_length_s": 25,
+      "length_class": "atmosphere",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.6,
+        "what": "Flash to the warmest shot on the 'first visit' line"
+      },
+      "turn": null,
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          3
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "punch",
+        "whip",
+        "flash"
+      ],
+      "hook_style": "announcement",
+      "goal": "offer",
+      "pillars": [
+        "offers_events"
+      ],
+      "series": [],
+      "needs": [
+        "the confirmed offer facts (price status not needs_katie)",
+        "the front of house or the plunge room"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "The offer link (brand.json business.cta_link); the week's one sales reel"
+    },
+    {
+      "id": "event_recap",
+      "name": "Event recap",
+      "kind": "template",
+      "what": "The night after an event (Numa Nights, Clinical Conversations): the arrival, the peak, the people, thank you and what's next. Within 2 days of the event.",
+      "example_hook": "Last night at Numa Nights.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "The best moment of the night"
+        },
+        {
+          "beat": "arrival",
+          "does": "Doors, candles, people arriving"
+        },
+        {
+          "beat": "peak",
+          "does": "The peak moment"
+        },
+        {
+          "beat": "together",
+          "does": "Faces and laughter (consent list only)"
+        },
+        {
+          "beat": "next",
+          "does": "Thank you and the next date"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 6,
+      "typical_length_s": [
+        20,
+        30
+      ],
+      "default_length_s": 25,
+      "length_class": "atmosphere",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.55,
+        "what": "Flash on the peak moment"
+      },
+      "turn": {
+        "at": 0.55,
+        "what": "The peak of the night"
+      },
+      "pacing": {
+        "beats_per_shot": [
+          1,
+          3
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "whip",
+        "flash",
+        "leakfade"
+      ],
+      "hook_style": "reveal",
+      "goal": "community",
+      "pillars": [
+        "offers_events",
+        "community"
+      ],
+      "series": [],
+      "needs": [
+        "footage filmed during the event (capture moment)",
+        "consented guests for any face"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "Next date, or a share line"
+    },
+    {
+      "id": "event_teaser",
+      "name": "Event teaser",
+      "kind": "template",
+      "what": "Two to three days before an event: what happens, who it's for, the date and how to come.",
+      "example_hook": "Friday night. Candles, heat, cold, quiet.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "The date and one image of the night"
+        },
+        {
+          "beat": "what",
+          "does": "What happens"
+        },
+        {
+          "beat": "who",
+          "does": "Who it's for"
+        },
+        {
+          "beat": "details",
+          "does": "Date, time, how to book"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 5,
+      "typical_length_s": [
+        15,
+        25
+      ],
+      "default_length_s": 20,
+      "length_class": "atmosphere",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.5,
+        "what": "Flash to last time's best moment"
+      },
+      "turn": null,
+      "pacing": {
+        "beats_per_shot": [
+          1,
+          3
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "whip",
+        "flash"
+      ],
+      "hook_style": "tease",
+      "goal": "offer",
+      "pillars": [
+        "offers_events"
+      ],
+      "series": [],
+      "needs": [
+        "last event's footage or the room set up",
+        "confirmed event date and time (brand.json offerings.events)"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "Date, time and the booking link"
+    },
+    {
+      "id": "behind_the_scenes",
+      "name": "Behind the scenes",
+      "kind": "template",
+      "what": "What happens before anyone arrives: the sauna heating, the plunge checked, candles, the care in the details.",
+      "example_hook": "5 am. Before anyone gets here.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "An early, quiet detail"
+        },
+        {
+          "beat": "prep",
+          "does": "Prep moments, one per line"
+        },
+        {
+          "beat": "detail",
+          "does": "The care detail nobody sees"
+        },
+        {
+          "beat": "open",
+          "does": "The doors open"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 5,
+      "typical_length_s": [
+        20,
+        30
+      ],
+      "default_length_s": 25,
+      "length_class": "atmosphere",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.65,
+        "what": "Flash as the doors open"
+      },
+      "turn": {
+        "at": 0.65,
+        "what": "Doors open"
+      },
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          4
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "fade",
+        "flash",
+        "leakfade"
+      ],
+      "hook_style": "behind_the_scenes",
+      "goal": "awareness",
+      "pillars": [
+        "community"
+      ],
+      "series": [],
+      "needs": [
+        "early-morning shots of the empty rooms (reusable library shots)"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "Soft: 'See you in there' or a share line"
+    },
+    {
+      "id": "founder_message",
+      "name": "Founder message",
+      "kind": "template",
+      "what": "Katie on why NUMA exists, in her own words: the story, why it matters, what NUMA is for Mobile.",
+      "example_hook": "We started Numa because we needed it.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "The founding line, on screen and spoken"
+        },
+        {
+          "beat": "story",
+          "does": "The moment it started"
+        },
+        {
+          "beat": "why",
+          "does": "Why it matters to them"
+        },
+        {
+          "beat": "what",
+          "does": "What NUMA is now"
+        },
+        {
+          "beat": "invite",
+          "does": "An open door, or a share line"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 6,
+      "typical_length_s": [
+        45,
+        60
+      ],
+      "default_length_s": 50,
+      "length_class": "growth",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.5,
+        "what": "Flash from the story to the room today"
+      },
+      "turn": {
+        "at": 0.5,
+        "what": "From the story to today"
+      },
+      "pacing": {
+        "beats_per_shot": [
+          3,
+          4
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "fade",
+        "leakfade"
+      ],
+      "hook_style": "quote",
+      "goal": "awareness",
+      "pillars": [
+        "community",
+        "education"
+      ],
+      "series": [],
+      "needs": [
+        "Katie on camera or her voice",
+        "the space today"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "Share line or a soft invite"
+    },
+    {
+      "id": "myth_vs_fact",
+      "name": "Myth vs fact",
+      "kind": "template",
+      "what": "One common myth and what's actually known, in careful education language (claims policy): myth, fact, what to do with it.",
+      "example_hook": "Myth: colder is always better.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "The myth as a text card"
+        },
+        {
+          "beat": "fact",
+          "does": "What we actually know (no outcome claims)"
+        },
+        {
+          "beat": "why",
+          "does": "Why the myth sticks"
+        },
+        {
+          "beat": "practice",
+          "does": "What to do at NUMA instead"
+        },
+        {
+          "beat": "save",
+          "does": "Save or send ask"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 6,
+      "typical_length_s": [
+        30,
+        45
+      ],
+      "default_length_s": 40,
+      "length_class": "growth",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.35,
+        "what": "Flash from the MYTH card to the FACT card"
+      },
+      "turn": {
+        "at": 0.35,
+        "what": "Myth becomes fact"
+      },
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          4
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "punch",
+        "flash"
+      ],
+      "hook_style": "myth",
+      "goal": "education",
+      "pillars": [
+        "education"
+      ],
+      "series": [
+        "ask_the_dpt"
+      ],
+      "needs": [
+        "Katie on camera or her voice",
+        "the room the myth is about"
+      ],
+      "kinetic_type": true,
+      "text_cards": [
+        {
+          "beat": "hook",
+          "source": "label",
+          "text": "MYTH",
+          "max_words": 6
+        },
+        {
+          "beat": "fact",
+          "source": "label",
+          "text": "FACT",
+          "max_words": 6
+        }
+      ],
+      "cta_style": "Save it or send it"
+    },
+    {
+      "id": "seasonal_holiday",
+      "name": "Seasonal or holiday post",
+      "kind": "template",
+      "what": "A season, weather or holiday hook for Mobile (Sauna season in Mobile, August tap water, Mardi Gras recovery week, hurricane-season calm, New Year resets).",
+      "example_hook": "Mobile tap water in August: 86°F.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "The local or seasonal hook"
+        },
+        {
+          "beat": "moment",
+          "does": "The season in one image"
+        },
+        {
+          "beat": "answer",
+          "does": "NUMA's answer to it"
+        },
+        {
+          "beat": "detail",
+          "does": "One concrete detail (hours, the cold, the heat)"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 5,
+      "typical_length_s": [
+        15,
+        30
+      ],
+      "default_length_s": 25,
+      "length_class": "atmosphere",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.5,
+        "what": "Flash from outside heat (or cold) to the plunge or sauna"
+      },
+      "turn": {
+        "at": 0.5,
+        "what": "Outside to inside"
+      },
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          3
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "whip",
+        "flash"
+      ],
+      "hook_style": "local",
+      "goal": "awareness",
+      "pillars": [
+        "local_seasonal"
+      ],
+      "series": [
+        "too_hot_for_a_diy_plunge"
+      ],
+      "needs": [
+        "an outside shot that shows the weather",
+        "the plunge room or sauna"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "Share line, or the offer link on an offer week"
+    }
+  ],
+  "presets": [
+    {
+      "id": "numa_nights_recap",
+      "name": "Numa Nights recap",
+      "kind": "preset",
+      "base": "event_recap",
+      "what": "The event recap preset for Numa Nights, posted within 2 days.",
+      "example_hook": "Last night at Numa Nights.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "The best moment of the night"
+        },
+        {
+          "beat": "arrival",
+          "does": "Doors, candles, people arriving"
+        },
+        {
+          "beat": "peak",
+          "does": "The peak moment"
+        },
+        {
+          "beat": "together",
+          "does": "Faces and laughter (consent list only)"
+        },
+        {
+          "beat": "next",
+          "does": "Thank you and the next date"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 6,
+      "typical_length_s": [
+        20,
+        30
+      ],
+      "default_length_s": 25,
+      "length_class": "atmosphere",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.55,
+        "what": "Flash on the peak of the night"
+      },
+      "turn": {
+        "at": 0.55,
+        "what": "The peak of the night"
+      },
+      "pacing": {
+        "beats_per_shot": [
+          1,
+          3
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "whip",
+        "flash",
+        "leakfade"
+      ],
+      "hook_style": "reveal",
+      "goal": "community",
+      "pillars": [
+        "offers_events"
+      ],
+      "series": [],
+      "needs": [
+        "footage filmed during the event (capture moment)",
+        "consented guests for any face"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "The next Numa Nights date",
+      "event": "Numa Nights"
+    },
+    {
+      "id": "class_spotlight_reel",
+      "name": "Class spotlight",
+      "kind": "preset",
+      "base": "class_spotlight",
+      "what": "The class spotlight preset: one class, 30 s, filmed during the class.",
+      "example_hook": "Tuesday, 6 pm. This room.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "Class energy in frame zero"
+        },
+        {
+          "beat": "who",
+          "does": "Who it's for, in plain words"
+        },
+        {
+          "beat": "moments",
+          "does": "Three moments of the class, one per line"
+        },
+        {
+          "beat": "feeling",
+          "does": "How it feels at the end (experience language)"
+        },
+        {
+          "beat": "invite",
+          "does": "When it runs and how to join"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 6,
+      "typical_length_s": [
+        25,
+        35
+      ],
+      "default_length_s": 30,
+      "length_class": "atmosphere",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.6,
+        "what": "Flash into the quiet end of class"
+      },
+      "turn": {
+        "at": 0.6,
+        "what": "The room goes quiet"
+      },
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          4
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "punch",
+        "flash",
+        "leakfade"
+      ],
+      "hook_style": "behind_the_scenes",
+      "goal": "community",
+      "pillars": [
+        "community"
+      ],
+      "series": [
+        "regulate"
+      ],
+      "needs": [
+        "class footage filmed during the class (capture moment)",
+        "consented people for any face"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "Class time and the booking link"
+    },
+    {
+      "id": "member_story_reel",
+      "name": "Member story",
+      "kind": "preset",
+      "base": "member_story",
+      "what": "The member story preset (First Plunge): a first-timer's nerves to a grin, consent required.",
+      "example_hook": "I told everyone I would never get in that plunge.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "Their line, on screen and spoken"
+        },
+        {
+          "beat": "before",
+          "does": "Why they came"
+        },
+        {
+          "beat": "first_time",
+          "does": "The first seconds in the cold or the heat"
+        },
+        {
+          "beat": "now",
+          "does": "What it's like now (feelings, not outcomes)"
+        },
+        {
+          "beat": "share",
+          "does": "Share line: send it to the friend who 'could never'"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 6,
+      "typical_length_s": [
+        45,
+        60
+      ],
+      "default_length_s": 45,
+      "length_class": "growth",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.55,
+        "what": "Flash on the first seconds in the cold"
+      },
+      "turn": {
+        "at": 0.55,
+        "what": "The first seconds in the water"
+      },
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          4
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "flash",
+        "fade",
+        "leakfade"
+      ],
+      "hook_style": "first_timer",
+      "goal": "community",
+      "pillars": [
+        "community"
+      ],
+      "series": [
+        "first_plunge"
+      ],
+      "needs": [
+        "a consented member (consent list only)",
+        "their voice memo or Katie reading their words"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "Send this to the friend who 'could never'"
+    },
+    {
+      "id": "offer_promo_discover",
+      "name": "Offer promo: Discover NUMA",
+      "kind": "preset",
+      "base": "offer_promo",
+      "what": "The offer promo preset for Discover NUMA (brand.json offerings.offers): one month, price as confirmed there.",
+      "example_hook": "Your first month at NUMA: $49.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "The offer and price in frame zero"
+        },
+        {
+          "beat": "what",
+          "does": "What's included, in plain words"
+        },
+        {
+          "beat": "visit",
+          "does": "What a first visit feels like"
+        },
+        {
+          "beat": "how",
+          "does": "How to start (the link)"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 5,
+      "typical_length_s": [
+        20,
+        30
+      ],
+      "default_length_s": 25,
+      "length_class": "atmosphere",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.6,
+        "what": "Flash to the warmest shot on the first-visit line"
+      },
+      "turn": null,
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          3
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "punch",
+        "whip",
+        "flash"
+      ],
+      "hook_style": "announcement",
+      "goal": "offer",
+      "pillars": [
+        "offers_events"
+      ],
+      "series": [],
+      "needs": [
+        "the confirmed offer facts (price status not needs_katie)",
+        "the front of house or the plunge room"
+      ],
+      "kinetic_type": false,
+      "text_cards": [],
+      "cta_style": "discover link (brand.json business.cta_link)",
+      "offer": "Discover NUMA"
+    },
+    {
+      "id": "education_three_things",
+      "name": "Education: 3 things, with kinetic type",
+      "kind": "preset",
+      "base": "modality_explainer",
+      "what": "Three things to know before your first cold plunge (or sauna, red light, breathwork), each on a large animated text card. Education only; claims policy on every card.",
+      "example_hook": "3 things to know before your first cold plunge.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "'3 things' title card"
+        },
+        {
+          "beat": "point_1",
+          "does": "Thing 1: card + one line"
+        },
+        {
+          "beat": "point_2",
+          "does": "Thing 2: card + one line"
+        },
+        {
+          "beat": "point_3",
+          "does": "Thing 3: card + one line"
+        },
+        {
+          "beat": "save",
+          "does": "Save it for your first visit"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 6,
+      "typical_length_s": [
+        30,
+        45
+      ],
+      "default_length_s": 40,
+      "length_class": "growth",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.3,
+        "what": "Flash on the first number card"
+      },
+      "turn": null,
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          4
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "punch",
+        "flash"
+      ],
+      "hook_style": "number",
+      "goal": "education",
+      "pillars": [
+        "education"
+      ],
+      "series": [
+        "ask_the_dpt"
+      ],
+      "needs": [
+        "Katie's voice or the generated voice",
+        "the room the topic is about (library shots are fine)"
+      ],
+      "kinetic_type": true,
+      "text_cards": [
+        {
+          "beat": "hook",
+          "source": "line",
+          "max_words": 8
+        },
+        {
+          "beat": "point_1",
+          "source": "label",
+          "text": "1",
+          "max_words": 6
+        },
+        {
+          "beat": "point_2",
+          "source": "label",
+          "text": "2",
+          "max_words": 6
+        },
+        {
+          "beat": "point_3",
+          "source": "label",
+          "text": "3",
+          "max_words": 6
+        }
+      ],
+      "cta_style": "Save it or send it"
+    },
+    {
+      "id": "holiday_hours",
+      "name": "Holiday hours",
+      "kind": "preset",
+      "base": "seasonal_holiday",
+      "what": "Holiday or closure hours as a short announcement with kinetic type; never invites people in on a closed day.",
+      "example_hook": "Holiday hours at NUMA.",
+      "arc": [
+        {
+          "beat": "hook",
+          "does": "'Holiday hours' title card"
+        },
+        {
+          "beat": "hours",
+          "does": "The days and hours, one text card each"
+        },
+        {
+          "beat": "calm",
+          "does": "One calm shot of the space"
+        },
+        {
+          "beat": "outro",
+          "does": "Music-only end card"
+        }
+      ],
+      "beat_count": 4,
+      "typical_length_s": [
+        15,
+        20
+      ],
+      "default_length_s": 15,
+      "length_class": "atmosphere",
+      "signature_moment": {
+        "type": "flash",
+        "at": 0.4,
+        "what": "Flash from the title card to the hours"
+      },
+      "turn": null,
+      "pacing": {
+        "beats_per_shot": [
+          2,
+          4
+        ],
+        "hook_s": 2.0,
+        "outro_s": 7.5
+      },
+      "look": {
+        "default": "warm",
+        "before_turn": null
+      },
+      "transitions": [
+        "cut",
+        "fade",
+        "flash"
+      ],
+      "hook_style": "announcement",
+      "goal": "awareness",
+      "pillars": [
+        "local_seasonal"
+      ],
+      "series": [],
+      "needs": [
+        "confirmed hours (brand.json business.hours and closures)",
+        "a calm library shot of the space"
+      ],
+      "kinetic_type": true,
+      "text_cards": [
+        {
+          "beat": "hook",
+          "source": "line",
+          "max_words": 4
+        },
+        {
+          "beat": "hours",
+          "source": "line",
+          "max_words": 8
+        }
+      ],
+      "cta_style": "None or 'see you after the holiday'; nothing inviting on the closed days",
+      "invites": false
+    }
+  ]
+}

@@ -540,7 +540,7 @@ def default_carousel(plan: dict) -> list[dict]:
     for k, t in enumerate(times):
         text = None
         if k == 0 and hook:
-            text = plain(hook)
+            text = hook
         else:
             on = [i for i, ln in enumerate(lines) if float(ln["words"][0][1]) - 0.3 <= t <= float(ln["end"]) + 0.3]
             near = sorted(range(len(lines)),
@@ -592,10 +592,12 @@ def default_hook_variants(plan: dict, have: list[dict]) -> list[dict]:
         if alt.get("kind") == "video":
             c["start"] = float(alt.get("start", 0.0))
         cands.append(c)
-    for ln in lines[:3]:
+    # whole sentences first (a caption line can be half a sentence), in reel order
+    ranked = sorted(lines, key=lambda ln: (line_text(ln).rstrip()[-1:] not in ".?!", len(line_text(ln)) > 60))
+    for ln in ranked[:3]:
         cands.append({"text": line_text(ln)})
     if alt is not None:
-        for ln in lines[:2]:
+        for ln in ranked[:2]:
             c = {"text": line_text(ln), "src": alt["src"]}
             if alt.get("kind") == "video":
                 c["start"] = float(alt.get("start", 0.0))

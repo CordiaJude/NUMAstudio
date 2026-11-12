@@ -323,7 +323,7 @@ def test_build_loop_order(texts):
     idx = [t.find(s) for s in order]
     assert all(i >= 0 for i in idx), [s for s, i in zip(order, idx) if i < 0]
     assert idx == sorted(idx), "build loop out of order"
-    for needle in ["`blur`", "F12", "hook_variants", "Trial Reel", "virality predictor", "--prefs", "0 ERRORs",
+    for needle in ["`blur: [[", "F12", "hook_variants", "Trial Reel", "virality predictor", "--prefs", "0 ERRORs",
                    "`prepared_path`", "`people: true` + `consent: true`"]:
         assert needle in t, needle
 

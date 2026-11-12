@@ -111,8 +111,8 @@ These rules are the product's IP. The validator enforces the ones marked (rule N
 
 - The picture on screen illustrates the word being said at that moment ("breathe" -> breathwork); a cut lands where the line changes subject.
 - Exactly one signature moment per reel:
-- A true before and after of the same subject (building, room) exists: a `wipe` from the before shot to the after shot. Set `signature` = {`type`: `wipe`, `t`: the after shot's `t0`}.
-- Otherwise: a white `flash` reveal on the reel's biggest line, `signature` = {`type`: `flash`, `t`}.
+  - A true before and after of the same subject (building, room) exists: a `wipe` from the before shot to the after shot. Set `signature` = {`type`: `wipe`, `t`: the after shot's `t0`}.
+  - Otherwise: a white `flash` reveal on the reel's biggest line, `signature` = {`type`: `flash`, `t`}.
 - Never two wipes; the end card's flash does not count (rule 18).
 
 ### 4.5 Transitions (`tr` is the transition into the shot)
@@ -213,7 +213,7 @@ In the plan, an approved clip is a `kind: video` shot with `ai_generated: true`;
    python3 "$S/baseline_plan.py" "$JOB/work" --hook "This is what Katie saw." --duration 39 --before P0 --after P10 --turn 6.2 --prefs "$STATE/preferences.json"
    ```
    `--before/--after/--turn` only for a true before/after pair; `--script "$JOB/work/script.txt"` for a music-only reel (the script goes on screen at about 2.3 words a second); `--subtitle` for the sign-off.
-4. **Improve it by judgment**, shot by shot, against Step 4: the arc, the strongest image first, the picture matching each line, 2-beat "before" cuts and 4-beat holds, the one signature moment, varied transitions, alternating zooms, looks switching at the turn, 1-2 gold words per line, `nat` bursts, the outro montage of the best shots, the end card sign-off. Mark notes with `_why` keys (ignored by the engine). Fill:
+4. **Improve it by judgment**, shot by shot, against Step 4: the arc, the strongest image first, the picture matching each line, video shots starting at the clip's best window (`clips[].windows` and per-second `scores` from vision.py, best first), 2-beat "before" cuts and 4-beat holds, the one signature moment, varied transitions, alternating zooms, looks switching at the turn, 1-2 gold words per line, `nat` bursts, the outro montage of the best shots, the end card sign-off. Mark notes with `_why` keys (ignored by the engine). Fill:
    - `people: true` + `consent: true` on a shot only after checking `STATE/consent_list.json`; a recognizable person not on the list is blurred (`blur: [[x, y, w, h]]`, normalized source box around each non-consented person, failure row F12) or the shot is replaced;
    - `music`, `ai`, `meta` (`slug`, `title`, `series`, `pillar`, `hook_type`, `goal`, `day`);
    - `formats`: `reach_cut` {t0, t1, hook} (8-12 s, the best stretch with a new hook), 3-5 `story` frames with one line each, 5-8 `carousel` slides, `cover` {t, title}, 2-3 `hook_variants` {text, src?, start?}.

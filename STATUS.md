@@ -11,7 +11,7 @@
 | T6 Formats | IN PROGRESS | 1 | |
 | T7 Ops scripts | ACCEPTED (round 3 re-review PASS) | 3 | |
 | T8a Director+librarian/scout/analyst | REVISING | 2 | M: sources for folder audio; stage-2 marker; --template pending T12 |
-| T8b Crew agents + skills | IN PROGRESS | 1 | |
+| T8b Crew agents + skills | IN REVIEW | 1 | |
 | T9 30-day system | IN PROGRESS | 1 | |
 | T10 Setup/posting | PENDING | 0 | |
 | T12 Templates/prefs/kinetic | PENDING | 0 | |
@@ -27,3 +27,4 @@
 - T3: finish.py loudness loop keeps refining after in-spec pass 1 (stop when in spec ±0.5 LU or no improvement); report.json add delivered_pass; log line shows next-pass values.
 - T1: render cache under out_dir may sync if work folder is in Drive; document NUMA_RENDER_CACHE / prefer system temp for synced paths.
 - Cleanup for user: empty folder /nonexistent_ro/x created by a reviewer test (safety check blocked removal).
+- T8a follow-up (from T8b): make-reel step 10 pass critic analysis.json, sources.json, plan_row.json, STATE/consent_list.json; scout.md add Higgsfield unlimited-window draft batching (R227).
