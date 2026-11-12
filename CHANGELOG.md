@@ -18,9 +18,9 @@ table below) and analysis.json to schema_version 2 (re-run `analyze.py`; v1 plan
 
 ### Release check (golden test, spec p.52)
 - M2 golden test (`tests/golden_year_one.py`, Year One test pack, Linux sandbox, 4 cores): PASS.
-  Analysis 107.7 BPM, transcript with "Mobile", 50 words. Example plan (the hand-built edit, captions
-  re-synced to this transcript) and baseline plan (`--template transformation`, before/after wipe):
-  0 validator errors, before/after wipe, cuts within one frame of a beat (25/25 and 26/26), every
+  Analysis 107.7 BPM, transcript with "Mobile", 50 words. Example plan (the hand-built edit, its
+  captions in sync as shipped, checked before any re-timing) and baseline plan (`--template
+  transformation`, before/after wipe): 0 validator errors, before/after wipe, cuts within one frame of a beat (25/25 and 26/26), every
   caption word within 0.1 s of the transcript, output spec met, 39.0 s vs the reference's 39.0 s,
   -15 LUFS vs the reference's -16 LUFS, drop-to-file 2.0 and 1.7 min (limit 15).
 - M3 five-folder suite (`tests/run_tests.py`): 5/5 PASS.
@@ -126,7 +126,9 @@ table below) and analysis.json to schema_version 2 (re-run `analyze.py`; v1 plan
   no audio at all, "clips only" uses the clips' own sound, "music only" takes its captions from the
   script; the v1 combined-track case stays as `--extra`.
 - `assets/example-plan-year-one-v2.json`: the Year One reel as a v2 plan (placeholder prefixes the
-  golden harness rewrites); the v1 example stays as the compatibility fixture.
+  golden harness rewrites); the v1 example stays as the compatibility fixture. Its caption words
+  are re-timed to the Year One transcript's appear times (48 words moved, at most 0.9 s) and the
+  unspoken "And" at 7.00 s is removed, so the shipped example is in sync (validate_plan rule 24).
 
 ### Fixed
 - Transcripts no longer invent words over music-only audio; brand names are spelled right.

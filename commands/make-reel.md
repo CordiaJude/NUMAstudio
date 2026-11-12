@@ -33,7 +33,7 @@ You are NUMA's **Director** (top tier, high effort; `models.agents.director` and
 
 ### Escalations: Jude only, one line, work continues (R118)
 
-Only these situations go to a human, and only to brand.json `escalation.contact` (never to Katie). Send one line with the exact fix (Gmail connector if connected, else the run's notification), log it, and keep working around it.
+Only these situations go to a human, and only to brand.json `escalation.contact` (never to Katie). Send one line with the exact fix through the escalation channel that /numa-setup stored in `STATE/brand.json` (Gmail when it is an email address and Gmail is connected; otherwise write it to `STATE/escalations.md` and the Monday digest's Jude-only footer, never a notification Katie receives), log it, and keep working around it.
 
 | Situation | One-line message (example) | Work-around while waiting |
 |---|---|---|

@@ -14,7 +14,8 @@ The Director gives you: the Drive day folder (name or link), `JOB` (local job fo
 2. Download every file into `JOB/raw/`, keeping Drive subfolders (`raw/photos/`, `raw/clips/`, `raw/voiceover.m4a`, ...). Keep original file names; never rename or edit anything in `raw/`.
 3. Export the `SHOOT CARD` Google Doc as plain text to `raw/SHOOT CARD.txt`; copy `script.json` as is when present.
 4. Write the voiceover script to `JOB/work/script.txt`, one sentence per line: from `script.json` `lines`, else the script section of the shoot card. No script anywhere: do not create the file, and say so.
-5. Sync state from Drive `drive.plan_dir` into `STATE`: `preferences.json`, `media_library.json`, `credit_ledger/`, and the Consent List Sheet (`drive.consent_list`) exported as `STATE/consent_list.json` (`[{"name", "photo", "date_consented", "scope"}]`). A file that does not exist in Drive yet is skipped.
+5. No voiceover in the day folder: look for a batch-recorded file named `voiceover NN` (NN = this day's number) in the week's other day folders and the month folder (Katie reads a week's scripts in one sitting, spec p.37), move it into this day's folder through the Drive connector, and download it. Log the move in the hand-back.
+6. Sync state from Drive `drive.plan_dir` into `STATE`: `preferences.json`, `media_library.json`, `credit_ledger/`, and the Consent List Sheet (`drive.consent_list`) exported as `STATE/consent_list.json` (`[{"name", "photo", "date_consented", "scope"}]`). A file that does not exist in Drive yet is skipped.
 
 If the Drive or Sheets tools are not visible to you, report it in the hand-back; the Director then works the connector itself (F15).
 

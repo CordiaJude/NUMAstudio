@@ -158,7 +158,7 @@ FILING_RULES = [
     ("always", "Any file names. Sheet edits optional."),
 ]
 PHONE_SETTINGS = "vertical, 4K 30 fps, hold 5 s, no zoom"
-RECORDING_TIPS = "closet or carpeted room, phone 12 in away, one take, 1 s silence each end"
+RECORDING_TIPS = "closet or carpeted room, phone 12 in away, normal voice, one take, 1 s silence each end"
 LAST_LINE = "IF YOU CAN'T: skip it. Claude will find another way."
 
 

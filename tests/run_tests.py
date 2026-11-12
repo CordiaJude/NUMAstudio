@@ -5,11 +5,12 @@ Each case builds a synthetic material folder from the bundled brand photos and
 ffmpeg-generated audio (no member photos, no network, no credits), then runs the
 real pipeline with no human input:
 
-    analyze -> fix_transcript (when a script exists) -> vision -> prep_media
+    analyze -> fix_transcript (with the script when one exists) -> vision -> prep_media
     -> baseline_plan -> validate_plan (0 ERRORs) -> engine -> finish
     -> check_output -> qa_frames -> formats
 
-and asserts the reel is postable: check_output passes, 1080x1920, 48 kHz AAC,
+and asserts the reel is postable: captions within 0.15 s of the transcript (voiced cases),
+check_output passes, 1080x1920, 48 kHz AAC,
 loudness in spec, audio not silent, 12 Critic frames, the format files exist.
 
 Cases (REQUIREMENTS.md interpretation 7):
@@ -46,6 +47,11 @@ BRAND_PHOTOS = sorted((ROOT / "skills" / "numa-reel-editor" / "assets" / "brand-
 sys.path.insert(0, str(SCRIPTS))
 
 import numa_common as nc  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from golden_year_one import caption_sync  # noqa: E402
+
+CAPTION_SYNC_S = 0.15   # validate_plan rule 24
 
 CASES = ["photos_only", "clips_only", "voice_and_music", "music_only", "heic_photos"]
 EXTRA = ["combined_track"]
@@ -271,8 +277,9 @@ def _run_case(name: str, root: Path, args, log: list) -> tuple[str, list]:
     if name == "photos_only":
         a_args += ["--pad-seconds", max(30.0, args.seconds + 8)]
     step(log, "analyze", "analyze.py", *a_args)
-    if facts["script"]:
-        step(log, "fix_transcript", "fix_transcript.py", analysis, "--script", facts["script"])
+    # always, as /make-reel does: brand transcript fixes, plus the script when the shoot card has one
+    step(log, "fix_transcript", "fix_transcript.py", analysis,
+         *(["--script", facts["script"]] if facts["script"] else []))
     step(log, "vision", "vision.py", analysis)
     step(log, "prep_media", "prep_media.py", analysis)
     A = json.loads(analysis.read_text())
@@ -296,6 +303,10 @@ def _run_case(name: str, root: Path, args, log: list) -> tuple[str, list]:
     P = json.loads(plan.read_text())
     if facts["script"]:
         check(len(P.get("lines", [])) > 0, "music_only: no captions from the --script text")
+    if A.get("words"):
+        check(len(P.get("lines", [])) > 0, "voice: the plan has no captions although the transcript has words")
+        worst, bad = caption_sync(P, A["words"], CAPTION_SYNC_S)
+        check(not bad, f"captions out of sync with the transcript (> {CAPTION_SYNC_S} s): {'; '.join(bad[:4])}")
 
     if args.draft:
         step(log, "engine --draft", "engine.py", plan, "--draft")

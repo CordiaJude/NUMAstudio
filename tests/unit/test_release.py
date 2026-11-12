@@ -4,6 +4,10 @@ Run before every release (README "Release checklist"): versions agree, every scr
 in docs/CONTRACTS.md section 9 and the other way round, README names every command, agent and skill,
 no secrets or media outside the bundled assets, nothing reads the git-ignored spec/ folder at run
 time, and every .py file parses with the Python 3.10 grammar.
+
+The Python 3.10 parse uses ast's `feature_version=(3, 10)`, which is best-effort: run locally on
+Python >= 3.12 it is advisory only (newer interpreters do not reject every post-3.10 construct).
+CI's 3.11 parse job and the 3.10 unit-test job are authoritative.
 """
 from __future__ import annotations
 

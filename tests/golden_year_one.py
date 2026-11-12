@@ -14,7 +14,9 @@ What it does, with no other input:
        example   assets/example-plan-year-one-v2.json (the hand-built Year One edit) rewritten to
                  the pack: /YEAR_ONE_PACK and /NUMA_PLUGIN prefixes, the build machine's file
                  names mapped to the pack's, crops dropped where the pack photo is already cropped,
-                 caption words re-synced to this transcript (moves are reported);
+                 its captions first checked as shipped (every word within 0.15 s of this
+                 transcript, rule 24; unspoken words counted), then re-synced to this
+                 transcript where a different transcriber disagrees (moves are reported);
        baseline  baseline_plan.py --template transformation with the before/after pair the
                  Director would pick (old house -> finished exterior) and the pack's consent
                  recorded through library.py (stands in for the Consent List);
@@ -59,7 +61,8 @@ PY = sys.executable
 MEDIA = re.compile(r"\.(jpe?g|png|heic|webp|mp4|mov|m4v|mp3|wav|m4a|aac)$", re.I)
 TARGET_BPM, BPM_TOL = 107.7, 2.0
 MAX_DROP_TO_FILE_S = 15 * 60
-CAPTION_TOL_S = 0.1
+CAPTION_TOL_S = 0.1          # the M2 check on the rendered plans
+SHIPPED_SYNC_TOL_S = 0.15    # validate_plan rule 24: the example plan as shipped, before any re-timing
 REFERENCE_NAME = "Year_One_hand_built_reference.mp4"
 
 # The v2 example plan names files as they were on the original build machine. The pack holds the
@@ -93,6 +96,12 @@ class Failed(Exception):
     pass
 
 
+def usage_error(msg: str):
+    """Bad --pack/--reference arguments are usage errors: one ERROR line, exit 2."""
+    print(f"ERROR: {msg}", file=sys.stderr)
+    raise SystemExit(2)
+
+
 # ---------------------------------------------------------------- helpers
 
 def find_pack(arg: str | None) -> Path | None:
@@ -101,7 +110,7 @@ def find_pack(arg: str | None) -> Path | None:
         return None
     p = Path(raw).expanduser().resolve()
     if not p.is_dir():
-        raise SystemExit(f"ERROR: test pack: no such folder: {p}")
+        usage_error(f"test pack: no such folder: {p}")
 
     def has_media(d: Path) -> bool:
         return any(MEDIA.search(f.name) for f in d.iterdir() if f.is_file())
@@ -112,7 +121,7 @@ def find_pack(arg: str | None) -> Path | None:
     year_one = [d for d in subs if "year one" in d.name.lower()]
     if year_one or len(subs) == 1:
         return (year_one or subs)[0]
-    raise SystemExit(f"ERROR: test pack: no media folder in {p} (expected '2026-11-09 Year One')")
+    usage_error(f"test pack: no media folder in {p} (expected '2026-11-09 Year One')")
 
 
 def find_reference(arg: str | None, pack: Path) -> Path | None:
@@ -120,7 +129,7 @@ def find_reference(arg: str | None, pack: Path) -> Path | None:
     if raw:
         p = Path(raw).expanduser().resolve()
         if not p.is_file():
-            raise SystemExit(f"ERROR: reference reel: no such file: {p}")
+            usage_error(f"reference reel: no such file: {p}")
         return p
     # the developer kits keep the reference beside the test pack: look up to four folders up
     base = pack
@@ -154,8 +163,9 @@ def norm_word(w: str) -> str:
     return re.sub(r"[^a-z0-9']", "", w.lower().replace("’", "'"))
 
 
-def caption_sync(plan: dict, words: list[dict]) -> tuple[float, list[str]]:
-    """Largest gap between a caption word's appear time and the same word in the transcript."""
+def caption_sync(plan: dict, words: list[dict], tol: float = CAPTION_TOL_S) -> tuple[float, list[str]]:
+    """Largest gap between a caption word's appear time and the same word in the transcript, and the
+    words that are off by more than `tol` s or not spoken at all ("... not in the transcript")."""
     by_word: dict[str, list[float]] = {}
     for w in words:
         by_word.setdefault(norm_word(w["w"]), []).append(float(w.get("appear", w.get("start", 0.0))))
@@ -172,7 +182,7 @@ def caption_sync(plan: dict, words: list[dict]) -> tuple[float, list[str]]:
                 continue
             d = min(abs(t - c) for c in cands)
             worst = max(worst, d)
-            if d > CAPTION_TOL_S + 1e-6:
+            if d > tol + 1e-6:
                 bad.append(f"'{text}' @{t:.2f} is {d:.2f} s off")
     return worst, bad
 
@@ -293,6 +303,10 @@ def example_plan(job: nc.JobPaths, analysis: dict, out_dir: Path) -> dict:
             plan["music"]["path"] = str(tracks[0])
         plan["music"]["source"] = "folder"
     plan.setdefault("meta", {})["slug"] = "year-one-example"
+    worst, bad = caption_sync(plan, analysis.get("words", []), SHIPPED_SYNC_TOL_S)
+    unspoken = [b for b in bad if b.endswith("not in the transcript")]
+    plan["_shipped_sync"] = {"worst_s": round(worst, 3), "off": [b for b in bad if b not in unspoken],
+                             "unspoken": unspoken}
     plan["_retimed"] = retime_captions(plan, analysis.get("words", []))
     return plan
 
@@ -340,8 +354,9 @@ def story_arc(plan: dict) -> list[str]:
         if first_warm > last_before + 4 and last_before > len(looks) // 2:
             problems.append("the warm 'after' half never takes over")
     hook = plan.get("hook")
-    if not (isinstance(hook, dict) and hook.get("text")) and not plan.get("lines"):
-        problems.append("no hook text from frame 0")
+    early_word = any(float(w[1]) <= 0.5 for ln in plan.get("lines", []) for w in ln.get("words", [])[:1])
+    if not (isinstance(hook, dict) and str(hook.get("text") or "").strip()) and not early_word:
+        problems.append("no hook text from frame 0 (no hook.text and no caption word by 0.5 s)")
     if not isinstance(plan.get("endcard"), dict):
         problems.append("no end card")
     return problems
@@ -487,6 +502,7 @@ def main(argv=None) -> int:
                 if name == "example":
                     EP = example_plan(job, A, out_dir)
                     retimed = EP.pop("_retimed")
+                    shipped = EP.pop("_shipped_sync")
                     nc.write_json(plan_path, EP)
                     print(f"  captions retimed to this transcript: {retimed['moved']} words moved "
                           f"(max {retimed['max_shift_s']} s), dropped {retimed['dropped'] or 'none'}", flush=True)
@@ -510,6 +526,13 @@ def main(argv=None) -> int:
                 res = run_plan(name, job, plan_path, A, {**base, "plan": plan_s}, report_dir)
                 if name == "example":
                     res["captions_retimed"] = retimed
+                    n_off, n_drop = len(shipped["off"]), len(shipped["unspoken"])
+                    res["checks"]["example captions in sync as shipped (0.15 s)"] = {
+                        "pass": not n_off and not n_drop,
+                        "detail": f"worst {shipped['worst_s']:.3f} s; {n_off} word(s) over 0.15 s, {n_drop} not spoken"
+                                  + (": " + "; ".join((shipped["off"] + shipped["unspoken"])[:5]) if n_off + n_drop else "")
+                                  + f"; re-timing moved {retimed['moved']} word(s), dropped {len(retimed['dropped'])}"}
+                    res["ok"] = all(c["pass"] for c in res["checks"].values())
             except Failed as e:
                 res = {"plan": name, "ok": False, "error": str(e), "checks": {}}
                 print(f"  FAILED: {e}", flush=True)
