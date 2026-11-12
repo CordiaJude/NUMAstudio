@@ -146,7 +146,7 @@ Drive folder name, e.g. `Day 07 - 2026-12-09 - Your first plunge`).
 
 ### Local state folder and run files (instruction layer)
 
-- `STUDIO` = `~/NUMA Studio` (the desktop/sandbox working root); `STATE` = `STUDIO/_Plan`, mirrored to Drive `NUMA Reels/_Plan/`. It holds `preferences.json` (prefs.py), `credit_ledger/` (ledger.py folder mode, `ledger_YYYY-MM.json`), `media_library.json` (library.py), `consent_list.json` (export of the Consent List Sheet), `competitors_YYYY-MM.json` (Scout log read by dashboard.py), `metrics.json` (metrics.py).
+- `STUDIO` = `~/NUMA Studio` (the desktop/sandbox working root); `STATE` = `STUDIO/_Plan`, mirrored to Drive `NUMA Reels/_Plan/`. It holds `preferences.json` (prefs.py), `credit_ledger/` (ledger.py folder mode, `ledger_YYYY-MM.json`), `media_library.json` (library.py), `consent_list.json` (export of the Consent List Sheet), `competitors_YYYY-MM.json` (Scout log read by dashboard.py), `metrics.json` (metrics.py), `plans/` (month JSON per month), `closures.json`, `digest_notes.json`, `digest/`, `trends/`, `insights/` (raw Composio pulls), `dashboard.html`, `dashboard_notes.json` (Do more of / Do less of), `dashboard_artifact.json` (published artifact URL).
 - Per-reel work files written by the crew: `work/script.txt` (shoot-card script), `work/plan_row.json`, `work/inventory.json` (librarian), `work/ratings.json` (analyst), `work/scout.json`, `work/material.json`, `work/motion.json` (motion crew), `work/decisions.md` (Decisions log), `work/critic_r<N>.json` + `work/critic_rounds.json` (critic_score.py), `work/versions/r<N>/`, `work/upload_queue.json`, `work/delivered.json`; extra material under `raw/scout/`, `raw/library/`, `raw/generated/`.
 
 ## 3. analysis.json
@@ -823,7 +823,13 @@ check (pass/fail with a one-line fix); exit 1 when any check fails.
 shoot_card.py month YYYY-MM [--json]
 shoot_card.py card  ROW_JSON [--out FILE]
 shoot_card.py check MONTH_JSON [--closures FILE] [--json]
+shoot_card.py script SCRIPT_JSON [--json]
+shoot_card.py sheet MONTH_JSON [--csv] [--out FILE]
 ```
+`script`: checks one script.json (schemas/script.schema.json) against the card
+rules and timing. `sheet`: exports the month as the 13 "NUMA 30-Day Reel Plan"
+columns (JSON or CSV), the shape digest_data.py reads. MONTH_JSON is the
+`month` output with titles/scripts filled in (shape in the script docstring).
 `month`: the deterministic month skeleton (one row per day: day number, date,
 `Day NN - YYYY-MM-DD - <title>` folder name, default-week slot). `card`: the
 shoot card text for one plan row. `check`: enforces the planning rules (no

@@ -153,7 +153,7 @@ When the Director hands you the final reel or `out/SLUG_hook_<N>.mp4` files: che
   "virality": [],
   "ai": {"people": false, "scenes": true},
   "credits_spent": 18.25,
-  "ledger_sheet_rows": "date,category,job,...",
+  "ledger_sheet_rows": "#,Date,Category,Job,Model,Credits,Charged,Reel,Outcome,Month used\n1,2026-12-09,kling_motion,kling_std_5s,Kling 3.0,7.5,7.5,day-07-your-first-plunge,unwanted,7.5",
   "balance_after": 846.5,
   "notes": []
 }

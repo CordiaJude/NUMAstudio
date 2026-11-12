@@ -240,6 +240,7 @@ SCHEMA_FILES = {
     "plan": "plan.schema.json",
     "analysis": "analysis.schema.json",
     "brand": "brand.schema.json",
+    "script": "script.schema.json",
 }
 
 

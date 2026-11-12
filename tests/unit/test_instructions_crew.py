@@ -250,7 +250,8 @@ GRAMMAR_NEEDLES = {
             "arrival -> energy -> faces -> community -> logo"],
     "4.2": ["strongest image", "never the logo", "frame 1", "0.2 s", "full opacity in frame zero", "1.5 s"],
     "4.3": ["within 1 frame at 30 fps", "2-beat cuts", "4-beat holds", "4 beats", "`peak: true`",
-            "best 5-8 shots, 2 beats each", "3.5-5 s", "6-8 s"],
+            "best 5-8 shots, 2 beats each", "3-8 shots at 2 beats (DECISIONS D15)", "accepted exception",
+            "3.5-5 s", "6-8 s"],
     "4.4": ["Exactly one", "`wipe`", "`flash`", "before and after"],
     "4.5": ["16% zoomed", "0.22 s", "0.28 s", "160 px", "every third cut", "0.5 s crossfade", "0.35 s",
             "left to right over 1 s", "The very first shot", "at least 3 transition types"],
@@ -258,7 +259,7 @@ GRAMMAR_NEEDLES = {
             "mirrored edges", "Smart framing", "`focus`", "`faces`", "`orig_faces`"],
     "4.7": ["55% saturation", "cool shift", "lifted blacks", "warm shift", "S-curve", "darkened edges",
             "bloom", "grain", "0.3-0.45"],
-    "4.8": ["22 px over 0.28 s", "92 px", "#F7D6A0", "1-2 key words", "2 rows", "top 12%", "bottom 10%", "Off faces"],
+    "4.8": ["22 px over 0.28 s", "92 px", "#F7D6A0", "1-2 key words", "2 rows", "soft shadow", "top 12%", "bottom 10%", "Off faces"],
     "4.9": ["ducks under the voice", "-15 LUFS", "48 kHz", "`nat`", "clip_audio", "`--clean-voice`"],
     "4.10": ["ripple", "white", "gold italic", "3.5-5 s"],
 }
@@ -285,7 +286,8 @@ def test_research_rules(texts):
     for needle in ["Send this to", "45-60 s", "15-30 s", "15-60 s", "180 s", "2.3 words a second", "100 spoken words",
                    "10-14 shots", "works muted", "captions carry every spoken word", "payoff is visible",
                    "trending and popular songs are never used", "Higgsfield instrumental", "Sound Collection",
-                   "license that names social media", "sources.txt", "interpretation 8"]:
+                   "license that names social media", "sources.txt", "interpretation 8",
+                   'sources.py" add "$JOB" --kind music --path', "--license numa_owned"]:
         assert needle in t, needle
 
 
@@ -298,6 +300,9 @@ def test_claims_rules(texts):
         assert needle in t, needle
     rows = table_rows(t, r"Cold plunge|Sauna|Red light|Breathwork")
     assert set(rows) == {"Cold plunge", "Sauna", "Red light", "Breathwork"}
+    for say in ["A challenge that leaves many people feeling energized.", "Relax, breathe, disconnect.",
+                "Learn techniques people use to relax.", "Pairs well with the sauna for contrast."]:
+        assert say in t, say
     assert "FDA-cleared" in rows["Red light"][1] and "inflammation" in rows["Cold plunge"][1].lower()
 
 
@@ -323,6 +328,7 @@ def test_build_loop_order(texts):
     idx = [t.find(s) for s in order]
     assert all(i >= 0 for i in idx), [s for s, i in zip(order, idx) if i < 0]
     assert idx == sorted(idx), "build loop out of order"
+    assert "skip `prefs.py list` while `STATE/preferences.json` does not exist yet" in t
     for needle in ["`blur: [[", "F12", "hook_variants", "Trial Reel", "virality predictor", "--prefs", "0 ERRORs",
                    "`prepared_path`", "`people: true` + `consent: true`"]:
         assert needle in t, needle
@@ -342,6 +348,7 @@ def test_year_one_worked_example(texts):
     montage = [s for s in plan["shots"] if s["t0"] >= 30.28 and s["look"] == "warm"]
     assert f"{len(montage)} shots" in t
     assert f'{plan["duration"] - plan["endcard"]["t"]:.2f} s' in t
+    assert "breaks rule 16" in t and "at least 3 cuts apart" in t
 
 
 # ---------------------------------------------------------------------------
@@ -365,6 +372,10 @@ def test_critic_hard_gates(texts, config):
     for g, needle in checks.items():
         assert needle in " ".join(rows[g]), f"{g}: check must use {needle}"
     assert "48 kHz only" in texts["critic"]
+    g2 = " ".join(rows["G2"])
+    for needle in ["rule 28", "rule 41 (faces without people flag", "REQUIRED", "LOOK at every critic frame",
+                   "detection misses faces", "fail the gate", "Shot N: set `people: true`; blur or replace"]:
+        assert needle in g2, f"G2: {needle!r}"
 
 
 def test_critic_rubric(texts, config):
@@ -385,6 +396,8 @@ def test_critic_pass_rule_and_output(texts, config):
     p = config["critic"]["pass"]
     assert f"total {p['min_total']} or more" in t and f"no category below {p['min_category_score']}" in t
     assert f"Hook at least {p['min_hook_score']}" in t
+    assert 'cat > "$JOB/work/critic_r<N>.json" <<\'EOF\'' in t
+    assert 'critic_score.py" score "$JOB/work/critic_r<N>.json" --json' in t
     for needle in ['critic_score.py" score', "second opinion", "never changes a score", "score table",
                    "Numbered fixes", "exact plan.json field or shot", "Fixes the Editor can't act on are not allowed",
                    "Shot 3: replace with P7", "3 rounds"]:
@@ -433,7 +446,8 @@ def test_motion_workflow(texts, config):
                    "Outpaint", '"9:16"', "Upscale to 2K", "LOOK at all three frames", "Drop", "only the hero photos",
                    "`consent.ai_processing_covered`", "`consent.voice_clone`", "Music bed", "Voice", "instrumental",
                    'sources.py" add', "higgsfield_paid", "virality predictor", "Trial Reel", "Scout",
-                   "Claude in Chrome", "work/motion.json", "describe the motion, not the room".lower()]:
+                   "Claude in Chrome", "work/motion.json", 'ledger.py" sheet --ledger "$STATE/credit_ledger" --month',
+                   "ledger_sheet_rows", "about 15 s", "slower queue", "describe the motion, not the room".lower()]:
         assert needle.lower() in t.lower(), needle
     ranked = section(t, "## 3. What to use", "## 4.")
     assert [r for r in table_rows(ranked, r"\d+")] == [str(i) for i in range(1, 13)], "ranked uses 1-12"
