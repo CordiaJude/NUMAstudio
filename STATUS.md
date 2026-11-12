@@ -8,7 +8,7 @@
 | T3 Finish | ACCEPTED (round 3 re-review 4/4 PASS) | 3 | 2 minor logged |
 | T4 Validator/baseline/claims | ACCEPTED (re-review 10/10 PASS) | 2 | cosmetic: duplicate hits per rule |
 | T5 Vision/prep | ACCEPTED (re-review 6/6 PASS) | 2 | minor: color_range tag on OpenCV path |
-| T6 Formats | REVISING | 2 | B: sentence fragments; reach fps (engine short segment → T12); M: mid-caption cut, music-only carousel |
+| T6 Formats | ACCEPTED (re-review 6/6 PASS) | 2 | minors logged |
 | T7 Ops scripts | ACCEPTED (round 3 re-review PASS) | 3 | |
 | T8a Director+librarian/scout/analyst | ACCEPTED (9/10; --template depends on T12, verified in T11) | 2 | |
 | T8b Crew agents + skills | ACCEPTED (re-review 8/8 PASS) | 2 | |
@@ -33,3 +33,5 @@
 - T12: claims_scan illness rule false-fails 'I said I could never do a cold plunge' (T9 report).
 - shoot_card.py month | head prints BrokenPipe ERROR (minor).
 - T11: wire NUMA_BRAND=STATE/brand.json (when newer) into make-reel, librarian, build-today, plan-month, night-check, digest (D18).
+- T12 follow-up: baseline_plan writes formats story/carousel text as caption-line fragments; use whole sentences (reuse formats.py sentence joining) and never set reach_cut.hook equal to reel hook.
+- T6 minors: no WARN when final-segment defence lengthens window; reach hook reappears as caption ~3 s later; near-duplicate carousel pictures; report ok:true when outputs skipped (should list skipped).

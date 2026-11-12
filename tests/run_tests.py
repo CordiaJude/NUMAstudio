@@ -53,8 +53,8 @@ PY = sys.executable
 
 VOICE_TEXT = ("Welcome to NUMA in Mobile. Heat first, then the cold plunge. "
               "Breathe slow and stay with it. This is how you reset.")
-SCRIPT_LINES = ["Heat first, then the cold.", "Breathe slow and stay with it.",
-                "This is how you reset.", "Come try it in Mobile."]
+SCRIPT_LINES = ["Twelve minutes in the sauna.", "Then two minutes in the cold plunge.",
+                "Rest, breathe and repeat.", "Three rounds is plenty.", "Come try it in Mobile."]
 
 
 # The shoot card the Librarian saves as work/plan_row.json (title, hook, on-screen lines) for each case.
@@ -68,7 +68,7 @@ CARDS = {
     "voice_and_music": ("Welcome to NUMA", "This is how you reset.",
                         ["Heat first, then the cold.", "Breathe slow and stay with it.", "Rest between rounds.",
                          "Leave lighter than you came.", "Come try it in Mobile."]),
-    "music_only": ("Contrast therapy 101", "Heat first, then the cold.",
+    "music_only": ("Contrast therapy 101", "Contrast therapy in three steps.",
                    ["Twelve minutes in the sauna.", "Two minutes in the plunge.", "Rest and repeat.",
                     "Three rounds is plenty.", "Come try it in Mobile."]),
     "heic_photos": ("Red light evening", "Ten quiet minutes under red light.",
@@ -335,19 +335,25 @@ def _run_case(name: str, root: Path, args, log: list) -> tuple[str, list]:
     fm = step(log, "formats", "formats.py", *f_args, json_out=True)
     check(fm.get("ok") is not False and not fm.get("errors"), f"formats: {fm.get('errors')}")
     produced = {p.name for p in out.iterdir()}
-    for kind, pattern in (("reach cut", rf"^{slug}_reach\.mp4$"), ("story set", rf"^{slug}_story_1\.(jpg|mp4)$"),
-                          ("carousel", rf"^{slug}_carousel_1\.jpg$"), ("cover", rf"^{slug}_cover\.jpg$")):
+    # reach cut and cover always; .srt with captions; a Story set and a carousel need on-screen sentences
+    # (formats.py skips them with a WARN on a captionless reel, where the Director writes them by hand)
+    wanted = [("reach cut", rf"^{re.escape(slug)}_reach\.mp4$"), ("cover", rf"^{re.escape(slug)}_cover\.jpg$")]
+    if P.get("lines"):
+        wanted.append(("captions .srt", rf"^{re.escape(slug)}\.srt$"))
+    if len(P.get("lines", [])) >= 4:
+        wanted += [("story set", rf"^{re.escape(slug)}_story_1\.(jpg|mp4)$"),
+                   ("carousel", rf"^{re.escape(slug)}_carousel_1\.jpg$")]
+    for kind, pattern in wanted:
         check(any(re.match(pattern, n) for n in produced),
               f"formats: no {kind} in out/ ({'; '.join(fm.get('warnings') or []) or sorted(produced)})")
     for f in fm.get("files") or []:
         check(Path(f).is_file() and Path(f).stat().st_size > 0, f"formats: listed file missing or empty: {f}")
-    if P.get("lines"):
-        check(f"{slug}.srt" in produced, "formats: no .srt although the plan has captions")
+    kinds = [k for k, o in (fm.get("outputs") or {}).items() if o.get("files")]
 
     loud = co.get("loudness") or {}
     lufs = next((loud[k] for k in ("integrated_lufs", "integrated", "lufs", "i") if isinstance(loud.get(k), (int, float))), None)
     summary = (f"{len(A.get('photos', []))}P {len(A.get('clips', []))}C {len(A.get('words', []))}w "
-               f"{float(A.get('bpm') or 0):.0f}bpm {dur:.1f}s {len(P['shots'])} shots {len(P.get('lines', []))} lines"
+               f"{float(A.get('bpm') or 0):.0f}bpm {dur:.1f}s {len(P['shots'])} shots {len(P.get('lines', []))} lines; formats {'+'.join(kinds) or 'none'}"
                + (f" {float(lufs):.1f} LUFS" if isinstance(lufs, (int, float)) else ""))
     return summary, log
 
