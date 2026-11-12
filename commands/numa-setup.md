@@ -97,7 +97,12 @@ When brand.json still has `needs_katie` facts (step 2's brand.json line counts t
 
 ## 10. Scheduled tasks
 
-Create the six scheduled tasks exactly as docs/SCHEDULED_TASKS.md lists them (names, Central times from config `schedule`, the prompts to paste, notifications on), only after step 9 passed. Run each once with "Run now" and confirm it finishes with no permission prompt.
+Only after step 9 passed, create the six scheduled tasks from docs/SCHEDULED_TASKS.md, one per row of its table and of config `schedule.tasks`:
+
+1. Name = the task name in the table; schedule = its cron line in `schedule.timezone` (Central); prompt = the task's text under "Exact prompts to paste", copied **exactly** (do not reword it); notifications on.
+2. Where this session has the scheduled-task tool, create them yourself; otherwise Jude pastes each one in the app's Scheduled section while you read it out.
+3. Check that the connector tools are approved (step 6), then "Run now" each task once and confirm it finishes with no permission prompt. A task that stops on a prompt: set that tool to Always allow and run it again.
+4. Record the six task names and their next run times in `STATE/setup.json` (`scheduled_tasks`).
 
 ## 11. Finish
 

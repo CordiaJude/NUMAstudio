@@ -26,7 +26,8 @@ fix (spec p.13, p.50, p.53; docs/CONTRACTS.md section 9):
                 music pad, through engine.py and finish.py, then check_output
                 (with the length rule set to this test's 3 s instead of a
                 reel's 15-60 s). The folder is kept so the reel and its
-                qa_strip.jpg can be looked at; older test folders are removed.
+                qa_strip.jpg can be looked at; test folders older than 6 hours
+                are removed.
 
 --skip-render skips the test render (a few seconds instead of about 30).
 --json prints one JSON report on stdout: {"ok", "checks": [{"name", "status",
@@ -54,6 +55,7 @@ MIN_FREE_GB = 2.0
 RENDER_SECONDS = 3.0
 RENDER_TOLERANCE_S = 0.25
 TEST_DIR_PREFIX = "numa-setup-check-"
+STALE_TEST_DIR_S = 6 * 3600
 WHISPER_MODEL = "small.en"
 FACE_MODEL = nc.ASSETS_DIR / "models" / "face_detection_yunet_2023mar.onnx"
 
@@ -363,8 +365,15 @@ def check_speech_model(download: bool) -> Result:
 
 # --------------------------------------------------------------------------- test render
 def remove_old_test_dirs() -> None:
+    """Remove earlier test folders, but only stale ones (older than STALE_TEST_DIR_S), so a
+    check running at the same time never loses its folder."""
+    now = time.time()
     for old in Path(tempfile.gettempdir()).glob(TEST_DIR_PREFIX + "*"):
-        if old.is_dir():
+        try:
+            stale = old.is_dir() and now - old.stat().st_mtime > STALE_TEST_DIR_S
+        except OSError:
+            continue
+        if stale:
             shutil.rmtree(old, ignore_errors=True)
 
 

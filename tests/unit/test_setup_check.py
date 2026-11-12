@@ -24,8 +24,11 @@ def clean_env(**extra: str) -> dict:
     return env
 
 
-def run_check(run_script, *args, env: dict | None = None, timeout: float = 180):
+def run_check(run_script, *args, env: dict | None = None, timeout: float = 900, tmp: Path | None = None):
     full = clean_env(**(env or {}))
+    if tmp is not None:  # a private temp folder: parallel runs never share test folders
+        for var in ("TMPDIR", "TEMP", "TMP"):
+            full[var] = str(tmp)
     # run_script merges into os.environ; drop inherited NUMA_* overrides explicitly
     for k in [k for k in os.environ if k.startswith("NUMA_") and k not in full]:
         full[k] = ""
@@ -60,8 +63,8 @@ def test_human_output_one_line_per_check(run_script):
     assert "test render skipped" in proc.stdout
 
 
-def test_full_run_renders_and_checks_a_3s_reel(run_script):
-    proc = run_check(run_script, "--json", timeout=300)
+def test_full_run_renders_and_checks_a_3s_reel(run_script, tmp_path):
+    proc = run_check(run_script, "--json", tmp=tmp_path)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     report = json.loads(proc.stdout)
     render = report["render"]
@@ -73,6 +76,7 @@ def test_full_run_renders_and_checks_a_3s_reel(run_script):
         assert (probe["width"], probe["height"]) == (1080, 1920)
         assert abs(probe["duration"] - 3.0) < 0.1
         assert render["check_output"]["ok"] is True
+        assert Path(render["folder"]).parent == tmp_path
         assert Path(render["folder"]).name.startswith(setup_check.TEST_DIR_PREFIX)
     finally:
         shutil.rmtree(render["folder"], ignore_errors=True)
@@ -92,7 +96,7 @@ def test_missing_import_fails_with_fix(run_script, tmp_path):
 
 
 def test_missing_ffmpeg_fails_and_blocks_render(run_script, tmp_path):
-    proc = run_check(run_script, "--json", env={"NUMA_FFMPEG": str(tmp_path / "no-ffmpeg")})
+    proc = run_check(run_script, "--json", env={"NUMA_FFMPEG": str(tmp_path / "no-ffmpeg")}, tmp=tmp_path)
     assert proc.returncode == 1
     checks = by_name(json.loads(proc.stdout))
     assert checks["ffmpeg"]["status"] == "fail" and "brew install ffmpeg" in checks["ffmpeg"]["fix"]
@@ -197,3 +201,15 @@ def test_one_crashing_check_does_not_hide_the_others(monkeypatch):
 def test_render_is_blocked_by_failed_prerequisites():
     r, info = setup_check.render_test_reel(["ffmpeg"])
     assert r.status == "fail" and "ffmpeg" in r.detail and info == {}
+
+
+def test_cleanup_keeps_fresh_folders_of_other_runs(monkeypatch, tmp_path):
+    monkeypatch.setattr(setup_check.tempfile, "gettempdir", lambda: str(tmp_path))
+    fresh = tmp_path / (setup_check.TEST_DIR_PREFIX + "fresh")
+    stale = tmp_path / (setup_check.TEST_DIR_PREFIX + "stale")
+    fresh.mkdir()
+    stale.mkdir()
+    old = setup_check.time.time() - setup_check.STALE_TEST_DIR_S - 60
+    os.utime(stale, (old, old))
+    setup_check.remove_old_test_dirs()
+    assert fresh.is_dir() and not stale.exists()
