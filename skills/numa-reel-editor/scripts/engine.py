@@ -1,282 +1,1039 @@
 #!/usr/bin/env python3
-"""Reel engine: renders a 1080x1920 cinematic edit from a JSON plan.
-Usage: python3 engine.py plan.json [preview t1 t2 ...]
+"""NUMA Studio render engine: plan.json -> silent H.264 reel, single frames or a preview grid.
+
+Command line (docs/CONTRACTS.md section 9):
+
+    engine.py PLAN_JSON [--draft] [--workers N] [--size WxH] [--from S] [--to S]
+              [--out FILE] [--encoder libx264|videotoolbox]
+    engine.py PLAN_JSON preview T1 [T2 ...] [--size WxH] [--out FILE]
+
+Full render -> OUT_DIR/video_noaudio.mp4 (``--draft``: video_noaudio_draft.mp4;
+``--from/--to``: segment_<from>_<to>.mp4) plus OUT_DIR/render.json (timings,
+frames, size, workers, encoder, sha256). Preview -> OUT_DIR/preview.jpg, 5 tiles
+per row. OUT_DIR is the plan's ``out_dir`` (default: the plan's folder).
+
+Python API (import with ``sys.path.insert(0, <scripts dir>)``; ``import engine``):
+
+    plan = engine.load_plan(path)                      # read + schema-validate, paths resolved
+    plan = engine.prepare_plan(plan_dict, base_dir)    # same for an in-memory (e.g. edited) plan
+    with engine.Renderer(plan, size=(1080, 1350), draft=False) as r:
+        rgb = r.frame(t)                               # H x W x 3 RGB uint8 at reel time t
+        r.width, r.height, r.fps, r.duration
+    rgb = engine.render_frame(plan, t, size=None)      # one-off frame
+    info = engine.render_video(plan, out_mp4, t_from=None, t_to=None, size=None,
+                               draft=False, workers=None, encoder="libx264")
+    path = engine.render_preview(plan, [t1, t2, ...], out_jpg, size=None)
+    engine.save_image(rgb, path)                       # JPG/PNG writer for frames
+
+``size`` is any even WxH; pixel fields of the plan (caption_y, hook.y,
+logo_width) are in the plan's own ``size`` and scale with the render. Layout
+constants (caption font ~92 px at 1080 wide, safe areas = top 12% / bottom 10%,
+end-card positions) scale with the frame. ``render_video`` returns the dict
+that the CLI writes to render.json.
+
+Per frame (spec p.18-20): active shot(s) framed with an eased sub-pixel zoom/pan
+(cubic warp, the view never leaves the source: no bars, no mirrored edges), the
+colour look, the transition (punch, whip, leakfade, fade, flash, wipe, cut),
+bloom, light leaks (plan ``leaks`` + automatic on leakfade), vignette and bottom
+gradient, the frame-zero hook text, word-by-word captions (safe areas, off
+faces), the end card, seeded film grain and the global fades (fade-in <= 0.2 s
+and none with a hook, so frame 0 is never black; 0.8 s fade-out).
+
+Determinism: the picture is a pure function of (plan, size, frame index);
+grain and leak motion are seeded by ``plan.seed``. Frames rendered by N worker
+processes are identical to a single process, the encoder runs with fixed
+parameters and thread count and bit-exact muxing, so the same plan gives a
+byte-identical MP4 for any ``--workers``.
+
+Video shots are decoded once per render with one seek per shot into a per-shot
+frame cache (memory-mapped, shared by the workers) at the resolution the shot
+needs; stills are prepared once per shot the same way.
 """
-import cv2, numpy as np, subprocess, math, sys, json, os
-from PIL import Image, ImageFont, ImageDraw, ImageFilter, ImageOps, ImageEnhance
+from __future__ import annotations
 
-P = json.load(open(sys.argv[1]))
-W, H, FPS = 1080, 1920, P.get('fps', 30)
-DUR = P['duration']; SW, SH = 1296, 2304
-OUT = P.get('out_dir', os.path.dirname(os.path.abspath(sys.argv[1])))
-HERE = os.path.dirname(os.path.abspath(__file__)); ASSETS = os.path.join(HERE, '..', 'assets')
-FONT_R = P.get('font_regular', os.path.join(ASSETS, 'fonts', 'LiberationSerif-Regular.ttf'))
-FONT_I = P.get('font_italic', os.path.join(ASSETS, 'fonts', 'LiberationSerif-Italic.ttf'))
-import shutil
-FFMPEG = shutil.which('ffmpeg')
-if not FFMPEG:
+import copy
+import hashlib
+import math
+import multiprocessing as mp
+import os
+import subprocess
+import sys
+import tempfile
+import time
+from fractions import Fraction
+from pathlib import Path
+from typing import Sequence
+
+import cv2
+import numpy as np
+from PIL import Image, ImageDraw
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import numa_common as nc  # noqa: E402
+import engine_media as em  # noqa: E402
+import engine_text as et  # noqa: E402
+
+ENGINE_VERSION = "2.0.0"
+
+# Transition timings (spec p.19)
+PUNCH_S, PUNCH_ZOOM, PUNCH_LIFT = 0.22, 0.16, 0.28
+WHIP_S, WHIP_BLUR_PX = 0.28, 160
+CROSSFADE_S = 0.5
+FLASH_S, FLASH_PEAK = 0.35, 0.9
+WIPE_S = 1.0
+# how long the outgoing shot stays on screen after the incoming shot's t0
+TRANSITION_TAIL = {"whip": WHIP_S / 2, "fade": CROSSFADE_S, "leakfade": CROSSFADE_S, "wipe": WIPE_S}
+AUTO_LEAK_STRENGTH = 0.55
+FADE_OUT_S = 0.8
+FADE_IN_FLOOR = 0.35         # brightness of frame 0 without a hook (never a black frame)
+HOOK_FADE_OUT_S = 0.3
+LINE_FADE_OUT_S = 0.35
+PREVIEW_TILE_W = 360
+
+
+# ---------------------------------------------------------------------------
+# Plan loading
+# ---------------------------------------------------------------------------
+def _resolve(p: str, base: Path) -> str:
+    q = Path(p).expanduser()
+    return str(q if q.is_absolute() else (base / q).resolve())
+
+
+def prepare_plan(plan: dict, base_dir: str | os.PathLike | None = None) -> dict:
+    """Schema-validate a plan dict and return a copy with every path absolute.
+
+    Relative paths (the validator rejects them, the engine is lenient) resolve
+    against base_dir; out_dir defaults to base_dir."""
+    if not isinstance(plan, dict):
+        raise nc.UserError("plan must be a JSON object")
+    nc.validate_against("plan", plan, what="plan")
+    out = copy.deepcopy(plan)
+    base = Path(base_dir).resolve() if base_dir else Path.cwd()
+    for sh in out["shots"]:
+        sh["src"] = _resolve(sh["src"], base)
+    for key in ("font_regular", "font_italic"):
+        if out.get(key):
+            out[key] = _resolve(out[key], base)
+    if out.get("endcard", {}).get("logo"):
+        out["endcard"]["logo"] = _resolve(out["endcard"]["logo"], base)
+    out["out_dir"] = _resolve(out["out_dir"], base) if out.get("out_dir") else str(base)
+    return out
+
+
+def load_plan(path: str | os.PathLike) -> dict:
+    """Read, schema-validate and path-resolve plan.json (UserError on any problem)."""
+    p = Path(path).expanduser().resolve()
+    plan = nc.read_json(p, "plan")
+    return prepare_plan(plan, p.parent)
+
+
+def _even(x: float) -> int:
+    return max(16, int(round(x / 2.0)) * 2)
+
+
+def output_size(plan: dict, size: tuple[int, int] | None = None, draft: bool | None = None) -> tuple[int, int]:
+    """Render size for a plan: --size or plan size (default config render.size), halved-ish for drafts."""
+    cfg = nc.config_value("render")
+    w, h = size or tuple(plan.get("size") or cfg["size"])
+    if draft if draft is not None else plan.get("quality") == "draft":
+        k = float(cfg["draft"]["scale"])
+        w, h = _even(w * k), _even(h * k)
+    if w % 2 or h % 2 or w < 16 or h < 16:
+        raise nc.UsageError(f"size {w}x{h}: width and height must be even and at least 16")
+    return int(w), int(h)
+
+
+# ---------------------------------------------------------------------------
+# Shots
+# ---------------------------------------------------------------------------
+class Shot:
+    """One plan shot: its source, framing and (lazily) its plate."""
+
+    def __init__(self, i: int, d: dict, W: int, H: int, fps: float, next_tr: str | None):
+        self.i, self.d = i, d
+        self.what = f"shots[{i}].src"
+        self.kind = d.get("kind", "image")
+        self.src = d["src"]
+        self.t0, self.t1 = float(d["t0"]), float(d["t1"])
+        self.len = max(1e-6, self.t1 - self.t0)
+        self.look = d.get("look", "warm")
+        self.tr = d.get("tr", "cut")
+        self.fps = fps
+        self.blur = d.get("blur") or []
+        self.tail = TRANSITION_TAIL.get(next_tr or "", 0.0)
+        z = d.get("z", [1.02, 1.14])
+        zmax = max(em.effective_zoom(z)) * (1 + PUNCH_ZOOM if self.tr == "punch" else 1.0) * 1.03
+        focus = list(d.get("focus") or [0.5, 0.5])
+        faces = [list(b) for b in d.get("faces") or []]
+        self.panorama = False
+        if self.kind == "video":
+            info = em.video_info(self.src, self.what)
+            sw, sh = int(info["width"]), int(info["height"])
+            self.speed = float(d.get("speed", 1.0))
+            self.start = float(d.get("start", 0.0))
+            self.clip_duration = info.get("duration")
+        else:
+            crop = d.get("crop")
+            fw, fh = em.image_size(self.src, None, self.what)
+            sw, sh = em.image_size(self.src, crop, self.what)
+            if crop:
+                l, t = crop[0], crop[1]
+                focus = [(focus[0] * fw - l) / sw, (focus[1] * fh - t) / sh]
+                faces = [[(b[0] * fw - l) / sw, (b[1] * fh - t) / sh, b[2] * fw / sw, b[3] * fh / sh] for b in faces]
+            self.panorama = em.is_panorama(sw, sh, W, H)
+        focus = [min(1.0, max(0.0, focus[0])), min(1.0, max(0.0, focus[1]))]
+        self.pw, self.ph = em.plate_geometry(sw, sh, W, H, zmax, self.panorama)
+        self.framing = em.make_framing(self.pw, self.ph, W, H, z, d.get("pan", [0, 0]), focus, i,
+                                       self.panorama, sw / sh)
+        self.faces_plate = [self._to_plate(b) for b in faces]
+        # video: frames at the reel cadence from t0 through the outgoing transition tail
+        self.n_frames = int(math.ceil((self.len + self.tail) * fps)) + 2 if self.kind == "video" else 0
+        self.plate: np.ndarray | None = None
+        self.frames: np.ndarray | None = None
+        self._single: dict[int, np.ndarray] = {}
+
+    def _to_plate(self, b):
+        x, y, w, h = b
+        if self.panorama:
+            fh = em.FILL_FOREGROUND_HEIGHT * self.ph
+            aspect = self._src_aspect()
+            fw = fh * aspect
+            ox, oy = (self.pw - fw) / 2, (self.ph - fh) / 2
+            return (ox + x * fw, oy + y * fh, w * fw, h * fh)
+        return (x * self.pw, y * self.ph, w * self.pw, h * self.ph)
+
+    def _src_aspect(self) -> float:
+        if self.kind == "video":
+            info = em.video_info(self.src, self.what)
+            return info["width"] / info["height"]
+        sw, sh = em.image_size(self.src, self.d.get("crop"), self.what)
+        return sw / sh
+
+    def progress(self, t: float) -> float:
+        return (t - self.t0) / self.len
+
+    def frame_index(self, t: float) -> int:
+        j = int(math.floor((t - self.t0) * self.fps + 0.5))
+        return min(max(j, 0), self.n_frames - 1)
+
+    def visible(self, a: float, b: float) -> bool:
+        return self.t0 - WHIP_S / 2 - 1e-6 <= b and a <= self.t1 + self.tail + 1e-6
+
+    # plates --------------------------------------------------------------
+    def build_plate(self) -> np.ndarray:
+        return em.build_image_plate(self.src, self.d.get("crop"), self.blur, self.pw, self.ph,
+                                    self.panorama, self.what)
+
+    def picture(self, t: float) -> np.ndarray:
+        """The plate to frame at reel time t."""
+        if self.kind != "video":
+            if self.plate is None:
+                self.plate = self.build_plate()
+            return self.plate
+        j = self.frame_index(t)
+        if self.frames is not None:
+            return self.frames[j]
+        if j not in self._single:
+            if len(self._single) > 8:
+                self._single.clear()
+            one = em.decode_video(self.src, self.start + j * self.speed / self.fps, self.fps / self.speed, 1,
+                                  self.pw, self.ph, blur=self.blur, what=self.what)
+            self._single[j] = one[0]
+        return self._single[j]
+
+    def cache(self, folder: Path) -> None:
+        """Write this shot's plate (still) or decoded frames (video) to folder."""
+        if self.kind == "video":
+            arr = np.lib.format.open_memmap(folder / f"shot_{self.i}.npy", mode="w+", dtype=np.uint8,
+                                            shape=(self.n_frames, self.ph, self.pw, 3))
+            em.decode_video(self.src, self.start, self.fps / self.speed, self.n_frames, self.pw, self.ph,
+                            blur=self.blur, sink=arr, what=self.what)
+            arr.flush()
+            del arr
+        else:
+            np.save(folder / f"shot_{self.i}.npy", self.build_plate())
+
+    def attach(self, folder: Path) -> None:
+        f = folder / f"shot_{self.i}.npy"
+        if not f.is_file():
+            return
+        arr = np.load(f, mmap_mode="r")
+        if self.kind == "video":
+            self.frames = arr
+        else:
+            self.plate = arr
+
+
+# ---------------------------------------------------------------------------
+# Renderer
+# ---------------------------------------------------------------------------
+class Renderer:
+    """Renders frames of one plan at one size. See the module docstring."""
+
+    def __init__(self, plan: dict, *, size: tuple[int, int] | None = None, draft: bool | None = None,
+                 base_dir: str | os.PathLike | None = None):
+        if not plan.get("out_dir") or not Path(plan["shots"][0]["src"]).is_absolute():
+            plan = prepare_plan(plan, base_dir)
+        else:
+            nc.validate_against("plan", plan, what="plan")
+        self.plan = plan
+        cfg = nc.config_value("render")
+        self.cfg = cfg
+        self.draft = bool(draft if draft is not None else plan.get("quality") == "draft")
+        self.width, self.height = output_size(plan, size, self.draft)
+        W, H = self.width, self.height
+        pw_, ph_ = tuple(plan.get("size") or cfg["size"])
+        self.sx, self.sy = W / pw_, H / ph_
+        self.s = min(W, H) / 1080.0          # layout unit: 1 px at a 1080-wide portrait frame
+        self.sw = W / 1080.0
+        self.fps = float(plan.get("fps") or cfg["fps"])
+        self.duration = float(plan["duration"])
+        self.seed = int(plan.get("seed", 0))
+        self.n_frames = max(1, int(round(self.duration * self.fps)))
+        self.safe_top = cfg["safe_area"]["top_fraction"] * H
+        self.safe_bottom = (1 - cfg["safe_area"]["bottom_fraction"]) * H
+        self.accent = tuple(plan.get("accent_rgb") or nc.accent_rgb())
+        self.white = tuple(nc.brand_color("caption_text"))
+        self.font_regular = plan.get("font_regular") or str(nc.brand_font("regular"))
+        self.font_italic = plan.get("font_italic") or str(nc.brand_font("italic"))
+        for f in (self.font_regular, self.font_italic):
+            if not Path(f).is_file():
+                raise nc.UserError(f"font not found: {f}")
+        shots = sorted(plan["shots"], key=lambda d: float(d["t0"]))
+        self.shots = [Shot(i, d, W, H, self.fps, shots[i + 1].get("tr", "cut") if i + 1 < len(shots) else None)
+                      for i, d in enumerate(shots)]
+        self._t0s = [s.t0 for s in self.shots]
+        self._build_masks()
+        self._build_grain()
+        self._build_leaks()
+        self._build_hook()
+        self._build_captions()
+        self._build_endcard()
+        self._cache_dir: Path | None = None
+
+    # context manager: nothing to free but caches
+    def __enter__(self) -> "Renderer":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+    def close(self) -> None:
+        for s in self.shots:
+            s.frames = None
+            s.plate = None
+            s._single.clear()
+
+    # caches -----------------------------------------------------------------
+    def build_cache(self, folder: str | os.PathLike, t_from: float = 0.0, t_to: float | None = None) -> None:
+        """Prepare every shot visible in [t_from, t_to] into folder (one decode/seek per video shot)."""
+        folder = Path(folder)
+        t_to = self.duration if t_to is None else t_to
+        for s in self.shots:
+            if s.visible(t_from, t_to):
+                s.cache(folder)
+        self.attach_cache(folder)
+
+    def attach_cache(self, folder: str | os.PathLike) -> None:
+        self._cache_dir = Path(folder)
+        for s in self.shots:
+            s.attach(self._cache_dir)
+
+    # precomputed layers ------------------------------------------------------
+    def _build_masks(self) -> None:
+        W, H = self.width, self.height
+        y = (np.arange(H, dtype=np.float32) + 0.5) / H
+        x = (np.arange(W, dtype=np.float32) + 0.5) / W
+        r = np.sqrt(((x[None, :] - 0.5) ** 2) * 1.6 * (W / H) ** 2 / (9 / 16) ** 2 + (y[:, None] - 0.5) ** 2)
+        vig = 1 - 0.42 * np.clip((r - 0.3) / 0.45, 0, 1) ** 1.6
+        grad = 1 - 0.42 * np.clip((y - 0.547) / 0.365, 0, 1) ** 1.3       # bottom gradient (v1: 1050..1750 of 1920)
+        m = np.clip(vig * grad[:, None] * 255 + 0.5, 0, 255).astype(np.uint8)
+        self._mask = cv2.merge([m, m, m])
+        top_rows = int(0.36 * H)
+        prof = 1 - 0.40 * np.clip((0.36 - y[:top_rows]) / 0.36, 0, 1) ** 1.2   # shade behind the hook
+        self._hook_shade = prof.astype(np.float32)
+
+    def _build_grain(self) -> None:
+        W, H = self.width, self.height
+        rng = np.random.default_rng([self.seed, 0x6A41])
+        hw, hh = (W + 64) // 2, (H + 64) // 2
+        self._grain = []
+        amp = 4.5
+        for _ in range(6):
+            g = rng.standard_normal((hh, hw), dtype=np.float32)
+            g = cv2.resize(g, (hw * 2, hh * 2), interpolation=cv2.INTER_LINEAR) * amp
+            self._grain.append(np.round(g).astype(np.int16))
+
+    def _build_leaks(self) -> None:
+        rng = np.random.default_rng([self.seed, 0x1EA4])
+        self._leak_phase = rng.uniform(0, 2 * math.pi, size=(3, 2)).astype(np.float64)
+        lw = 48
+        lh = max(8, int(round(lw * self.height / self.width)))
+        yy, xx = np.mgrid[0:lh, 0:lw].astype(np.float32)
+        self._leak_grid = (lw, lh, xx, yy)
+        leaks = [tuple(map(float, lk)) for lk in self.plan.get("leaks", [])]
+        for s in self.shots:  # leakfade: automatic warm leak over the crossfade
+            if s.tr == "leakfade" and s.i > 0:
+                leaks.append((s.t0 - 0.05, CROSSFADE_S + 0.1, AUTO_LEAK_STRENGTH))
+        self._leaks = leaks
+
+    def _build_hook(self) -> None:
+        hook = self.plan.get("hook")
+        self._hook = None
+        if not hook:
+            return
+        W, H = self.width, self.height
+        words = [(t, g, 0.0) for t, g in et.hook_words(hook["text"])]
+        if not words:
+            return
+        blk = et.layout_words(words, self.font_regular, self.font_italic, 100 * self.s, W, 0.86 * W, 3,
+                              (self.white, self.accent), 9 * self.s, 3 * self.s)
+        if "y" in hook:
+            top = float(hook["y"]) * self.sy - blk.height / 2
+        else:
+            top = self.safe_top + 0.012 * H
+        top = min(max(top, self.safe_top), self.safe_bottom - blk.height)
+        self._hook = (blk, top, float(hook.get("t1", 2.0)))
+
+    def _shot_at(self, t: float) -> int:
+        i = 0
+        for k, t0 in enumerate(self._t0s):
+            if t0 <= t + 1e-9:
+                i = k
+            else:
+                break
+        return i
+
+    def _face_rects(self, a: float, b: float) -> list[tuple[float, float, float, float]]:
+        """Screen rectangles of every face on screen during [a, b] (sampled every 0.1 s)."""
+        rects = []
+        n = max(2, int(math.ceil((b - a) / 0.1)) + 1)
+        for k in range(n):
+            t = a + (b - a) * k / (n - 1)
+            s = self.shots[self._shot_at(t)]
+            if not s.faces_plate:
+                continue
+            p = s.progress(t)
+            for (x, y, w, h) in s.faces_plate:
+                x0, y0 = s.framing.to_screen(p, x, y)
+                x1, y1 = s.framing.to_screen(p, x + w, y + h)
+                rects.append((x0, y0, x1, y1))
+        return rects
+
+    def _build_captions(self) -> None:
+        cfg = self.cfg["captions"]
+        W, H = self.width, self.height
+        self.rise = cfg["rise_px"] * H / 1920   # 22 px at 1920 high
+        self.word_fade = float(cfg["fade_in_s"])
+        default_y = self.plan.get("caption_y")
+        pw_, ph_ = tuple(self.plan.get("size") or self.cfg["size"])
+        cy = (float(default_y) if default_y is not None else cfg["default_y"] * ph_ / 1920) * self.sy
+        self._lines = []
+        self.caption_boxes = []   # (t_first, t_end, x0, y0, x1, y1) after placement, for tests/QA
+        margin = 0.015 * H
+        for li, ln in enumerate(self.plan.get("lines", [])):
+            words = [(str(w[0]), bool(len(w) > 2 and w[2]), float(w[1])) for w in ln["words"]]
+            blk = et.layout_words(words, self.font_regular, self.font_italic, cfg["font_px"] * self.s, W,
+                                  et.CAPTION_BOX_PX * self.s, int(cfg["max_rows"]),
+                                  (self.white, self.accent), 8 * self.s, 3 * self.s)
+            if not blk.fit:
+                nc.warn(f"lines[{li}]: caption does not fit in {cfg['max_rows']} rows; it wraps to {blk.rows}")
+            # ink extents relative to the block top (top = 0)
+            ink_top = min(blk.baseline(0, r) - (sp.baseline - sp.ink_top) for sp, _, r, _ in blk.words)
+            ink_bot = max(blk.baseline(0, r) + (sp.ink_bottom - sp.baseline) for sp, _, r, _ in blk.words) + self.rise
+            lo, hi = self.safe_top - ink_top, self.safe_bottom - ink_bot
+            top0 = cy - blk.height / 2
+            top = min(max(top0, lo), hi) if hi >= lo else lo
+            t_first, t_end = words[0][2], float(ln["end"])
+            faces = self._face_rects(t_first, t_end + LINE_FADE_OUT_S)
+
+            def clear(tp: float) -> bool:
+                y0, y1 = tp + ink_top - margin, tp + ink_bot + margin
+                return not any(fx0 < blk.x_max and fx1 > blk.x_min and fy0 < y1 and fy1 > y0
+                               for fx0, fy0, fx1, fy1 in faces)
+
+            if faces and not clear(top) and hi >= lo:
+                step = max(1.0, 2 * self.s)
+                cands = [lo + k * step for k in range(int((hi - lo) / step) + 1)] + [hi]
+                ok = [c for c in cands if clear(c)]
+                if ok:
+                    top = min(ok, key=lambda c: (abs(c - top), c))
+            self._lines.append((blk, top, t_first, t_end))
+            self.caption_boxes.append((t_first, t_end, blk.x_min, top + ink_top, blk.x_max, top + ink_bot))
+
+    def _build_endcard(self) -> None:
+        ec = self.plan.get("endcard")
+        self._ec = None
+        if not ec:
+            return
+        W, H, s = self.width, self.height, self.s
+        logo_path = ec.get("logo") or str(nc.brand_asset("wordmark"))
+        pw_ = (self.plan.get("size") or self.cfg["size"])[0]
+        lw = min(0.86 * W, float(ec.get("logo_width", 820)) * W / pw_)
+        logo = None
+        try:
+            with Image.open(logo_path) as im:
+                lg = im.convert("RGBA")
+        except FileNotFoundError:
+            raise nc.UserError(f"endcard.logo: file not found: {logo_path}") from None
+        except Exception as e:  # noqa: BLE001
+            raise nc.UserError(f"endcard.logo: cannot read image {logo_path}: {type(e).__name__}") from None
+        bbox = lg.getchannel("A").getbbox()
+        if bbox:
+            lg = lg.crop(bbox)
+        lh = max(2, int(round(lg.height * lw / lg.width)))
+        lg = lg.resize((max(2, int(round(lw))), lh), Image.LANCZOS)
+        la = np.asarray(lg, dtype=np.float32) / 255.0
+        # rendered white: use the alpha channel; an opaque logo uses its inverted luminance
+        alpha = la[..., 3] if la[..., 3].min() < 0.99 else np.clip(1 - la[..., :3].mean(2) * 1.15, 0, 1)
+        pad = int(30 * s)
+        a = np.pad(alpha, pad)
+        sh = cv2.GaussianBlur(a, (0, 0), 10 * s) * 0.55
+        logo = et.Sprite(a.astype(np.float32), sh.astype(np.float32), (1.0, 1.0, 1.0), pad + a.shape[0] // 2 - pad,
+                         pad, alpha.shape[1], 0, a.shape[0])
+        tagline = ec.get("tagline", nc.brand_value("endcard.tagline", ""))
+        subtitle = ec.get("subtitle", nc.brand_value("endcard.default_subtitle", ""))
+        tag = None
+        if tagline:
+            px = 36 * s
+            tag = et.make_sprite(tagline.upper(), self.font_regular, px, self.white, 6 * s, 2 * s, tracking=0.32 * px)
+            while tag.advance > 0.86 * W and px > 12:
+                px *= 0.92
+                tag = et.make_sprite(tagline.upper(), self.font_regular, px, self.white, 6 * s, 2 * s,
+                                     tracking=0.32 * px)
+        sub = None
+        if subtitle:
+            px = 60 * s
+            sub = et.make_sprite(subtitle, self.font_italic, px, self.accent, 8 * s, 3 * s)
+            while sub.advance > 0.86 * W and px > 12:
+                px *= 0.94
+                sub = et.make_sprite(subtitle, self.font_italic, px, self.accent, 8 * s, 3 * s)
+        self._ec = {"t": float(ec["t"]), "logo": logo, "tag": tag, "sub": sub}
+
+    # frame -------------------------------------------------------------------
+    def _view(self, i: int, t: float, extra: float = 1.0) -> np.ndarray:
+        s = self.shots[i]
+        img = s.framing.warp(s.picture(t), s.progress(t), extra)
+        return em.grade(img, s.look)
+
+    def _whip(self, a: int, b: int, t: float) -> np.ndarray:
+        W = self.width
+        tc = self.shots[b].t0
+        p = em.clamp01((t - (tc - WHIP_S / 2)) / WHIP_S)
+        off = int(round(em.smooth(p) * W))
+        A, B = self._view(a, t), self._view(b, t)
+        out = np.empty_like(A)
+        out[:, :W - off] = A[:, off:]
+        out[:, W - off:] = B[:, :off]
+        n = int(round(WHIP_BLUR_PX * self.sw * math.sin(math.pi * p)))
+        if n >= 3:
+            out = cv2.blur(out, (n, 1), borderType=cv2.BORDER_REPLICATE)
+        return out
+
+    def _wipe(self, before: np.ndarray, after: np.ndarray, q: float) -> np.ndarray:
+        W = self.width
+        k = 18 * self.sw                      # edge softness
+        sig = 14 * self.sw                    # glow width
+        reach = int(math.ceil(8 * max(k, sig)))
+        xpos = -reach + em.smooth(q) * (W + 2 * reach)
+        out = before.copy()
+        a0 = max(0, int(xpos - reach))
+        a1 = min(W, int(xpos + reach) + 1)
+        if a0 > 0:
+            out[:, :a0] = after[:, :a0]
+        if a1 > a0:
+            x = np.arange(a0, a1, dtype=np.float32) + 0.5
+            m = 1.0 / (1.0 + np.exp(np.clip((x - xpos) / k, -60, 60)))
+            g = np.exp(-0.5 * ((x - xpos) / sig) ** 2) + 0.9 * np.exp(-0.5 * ((x - xpos) / (1.6 * self.sw)) ** 2)
+            band = after[:, a0:a1].astype(np.float32) * m[None, :, None] + \
+                before[:, a0:a1].astype(np.float32) * (1 - m)[None, :, None]
+            glow = np.clip(g, 0, 1)[None, :, None] * np.array([1.0, 0.94, 0.84], np.float32)[None, None, :] * 0.95
+            band = band + (255.0 - band) * glow
+            out[:, a0:a1] = np.clip(band + 0.5, 0, 255).astype(np.uint8)
+        return out
+
+    def _picture(self, t: float) -> np.ndarray:
+        i = self._shot_at(t)
+        s = self.shots[i]
+        dt = t - s.t0
+        nxt = i + 1
+        if nxt < len(self.shots) and self.shots[nxt].tr == "whip" and t >= self.shots[nxt].t0 - WHIP_S / 2:
+            return self._whip(i, nxt, t)
+        if s.tr == "whip" and i > 0 and dt < WHIP_S / 2:
+            return self._whip(i - 1, i, t)
+        if s.tr == "punch" and dt < PUNCH_S:
+            q = em.ease_out(dt / PUNCH_S)
+            img = self._view(i, t, 1 + PUNCH_ZOOM * (1 - q))
+            return cv2.addWeighted(img, 1.0, img, 0.0, 255.0 * PUNCH_LIFT * (1 - q))
+        img = self._view(i, t)
+        if s.tr in ("fade", "leakfade") and i > 0 and dt < CROSSFADE_S:
+            a = em.smooth(dt / CROSSFADE_S)
+            return cv2.addWeighted(self._view(i - 1, t), 1 - a, img, a, 0.0)
+        if s.tr == "flash" and dt < FLASH_S:
+            w = FLASH_PEAK * (1 - em.ease_out(dt / FLASH_S))
+            return cv2.addWeighted(img, 1 - w, img, 0.0, 255.0 * w)
+        if s.tr == "wipe" and i > 0 and dt < WIPE_S:
+            return self._wipe(self._view(i - 1, t), img, dt / WIPE_S)
+        return img
+
+    def _bloom(self, img: np.ndarray) -> np.ndarray:
+        W, H = self.width, self.height
+        small = cv2.resize(img, (max(4, W // 4), max(4, H // 4)), interpolation=cv2.INTER_AREA)
+        hi = np.clip((small.astype(np.float32) - 158.0) * (255.0 / 97.0), 0, 255)
+        hi = cv2.GaussianBlur(hi, (0, 0), max(1.0, 9 * self.sw))
+        hi = cv2.resize(hi, (W, H), interpolation=cv2.INTER_LINEAR).astype(np.uint8)
+        return self._screen(img, hi, 0.2)
+
+    @staticmethod
+    def _screen(img: np.ndarray, layer: np.ndarray, amount: float) -> np.ndarray:
+        inv = cv2.subtract(np.full_like(img, 255), img)
+        return cv2.add(img, cv2.multiply(inv, layer, scale=amount / 255.0))
+
+    def _leak(self, img: np.ndarray, t: float) -> np.ndarray:
+        strength = 0.0
+        for tc, d, a in self._leaks:
+            if tc - 0.2 < t < tc + d:
+                strength = max(strength, a * math.sin(math.pi * (t - tc + 0.2) / (d + 0.2)))
+        if strength <= 0.01:
+            return img
+        lw, lh, xx, yy = self._leak_grid
+        out = np.zeros((lh, lw, 3), np.float32)
+        cols = [(1.0, 0.55, 0.25), (1.0, 0.30, 0.35), (1.0, 0.75, 0.10)]   # warm: amber, rose, gold
+        for j, (col, sp) in enumerate(zip(cols, (0.6, -0.45, 0.3))):
+            ph = self._leak_phase[j]
+            cx = lw * (0.5 + 0.6 * math.sin(t * sp + ph[0]))
+            cy = lh * (0.5 + 0.5 * math.cos(t * sp * 0.7 + ph[1]))
+            r = lw * (0.55 + 0.15 * j)
+            out += np.exp(-((xx - cx) ** 2 + (yy - cy) ** 2) / (2 * r * r))[..., None] * np.array(col, np.float32)
+        layer = cv2.resize(np.clip(out * strength, 0, 1) * 255.0, (self.width, self.height),
+                           interpolation=cv2.INTER_CUBIC)
+        layer = np.clip(layer + 0.5, 0, 255).astype(np.uint8)
+        return self._screen(img, layer, 1.0)
+
+    def _draw_hook(self, img: np.ndarray, t: float) -> None:
+        if not self._hook:
+            return
+        blk, top, t1 = self._hook
+        a = 1.0 if t <= t1 else 1.0 - em.smooth((t - t1) / HOOK_FADE_OUT_S)
+        if a <= 0:
+            return
+        rows = self._hook_shade.shape[0]
+        shade = 1.0 - (1.0 - self._hook_shade) * a
+        roi = img[:rows].astype(np.float32) * shade[:, None, None]
+        img[:rows] = (roi + 0.5).astype(np.uint8)
+        for sp, x, r, _ in blk.words:
+            et.draw_sprite(img, sp, x, blk.baseline(top, r), a)
+
+    def _draw_captions(self, img: np.ndarray, t: float) -> None:
+        for blk, top, t_first, t_end in self._lines:
+            if t < t_first - 0.01 or t > t_end + LINE_FADE_OUT_S:
+                continue
+            lo = 1.0 - em.smooth((t - t_end) / LINE_FADE_OUT_S) if t > t_end else 1.0
+            for sp, x, r, ts in blk.words:
+                p = (t - ts) / self.word_fade
+                if p <= 0:
+                    continue
+                q = em.ease_out(p)
+                et.draw_sprite(img, sp, x, blk.baseline(top, r) + self.rise * (1 - q), q * lo)
+
+    def _draw_endcard(self, img: np.ndarray, t: float) -> np.ndarray:
+        ec = self._ec
+        if not ec or t < ec["t"]:
+            return img
+        W, H, s = self.width, self.height, self.s
+        T = ec["t"]
+        veil = 1.0 - 0.22 * em.smooth((t - T) / 0.6)
+        img = cv2.convertScaleAbs(img, alpha=veil)
+        if ec["logo"] is not None:
+            q = em.ease_out((t - T - 0.30) / 0.9)
+            lg = ec["logo"]
+            et.draw_sprite(img, lg, W / 2 - lg.advance / 2, 0.469 * H + 14 * s * (1 - q), q)
+        if ec["tag"] is not None:
+            q = em.ease_out((t - T - 0.80) / 0.8)
+            tg = ec["tag"]
+            et.draw_sprite(img, tg, W / 2 - tg.advance / 2, 0.556 * H + 10 * s * (1 - q), q)
+        if ec["sub"] is not None:
+            q = em.ease_out((t - T - 1.40) / 0.9)
+            sb = ec["sub"]
+            et.draw_sprite(img, sb, W / 2 - sb.advance / 2, 0.78 * H + 14 * s * (1 - q), q)
+        return img
+
+    def _add_grain(self, img: np.ndarray, n: int) -> np.ndarray:
+        g = self._grain[(n * 7 + self.seed) % len(self._grain)]
+        ox = (n * 37 + self.seed * 11) % 64
+        oy = (n * 53 + self.seed * 5) % 64
+        tile = g[oy:oy + self.height, ox:ox + self.width]
+        out = img.astype(np.int16)
+        out += tile[..., None]
+        np.clip(out, 0, 255, out=out)
+        return out.astype(np.uint8)
+
+    def frame_index(self, n: int) -> np.ndarray:
+        """Frame number n of the reel (t = n / fps)."""
+        return self.frame(n / self.fps, n)
+
+    def frame(self, t: float, n: int | None = None) -> np.ndarray:
+        """The finished picture at reel time t: H x W x 3 RGB uint8."""
+        if n is None:
+            n = int(round(t * self.fps))
+        t = min(max(float(t), 0.0), self.duration)
+        img = self._picture(t)
+        img = self._bloom(img)
+        img = self._leak(img, t)
+        img = cv2.multiply(img, self._mask, scale=1 / 255.0)
+        img = self._draw_endcard_veil_and_text(img, t)
+        img = self._add_grain(img, n)
+        fade_in = float(self.cfg["hook"]["max_black_fade_in_s"]) if not self._hook else 0.0
+        k = 1.0
+        if fade_in > 0 and t < fade_in:
+            k *= FADE_IN_FLOOR + (1 - FADE_IN_FLOOR) * em.smooth(t / fade_in)
+        if t > self.duration - FADE_OUT_S:
+            k *= 1.0 - em.smooth((t - (self.duration - FADE_OUT_S)) / FADE_OUT_S)
+        if k < 1.0:
+            img = cv2.convertScaleAbs(img, alpha=k)
+        return img
+
+    def _draw_endcard_veil_and_text(self, img: np.ndarray, t: float) -> np.ndarray:
+        img = np.ascontiguousarray(img)
+        if self._ec and t >= self._ec["t"]:
+            img = self._draw_endcard(img, t)
+            self._draw_captions(img, t)
+            return img
+        self._draw_hook(img, t)
+        self._draw_captions(img, t)
+        return img
+
+
+# ---------------------------------------------------------------------------
+# Encoding
+# ---------------------------------------------------------------------------
+# The reel is encoded in fixed segments of SEGMENT_S seconds (one GOP each), every
+# segment by its own single-threaded encoder, then the segments are joined into
+# one stream and muxed. Segment boundaries depend only on the frame range, never
+# on the worker count, so any --workers gives the same bytes, and encoding scales
+# across cores (x264's own threading barely does at 1080x1920).
+SEGMENT_S = 2.0
+
+
+def videotoolbox_available() -> bool:
     try:
-        import imageio_ffmpeg; FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
-    except ImportError:
-        sys.exit('ffmpeg not found: run  pip install imageio-ffmpeg  (or brew install ffmpeg)')
-ACCENT = tuple(P.get('accent_rgb', [247, 214, 160]))
+        out = nc.run([nc.ffmpeg_bin(), "-hide_banner", "-encoders"], check=False)
+    except nc.UserError:
+        return False
+    return b"h264_videotoolbox" in (out.stdout or b"")
 
-def ease(p): p = min(max(p, 0), 1); return p * p * (3 - 2 * p)
-def eout(p): p = min(max(p, 0), 1); return 1 - (1 - p) ** 3
 
-def canvas(im):
-    if im.width / im.height < 0.85:
-        return ImageOps.fit(im, (SW, SH), Image.LANCZOS)
-    hh = int(SH * 0.92); ww = int(im.width * hh / im.height); CW = max(ww, SW)
-    bg = ImageOps.fit(im, (CW, SH)).filter(ImageFilter.GaussianBlur(80)); bg = ImageEnhance.Brightness(bg).enhance(0.4)
-    fg = im.resize((ww, hh), Image.LANCZOS)
-    m = Image.new('L', (ww, hh), 0); ImageDraw.Draw(m).rectangle((0, 40, ww, hh - 40), fill=255); m = m.filter(ImageFilter.GaussianBlur(40))
-    bg.paste(fg, ((CW - ww) // 2, (SH - hh) // 2), m); return bg
-
-_vig = {}
-def grade_arr(a, look):
-    """a: float32 RGB 0..1"""
-    if look == 'before':
-        g = a.mean(2, keepdims=True); a = g + (a - g) * 0.55
-        a = a * np.array([0.94, 0.98, 1.05], np.float32); a = 0.06 + a * 0.9
-        a = np.clip(a, 0, 1) ** 1.08
-    elif look == 'warm':
-        g = a.mean(2, keepdims=True); a = g + (a - g) * 1.08
-        a = np.clip(a * np.array([1.04, 1.0, 0.93], np.float32), 0, 1)
-        a = a + 0.06 * np.sin(np.pi * a) * (a - 0.5) * 2; a = 0.02 + a * 0.97
-    k = a.shape[:2]
-    if k not in _vig:
-        y, x = np.mgrid[0:k[0], 0:k[1]]
-        r = np.sqrt(((x / k[1]) - .5) ** 2 * 1.6 + ((y / k[0]) - .5) ** 2)
-        _vig[k] = (1 - 0.45 * np.clip((r - 0.3) / 0.45, 0, 1) ** 1.6)[..., None].astype(np.float32)
-    return np.clip(a * _vig[k], 0, 1)
-
-def to_bgr(a): return cv2.cvtColor((a * 255).astype(np.uint8), cv2.COLOR_RGB2BGR)
-
-class ImgSrc:
-    def __init__(s, path, look, crop=None):
-        im = Image.open(path).convert('RGB')
-        if crop: im = im.crop(tuple(crop))
-        im = im.filter(ImageFilter.UnsharpMask(1.4, 55, 2))
-        s.img = to_bgr(grade_arr(np.asarray(canvas(im)).astype(np.float32) / 255, look))
-    def get(s, trel): return s.img
-
-class VidSrc:
-    """Video clip: frames read sequentially, graded, filled to canvas."""
-    def __init__(s, path, look, start=0.0, speed=1.0):
-        s.path, s.look, s.start, s.speed = path, look, start, speed
-        s.cap = None; s.idx = -1; s.cur = None
-    def get(s, trel):
-        if s.cap is None:
-            s.cap = cv2.VideoCapture(s.path); s.vfps = s.cap.get(cv2.CAP_PROP_FPS) or 30
-            s.n = int(s.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        want = min(max(int((s.start + max(trel, 0) * s.speed) * s.vfps), 0), s.n - 1)
-        if want < s.idx or want > s.idx + 30:
-            s.cap.set(cv2.CAP_PROP_POS_FRAMES, want); s.idx = want - 1
-        while s.idx < want:
-            ok, fr = s.cap.read()
-            if not ok: break
-            s.idx += 1; s.raw = fr
-        if s.cur is None or s.cur[0] != s.idx:
-            c = canvas_fast(s.raw)
-            rgb = cv2.cvtColor(c, cv2.COLOR_BGR2RGB).astype(np.float32) / 255
-            s.cur = (s.idx, to_bgr(grade_arr(rgb, s.look)))
-        return s.cur[1]
-
-_masks = {}
-def _cover(img, w, h, interp=cv2.INTER_AREA):
-    ih, iw = img.shape[:2]; k = max(w / iw, h / ih)
-    r = cv2.resize(img, (max(w, int(iw * k + 0.5)), max(h, int(ih * k + 0.5))), interpolation=interp)
-    y0 = (r.shape[0] - h) // 2; x0 = (r.shape[1] - w) // 2
-    return r[y0:y0 + h, x0:x0 + w]
-def canvas_fast(bgr):
-    """OpenCV version of canvas() for video frames (about 20x faster than the PIL path)."""
-    ih, iw = bgr.shape[:2]
-    if iw / ih < 0.85:
-        return _cover(bgr, SW, SH, cv2.INTER_LINEAR)
-    hh = int(SH * 0.92); ww = int(iw * hh / ih); CW = max(ww, SW)
-    small = _cover(bgr, max(CW // 8, 8), SH // 8)
-    bg = cv2.resize(cv2.GaussianBlur(small, (0, 0), 10), (CW, SH), interpolation=cv2.INTER_LINEAR)
-    bg = (bg.astype(np.float32) * 0.4)
-    fg = cv2.resize(bgr, (ww, hh), interpolation=cv2.INTER_LINEAR).astype(np.float32)
-    key = (ww, hh)
-    if key not in _masks:
-        m = np.zeros((hh, ww), np.float32); m[40:hh - 40, :] = 1
-        _masks[key] = cv2.GaussianBlur(m, (0, 0), 40)[..., None]
-    m = _masks[key]; x0 = (CW - ww) // 2; y0 = (SH - hh) // 2
-    reg = bg[y0:y0 + hh, x0:x0 + ww]
-    bg[y0:y0 + hh, x0:x0 + ww] = fg * m + reg * (1 - m)
-    return np.clip(bg, 0, 255).astype(np.uint8)
-
-SHOTS = P['shots']; SRC = []
-for sh in SHOTS:
-    if sh.get('kind', 'image') == 'video':
-        SRC.append(VidSrc(sh['src'], sh.get('look', 'warm'), sh.get('start', 0), sh.get('speed', 1.0)))
+def encoder_args(encoder: str, draft: bool, fps: float) -> tuple[list[str], dict]:
+    """ffmpeg output arguments for one segment's video stream, plus a summary for render.json."""
+    cfg = nc.config_value("render")
+    v = cfg["video"]
+    preset = cfg["draft"]["preset"] if draft else v.get("preset", "medium")
+    crf = cfg["draft"]["crf"] if draft else v["crf"]
+    gop = str(int(round(fps * SEGMENT_S)))
+    color = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"]
+    if encoder == "videotoolbox":
+        args = ["-c:v", "h264_videotoolbox", "-profile:v", "high", "-b:v", "10M", "-maxrate", v["maxrate"],
+                "-bufsize", v["bufsize"], "-allow_sw", "1", "-g", gop]
+        info = {"encoder": "h264_videotoolbox", "bitrate": "10M"}
     else:
-        SRC.append(ImgSrc(sh['src'], sh.get('look', 'warm'), sh.get('crop')))
+        args = ["-c:v", "libx264", "-profile:v", v.get("profile", "high"), "-preset", preset, "-crf", str(crf),
+                "-maxrate", v["maxrate"], "-bufsize", v["bufsize"], "-g", gop, "-threads", "1"]
+        info = {"encoder": "libx264", "preset": preset, "crf": crf, "encoder_threads": 1}
+    args += ["-pix_fmt", v.get("pix_fmt", "yuv420p"), *color]
+    info["segment_s"] = SEGMENT_S
+    return args, info
 
-def view(i, t, extra=1.0):
-    sh = SHOTS[i]; t0, t1 = sh['t0'], sh['t1']
-    z0, z1 = sh.get('z', [1.02, 1.14]); px, py = sh.get('pan', [0, 0])
-    img = SRC[i].get(t - t0)
-    p = (t - t0) / (t1 - t0); pc = min(max(p, 0), 1)
-    pe = 0.5 - 0.5 * math.cos(math.pi * pc) + (min(p, 1.6) - 1) * 0.15 * (p > 1)
-    z = (z0 + (z1 - z0) * pe) * extra
-    vw = SW / z; a = vw / W; CW = img.shape[1]
-    cx = CW / 2 + px * SW * pe; cy = SH / 2 + py * SH * pe
-    if CW > SW + 10:
-        q = (CW - vw) / 2 * 0.85; dr = 1 if i % 2 else -1
-        cx = CW / 2 + dr * q * (2 * pe - 1)
-    cx = min(max(cx, vw / 2), CW - vw / 2); vh = H * a; cy = min(max(cy, vh / 2), SH - vh / 2)
-    M = np.float32([[a, 0, cx - W / 2 * a], [0, a, cy - H / 2 * a]])
-    return cv2.warpAffine(img, M, (W, H), flags=cv2.INTER_CUBIC | cv2.WARP_INVERSE_MAP, borderMode=cv2.BORDER_REFLECT)
 
-def hblur(img, n):
-    n = int(n)
-    return img if n < 3 else cv2.filter2D(img, -1, np.ones((1, n), np.float32) / n)
+def _rate(fps: float) -> str:
+    r = Fraction(fps).limit_denominator(1001)
+    return f"{r.numerator}/{r.denominator}"
 
-def screen(base, layer):
-    b = base.astype(np.float32) / 255
-    return ((1 - (1 - b) * (1 - layer)) * 255).astype(np.uint8)
 
-def leak(t, strength, seed=0):
-    if strength <= 0.01: return None
-    h, w = 120, 68; y, x = np.mgrid[0:h, 0:w].astype(np.float32); out = np.zeros((h, w, 3), np.float32)
-    for j, (col, sp) in enumerate([((0.25, 0.55, 1.0), 0.6), ((0.35, 0.3, 1.0), -0.45), ((0.1, 0.75, 1.0), 0.3)]):
-        cx = w * (0.5 + 0.6 * math.sin(t * sp + j * 2.1 + seed)); cy = h * (0.5 + 0.5 * math.cos(t * sp * 0.7 + j + seed))
-        r = w * (0.55 + 0.15 * j)
-        out += np.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * r * r))[..., None] * np.array(col, np.float32)
-    return np.clip(cv2.resize(out, (W, H), interpolation=cv2.INTER_CUBIC) * strength, 0, 1)
+def _segment_cmd(out: Path, W: int, H: int, fps: float, enc_args: list[str]) -> list[str]:
+    return [nc.ffmpeg_bin(), "-hide_banner", "-nostdin", "-v", "error", "-y",
+            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-framerate", _rate(fps),
+            "-i", "pipe:0", "-an", "-sn",
+            "-vf", "scale=out_color_matrix=bt709:out_range=tv:flags=bicubic+accurate_rnd+full_chroma_int",
+            *enc_args, "-flags:v", "+bitexact", "-f", "h264", str(out)]
 
-def bloom(img, amt=0.2):
-    s = cv2.resize(img, (W // 4, H // 4), interpolation=cv2.INTER_AREA).astype(np.float32) / 255
-    hi = cv2.GaussianBlur(np.clip((s - 0.62) / 0.38, 0, 1), (0, 0), 9)
-    return screen(img, cv2.resize(hi, (W, H)) * amt)
 
-def whip(a, b, t):
-    tc = SHOTS[b]['t0']; p = min(max((t - (tc - 0.14)) / 0.28, 0), 1); off = int(ease(p) * W)
-    A = view(a, t); Bv = view(b, t); out = np.empty_like(A)
-    out[:, :W - off] = A[:, off:]; out[:, W - off:] = Bv[:, :off]
-    return hblur(out, 6 + 160 * math.sin(math.pi * p))
+def _encode_segment(r: "Renderer", frames: range, out: Path, enc_args: list[str]) -> None:
+    """Render frames and encode them into one H.264 elementary-stream segment."""
+    errf = tempfile.TemporaryFile()
+    proc = subprocess.Popen(_segment_cmd(out, r.width, r.height, r.fps, enc_args),
+                            stdin=subprocess.PIPE, stderr=errf)
+    assert proc.stdin is not None
+    try:
+        for n in frames:
+            proc.stdin.write(r.frame_index(n).tobytes())
+        proc.stdin.close()
+    except BrokenPipeError:
+        pass
+    except BaseException:
+        proc.kill()
+        proc.wait()
+        errf.close()
+        raise
+    rc = proc.wait()
+    errf.seek(0)
+    err = errf.read().decode("utf-8", "replace")
+    errf.close()
+    if rc != 0:
+        detail = " | ".join(err.strip().splitlines()[-3:]) or f"exit {rc}"
+        raise nc.UserError(f"ffmpeg encoder failed: {detail}")
 
-def frame_at(t):
-    i = max(k for k in range(len(SHOTS)) if SHOTS[k]['t0'] <= t + 1e-6)
-    t0 = SHOTS[i]['t0']; tr = SHOTS[i].get('tr', 'cut'); prev = i - 1; dt = t - t0
-    if i + 1 < len(SHOTS) and SHOTS[i + 1].get('tr') == 'whip' and t > SHOTS[i + 1]['t0'] - 0.14: return whip(i, i + 1, t)
-    if tr == 'whip' and dt < 0.14 and prev >= 0: return whip(prev, i, t)
-    img = view(i, t)
-    if tr == 'punch' and dt < 0.22:
-        p = eout(dt / 0.22); img = view(i, t, 1 + 0.16 * (1 - p))
-        img = cv2.addWeighted(img, 1, np.full_like(img, 255), 0.28 * (1 - p), 0)
-    elif tr in ('fade', 'leakfade') and dt < 0.5 and prev >= 0:
-        a = ease(dt / 0.5); img = cv2.addWeighted(view(prev, t), 1 - a, img, a, 0)
-    elif tr == 'flash' and dt < 0.35:
-        img = cv2.addWeighted(img, 1, np.full_like(img, 255), 0.85 * (1 - eout(dt / 0.35)), 0)
-    elif tr == 'wipe' and dt < 1.0 and prev >= 0:
-        p = ease(dt); before = view(prev, t); xpos = int(-80 + p * (W + 160))
-        m = np.zeros((H, W), np.float32); m[:, :max(0, xpos)] = 1; m = cv2.GaussianBlur(m, (0, 0), 30)
-        img = (img * m[..., None] + before * (1 - m[..., None])).astype(np.uint8)
-        if 0 < xpos < W:
-            g = np.zeros((H, W), np.float32); g[:, max(0, xpos - 2):xpos + 2] = 1
-            img = screen(img, np.clip(cv2.GaussianBlur(g, (0, 0), 14)[..., None] * 3 * np.array([0.6, 0.85, 1.0]), 0, 1))
-    return img
 
-# ---- captions: lines = [{"words": [["This",0.62], ["Katie",1.42,1]], "end": 2.45}]
-FR = ImageFont.truetype(FONT_R, 92); FI = ImageFont.truetype(FONT_I, 100)
-def sprite(txt, it):
-    f = FI if it else FR; bx = ImageDraw.Draw(Image.new('L', (1, 1))).textbbox((0, 0), txt, font=f)
-    im = Image.new('RGBA', (bx[2] + 40, 160), (0, 0, 0, 0))
-    ImageDraw.Draw(im).text((20, 18), txt, font=f, fill=(ACCENT + (255,)) if it else (255, 252, 246, 255))
-    a = np.asarray(im).astype(np.float32) / 255
-    return a, cv2.GaussianBlur(a[..., 3], (0, 0), 8) * 0.75, bx[2]
-CAP = []
-for ln in P.get('lines', []):
-    spr = [(sprite(w[0], len(w) > 2 and w[2]), w[1]) for w in ln['words']]
-    rows, row, rw = [], [], 0
-    for sp, ts in spr:
-        ww = sp[2] + 26
-        if rw + ww > 960 and row: rows.append((row, rw)); row, rw = [], 0
-        row.append((sp, ts)); rw += ww
-    rows.append((row, rw)); placed = []; ytop = P.get('caption_y', 1420) - (len(rows) - 1) * 62
-    for r, (row, rw) in enumerate(rows):
-        x = (W - rw) // 2
-        for sp, ts in row: placed.append((sp, ts, x - 20, ytop + r * 124)); x += sp[2] + 26
-    CAP.append((placed, ln['words'][0][1], ln['end']))
+# ---------------------------------------------------------------------------
+# Parallel segments
+# ---------------------------------------------------------------------------
+_WORKER: "Renderer | None" = None
+_WORKER_ARGS: list[str] = []
 
-def draw_caps(img, t):
-    f = img.astype(np.float32) / 255
-    for placed, ts0, tend in CAP:
-        if t < ts0 - 0.05 or t > tend + 0.35: continue
-        lo = 1 - ease((t - tend) / 0.35) if t > tend else 1
-        for (a, sh, _), ts, x, y in placed:
-            p = (t - ts) / 0.28
-            if p <= 0: continue
-            al = eout(p) * lo; yy = y + int(22 * (1 - eout(p))); hh, ww = sh.shape
-            x0, x1 = max(x, 0), min(x + ww, W); reg = f[yy:yy + hh, x0:x1]
-            s_ = sh[:, x0 - x:x1 - x, None] * al; reg[:] = reg * (1 - s_)
-            ac = a[:, x0 - x:x1 - x, 3:4] * al; reg[:] = reg * (1 - ac) + a[:, x0 - x:x1 - x, 2::-1] * ac
-    return (np.clip(f, 0, 1) * 255).astype(np.uint8)
 
-# ---- end card: {"t": 34.16, "logo": "logo.png", "logo_width": 820, "tagline": "...", "subtitle": "..."}
-EC = P.get('endcard')
-def alpha_text(txt, size, font, spacing=0):
-    f = ImageFont.truetype(font, size); txt = (' ' * spacing).join(txt) if spacing else txt
-    bx = ImageDraw.Draw(Image.new('L', (1, 1))).textbbox((0, 0), txt, font=f)
-    im = Image.new('L', (bx[2] + 10, bx[3] + 20), 0); ImageDraw.Draw(im).text((5, 5), txt, font=f, fill=255)
-    return np.asarray(im).astype(np.float32) / 255
-if EC:
-    if EC.get('logo'):
-        lg = Image.open(EC['logo']).convert('RGBA'); lw = EC.get('logo_width', 820)
-        lg = lg.resize((lw, int(lg.height * lw / lg.width)), Image.LANCZOS); la = np.asarray(lg).astype(np.float32) / 255
-        # use alpha if present, else luminance-inverted (dark logo on white)
-        EC['_logo'] = la[..., 3] if la[..., 3].min() < 0.99 else np.clip(1 - la[..., :3].mean(2) * 1.15, 0, 1)
-    if EC.get('tagline'): EC['_tag'] = alpha_text(EC['tagline'].upper(), 34, FONT_R, 1)
-    if EC.get('subtitle'): EC['_sub'] = alpha_text(EC['subtitle'], 58, FONT_I)
+def _worker_init(plan: dict, size, draft, cache_dir: str, enc_args: list[str]) -> None:
+    global _WORKER, _WORKER_ARGS
+    cv2.setNumThreads(1)
+    _WORKER = Renderer(plan, size=size, draft=draft)
+    _WORKER.attach_cache(cache_dir)
+    _WORKER_ARGS = enc_args
 
-def place(f, alpha, cx, cy, col, al, scale=1.0):
-    if al <= 0: return
-    if scale != 1.0: alpha = cv2.resize(alpha, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-    h, w = alpha.shape; x = int(cx - w / 2); y = int(cy - h / 2)
-    sh = cv2.GaussianBlur(alpha, (0, 0), 10) * 0.55 * al; reg = f[y:y + h, x:x + w]
-    reg[:] = reg * (1 - sh[..., None]); a = alpha[..., None] * al
-    reg[:] = reg * (1 - a) + np.array(col[::-1], np.float32) * a
 
-def endcard(img, t):
-    if not EC or t < EC['t'] + 0.35: return img
-    f = img.astype(np.float32) / 255; T = EC['t']
-    if '_logo' in EC: p1 = eout((t - T - 0.45) / 0.9); place(f, EC['_logo'], W / 2, 900, (1, 1, 1), p1, 1.06 - 0.06 * p1)
-    if '_tag' in EC: place(f, EC['_tag'], W / 2, 1040, (1, 1, 1), eout((t - T - 0.95) / 0.8))
-    if '_sub' in EC: place(f, EC['_sub'], W / 2, 1500, tuple(c / 255 for c in ACCENT), eout((t - T - 1.65) / 0.9))
-    return (np.clip(f, 0, 1) * 255).astype(np.uint8)
+def _worker_segment(job: tuple[int, int, int, str]) -> int:
+    k, a, b, out = job
+    assert _WORKER is not None
+    try:
+        _encode_segment(_WORKER, range(a, b), Path(out), _WORKER_ARGS)
+    except nc.UserError as e:
+        # exceptions cross the process boundary as plain text
+        raise RuntimeError(f"USERERROR:{e}") from None
+    return k
 
-LEAKS = P.get('leaks', [])
-GRAD = (1 - 0.42 * np.clip((np.arange(H) - 1050) / 700, 0, 1) ** 1.3).astype(np.float32)[:, None, None]
-rng = np.random.default_rng(3); GR = [rng.normal(0, 1, (H // 2, W // 2)).astype(np.float32) for _ in range(6)]
 
-def render(t):
-    img = bloom(frame_at(t), 0.2); s = 0
-    for tc, d, a in LEAKS:
-        if tc - 0.2 < t < tc + d: s = max(s, a * math.sin(math.pi * (t - tc + 0.2) / (d + 0.2)))
-    L = leak(t, s, seed=int(t // 5))
-    if L is not None: img = screen(img, L)
-    if not EC or t < EC['t'] + 0.2: img = (img.astype(np.float32) * GRAD).astype(np.uint8)
-    img = endcard(draw_caps(img, t), t)
-    g = cv2.resize(GR[int(t * FPS) % 6], (W, H))
-    img = np.clip(img.astype(np.float32) + g[..., None] * 5.0, 0, 255)
-    if t < 0.4: img *= ease(t / 0.4)
-    if t > DUR - 0.8: img *= 1 - ease((t - DUR + 0.8) / 0.8)
-    return img.astype(np.uint8)
+def _frame_range(fps: float, duration: float, t_from: float | None, t_to: float | None) -> range:
+    total = max(1, int(round(duration * fps)))
+    a = 0 if t_from is None else int(math.ceil(t_from * fps - 1e-6))
+    b = total if t_to is None else min(total, int(math.ceil(t_to * fps - 1e-6)))
+    return range(max(0, a), max(a + 1, b))
 
-if __name__ == '__main__':
-    if len(sys.argv) > 2 and sys.argv[2] == 'preview':
-        ts = list(map(float, sys.argv[3:])); tiles = []
-        for t in ts: tiles.append(cv2.resize(render(t), (270, 480)))
-        rows = [np.hstack(tiles[k:k + 5] + [np.zeros_like(tiles[0])] * (5 - len(tiles[k:k + 5]))) for k in range(0, len(tiles), 5)]
-        cv2.imwrite(os.path.join(OUT, 'preview.jpg'), np.vstack(rows)); print('preview.jpg'); sys.exit()
-    N = int(DUR * FPS); vid = os.path.join(OUT, 'video_noaudio.mp4')
-    p = subprocess.Popen([FFMPEG, '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-',
-                          '-c:v', 'libx264', '-preset', 'medium', '-crf', '19', '-maxrate', '14M', '-bufsize', '28M', '-pix_fmt', 'yuv420p', vid], stdin=subprocess.PIPE)
-    for n in range(N):
-        p.stdin.write(render(n / FPS).tobytes())
-        if n % 150 == 0: print(f'{n}/{N}', flush=True)
-    p.stdin.close(); p.wait(); print('done', vid)
+
+def _as_plan(plan: dict | str | os.PathLike) -> dict:
+    return load_plan(plan) if isinstance(plan, (str, os.PathLike)) else plan
+
+
+def render_frame(plan: dict | str | os.PathLike, t: float, size: tuple[int, int] | None = None,
+                 draft: bool | None = None) -> np.ndarray:
+    """One finished frame (RGB uint8) at reel time t."""
+    with Renderer(_as_plan(plan), size=size, draft=draft) as r:
+        return r.frame(t)
+
+
+def _mux(stream: Path, out: Path, fps: float) -> None:
+    nc.ffmpeg("-fflags", "+bitexact+genpts", "-framerate", _rate(fps), "-f", "h264", "-i", str(stream),
+              "-c:v", "copy", "-map_metadata", "-1", "-flags:v", "+bitexact", "-movflags", "+faststart",
+              "-video_track_timescale", str(int(round(Fraction(fps).limit_denominator(1001).numerator * 512))),
+              "-f", "mp4", str(out), what="ffmpeg mux")
+
+
+def render_video(plan: dict | str | os.PathLike, out_path: str | os.PathLike, *, t_from: float | None = None,
+                 t_to: float | None = None, size: tuple[int, int] | None = None, draft: bool | None = None,
+                 workers: int | None = None, encoder: str = "libx264", progress: bool = True) -> dict:
+    """Render [t_from, t_to) (default: the whole reel) to an MP4 without audio. Returns the render.json dict."""
+    t_start = time.perf_counter()
+    plan = _as_plan(plan)
+    workers = max(1, int(workers or os.cpu_count() or 1))
+    if encoder not in ("libx264", "videotoolbox"):
+        raise nc.UsageError(f"--encoder must be libx264 or videotoolbox, got {encoder!r}")
+    if encoder == "videotoolbox" and not videotoolbox_available():
+        nc.warn("encoder: h264_videotoolbox is not available here; using libx264")
+        encoder = "libx264"
+    r = Renderer(plan, size=size, draft=draft)
+    duration = r.duration
+    if t_from is not None and not 0 <= t_from < duration:
+        raise nc.UserError(f"--from {t_from:g} is outside the reel (0-{duration:g} s)")
+    if t_to is not None and not (t_from or 0) < t_to <= duration + 1e-9:
+        raise nc.UserError(f"--to {t_to:g} must be after --from and at most the duration ({duration:g} s)")
+    frames = _frame_range(r.fps, duration, t_from, t_to)
+    out = Path(out_path).expanduser().resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    enc_args, enc_info = encoder_args(encoder, r.draft, r.fps)
+    seg_len = max(1, int(round(r.fps * SEGMENT_S)))
+    starts = list(range(frames.start, frames.stop, seg_len))
+    timings: dict[str, float] = {}
+    old_threads = cv2.getNumThreads()
+    with tempfile.TemporaryDirectory(prefix="numa-render-") as tmp:
+        tmpd = Path(tmp)
+        cache = tmpd / "cache"
+        cache.mkdir()
+        t0 = time.perf_counter()
+        r.build_cache(cache, frames.start / r.fps, (frames.stop - 1) / r.fps)
+        timings["prepare_s"] = round(time.perf_counter() - t0, 3)
+        t1 = time.perf_counter()
+        jobs = [(k, a, min(a + seg_len, frames.stop), str(tmpd / f"seg_{k:05d}.h264")) for k, a in enumerate(starts)]
+        pool_n = min(workers, len(jobs))
+        try:
+            if pool_n > 1:
+                ctx = mp.get_context("spawn")
+                with ctx.Pool(pool_n, initializer=_worker_init,
+                              initargs=(plan, size, r.draft, str(cache), enc_args)) as pool:
+                    try:
+                        for done, _k in enumerate(pool.imap_unordered(_worker_segment, jobs), 1):
+                            if progress:
+                                nc.info(f"engine: segment {done}/{len(jobs)}")
+                    except RuntimeError as e:
+                        msg = str(e)
+                        if msg.startswith("USERERROR:"):
+                            raise nc.UserError(msg[len("USERERROR:"):]) from None
+                        raise
+            else:
+                cv2.setNumThreads(1)
+                for k, a, b, path in jobs:
+                    _encode_segment(r, range(a, b), Path(path), enc_args)
+                    if progress:
+                        nc.info(f"engine: segment {k + 1}/{len(jobs)}")
+        finally:
+            cv2.setNumThreads(old_threads)
+            r.close()
+        timings["render_encode_s"] = round(time.perf_counter() - t1, 3)
+        t2 = time.perf_counter()
+        stream = tmpd / "all.h264"
+        with open(stream, "wb") as f:
+            for _k, _a, _b, path in jobs:
+                f.write(Path(path).read_bytes())
+        tmp_out = tmpd / ("out" + (out.suffix or ".mp4"))
+        _mux(stream, tmp_out, r.fps)
+        os.replace(tmp_out, out) if tmp_out.stat().st_dev == out.parent.stat().st_dev else \
+            out.write_bytes(tmp_out.read_bytes())
+        timings["mux_s"] = round(time.perf_counter() - t2, 3)
+    digest = hashlib.sha256(out.read_bytes()).hexdigest()
+    timings["total_s"] = round(time.perf_counter() - t_start, 3)
+    n = len(frames)
+    return {
+        "schema_version": 1,
+        "engine_version": ENGINE_VERSION,
+        "output": str(out),
+        "sha256": digest,
+        "bytes": out.stat().st_size,
+        "frames": n,
+        "fps": r.fps,
+        "size": [r.width, r.height],
+        "range": [frames.start / r.fps, frames.stop / r.fps],
+        "duration": round(n / r.fps, 6),
+        "draft": r.draft,
+        "workers": workers,
+        **enc_info,
+        "seed": r.seed,
+        "timings": timings,
+        "frames_per_second": round(n / max(1e-9, timings["total_s"]), 2),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Preview and images
+# ---------------------------------------------------------------------------
+def save_image(rgb: np.ndarray, path: str | os.PathLike, quality: int = 92) -> Path:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    im = Image.fromarray(np.ascontiguousarray(rgb))
+    if p.suffix.lower() in (".jpg", ".jpeg"):
+        im.save(p, quality=quality, subsampling=0)
+    else:
+        im.save(p)
+    return p
+
+
+def render_preview(plan: dict | str | os.PathLike, times: Sequence[float], out_path: str | os.PathLike,
+                   size: tuple[int, int] | None = None, cols: int = 5) -> Path:
+    """Render the given reel times into one grid image (cols tiles per row, labelled with the time)."""
+    plan = _as_plan(plan)
+    if not times:
+        raise nc.UsageError("preview needs at least one time")
+    with Renderer(plan, size=size, draft=False) as r:
+        for t in times:
+            if not 0 <= t <= r.duration:
+                raise nc.UserError(f"preview time {t:g} is outside the reel (0-{r.duration:g} s)")
+        tw = PREVIEW_TILE_W
+        th = int(round(tw * r.height / r.width))
+        tiles = []
+        for t in times:
+            fr = r.frame(t)
+            tile = Image.fromarray(cv2.resize(fr, (tw, th), interpolation=cv2.INTER_AREA))
+            d = ImageDraw.Draw(tile)
+            label = f"{t:.2f}s"
+            d.rectangle((0, 0, 8 * len(label) + 10, 20), fill=(0, 0, 0))
+            d.text((5, 4), label, fill=(255, 255, 255))
+            tiles.append(np.asarray(tile))
+    rows = int(math.ceil(len(tiles) / cols))
+    grid = np.full((rows * th, cols * tw, 3), 24, np.uint8)
+    for k, tile in enumerate(tiles):
+        y, x = divmod(k, cols)
+        grid[y * th:(y + 1) * th, x * tw:(x + 1) * tw] = tile
+    return save_image(grid, out_path, quality=90)
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+def _parser() -> nc.ArgParser:
+    p = nc.ArgParser(
+        prog="engine.py",
+        description="Render a NUMA reel from plan.json (silent MP4), or a preview grid of chosen times.",
+        epilog="Preview: engine.py PLAN_JSON preview T1 [T2 ...] [--size WxH] [--out FILE]")
+    p.add_argument("plan", help="plan.json")
+    p.add_argument("mode", nargs="*", help="'preview' followed by reel times in seconds")
+    p.add_argument("--draft", action="store_true", help="lower resolution and fast preset (config render.draft)")
+    p.add_argument("--workers", type=int, default=None, help="parallel frame workers (default: CPU count)")
+    p.add_argument("--size", default=None, help="output size WxH (default: the plan's size)")
+    p.add_argument("--from", dest="t_from", type=float, default=None, help="render from this reel time (s)")
+    p.add_argument("--to", dest="t_to", type=float, default=None, help="render up to this reel time (s)")
+    p.add_argument("--out", default=None, help="output file (default: in the plan's out_dir)")
+    p.add_argument("--encoder", choices=("libx264", "videotoolbox"), default="libx264",
+                   help="videotoolbox = macOS hardware encoder (falls back to libx264)")
+    return p
+
+
+def _num(x: float) -> str:
+    return f"{x:g}"
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    size = nc.parse_size(args.size) if args.size else None
+    if args.workers is not None and args.workers < 1:
+        raise nc.UsageError("--workers must be at least 1")
+    plan = load_plan(args.plan)
+    out_dir = Path(plan["out_dir"])
+    if args.mode:
+        if args.mode[0] != "preview":
+            raise nc.UsageError(f"unknown mode {args.mode[0]!r}; the only mode is 'preview'")
+        try:
+            times = [float(x) for x in args.mode[1:]]
+        except ValueError:
+            raise nc.UsageError("preview times must be numbers (seconds)") from None
+        if not times:
+            raise nc.UsageError("preview needs at least one time, e.g. preview 0 1.5 3")
+        out = Path(args.out).expanduser().resolve() if args.out else out_dir / "preview.jpg"
+        path = render_preview(plan, times, out, size=size)
+        print(path)
+        return 0
+    draft = True if args.draft else None
+    if args.out:
+        out = Path(args.out).expanduser().resolve()
+    elif args.t_from is not None or args.t_to is not None:
+        a = args.t_from or 0.0
+        b = args.t_to if args.t_to is not None else float(plan["duration"])
+        out = out_dir / f"segment_{_num(a)}_{_num(b)}.mp4"
+    else:
+        is_draft = args.draft or plan.get("quality") == "draft"
+        out = out_dir / ("video_noaudio_draft.mp4" if is_draft else "video_noaudio.mp4")
+    info = render_video(plan, out, t_from=args.t_from, t_to=args.t_to, size=size, draft=draft,
+                        workers=args.workers, encoder=args.encoder)
+    info["plan"] = str(Path(args.plan).expanduser().resolve())
+    nc.write_json(out_dir / "render.json", info)
+    tm = info["timings"]
+    print(f"{info['output']}  {info['size'][0]}x{info['size'][1]}  {info['frames']} frames  "
+          f"{tm['total_s']:.1f} s ({info['workers']} workers, {info['encoder']})")
+    return 0
+
+
+if __name__ == "__main__":
+    nc.run_cli(main)
