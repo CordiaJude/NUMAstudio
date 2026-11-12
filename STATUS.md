@@ -11,7 +11,7 @@
 | T6 Formats | IN REVIEW | 1 | |
 | T7 Ops scripts | ACCEPTED (round 3 re-review PASS) | 3 | |
 | T8a Director+librarian/scout/analyst | ACCEPTED (9/10; --template depends on T12, verified in T11) | 2 | |
-| T8b Crew agents + skills | IN REVIEW | 1 | |
+| T8b Crew agents + skills | REVISING | 2 | M: consent gate for faces w/o people flag; ledger sheet mirror |
 | T9 30-day system | IN PROGRESS | 1 | |
 | T10 Setup/posting | IN PROGRESS | 1 | |
 | T12 Templates/prefs/kinetic | PENDING | 0 | |
@@ -29,3 +29,4 @@
 - Cleanup for user: empty folder /nonexistent_ro/x created by a reviewer test (safety check blocked removal).
 - T8a follow-up (from T8b): make-reel step 10 pass critic analysis.json, sources.json, plan_row.json, STATE/consent_list.json; scout.md add Higgsfield unlimited-window draft batching (R227).
 - T12: baseline_plan reach_cut.hook should differ from the reel hook (e.g. meta.title or second line).
+- T12: add validate_plan rule 41: shot whose analysis item has faces/orig_faces but plan people!=true → ERROR unless consent true or blur covers all faces (T8b review).

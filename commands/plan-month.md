@@ -88,7 +88,7 @@ Planning rules (spec p.34-35); `shoot_card.py check` enforces the mechanical one
 9. Shoot cards grouped so Katie films a week in one or two short sessions (section 5).
 10. After 30 posted reels, the mix, lengths and posting hours are re-tuned (section 2).
 
-Also: all five series (brand.json `positioning.series`) run every month; daily Stories come from the same material (formats.py on build day); 1-2 Trial Reels a week; never a week dark. Each row gets `title` (short; it becomes the folder name), `topic`, `series`, `pillar`, `goal` (awareness, offer, community, education), `template` (an id from skills/numa-scriptwriter/templates.json), `kind`, `sales`, `collab`, `event`, `event_role`, `signature`.
+Cadence: something posts every day: 4-5 feed posts a week (about two-thirds Reels, one-third carousels), daily Stories cut from the same material (formats.py on build day), 1-2 Trial Reels a week to test hooks on non-followers, never a week dark. All five series (brand.json `positioning.series`) run every month. Each row gets `title` (short; it becomes the folder name), `topic`, `series`, `pillar`, `goal` (awareness, offer, community, education), `template` (an id from skills/numa-scriptwriter/templates.json), `kind`, `sales`, `collab`, `event`, `event_role`, `signature`.
 
 ## 4. Scripts and cards: all in one pass (R186-R191)
 

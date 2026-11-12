@@ -8,6 +8,7 @@
     "arc": "Ordered story beats [{beat, does}]. One spoken line per beat (lines may exceed beats for long reels); the outro beat is music-only.",
     "beat_count": "len(arc).",
     "typical_length_s": "[min, max] seconds including the outro; default_length_s is the planner's --duration when the row gives none.",
+    "default_length_s": "The planner's --duration when the row gives no length_s; inside typical_length_s.",
     "length_class": "growth (45-60 s), atmosphere (15-30 s) or null (the main-reel range, config render.length_s.main_reel); copy it to the plan row; shoot_card.py check rule 2 validates it.",
     "signature_moment": "{type, at, what}: type is plan.json signature.type (wipe needs a true before/after pair, else flash); at is the fraction of the voiced part (duration - outro) where it lands; what is the intent.",
     "turn": "{at, what} or null: the story turn as a fraction of the voiced part; baseline_plan.py --turn S = at x voiced seconds.",
