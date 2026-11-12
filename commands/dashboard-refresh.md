@@ -31,7 +31,7 @@ python3 "$S/metrics.py" ingest --store "$STATE/metrics.json" --reel <media_id> -
 ```
 Then the account insights once a day with `instagram.tools.user_insights` (INSTAGRAM_GET_USER_INSIGHTS, same `graph_api_version`), saved and stored with `python3 "$S/metrics.py" account --store "$STATE/metrics.json" --data "$STATE/insights/account_<DAY>.json" --date <DAY>` (Meta keeps account data only 90 days; the store keeps it for good).
 
-Errors: Meta error 190 (token invalid) goes to brand.json `escalation.contact` as one line ("NUMA Studio: Instagram disconnected (Meta error 190). Fix: reconnect Instagram in Composio (Claude Settings > Connectors).") and the dashboard is rebuilt from stored data; Composio unreachable: skip the pulls tonight (failure row F15), they stay due.
+Errors: Meta error 190 (token invalid) goes to brand.json `escalation.contact` as one line ("NUMA Studio: Instagram disconnected (Meta error 190). Fix: in the Composio dashboard, open the Instagram toolkit and reconnect NUMA's Instagram (Business or Creator, Instagram Login).") and the dashboard is rebuilt from stored data; Composio unreachable: skip the pulls tonight (failure row F15), they stay due.
 
 ## 3. Compute and rebuild
 

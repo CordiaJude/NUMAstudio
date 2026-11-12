@@ -239,11 +239,13 @@ level and ignored. Any other unknown key is a schema error (typos fail loudly).
 | `accent_rgb` | [r, g, b] | brand palette `caption_gold` | Gold italic caption colour | v1 |
 | `caption_y` | px | 1420 | Vertical centre of the caption block | v1 |
 | `font_regular` / `font_italic` | abs path | brand.json fonts | Caption fonts | v1 |
+| `caption_px` | px 40-200 | config `render.captions.font_px` (92) | Caption font size (feedback preference `caption_px`); the validator measures rows at this size | v2 |
 | `hook` | object | none | Frame-zero hook text (below) | v2 |
 | `shots` | shot[] (>= 1) | required | The timeline (below) | v1 |
 | `lines` | line[] | [] | Captions (below) | v1 |
 | `leaks` | leak[] | [] | Light leaks `[time, duration, strength 0-1]` | v1 |
 | `endcard` | object | none | End card (below) | v1 |
+| `cards` | card[] | [] | Kinetic type: large animated text cards (below) | v2 |
 | `signature` | {type, t} | none | The one signature moment: `type` `wipe` or `flash`, at reel time `t` | v2 |
 | `nat` | nat[] | [] | Natural-sound bursts (below) | v2 |
 | `music` | object | none (required by the validator for v2) | Music source and license (below) | v2 |
@@ -319,6 +321,27 @@ One sentence per line, at most 2 rows; each word fades in and rises 22 px over
 
 The ripple background is an ordinary last shot (`assets/heroimage.jpg`), not
 an end-card field.
+
+### `cards[]` (kinetic type, R195)
+
+Large animated text cards drawn over the picture, for education templates
+("3 things cold plunge does": a title card, then 1 / 2 / 3). The engine blurs
+and darkens the picture under the card (or fills it with brand teal), then
+reveals the text word by word (each word rises and grows into place, about
+0.45 s, 0.09 s apart), in the caption serif with a gold italic accent, inside
+the safe area and above the caption block; the card fades out by `t1`. A card
+starting at 0 is fully shown from frame 0 (it is the frame-zero text), and the
+hook text is not drawn while a card is on screen. Captions stay on top.
+
+| Field | Type | Default | Meaning |
+|-------|------|---------|---------|
+| `t0`, `t1` | numbers | required | Reveal start and fade-out end (s) |
+| `text` | string | required | `number`: one numeral or short label ("1", "MYTH") in large gold italic. `statement`: a short line; `*asterisks*` mark gold italic words, with no markup the last word is gold |
+| `style` | `number`/`statement` | `statement` | Card type |
+| `sub` | string | none | Smaller white line under the main text |
+| `align` | `center`/`left` | `center` | Horizontal alignment |
+| `bg` | `blur`/`teal` | `blur` | Blurred, darkened picture, or brand `water_teal` with cream text |
+| `y` | px | 0.40 x height | Vertical centre of the card block (kept inside the safe area, above the captions) |
 
 ### `nat[]` (natural sound)
 
@@ -403,7 +426,7 @@ rules. `E` = ERROR (exit 1), `W` = WARN. Tolerances: tiling 1 ms; beat 1 frame
 | 24 | Caption vs transcript (needs analysis.json): words aligned by sequence; text mismatch after normalizing case/punctuation or appear time off by more than 0.15 s is W; off by more than 0.5 s, or a caption word missing from the transcript, is E | W/E | R84 |
 | 25 | Caption block or hook outside the safe area (top 12%, bottom 10% of the height) | E | R67 |
 | 26 | Caption block overlaps a face box of the shot on screen at that time | W | R68 |
-| 27 | Any text (lines, hook, endcard tagline/subtitle, formats texts) hits a `fail` claim in brand.json (or the dosing line while blocked); `warn`-severity hits are W | E/W | R128 |
+| 27 | Any text (lines, hook, cards text/sub, endcard tagline/subtitle, formats texts) hits a `fail` claim in brand.json (or the dosing line while blocked); `warn`-severity hits are W | E/W | R128 |
 | 28 | Shot with `people: true` and `consent` not true | E | R141 |
 | 29 | v2 plan without `music`, or `music.license` empty for a source other than `natural`/`pad` (source `folder` = NUMA's own file: W, record it in sources.txt) | E | R141 |
 | 30 | `ai.people` or `ai.scenes` true, or any `ai_generated` shot, while `ai.label_required` is not true | E | R139 |
@@ -414,9 +437,11 @@ rules. `E` = ERROR (exit 1), `W` = WARN. Tolerances: tiling 1 ms; beat 1 frame
 | 35 | `nat`: burst past the reel end, past the clip's end, or the clip has no audio | W | R284 |
 | 36 | `formats.reach_cut` not 8-12 s long or outside the reel; any `formats` time outside the reel | E | R231 |
 | 37 | `fps` other than 30 or `size` other than 1080x1920 for the main reel | W | R36, R230 |
-| 38 | Preference limits from `--prefs` (e.g. max whips) exceeded | W | R278 |
+| 38 | Preference limits from `--prefs` broken: `max_whips`, `max_flashes`, `max_leaks` (leaks + `leakfade` transitions), `max_leak_strength`, `max_duration`/`min_duration`, `max_shot_seconds`/`min_shot_seconds` (end card excluded), `max_caption_chars`, `max_gold_words`, `max_hook_words`, `min_people_shots` (shots with `people: true`), `caption_px` (effective caption size differs) | W (E with `--strict`) | R278 |
 | 39 | Never open on the logo: shot 0 `src` is the brand wordmark or the phoenix mark (`assets.wordmark`, `assets.secondary_mark`, compared by resolved path) | E | R44, R70 |
 | 40 | Movement from frame 1: shot 0 is a still (`kind` image) with `z[0] == z[1]`, no pan (`pan` absent or [0, 0]) and `tr` `cut`, and the plan has no `hook` (no moving hook text) | E | R70 |
+| 41 | Consent: the shot's source has detected faces in analysis.json (`faces`, or `orig_faces`, of the photo/clip whose `path` or `prepared_path` equals `src`) and the shot is not marked `people: true`, unless `consent: true` or `blur` boxes cover every face box (containment with a 0.02 margin). `people: true` without consent stays rule 28 | E | R141 |
+| 42 | Text cards: `t1` not after `t0`, past `duration`, over the end card (`t1 > endcard.t`), or overlapping another card is E; on screen less than 0.6 s + 0.25 s per word, a statement over 12 words, or a number card with more than one word is W | E/W | R195 |
 
 The validator prints `OK: <n> shots, <duration> s, <w> warnings` on success.
 
@@ -616,12 +641,39 @@ timing unchanged. `--dry-run` prints the corrections without writing.
 baseline_plan.py WORK_DIR [--duration S] [--hook TEXT] [--subtitle TEXT]
                  [--seed N] [--prefs FILE] [--out FILE] [--script FILE]
                  [--before SHOT_ID --after SHOT_ID] [--turn S]
+                 [--template NAME] [--library FILE]
 ```
 Reads `WORK/analysis.json`; writes a valid, beat-synced schema_version 2 plan
 to `WORK/plan.json` (or `--out`) with `out_dir = WORK`, brand.json defaults
 (fonts, accent, wordmark, tagline, subtitle), `focus`/`faces` from vision data,
 `prepared_path` sources when present, and `music` filled from the analysis.
 Duration = min(`--duration`, audio, 60).
+- `--template NAME`: a template or preset id from
+  `skills/numa-scriptwriter/templates.json` (unknown name: `ERROR` listing the
+  valid ids, exit 1). Applies its default length (when `--duration` is not
+  given; a length outside `typical_length_s` is a WARN), arc (one spoken line
+  per beat), pacing (`beats_per_shot`, `hook_s`, `outro_s`), turn (`--turn` =
+  `turn.at` x voiced seconds unless given), look (`before_turn` up to the
+  turn), signature moment (`wipe` with `--before/--after`, else a flash at
+  `signature_moment.at` of the voiced part, snapped to a text card nearby),
+  transitions (only the template's, whips only when listed), hook style
+  (`meta.hook_type`, plus `goal`, `pillar`, `length_class`), `template`, and
+  `cards` from `text_cards` when `kinetic_type` is true (a label card is a
+  `number` card, a line card the beat's line shortened to `max_words`; each
+  starts on a cut). Music-only reels with `--script` spread the script lines
+  across the beats.
+- `--prefs FILE` (prefs.py limits): every numeric limit is applied where the
+  material allows (whips, flashes incl. the end card's, leaks and leakfades,
+  leak strength, caption size `caption_px`, characters and gold words per
+  line, hook words, reel and shot length, shots with consented people), so the
+  plan passes rule 38.
+- Consent (rule 41): a source with faces is used as `people: true, consent:
+  true` when the analysis item has `consent: true`/`"yes"` or the `--library`
+  index (library.py) records consent yes for its path; without known consent
+  it is left out when 3+ other photos/clips remain, else used with `blur`
+  boxes over the faces (WARN either way).
+- `formats.reach_cut.hook` is never the reel's hook: `meta.title`, else the
+  strongest other caption line; no reach cut without one.
 
 ### validate_plan.py [T4]
 ```
@@ -660,7 +712,8 @@ engine.py PLAN_JSON preview T1 [T2 ...] [--size WxH] [--out FILE]
   `timings`, `frames`, `size`, `workers`, `encoder`, `preset`, `crf`, `segment_s`
   (`--from/--to` renders write `segment_<from>_<to>.json` instead). Each segment
   gets a rate budget of 0.85 x `render.video.maxrate` with a small VBV buffer so
-  every 2 s window stays under the cap.
+  every 2 s window stays under the cap. A last segment shorter than 0.5 s joins
+  the one before it, so any frame count gives a constant frame rate.
 - Preview: renders the listed times into one grid `OUT_DIR/preview.jpg`
   (5 tiles per row).
 - Reads only the plan, bundled assets/fonts and brand.json defaults (R9).

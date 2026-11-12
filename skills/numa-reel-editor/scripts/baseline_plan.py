@@ -4,6 +4,7 @@
 Usage:
     baseline_plan.py WORK_DIR [--duration S] [--hook TEXT] [--subtitle TEXT] [--seed N]
                      [--prefs FILE] [--out FILE] [--script FILE] [--before ID --after ID] [--turn S]
+                     [--template NAME] [--library FILE]
 
 Reads WORK_DIR/analysis.json and writes WORK_DIR/plan.json (or --out). The
 plan follows the edit grammar (spec p.18-19) mechanically; the Director then
@@ -37,6 +38,16 @@ improves story order, looks and key words. It is never the final creative plan.
 * No photos or clips: the bundled brand photos are used.
 * `formats` defaults: an 8-12 s reach cut around the signature moment, 3-5
   story stills, 5-8 carousel slides and a cover, when there is text for them.
+
+* --template NAME (skills/numa-scriptwriter/templates.json, R194): the
+  template's default length, arc, pacing (beats per shot, hook and outro
+  seconds), turn, looks, signature position, transitions, hook style and, for
+  kinetic-type templates, large text cards on their beats (plan `cards`, R195).
+* --prefs (R278): every numeric feedback limit is applied where the material
+  allows, so validate_plan rule 38 passes.
+* Consent (rule 41): faces are shown only with recorded consent (analysis item
+  `consent`, or --library); otherwise left out, or blurred when there is too
+  little other material.
 
 Duration = min(--duration, audio, 60 s). Deterministic: same inputs, same plan.
 """
@@ -436,7 +447,7 @@ def pieces(g: int, step: int, lo: int = 2, hi: int = 4) -> list[int]:
         n = max(1, round(g / step))
         while g / n > hi:
             n += 1
-        while n > 1 and g / n < lo:
+        while n > 1 and g / n < lo and g / (n - 1) <= hi:
             n -= 1
         base, rem = divmod(g, n)
         return [base + 1] * rem + [base] * (n - rem)
@@ -454,11 +465,13 @@ def pieces(g: int, step: int, lo: int = 2, hi: int = 4) -> list[int]:
     return out
 
 
-def fill(points: list[float], anchors: list[int], tense_end: float, lo: int = 2, hi: int = 4) -> list[int]:
-    """Cut indices into `points`: anchors kept, gaps filled with short (tense, `lo` beats) or long (`hi`) pieces."""
+def fill(points: list[float], anchors: list[int], tense_end: float, lo: int = 2, hi: int = 4,
+         calm: int | None = None) -> list[int]:
+    """Cut indices into `points`: anchors kept, gaps filled with short (tense, `lo` beats) or long (`calm`,
+    default `hi`) pieces, every piece within lo..hi beats where the gap allows."""
     cuts = [anchors[0]]
     for a, b in zip(anchors, anchors[1:]):
-        step = lo if points[a] < tense_end - 1e-6 else hi
+        step = lo if points[a] < tense_end - 1e-6 else (calm or hi)
         idx = a
         for n in pieces(b - a, step, lo, hi):
             idx += n
@@ -616,9 +629,12 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
     if _num_pref(prefs, "max_shot_seconds"):
         hi_b = max(1, min(hi_b, int(math.floor(_num_pref(prefs, "max_shot_seconds") / period + 1e-6))))
         lo_b = min(lo_b, hi_b)
+    calm_b = hi_b
     if _num_pref(prefs, "min_shot_seconds"):
         lo_b = max(lo_b, int(math.ceil(_num_pref(prefs, "min_shot_seconds") / period - 1e-6)))
-        hi_b = max(hi_b, lo_b)
+        calm_b = max(hi_b, lo_b)
+        if lo_b > 2:   # every gap must split into pieces of at least lo beats: allow up to 2 x lo - 1
+            hi_b = max(hi_b, 2 * lo_b - 1)
 
     # end card on the last beats, held 3.5-5 s
     lo, hi = float(_cfg("render.endcard.min_hold_s", 3.5)), float(_cfg("render.endcard.max_hold_s", 5.0))
@@ -723,7 +739,7 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
              *([turn_idx] if turn_idx is not None else []), *card_anchor}
     anchors = sorted({*fixed, *(i for i, _ in line_anchor)})
     cut_idx = fill(points, merge_anchors(anchors, fixed, max(2, lo_b) if (lo_b, hi_b) != (2, 4) else 2),
-                   tense_end, lo_b, hi_b)
+                   tense_end, lo_b, hi_b, calm_b)
     times = [points[i] for i in cut_idx] + montage_pts[1:] + ([end_t] if end_t is not None else []) + [D]
     times = [r3(t) for t in times]
     dedup = [times[0]]

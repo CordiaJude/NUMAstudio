@@ -718,8 +718,10 @@ class Checker:
         limit("max_leak_strength", max([lk[2] for lk in self.plan.get("leaks") or []] or [0]), "leak strength")
         limit("max_duration", self.D, "duration")
         limit("min_duration", self.D, "duration", more=False)
-        limit("max_shot_seconds", max(float(s["t1"]) - float(s["t0"]) for s in self.shots), "longest shot (s)")
-        limit("min_shot_seconds", min(float(s["t1"]) - float(s["t0"]) for s in self.shots), "shortest shot (s)", more=False)
+        eci = self._endcard_index()   # the end card holds 3.5-5 s by design (rule 32)
+        spans = [float(s["t1"]) - float(s["t0"]) for i, s in enumerate(self.shots) if i != eci] or [self.D]
+        limit("max_shot_seconds", max(spans), "longest shot (s)")
+        limit("min_shot_seconds", min(spans), "shortest shot (s)", more=False)
         limit("max_caption_chars", max([len(" ".join(w[0] for w in ln["words"])) for ln in self.lines] or [0]),
               "longest caption line (characters)")
         gold = max([sum(1 for w in ln["words"] if len(w) > 2 and w[2]) for ln in self.lines] or [0])

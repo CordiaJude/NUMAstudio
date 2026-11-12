@@ -263,3 +263,38 @@ def test_rewrite_follows_the_modality_named(text, say):
 def test_cli_run_together_hashtag(run_script):
     r = run_script("claims_scan.py", "--hashtags", "#sundaydetox")
     assert r.returncode == 1 and '"#sundaydetox"' in r.stderr
+
+
+# The illness rule lives in brand.json (orchestrator-owned). Its "never ... cold" branch flagged the
+# modality ("I said I could never do a cold plunge"). PROPOSED_COLD is the requested brand.json change:
+# "colds?" in the illness pattern is not the illness when a modality word follows it.
+PROPOSED_COLD = r"colds?(?!\s*(plunges?|water|tubs?|showers?|exposure|immersion|therapy|dips?|soaks?|baths?)\b)|"
+
+
+def _brand_with_illness_fix():
+    brand = copy.deepcopy(cs.nc.load_brand(cs.nc.brand_path()))
+    rule = next(r for r in brand["claims"]["banned"] if r["id"] == "illness")
+    rule["patterns"] = [p.replace("colds?|", PROPOSED_COLD) if "never" in p and PROPOSED_COLD not in p else p
+                        for p in rule["patterns"]]
+    return brand
+
+
+@pytest.mark.parametrize("text", ["I said I could never do a cold plunge", "never a cold plunge person",
+                                  "no more cold showers at home, just the plunge"])
+def test_cold_plunge_is_not_the_illness(text):
+    brand = _brand_with_illness_fix()
+    assert "illness" not in {h.rule for h in cs.scan_text(text, brand=brand) if h.severity == "fail"}
+
+
+@pytest.mark.parametrize("text", ["I never get colds now", "fewer colds this winter", "beat the flu",
+                                  "never get sick", "never catch a cold again", "fight off colds and flu"])
+def test_illness_true_positives_survive_the_fix(text):
+    brand = _brand_with_illness_fix()
+    assert "illness" in {h.rule for h in cs.scan_text(text, brand=brand) if h.severity == "fail"}
+
+
+def test_plan_cards_are_scanned():
+    plan = {"shots": [], "cards": [{"t0": 0, "t1": 2, "text": "*Detox* in 3 minutes"},
+                                   {"t0": 3, "t1": 5, "text": "1", "style": "number", "sub": "Boost immunity"}]}
+    wheres = {h.where for h in cs.scan_plan(plan) if h.severity == "fail"}
+    assert {"cards[0].text", "cards[1].sub"} <= wheres

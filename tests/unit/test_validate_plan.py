@@ -707,3 +707,86 @@ def test_rule39_copy_of_wordmark_in_material(base, job):
     p = base()
     p["shots"][0]["src"] = str(copy_path)
     assert find(run(p), 39, "ERROR", "shots[0].src")
+
+
+# ---- rule 41: faces need people/consent marking or blur ------------------------------------
+def test_rule41_faces_need_marking(base):
+    p = base()
+    src = p["shots"][1]["src"]
+    A = analysis(photos=[{"id": "P1", "path": "/elsewhere/orig.jpg", "prepared_path": src, "size": [720, 1280],
+                          "faces": [[0.4, 0.3, 0.2, 0.1]]}])
+    assert find(run(p, A), 41, "ERROR", "shots[1]", "faces detected but shot not marked people")
+    q = copy.deepcopy(p)
+    q["shots"][1].update(people=True, consent=True)
+    assert not find(run(q, A), 41) and not find(run(q, A), 28)
+    q = copy.deepcopy(p)
+    q["shots"][1]["people"] = True          # people without consent stays rule 28
+    assert find(run(q, A), 28, "ERROR") and not find(run(q, A), 41)
+    q = copy.deepcopy(p)
+    q["shots"][1]["consent"] = True
+    assert not find(run(q, A), 41)
+    q = copy.deepcopy(p)
+    q["shots"][1]["blur"] = [[0.39, 0.29, 0.22, 0.12]]   # covers the face (within the margin)
+    assert not find(run(q, A), 41)
+    q["shots"][1]["blur"] = [[0.0, 0.0, 0.3, 0.3]]       # misses it
+    assert find(run(q, A), 41, "ERROR")
+
+
+def test_rule41_orig_faces_on_the_original_path(base):
+    p = base()
+    src = p["shots"][2]["src"]
+    A = analysis(photos=[{"id": "P2", "path": src, "prepared_path": "/x/prep.jpg", "size": [720, 1280],
+                          "faces": [], "orig_faces": [[0.1, 0.1, 0.1, 0.1]]}])
+    assert find(run(p, A), 41, "ERROR", "shots[2]")
+    A["photos"][0]["orig_faces"] = []
+    assert not find(run(p, A), 41)
+
+
+# ---- rule 42: text cards ---------------------------------------------------------------------
+def test_rule42_cards(base):
+    p = base(cards=[{"t0": 0.0, "t1": 2.5, "text": "Three things to know."},
+                    {"t0": 3.0, "t1": 5.0, "text": "1", "style": "number"}])
+    assert not find(run(p), 42)
+    q = copy.deepcopy(p)
+    q["cards"][1]["t1"] = 6.0                       # over the end card at 5.4
+    assert find(run(q), 42, "ERROR", "cards[1]", "over the end card")
+    q = copy.deepcopy(p)
+    q["cards"][1]["t0"] = 2.0                       # overlaps card 0
+    assert find(run(q), 42, "ERROR", "cards[1]", "previous card")
+    q = copy.deepcopy(p)
+    q["cards"][1]["t1"] = 2.0
+    assert find(run(q), 42, "ERROR", "cards[1]", "must be after")
+    q = copy.deepcopy(p)
+    q["cards"][0]["t1"] = 0.8                       # too short to read
+    assert find(run(q), 42, "WARN", "cards[0]", "to read")
+
+
+def test_card_text_is_claims_scanned(base):
+    p = base(cards=[{"t0": 0.0, "t1": 2.5, "text": "Cold plunge *cures* stress."},
+                    {"t0": 3.0, "t1": 5.0, "text": "2", "style": "number", "sub": "It heals your back."}])
+    iss = run(p)
+    assert find(iss, 27, "ERROR", "cards[0].text") and find(iss, 27, "ERROR", "cards[1].sub")
+
+
+def test_caption_px_measures_rows(base):
+    p = base(lines=[{"words": [["Walk", 0.3], ["out", 0.6], ["into", 0.9], ["the", 1.0], ["cold", 1.2],
+                               ["and", 1.4], ["breathe", 1.6]], "end": 2.6}])
+    assert not find(run(p), 22)
+    p["caption_px"] = 200
+    assert find(run(p), 22, "ERROR", "lines[0]")
+
+
+def test_rule38_new_pref_keys(base):
+    p = base()
+    assert find(run(p, prefs={"max_hook_words": 2}), 38, "WARN", "prefs", "max_hook_words")
+    assert not find(run(p, prefs={"max_hook_words": 4}), 38)
+    assert find(run(p, prefs={"caption_px": 104}), 38, "WARN", "prefs", "caption_px")
+    assert not find(run(dict(p, caption_px=104), prefs={"caption_px": 104}), 38)
+    assert find(run(p, prefs={"min_people_shots": 1}), 38, "WARN", "prefs", "min_people_shots")
+    p["shots"][1].update(people=True, consent=True)
+    assert not find(run(p, prefs={"min_people_shots": 1}), 38)
+    assert find(run(p, prefs={"max_flashes": 0}), 38, "WARN", "prefs", "max_flashes")
+    # leakfade transitions count as light leaks; the end card does not count against shot lengths
+    assert find(run(p, prefs={"max_leaks": 1}), 38, "WARN", "prefs", "max_leaks")
+    assert not find(run(p, prefs={"max_leaks": 2}), 38)
+    assert not find(run(p, prefs={"max_shot_seconds": 3.0}), 38)

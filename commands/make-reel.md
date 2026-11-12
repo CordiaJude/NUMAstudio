@@ -37,7 +37,7 @@ Only these situations go to a human, and only to brand.json `escalation.contact`
 
 | Situation | One-line message (example) | Work-around while waiting |
 |---|---|---|
-| Instagram returns Meta error 190 (token invalid) | "NUMA Studio: Instagram disconnected (Meta error 190). Fix: reconnect Instagram in Composio (Claude Settings > Connectors)." | Save the reel to `Finished/`, mark the row "Ready to post", queue the post |
+| Instagram returns Meta error 190 (token invalid) | "NUMA Studio: Instagram disconnected (Meta error 190). Fix: in the Composio dashboard, open the Instagram toolkit and reconnect NUMA's Instagram (Business or Creator, Instagram Login)." | Save the reel to `Finished/`, mark the row "Ready to post", queue the post |
 | A card payment fails on Claude or Higgsfield | "NUMA Studio: Higgsfield card declined. Fix: update the card at higgsfield.ai > Billing." | Finish the reel locally with engine motion only (F8 move 2), queue the uploads and posts (F15 move 2), and reschedule what cannot finish until the card is renewed |
 | Auto-posting is on but brand.json `posting.legal_review_done.value` is false | "NUMA Studio: auto-posting is waiting on the one-time claims legal review. Fix: send brand.json claims to counsel, then set posting.legal_review_done = true." | Mark the row "Ready to post"; send this once a week at most |
 

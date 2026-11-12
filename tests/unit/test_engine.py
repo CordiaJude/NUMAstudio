@@ -600,3 +600,91 @@ def test_auto_pan_speed_is_capped_on_short_shots(plan_factory, ramp_image):
         x1 = fr.to_screen(1.0, fr.pw / 2, 0)[0]
         assert abs(x1 - x0) <= engine.em.AUTO_PAN_MAX_SPEED * SMALL[0] * 0.3 * 1.05 + 2
         assert abs(x1 - x0) > 5                                         # it still pans
+
+
+# --------------------------------------------------------------------------- kinetic text cards (R195)
+def card_plan(plan_factory, **card):
+    p = plan_factory()
+    p["lines"] = []
+    p["cards"] = [dict({"t0": 3.0, "t1": 5.4, "text": "1", "style": "number", "sub": "Start with three minutes."},
+                       **card)]
+    return p
+
+
+def test_card_renders_large_text_inside_the_safe_area(plan_factory):
+    p = card_plan(plan_factory)
+    with engine.Renderer(engine.prepare_plan(p), size=SMALL) as r:
+        with_card = r.frame(4.5)
+        (t0, t1, x0, y0, x1, y1), = r.card_boxes
+        assert r.safe_top <= y0 < y1 <= r.safe_bottom and 0 <= x0 < x1 <= r.width
+        assert y1 - y0 > 0.15 * r.height                  # large type
+    q = card_plan(plan_factory)
+    del q["cards"]
+    without = engine.render_frame(engine.prepare_plan(q), 4.5, size=SMALL)
+    box = (slice(int(y0), int(y1)), slice(int(x0), int(x1)))
+    gold = np.array(engine.nc.accent_rgb(), np.float32)
+    near_gold = np.abs(with_card[box].astype(np.float32) - gold).sum(-1) < 60
+    assert near_gold.sum() > 50                           # the gold numeral
+    bright = luma(with_card[box]) > 225
+    assert bright.sum() > 30                              # the white line under it
+    # outside the text the picture is blurred and darkened
+    assert luma(with_card[int(y1) + 10:]).mean() < luma(without[int(y1) + 10:]).mean() - 10
+
+
+def test_card_reveal_animates_and_is_deterministic(plan_factory):
+    plan = engine.prepare_plan(card_plan(plan_factory, t0=3.5, style="statement", text="Breathe out *slowly*."))
+    with engine.Renderer(plan, size=SMALL) as r:
+        frames = [r.frame(t) for t in (3.55, 3.8, 4.1, 5.0)]
+        again = r.frame(3.8)
+        (_, _, x0, y0, x1, y1), = r.card_boxes
+    assert np.array_equal(frames[1], again)
+    box = (slice(int(y0), int(y1)), slice(int(x0), int(x1)))
+    mask = luma(frames[-1][box]) > 200                    # where the finished text is
+    assert mask.sum() > 100
+    contrast = [luma(f[box])[mask].mean() - luma(f[box])[~mask].mean() for f in frames]
+    assert contrast[0] < contrast[1] < contrast[2] <= contrast[3] + 1   # words rise in one after another
+
+
+def test_card_at_frame_zero_is_fully_shown_and_the_hook_waits(plan_factory):
+    p = plan_factory()
+    p["lines"] = []
+    p["cards"] = [{"t0": 0.0, "t1": 2.5, "text": "Three things to know.", "bg": "teal"}]
+    with engine.Renderer(engine.prepare_plan(p), size=SMALL) as r:
+        f0, f1 = r.frame(0.0), r.frame(1.0)
+        (_, _, x0, y0, x1, y1), = r.card_boxes
+    teal = np.array(engine.nc.brand_color("water_teal"), np.float32)
+    corner = f0[int(0.9 * SMALL[1]):, :20].reshape(-1, 3).astype(np.float32).mean(0)
+    assert np.abs(corner - teal).max() < 40               # brand teal background from frame 0
+    box = (slice(int(y0), int(y1)), slice(int(x0), int(x1)))
+    assert np.abs(f0[box].astype(int) - f1[box].astype(int)).mean() < 3   # no reveal: frame 0 is complete
+    top = (slice(int(r.safe_top), int(y0) - 2), slice(None))
+    assert (luma(f0[top]) > 230).sum() < 20               # the hook text is not drawn over the card
+
+
+def test_caption_px_sets_the_caption_size(plan_factory):
+    sizes = []
+    for px in (None, 120):
+        p = plan_factory() if px is None else plan_factory(caption_px=px)
+        with engine.Renderer(engine.prepare_plan(p), size=SMALL) as r:
+            (_, _, x0, y0, x1, y1), = r.caption_boxes
+            sizes.append(y1 - y0)
+    assert sizes[1] > sizes[0] * 1.15
+
+
+@pytest.mark.parametrize("n", [61, 62, 121, 302])
+def test_any_frame_count_gives_constant_30fps(plan_factory, tmp_path, n):
+    """A short last encoder segment used to leave a timestamp gap at the join (29.8 fps, one frame x3)."""
+    p = plan_factory(duration=12.0, endcard={"t": 9.0}, lines=[], leaks=[])
+    p["shots"] = [dict(p["shots"][0], t0=0.0, t1=6.0), dict(p["shots"][1], t0=6.0, t1=9.0),
+                  dict(p["shots"][2], t0=9.0, t1=12.0)]
+    out = tmp_path / f"r{n}.mp4"
+    engine.render_video(engine.prepare_plan(p), out, t_from=0.0, t_to=n / 30, size=(144, 256), workers=2,
+                        progress=False)
+    r = engine.nc.run([engine.nc.ffprobe_bin(), "-v", "error", "-select_streams", "v", "-show_entries",
+                       "packet=pts:stream=avg_frame_rate,nb_frames", "-of", "json", str(out)])
+    info = json.loads(r.stdout)
+    pts = sorted(int(pk["pts"]) for pk in info["packets"])
+    assert len(pts) == n and int(info["streams"][0]["nb_frames"]) == n
+    assert len({b - a for a, b in zip(pts, pts[1:])}) == 1
+    assert info["streams"][0]["avg_frame_rate"] == "30/1"
+    assert engine.segment_starts(range(0, 302), 60, 30) == [0, 60, 120, 180, 240]

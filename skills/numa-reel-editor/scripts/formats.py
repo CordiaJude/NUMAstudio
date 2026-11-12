@@ -47,6 +47,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numa_common as nc  # noqa: E402
 import engine  # noqa: E402
@@ -311,6 +313,7 @@ def snap_reach_window(plan: dict, a: float, b: float, warnings: list[str] | None
     WARN when neither works."""
     lo, hi = nc.config_value("render.length_s.reach_cut", [8, 12])
     D = float(plan["duration"])
+    ce = content_end(plan)
     lines = [(float(ln["words"][0][1]), float(ln["end"]), line_text(ln)) for ln in _lines(plan)]
     for _ in range(4):
         moved = False
@@ -325,8 +328,12 @@ def snap_reach_window(plan: dict, a: float, b: float, warnings: list[str] | None
                 break
         for f, e, text in lines:
             if f < b - 0.05 and e + 0.3 > b + 0.01:               # cut (or not finished) at the end
-                if min(D, e + 0.3) - a <= hi + EPS:
-                    b, moved = min(D, e + 0.3), True
+                # play the line out, but stop at the end card when the line ends before it
+                to = min(D, e + 0.3, ce) if e <= ce else min(D, e + 0.3)
+                if to <= b + 0.01:
+                    continue
+                if to - a <= hi + EPS:
+                    b, moved = to, True
                 elif (f - 0.1) - a >= lo - EPS:
                     b, moved = f - 0.1, True
                 elif warnings is not None:
@@ -494,6 +501,7 @@ def sentences(plan: dict) -> list[dict]:
             cur = {"parts": [], "first": float(ln["words"][0][1]), "lines": []}
         cur["parts"].append(txt)
         cur["lines"].append(i)
+        cur["last_line"] = float(ln["words"][0][1])
         cur["last"], cur["end"] = float(ln["words"][-1][1]), float(ln["end"])
         if ends_sentence(txt):
             out.append(cur)
@@ -594,6 +602,41 @@ def _title(plan: dict) -> str | None:
     return t if isinstance(t, str) and t.strip() else None
 
 
+_LUMA: dict[str, float] = {}
+TEXT_BAND = (0.55, 0.85)      # where captions sit (fractions of the frame height)
+BRIGHT_LUMA = 0.62            # white text reads poorly over a caption band brighter than this
+
+
+def text_band_luma(src: str) -> float:
+    """Mean luma (0-1) of a photo's caption band; clips count as mid-grey (not decoded)."""
+    if src not in _LUMA:
+        val = 0.5
+        if media_kind(src) == "image":
+            try:
+                from PIL import Image
+                with Image.open(src) as im:
+                    g = np.asarray(im.convert("L").resize((48, 96)), dtype=np.float32) / 255.0
+                val = float(g[int(TEXT_BAND[0] * 96):int(TEXT_BAND[1] * 96)].mean())
+            except Exception:  # noqa: BLE001 - unreadable here: the render reports it
+                val = 0.5
+        _LUMA[src] = val
+    return _LUMA[src]
+
+
+def readable_time(plan: dict, a: float, b: float, prefer: float) -> float:
+    """A frame in [a, b] for white text: the one nearest `prefer` whose shot is not too bright behind the
+    caption band, else the darkest shot in the span."""
+    a, b = min(a, b), max(a, b)
+    cands = {round(min(max(prefer, a), b), 3)}
+    for s in sorted_shots(plan):
+        lo, hi = max(float(s["t0"]), a), min(float(s["t1"]), b)
+        if hi > lo:
+            cands.add(round((lo + hi) / 2, 3))
+    scored = sorted((text_band_luma(shot_at(plan, t)["src"]), abs(t - prefer), t) for t in cands)
+    ok = [x for x in scored if x[0] <= BRIGHT_LUMA]
+    return min(ok, key=lambda x: (x[1], x[2]))[2] if ok else scored[0][2]
+
+
 def default_reach_window(plan: dict) -> tuple[float, float]:
     lo, hi = nc.config_value("render.length_s.reach_cut", [8, 12])
     D = float(plan["duration"])
@@ -670,6 +713,7 @@ def default_story(plan: dict) -> list[dict]:
             s, text = sents[i]
             # the frame where the sentence's last line is on screen in full
             t = min(s["last"] + 0.35, s["end"], ce - 0.2)
+            t = readable_time(plan, s["last_line"], min(s["end"], ce - 0.2), t)
             out.append({"t": still_time(plan, t), "text": text})
             used.add(norm(text))
     shots = _content_shots(plan)
@@ -702,7 +746,8 @@ def default_carousel(plan: dict) -> list[dict]:
     if len(sents) > room:
         sents = [sents[round(i * (len(sents) - 1) / (room - 1))] for i in range(room)]
     for s, text in sents:
-        t = still_time(plan, min((s["first"] + s["last"]) / 2 + 0.3, s["end"], ce - 0.2))
+        spoken = min((s["first"] + s["last"]) / 2 + 0.3, s["end"], ce - 0.2)
+        t = still_time(plan, readable_time(plan, s["first"], min(s["end"], ce - 0.2), spoken))
         if any(abs(t - o["t"]) < 0.3 for o in out):
             continue
         out.append({"t": t, "text": text})

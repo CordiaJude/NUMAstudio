@@ -111,14 +111,105 @@ def test_srt_clips_overlap_and_falls_back_to_transcript():
     assert formats.srt_time(3723.4567) == "01:02:03,457"
 
 
-def test_shorten_and_markup():
-    assert formats.shorten("Short one.") == "Short one."
-    s = formats.shorten("Three minutes feels long, until it is over and you walk out into the morning light")
-    assert s == "Three minutes feels long"
-    long_word_run = formats.shorten("word " * 30)
-    assert len(long_word_run) <= formats.SHORT_CAPTION_CHARS + 1 and long_word_run.endswith("…")
+def test_sentences_fit_text_and_markup():
+    plan = {"lines": [{"words": [["I", 3.24], ["don't", 3.5], ["know", 3.8], ["how", 4.0], ["she", 4.2], ["does", 4.4],
+                                 ["it,", 4.6]], "end": 5.06},
+                      {"words": [["but", 5.38], ["she", 5.6], ["does.", 5.9]], "end": 6.96},
+                      {"words": [["and", 7.0], ["then", 7.2]], "end": 8.0}]}
+    ss = formats.sentences(plan)
+    assert [s["text"] for s in ss] == ["I don't know how she does it, but she does.", "and then"]
+    assert ss[0]["complete"] and not ss[1]["complete"]
+    assert ss[0]["first"] == 3.24 and ss[0]["last_line"] == 5.38 and ss[0]["end"] == 6.96
+    assert formats.fit_text("Short one.", 48) == "Short one."
+    assert formats.fit_text("Three minutes feels long, until it is over and you walk out into the light.", 30) \
+        == "Three minutes feels long\u2026"
+    assert formats.fit_text("but she does.", 48) is None and formats.fit_text("no ending", 48) is None
     w = formats.text_words("Your *first* plunge.", 1.0)
     assert [x[0] for x in w] == ["Your", "first", "plunge."] and w[1][2] == 1 and len(w[0]) == 2
+
+
+YEAR_ONE_LINES = [("This is what Katie saw.", 0.68, 2.74), ("I don't know how she does it,", 3.24, 5.06),
+                  ("but she does.", 5.38, 6.96), ("We took a chance.", 7.38, 9.5),
+                  ("It's been one whole year", 10.76, 13.5), ("and now we're beginning to see.", 15.11, 18.01),
+                  ("We are so grateful for you, Mobile.", 19.3, 21.9),
+                  ("Thank you for making this year awesome.", 22.6, 26.22),
+                  ("Looking forward to so many more.", 27.02, 29.9)]
+
+
+def year_one_like(job, make_image, lines=True) -> dict:
+    """38.97 s, eight photo shots, the end card at 34.71 s on the ripple image, Year One's caption lines."""
+    names = ["cold-plunge.jpg", "breathwork-class.jpg", "red-light.jpg", "mats-bolsters.jpg", "sauna-people.jpg"]
+    photos = [str(make_image(job.raw / f"y{i}.jpg", size=(360, 640), photo=n)) for i, n in enumerate(names)]
+    cuts = [0.0, 3.0, 7.2, 10.6, 15.0, 19.1, 22.4, 26.8, 34.71, 38.97]
+    srcs = photos + photos[:3] + [str(Path(numa_common.ASSETS_DIR) / "heroimage.jpg")]
+    shots = [{"src": src, "t0": cuts[i], "t1": cuts[i + 1], "tr": "cut" if i in (0, 4) else "fade"}
+             for i, src in enumerate(srcs)]
+
+    def line(text, t0, end):
+        ws = text.split()
+        step = min(0.3, (end - t0 - 0.2) / len(ws))
+        return {"words": [[w, round(t0 + step * k, 3)] for k, w in enumerate(ws)], "end": end}
+
+    return {"schema_version": 2, "duration": 38.97, "out_dir": str(job.work), "fps": 30, "size": SMALL,
+            "caption_y": 355, "hook": {"text": "This is what Katie saw.", "t1": 2.0}, "shots": shots,
+            "lines": [line(*x) for x in YEAR_ONE_LINES] if lines else [],
+            "endcard": {"t": 34.71, "tagline": "Wellness Collective", "subtitle": "Less noise. More presence."},
+            "music": {"source": "folder", "path": None, "license": "NUMA's own track"}, "meta": {"slug": "year-one"}}
+
+
+def test_default_texts_are_whole_sentences(job, make_image, nc):
+    plan = engine.prepare_plan(year_one_like(job, make_image), job.work)
+    fm, defaulted, skipped = formats.resolve_formats(plan, set(formats.KINDS), [])
+    assert not skipped
+    texts = [fm["reach_cut"]["hook"], fm["cover"]["title"]] + [s["text"] for s in fm["story"]] + \
+        [c["text"] for c in fm["carousel"]] + [h["text"] for h in fm["hook_variants"]]
+    banned = {"wellness collective", "less noise more presence"}
+    for t in texts:
+        p = formats.plain(t)
+        assert not p[0].islower() and not p.endswith(",") and p[-1] in ".?!\u2026", p
+        assert formats.norm(p) not in banned
+    assert "I don't know how she does it, but she does." in texts       # two caption lines joined
+    assert formats.norm(fm["reach_cut"]["hook"]) != formats.norm(plan["hook"]["text"])
+    sents = {s["text"]: s for s in formats.sentences(plan)}
+    for st in fm["story"]:                       # each still sits on its sentence's last line
+        s = sents[st["text"]]
+        assert s["last_line"] - 1e-6 <= st["t"] <= s["end"] + 1e-6
+    for c in fm["carousel"][1:]:                 # slides are near when their sentence is spoken
+        s = sents[c["text"]]
+        assert s["first"] - 1e-6 <= c["t"] <= s["end"] + 1e-6
+
+
+def test_reach_window_never_cuts_a_caption_and_avoids_a_tiny_last_segment(job, make_image, nc):
+    plan = engine.prepare_plan(year_one_like(job, make_image), job.work)
+    warnings = []
+    a, b = formats.snap_reach_window(plan, 19.09, 29.16, warnings)   # ends on "Looking forward to"
+    assert (a, b) == (19.09, 30.2) and not warnings
+    lo, hi = formats.snap_reach_window(plan, 0.0, 11.5)              # cuts "It's been one whole year" at the end
+    assert 8.0 <= hi - lo <= 12.0
+    assert not any(f < hi - 0.05 and e + 0.3 > hi + 0.01 for _, f, e in YEAR_ONE_LINES)
+    assert not any(f < lo and e > lo + 0.05 for _, f, e in YEAR_ONE_LINES)
+    # 19.09-29.16 is 302 frames: the last 2 s encoder segment would be 2 frames long
+    assert formats._bad_tail_frames(29.16 - 19.09, 30) == 2
+    d, segs = formats.reach_plan(plan, {"t0": 19.09, "t1": 29.16, "hook": "One whole year."})
+    assert formats._bad_tail_frames(d["duration"], 30) == 0 and 8.0 <= d["duration"] <= 12.0
+    assert segs[0][1] - segs[0][0] == pytest.approx(d["duration"])
+    # frame 0 shows the hook only: no caption inside the hook window, none repeating the hook
+    gone = d["hook"]["t1"] + 0.3
+    assert all(ln["words"][0][1] >= gone for ln in d["lines"])
+    hv = formats.hook_variant_plan(plan, {"text": "One whole year."}, formats.opening_length(plan))
+    assert all(formats.norm(formats.line_text(ln)) != formats.norm("This is what Katie saw.") for ln in hv["lines"])
+
+
+def test_music_only_plan_skips_what_it_cannot_make(job, make_image, nc):
+    plan = engine.prepare_plan(year_one_like(job, make_image, lines=False), job.work)
+    warnings = []
+    fm, defaulted, skipped = formats.resolve_formats(plan, set(formats.KINDS), warnings)
+    assert skipped == {"reach", "story", "carousel"} and "cover" in fm      # never the reel's own hook
+    assert all(w.split(":")[0] in ("reach", "story", "carousel", "hook variants") for w in warnings)
+    # a shoot-card script gives the reach cut new hook text
+    (job.work / "script.txt").write_text("This is what Katie saw. One year of NUMA in Mobile.", encoding="utf-8")
+    fm, _, skipped = formats.resolve_formats(plan, {"reach"}, [], job.work)
+    assert not skipped and fm["reach_cut"]["hook"] == "One year of NUMA in Mobile."
 
 
 def test_clip_plan_retiles_shifts_and_validates(job, make_image, make_video, nc):
@@ -161,8 +252,8 @@ def test_reach_plan_appends_endcard_tail(job, make_image, make_video, nc):
 def test_defaults_fill_every_missing_format(job, make_image, make_video, nc):
     plan = engine.prepare_plan(small_plan(job, make_image, make_video), job.work)
     warnings = []
-    fm, defaulted = formats.resolve_formats(plan, set(formats.KINDS), warnings)
-    assert set(defaulted) == {"reach_cut", "story", "carousel", "cover", "hook_variants"}
+    fm, defaulted, skipped = formats.resolve_formats(plan, set(formats.KINDS), warnings)
+    assert not skipped and set(defaulted) == {"reach_cut", "story", "carousel", "cover", "hook_variants"}
     rc = fm["reach_cut"]
     assert 8.0 <= rc["t1"] - rc["t0"] <= 12.0 and rc["hook"] == "Cold, then calm"
     assert 3 <= len(fm["story"]) <= 5 and len({formats.norm(s["text"]) for s in fm["story"]}) == len(fm["story"])
@@ -177,7 +268,7 @@ def test_defaults_fill_every_missing_format(job, make_image, make_video, nc):
     formats.check_formats(plan, fm)                 # schema + rules 27/36 pass
     # a plan entry is used as given and padded to two hook variants
     plan["formats"] = {"hook_variants": [{"text": "Colder than you think."}]}
-    fm2, defaulted2 = formats.resolve_formats(plan, {"hooks"}, [])
+    fm2, defaulted2, _ = formats.resolve_formats(plan, {"hooks"}, [])
     assert fm2["hook_variants"][0] == {"text": "Colder than you think."} and len(fm2["hook_variants"]) >= 2
 
 
@@ -192,7 +283,9 @@ def test_formats_claims_and_times_are_checked(job, make_image, make_video, nc):
 # --------------------------------------------------------------------------- real size stills
 def test_cover_title_inside_centre_square_and_carousel_size_real(plan_factory, job, nc, tmp_path):
     plan = plan_factory()
-    plan["formats"] = {"cover": {"t": 1.0, "title": "Three minutes of *cold*, then calm"}}
+    plan["formats"] = {"cover": {"t": 1.0, "title": "Three minutes of *cold*, then calm"},
+                       "carousel": [{"t": t, "text": x} for t, x in ((0.8, "Cold."), (2.0, "Breathe."), (3.5, "Slow."),
+                                                                  (4.5, "Calm."), (5.0, "Awake."))]}
     plan_path = job.work / "plan.json"
     numa_common.write_json(plan_path, plan)
     sec = formats.run(plan_path, job.out / "test-reel_reel.mp4", only=["cover", "carousel"], progress=False)
@@ -256,7 +349,9 @@ def test_full_run_small(small_job, run_script, nc):
     reach = Path(out["reach"]["files"][0])
     info = numa_common.media_info(reach)
     assert (info["width"], info["height"]) == tuple(SMALL) and info["has_audio"]
-    assert 8.0 <= info["duration"] <= 12.0 and info["duration"] == pytest.approx(9.5 - 1.0 + 3.0, abs=0.05)  # + end-card tail
+    assert 8.0 <= info["duration"] <= 12.0 and info["duration"] == pytest.approx(10.0 - 1.0 + 3.0, abs=0.05)
+    # t1 9.5 cut "This is NUMA." (8.7-9.8 s): played out to the end card at 10 s, then the end-card tail
+    assert sec["outputs"]["reach"]["spec"]["t1"] == 10.0
     assert sec["checks"][reach.name]["ok"], sec["checks"][reach.name]
     # the new hook text is on frame 0: the top band differs from the same frame rendered without it
     d, _ = formats.reach_plan(engine.load_plan(plan_path), plan["formats"]["reach_cut"])
