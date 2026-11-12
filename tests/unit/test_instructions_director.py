@@ -297,7 +297,7 @@ STAGES = [
     ("7. Validate", ['validate_plan.py"', "0 ERRORs"]),
     ("8. Preview", ["preview", "LOOK", "repeat"]),
     ("9. Render and finish", ['engine.py" "$JOB/work/plan.json"', 'finish.py"', 'check_output.py"', 'qa_frames.py"']),
-    ("10. Critic loop", ["max 3 rounds", "fresh context", 'critic_score.py" round', "ship_best", "hold", "numa-brand-check"]),
+    ("10. Critic loop", ["max 3 rounds", "fresh context", 'critic_score.py" round', "ship_best", "hold", "numa-brand-check", "work/sources.json", "work/plan_row.json", "STATE/consent_list.json", "Never the Decisions log"]),
     ("11. All outputs", ['formats.py" "$JOB/work/plan.json" "$JOB/out/SLUG_reel.mp4"', "reach", "Story", "carousel", "cover", ".srt", "hook variants"]),
     ("12. Caption", ["3 captions", "You pick one", 'claims_scan.py"', "--hashtags"]),
     ("13. Deliver", ["Send the reel file in this chat", "Chat delivery is primary", "Finished/", "upload_queue.json", "Ready to post", "post-reel", "delivery note", "media library"]),
@@ -390,7 +390,8 @@ def test_scout_search_order_and_rules(texts):
     for needle in ["Never take other businesses' or creators'", "Consent List", "license page", "sources.py\" add",
                    "raw/scout/", "cloud web search", "Never wait for the desktop app", "the Director decides",
                    "positioning.competitors", "competitors_YYYY-MM.json", "dashboard.py --competitors",
-                   "last 12 posts", "never an estimate"]:
+                   "last 12 posts", "never an estimate", "unlimited", "terms", "about 15 s",
+                   "consent.ai_processing_covered", "back to Motion"]:
         assert needle in t, needle
 
 

@@ -50,6 +50,15 @@ Write `JOB/work/scout.json` and return it:
  "not_found": ["line 6: group breathwork class (no consented photo on NUMA's channels)"]}
 ```
 
+## Higgsfield unlimited-window drafts (R227, spec p.45)
+
+When Motion hands you draft prompts because the annual plan's 7-day unlimited Kling 720p window is active and the desktop app is on:
+1. Read Higgsfield's current terms on higgsfield.ai; batch only when they allow it. Otherwise hand the prompts back to Motion unrun and say why.
+2. Work only on the higgsfield.ai website through Claude in Chrome (the window does not apply to the connector). Clips are capped at about 15 s and the queue is slower: submit the whole batch, then collect.
+3. Upload only hero photos Motion gave you: people-free, or every person on the Consent List with AI-processing consent (brand.json `consent.ai_processing_covered`). Never any other photo.
+4. Save each draft in `JOB/raw/scout/higgsfield/` and record it: `python3 "$S/sources.py" add "$JOB" --kind clip --path "<draft.mp4>" --source "Higgsfield Kling 3.0 720p (unlimited window draft)" --license higgsfield_paid`.
+5. Hand the drafts back to Motion as `[{"path", "photo", "prompt", "model": "Kling 3.0 720p", "seconds"}]`. Motion inspects them and finalizes the keepers; you never put a draft into the plan.
+
 ## Competitor log (R250)
 
 When the Director or the trend-check task asks (at least monthly), log each account in brand.json `positioning.competitors`: its last 12 posts (config `instagram.competitors_tracked_posts`), newest first. Use Chrome on Instagram when available; in a cloud run, what web search can see, with the rest left out. Record only numbers you can see; a hidden count is `null`, never an estimate. Write `STATE/competitors_YYYY-MM.json` (the current month; a later run that month replaces it) in the shape `dashboard.py --competitors` reads:

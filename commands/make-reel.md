@@ -168,7 +168,7 @@ python3 "$S/qa_frames.py" "$JOB/out/SLUG_reel.mp4" "$JOB/work/plan.json"
 ```
 LOOK at `out/qa_strip.jpg` and `out/critic_frames/`. check_output ERROR: fix and re-render. Crash: F14.
 
-**10. Critic loop (max 3 rounds; config `critic.max_rounds`).** Before each round, copy the reel, plan.json and qa_strip to `work/versions/r<N>/`. Send the **critic** agent (fresh context) only the work: the reel, `out/qa_strip.jpg`, `out/critic_frames/`, `out/report.json`, the transcript, plan.json and the shoot card. Never the Decisions log or your reasoning. Save its sheet as `work/critic_r<N>.json`, then:
+**10. Critic loop (max 3 rounds; config `critic.max_rounds`).** Before each round, copy the reel, plan.json and qa_strip to `work/versions/r<N>/`. Send the **critic** agent (fresh context) only the work: the reel, `out/qa_strip.jpg`, `out/critic_frames/`, `out/report.json`, the transcript, plan.json, the shoot card, `work/analysis.json`, `work/sources.json`, `work/plan_row.json` and `STATE/consent_list.json` (work products its validate, consent, music and facts gates need). Never the Decisions log or your reasoning. Save its sheet as `work/critic_r<N>.json`, then:
 ```
 python3 "$S/critic_score.py" round --rounds "$JOB/work/critic_rounds.json" --version r<N> "$JOB/work/critic_r<N>.json" --json
 ```

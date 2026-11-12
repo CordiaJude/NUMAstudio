@@ -38,8 +38,12 @@ Connector tools are named differently across connector versions; this file names
    python3 "$S/ledger.py" add --ledger "$STATE/credit_ledger" --job kling_std_5s --credits 7.5 --reel SLUG --outcome unwanted
    ```
    `--outcome kept` for keepers, `unwanted` for drafts not used, `failed-refunded` (charged 0) when the connector reports the job failed.
+5. Mirror the month to the plan Sheet's credit ledger (R220): print the CSV rows and put them in the hand-back (`ledger_sheet_rows`); the Director writes them to the Sheet.
+   ```
+   python3 "$S/ledger.py" sheet --ledger "$STATE/credit_ledger" --month YYYY-MM
+   ```
 
-Unlimited window (annual plan, 7 days of Kling 720p): it works only on the higgsfield.ai website, never through the connector. When it is active and the desktop app is on, hand the draft prompts to the Scout to batch there through Claude in Chrome, after the Scout has read Higgsfield's terms and they allow it; finalize keepers here.
+Unlimited window (annual plan, 7 days of Kling 720p): it works only on the higgsfield.ai website, never through the connector; it caps clips at about 15 s and uses a slower queue. When it is active and the desktop app is on, hand the draft prompts to the Scout to batch there through Claude in Chrome, after the Scout has read Higgsfield's terms and they allow it; finalize keepers here.
 
 ## 2. Privacy and consent (brand.json `consent`)
 
@@ -149,6 +153,7 @@ When the Director hands you the final reel or `out/SLUG_hook_<N>.mp4` files: che
   "virality": [],
   "ai": {"people": false, "scenes": true},
   "credits_spent": 18.25,
+  "ledger_sheet_rows": "date,category,job,...",
   "balance_after": 846.5,
   "notes": []
 }

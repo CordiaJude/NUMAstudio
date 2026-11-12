@@ -37,7 +37,7 @@ Add `--file "$JOB/out/SLUG.srt"`, `--file "$JOB/out/SLUG_copy.txt"` and `--hasht
 | # | Gate (config `critic.hard_gates`) | How to check | Fails when |
 |---|---|---|---|
 | G1 | Anything on the claims policy's banned list, in the voiceover, on-screen text, visuals, caption or hashtags | claims_scan (transcript via stdin, every plan text, srt, copy, hashtags): any `ERROR:` line. Then LOOK: no before/after of bodies, skin or bloodwork, no limping-in/jogging-out story, no breath-holding in or near water, no FDA logo, nothing from `offerings.not_offered` | Any `fail` hit, or a visual claim in a frame |
-| G2 | A recognizable person who isn't on the consent list | validate_plan rule 28 ERRORs; every frame with a recognizable face: its shot has `people: true` + `consent: true` and the person matches an entry in `consent_list.json` whose scope covers social posts (and AI, for an `ai_generated` shot); `consent.children`. A shot whose analysis item has `orig_faces` but empty `faces` (face pushed out of the prepared copy): check those frames by eye; `faces`/`focus` describe the shot source (CONTRACTS section 3) | A recognizable unlisted person, unflagged or unblurred |
+| G2 | A recognizable person who isn't on the consent list | Scripts: validate_plan rule 28 (`people: true` without consent) and rule 41 (faces without people flag: the shot's source has detected `faces`/`orig_faces` but the shot is not marked `people`, unless consent is true or `blur` covers every face box). REQUIRED, scripts or not: LOOK at every critic frame and the QA strip, because detection misses faces (people lying down, profiles, small or dim faces); every frame with a recognizable face: its shot has `people: true` + `consent: true` and the person matches an entry in `consent_list.json` whose scope covers social posts (and AI, for an `ai_generated` shot); `consent.children`. A shot whose analysis item has `orig_faces` but empty `faces` (face pushed out of the prepared copy): check those frames by eye; `faces`/`focus` describe the shot source (CONTRACTS section 3) | A recognizable unlisted person, unflagged or unblurred. Seen an unflagged person: fail the gate and give the fix "Shot N: set `people: true`; blur or replace" |
 | G3 | Music with no recorded license source, or any trending song | sources.py check exit 0; plan `music.source` and `music.license` present (rule 29); no license `trending_audio` | check exit 1, a missing license, or a recognizable popular song |
 | G4 | Audio silent, clipped, or not 48 kHz; video not 1080x1920 | check_output: 48 kHz only (REQUIREMENTS interpretation 12), size, silence, clipping, loudness | Any check_output ERROR on these |
 | G5 | NUMA misspelled, a wrong price, date or offer | Every on-screen text (hook, lines, end card, formats) and the transcript against brand.json: `business.name` (on-screen "NUMA"; "Numa Nights" and the iOS app keep theirs), prices in `offerings.offers` / `offerings.sessions` (Discover NUMA $49), dates against `plan_row.json` and `offerings.events`, address `business.location` | Any mismatch, or a `needs_katie` value stated as fact |
@@ -61,9 +61,12 @@ Whole numbers only. A 1 is broken (the thing is missing or wrong throughout).
 
 ## 3. The pass rule (computed, never by eye)
 
-Pass: total 80 or more, no category below 3, Hook at least 4, and no hard gate failed (config `critic.pass`). Write the sheet and score it:
+Pass: total 80 or more, no category below 3, Hook at least 4, and no hard gate failed (config `critic.pass`). Write the sheet (section 4 shape) into `work/critic_r<N>.json` (N = the round the Director gives) with a Bash heredoc, then score that file:
 ```
-python3 "$S/critic_score.py" score '<the sheet JSON>' --json
+cat > "$JOB/work/critic_r<N>.json" <<'EOF'
+<the sheet JSON>
+EOF
+python3 "$S/critic_score.py" score "$JOB/work/critic_r<N>.json" --json
 ```
 The Director records the round with `critic_score.py round`; the loop stops after 3 rounds (`critic.max_rounds`).
 
@@ -73,7 +76,7 @@ The Director records the round with `critic_score.py round`; the loop stops afte
 
 1. The score table: category | score | one line of evidence; then the total and PASS/FAIL from critic_score.py, and the failed gates.
 2. Numbered fixes, most valuable first, each naming the exact plan.json field or shot and the new value: "1. Shot 3: replace with P7 (sharper); cut at beat 12 (`beats[12]` = 22.45 s), not 13." · "2. `hook.text`: 'Your reset starts here.' -> 'Three minutes. Wide awake.' (5 words, readable at frame 0)." · "3. `lines[4]`: gold on 'grateful' only." · "4. Shot 6: add `blur` [[0.62, 0.18, 0.2, 0.3]] (guest not on the Consent List)."
-3. The sheet as JSON (the Director saves it as `work/critic_r<N>.json`):
+3. The sheet as JSON, the same content written to `work/critic_r<N>.json`:
 ```json
 {
   "scores": {"hook": 4, "retention_pacing": 4, "story_clarity": 5, "shareability": 3,

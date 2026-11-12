@@ -47,7 +47,11 @@ Read brand.json before writing a single line. Facts carry a `status`: prefer `co
 4. **Skip rate:** about 65% of small-account viewers skip in 3 s. Frame zero needs movement, a contrast visual and full-opacity hook text.
 5. **Originals only.** Other people's content only as collab posts. New hooks get tested as Trial Reels (section 6.9).
 6. **Cadence (month planning):** 4-5 feed posts a week, about two-thirds Reels and one-third carousels, daily Stories, 1-2 Trial Reels a week, never a week dark; judge each reel at 72 hours.
-7. **Music:** NUMA posts as a business, so trending and popular songs are never used. Order (REQUIREMENTS interpretation 8): the folder's own file, then the Music Library track the shoot card names, then a Higgsfield instrumental made to the reel's exact length and tempo, then a Music Library track by mood, then natural clip sound with the offline pad. Meta's Sound Collection is added only at posting time (`music.source: sound_collection`). A commercial-library track needs a license that names social media. Every source is recorded with `sources.py add` and lands in `out/sources.txt`.
+7. **Music:** NUMA posts as a business, so trending and popular songs are never used. Order (REQUIREMENTS interpretation 8): the folder's own file, then the Music Library track the shoot card names, then a Higgsfield instrumental made to the reel's exact length and tempo, then a Music Library track by mood, then natural clip sound with the offline pad. Meta's Sound Collection is added only at posting time (`music.source: sound_collection`). A commercial-library track needs a license that names social media. Every source is recorded and lands in `out/sources.txt`; for NUMA's own file in the folder:
+   ```
+   python3 "$S/sources.py" add "$JOB" --kind music --path "$JOB/raw/music.mp3" --source "NUMA reel folder" --license numa_owned
+   ```
+   (Higgsfield music: `--source "Higgsfield ElevenLabs Music v2.5" --license higgsfield_paid`; Sound Collection: `--license meta_sound_collection`.)
 
 ## 3. Claims rules (brand.json `claims`)
 
@@ -58,10 +62,10 @@ Sell the experience, never the outcome. The FTC judges the overall impression: v
 
 | Modality | Say | Never say |
 |---|---|---|
-| Cold plunge | "Three minutes of cold. Walk out wide awake." · "Pairs well with the sauna for contrast." | Reduces inflammation · boosts immunity · burns fat · heals injuries · treats depression |
-| Sauna | "Deep, quiet heat to unwind." · "A centuries-old Finnish ritual." | Detox or sweat out toxins · burns calories · lowers blood pressure · prevents heart disease or dementia |
+| Cold plunge | "Three minutes of cold. Walk out wide awake." · "A challenge that leaves many people feeling energized." · "Pairs well with the sauna for contrast." | Reduces inflammation · boosts immunity · burns fat · heals injuries · treats depression |
+| Sauna | "Deep, quiet heat to unwind." · "A centuries-old Finnish ritual." · "Relax, breathe, disconnect." | Detox or sweat out toxins · burns calories · lowers blood pressure · prevents heart disease or dementia |
 | Red light | Accurate device facts ("our panels use 660 nm and 850 nm light") only when `claims.modalities.red_light.device_facts` confirms them · "A warm, calming session" | Anti-aging, wrinkles, collagen · heals or reduces inflammation · "FDA-approved" · "FDA-cleared" unless it names the exact device and its exact cleared use |
-| Breathwork | "Guided breathing to help you slow down." · "Feel more centered." | Cures anxiety · treats depression · heals trauma · boosts immunity · "breathwork therapy" from anyone not licensed for it |
+| Breathwork | "Guided breathing to help you slow down." · "Feel more centered." · "Learn techniques people use to relax." | Cures anxiety · treats depression · heals trauma · boosts immunity · "breathwork therapy" from anyone not licensed for it |
 
 Rules beyond words (`claims.rules`):
 1. **Visuals count:** no limping-in, jogging-out stories; no before/after of bodies, skin or bloodwork. A before/after wipe is for buildings and rooms only.
@@ -103,7 +107,7 @@ These rules are the product's IP. The validator enforces the ones marked (rule N
 | Tense or "before" sections | 2-beat cuts | |
 | Emotional lines and the share line | 4-beat holds | |
 | Longest shot | 4 beats, unless `peak: true` on the one emotional peak | rule 15 (WARN) |
-| Music-only outro (6-8 s, default 7.5) | recap montage of the best 5-8 shots, 2 beats each; when the end card leaves only about 4 s, 3-8 shots on single beats (DECISIONS D15) | |
+| Music-only outro (6-8 s, default 7.5) | recap montage of the best 5-8 shots, 2 beats each; when the end card leaves only about 4 s, 3-8 shots at 2 beats (DECISIONS D15). Year One's single-beat montage in a short outro is an accepted exception, not the default | |
 | End card | holds 3.5-5 s and starts on a shot boundary | rules 31-32 |
 | Shortest shot | 0.3 s | rule 3 (WARN) |
 
@@ -158,7 +162,7 @@ Every frame also gets darkened edges, soft bloom on highlights, light seeded gra
 | Out of the top 12% and bottom 10% | `caption_y` default 1420; rows inside 230-1728 px (rule 25) |
 | Off faces | move `caption_y` within 1300-1500, or higher, when a face sits at caption height (rule 26) |
 
-No emojis in burned-in text.
+Every caption and the hook get a soft shadow, over the subtle dark gradient at the bottom of the frame (engine, automatic). No emojis in burned-in text.
 
 ### 4.9 Audio
 
@@ -198,7 +202,7 @@ In the plan, an approved clip is a `kind: video` shot with `ai_generated: true`;
 
 ## Step 6: Build the plan (numbered, every run)
 
-1. **Read the feedback memory** and honour every note (R277):
+1. **Read the feedback memory** and honour every note (R277); skip `prefs.py list` while `STATE/preferences.json` does not exist yet:
    ```
    python3 "$S/prefs.py" list --file "$STATE/preferences.json" --json
    ```
@@ -265,8 +269,8 @@ LOOK at the cover (title inside the centre square) and two carousel slides.
 | 6.2 | 5: Katie and Scott clip, `leakfade`, `warm` from here | The turn on "And we took a chance" | An emotional shift gets the warm leak; the look switches at the turning point |
 | 9.59-14.07 | 6: ribbon cutting, slow push `z` [1.0, 1.2] | A long hold on "It's been one whole year" | Emotional line: hold, don't cut |
 | 14.07-16.3 | 7: flash back to the old house (`before`), 8: `wipe` to the finished exterior | `signature` {wipe, 14.63} | A true before/after of the same building exists, so the signature is the wipe, on "now we're beginning to see" |
-| 16.3-30.28 | 9-17: lit sauna (flash), brand photos, whips and leakfades | One picture per line, transitions varied | The gratitude lines get people and places in Mobile; leaks at each emotional line |
-| 30.28-34.16 | 18-24: recap montage, 7 shots, one beat each, all `punch` | The music-only outro | The best shots again, fast; only about 4 s remain before the end card, so single beats (D15) |
+| 16.3-30.28 | 9-17: lit sauna (flash), brand photos, whips and leakfades | One picture per line, transitions varied | The gratitude lines get people and places in Mobile; leaks at each emotional line. Note: the reference puts a whip on every second cut here, which breaks rule 16; new plans keep whips at least 3 cuts apart |
+| 30.28-34.16 | 18-24: recap montage, 7 shots, one beat each, all `punch` | The music-only outro | The best shots again, fast; only about 4 s remain before the end card, so single beats: an accepted exception to D15's 2 beats |
 | 34.16-39.0 | 25: ripple image, `look: none`, `tr: flash` | `endcard` subtitle "Year one. Thank you, Mobile." | Holds 4.84 s (3.5-5 s rule), white wordmark, gold sign-off written for this reel |
 
 Also in the plan: `music` (source `folder`, license recorded), `ai` all false (no AI shots, so no label), `meta.slug` "year-one", and `formats` (reach cut 14.07-25.82 s with hook "One whole year.", three Story frames, cover at 15.5 s titled "Year One").
