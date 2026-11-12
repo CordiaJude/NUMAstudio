@@ -9,7 +9,7 @@
 | T4 Validator/baseline/claims | ACCEPTED (re-review 10/10 PASS) | 2 | cosmetic: duplicate hits per rule |
 | T5 Vision/prep | REVISING | 2 | M: faces/focus for prepared_path (consent); prep runtime |
 | T6 Formats | PENDING | 0 | |
-| T7 Ops scripts | REVISING | 2 | B: library people detection; M: prefs mapping, sources negatives, dashboard contrast/layout |
+| T7 Ops scripts | REVISING | 3 | dashboard dark contrast; library people=no only by explicit tag |
 | T8a Director+librarian/scout/analyst | IN PROGRESS | 1 | |
 | T8b Crew agents + skills | PENDING | 0 | |
 | T9 Instructions B | PENDING | 0 | |

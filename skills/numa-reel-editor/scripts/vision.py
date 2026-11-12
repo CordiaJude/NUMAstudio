@@ -647,11 +647,10 @@ def use_prepared(entry: dict, kind: str, det: FaceDetector) -> None:
 
 def drop_prepared(entry: dict, kind: str, det: FaceDetector) -> None:
     """Undo use_prepared() after `prepared_path` was removed: faces/focus describe `path` again."""
-    if "orig_faces" not in entry and "orig_focus" not in entry:
-        return
     entry.pop("orig_faces", None)
     entry.pop("orig_focus", None)
-    detect_on(entry, kind, entry["path"], det)
+    if "faces" in entry or "focus" in entry:
+        detect_on(entry, kind, entry["path"], det)
 
 
 # ---------------------------------------------------------------------------

@@ -377,12 +377,21 @@ def prepare_clip(entry: dict, stabilize: bool, brighten: bool, dst: Path, method
 # ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
-def decide(entry: dict, kind: str, stabilize: str, brighten: str) -> list[str]:
+OPS = ("stabilize", "brighten")
+
+
+def decide(entry: dict, kind: str, stabilize: str, brighten: str, forced: Sequence[str] = ()) -> list[str]:
+    """Steps for one item. `on` forces a step, `off` drops it; with `auto` a step runs when the item is
+    flagged for it or when an earlier run forced it (recorded in prep/index.json)."""
+    modes = {"stabilize": stabilize, "brighten": brighten}
+    auto = {"stabilize": kind == "clip" and vision.needs_stabilize(entry), "brighten": vision.needs_brighten(entry)}
     ops = []
-    if kind == "clip" and (stabilize == "on" or (stabilize == "auto" and vision.needs_stabilize(entry))):
-        ops.append("stabilize")
-    if brighten == "on" or (brighten == "auto" and vision.needs_brighten(entry)):
-        ops.append("brighten")
+    for op in OPS:
+        if op == "stabilize" and kind != "clip":
+            continue
+        mode = modes[op]
+        if mode == "on" or (mode == "auto" and (auto[op] or op in forced)):
+            ops.append(op)
     return ops
 
 
@@ -402,6 +411,8 @@ def run_prep(analysis_path: Path, *, ids: str | None = None, stabilize: str = "a
              method: str | None = None) -> dict:
     """Prepare the selected items and amend analysis.json; returns the report.
 
+    After an item is prepared its `faces`/`focus` (and clip seconds' face counts) are detected again
+    on the prepared copy, which is the shot source; the original file's stay in `orig_faces`/`orig_focus`.
     `method` forces the stabilizer ("vidstab" or "opencv"); None picks vidstab when available."""
     analysis_path = Path(analysis_path)
     A = nc.read_json(analysis_path, "analysis.json")
@@ -417,15 +428,30 @@ def run_prep(analysis_path: Path, *, ids: str | None = None, stabilize: str = "a
     index = nc.read_json(index_path, "prep index") if index_path.is_file() else {}
     if not isinstance(index, dict):
         index = {}
+    modes = {"stabilize": stabilize, "brighten": brighten}
+    det = None
+
+    def detector():
+        nonlocal det
+        if det is None:
+            import cv2
+            cv2.setNumThreads(1)
+            det = vision.FaceDetector()
+        return det
+
     report: dict[str, Any] = {"analysis": str(analysis_path), "items": []}
     for kind, e in items:
         if chosen is not None and e["id"] not in chosen:
             continue
-        ops = decide(e, kind, stabilize, brighten)
+        rec = index.get(e["id"]) or {}
+        forced_before = [op for op in rec.get("forced") or [] if modes.get(op) == "auto"]
+        ops = decide(e, kind, stabilize, brighten, forced_before)
+        forced = [op for op in ops if modes[op] == "on" or op in forced_before]
         row: dict[str, Any] = {"id": e["id"], "ops": ops}
         if not ops:
             if e.pop("prepared_path", None):
                 row["status"] = "removed"
+                vision.drop_prepared(e, kind, detector())
             else:
                 row["status"] = "not needed"
             index.pop(e["id"], None)
@@ -436,24 +462,24 @@ def run_prep(analysis_path: Path, *, ids: str | None = None, stabilize: str = "a
             raise nc.UserError(f"{e['id']}: source not found: {src}")
         dst = prep_dir / f"{e['id']}{'.mp4' if kind == 'clip' else '.jpg'}"
         src_hash = sha256_file(src)
-        rec = index.get(e["id"]) or {}
         wanted = {"version": PREP_VERSION, "src": str(src), "sha256": src_hash, "ops": ops,
                   "method": method if "stabilize" in ops else None}
         if (all(rec.get(k) == v for k, v in wanted.items()) and dst.is_file()
                 and rec.get("out_sha256") == sha256_file(dst)):
-            e["prepared_path"] = str(dst)
-            row.update(status="unchanged", prepared_path=str(dst), **(rec.get("details") or {}))
-            report["items"].append(row)
-            continue
-        prep_dir.mkdir(parents=True, exist_ok=True)
-        nc.info(f"{e['id']}: {' + '.join(ops)} {src.name}")
-        if kind == "clip":
-            details = prepare_clip(e, "stabilize" in ops, "brighten" in ops, dst, method)
+            status, details = "unchanged", rec.get("details") or {}
         else:
-            details = brighten_photo(str(src), dst)
+            prep_dir.mkdir(parents=True, exist_ok=True)
+            nc.info(f"{e['id']}: {' + '.join(ops)} {src.name}")
+            if kind == "clip":
+                details = prepare_clip(e, "stabilize" in ops, "brighten" in ops, dst, method)
+            else:
+                details = brighten_photo(str(src), dst)
+            status = "prepared"
         e["prepared_path"] = str(dst)
-        index[e["id"]] = {**wanted, "out": str(dst), "out_sha256": sha256_file(dst), "details": details}
-        row.update(status="prepared", prepared_path=str(dst), **details)
+        vision.use_prepared(e, kind, detector())
+        index[e["id"]] = {**wanted, "forced": forced, "out": str(dst), "out_sha256": sha256_file(dst),
+                          "details": details}
+        row.update(status=status, prepared_path=str(dst), faces=len(e["faces"]), **details)
         report["items"].append(row)
     nc.validate_against("analysis", A, "analysis.json")
     if index or index_path.is_file():
