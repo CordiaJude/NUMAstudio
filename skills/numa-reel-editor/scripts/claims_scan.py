@@ -385,7 +385,7 @@ def _text(v: Any) -> str | None:
 
 
 def plan_texts(plan: dict) -> list[tuple[str, str]]:
-    """Every on-screen text of a plan as (where, text): hook, caption lines, end card, formats, meta title."""
+    """Every on-screen text of a plan as (where, text): hook, caption lines, text cards, end card, formats, meta title."""
     out: list[tuple[str, str]] = []
     if not isinstance(plan, dict):
         return out
@@ -397,6 +397,11 @@ def plan_texts(plan: dict) -> list[tuple[str, str]]:
             words = [str(w[0]) for w in ln["words"] if isinstance(w, list) and w and isinstance(w[0], str)]
             if words:
                 out.append((f"lines[{i}]", " ".join(words)))
+    for i, card in enumerate(plan.get("cards") or []):
+        if isinstance(card, dict):
+            for k in ("text", "sub"):
+                if _text(card.get(k)):
+                    out.append((f"cards[{i}].{k}", card[k].replace("*", "")))
     ec = plan.get("endcard")
     if isinstance(ec, dict):
         for k in ("tagline", "subtitle"):

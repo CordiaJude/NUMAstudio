@@ -23,7 +23,7 @@ python3 "$S/metrics.py" due --store "$STATE/metrics.json" --json
 ```
 For each due reel and pull (48h, 72h, 7d; config `instagram.insight_pulls_hours`), call Composio's `instagram.tools.media_insights` (INSTAGRAM_GET_IG_MEDIA_INSIGHTS) for the reel's media id with:
 - `graph_api_version` = config `instagram.graph_api_version` on **every** call (Composio's default version is retired; config `instagram.graph_api_version_rule`);
-- metrics: views, reach, likes, comments, saved, shares, reposts, total_interactions, ig_reels_avg_watch_time, reels_skip_rate (config `instagram.metrics`). **Never request plays or impressions** (config `instagram.never_request`); metrics.py rejects them.
+- metrics, as Graph API metric names (mapped to store names by metrics.py): views, reach, likes, comments, saved, shares, reposts, total_interactions, ig_reels_avg_watch_time, reels_skip_rate (config `instagram.metrics`). **Never request plays or impressions** (config `instagram.never_request`); metrics.py rejects them.
 
 Save each response as `STATE/insights/<reel>_<pull>.json` and store it:
 ```

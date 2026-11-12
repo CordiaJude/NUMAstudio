@@ -11,7 +11,8 @@ zoom range, clip spans, beat alignment, shot length in beats, whip spacing,
 transition variety, the one signature moment, caption timing and layout,
 caption-vs-transcript alignment, safe area, faces, claims (brand.json via
 claims_scan), consent, music license, AI label, end card, leaks, hook, natural
-sound, formats, output spec, preference limits and "never open on the logo".
+sound, formats, output spec, preference limits, "never open on the logo",
+faces without people/consent marking (rule 41) and kinetic text cards (rule 42).
 
 Without ANALYSIS_JSON, `analysis.json` next to the plan is used when it exists.
 Each problem is one `ERROR: <where>: <problem> [rule N]` or `WARN: ...` line on
@@ -201,6 +202,8 @@ class Checker:
         self.check_formats()
         self.check_output_spec()
         self.check_prefs()
+        self.check_consent()
+        self.check_cards()
         return self.issues
 
     # -- rules 2, 3 ---------------------------------------------------------
@@ -502,7 +505,7 @@ class Checker:
     def _rows(self, words: list) -> int | None:
         W = self.size[0]
         scale = W / 1080.0
-        px = int(round(float(self._cfg("render.captions.font_px", 92)) * scale))
+        px = int(round(self._caption_px()))
         box = 960 * scale
         fr, fi = self._effective_font("regular"), self._effective_font("italic")
         fonts = {False: self._font(fr, px) if fr else None, True: self._font(fi, px) if fi else None}
@@ -518,12 +521,20 @@ class Checker:
             rw += ww
         return rows
 
+    def _caption_px(self) -> float:
+        """Effective caption font size in plan pixels (plan caption_px, else config at the plan's width)."""
+        if self.plan.get("caption_px"):
+            return float(self.plan["caption_px"])
+        return float(self._cfg("render.captions.font_px", 92)) * self.size[0] / 1080.0
+
     def check_layout(self) -> None:
         W, H = self.size
         top = float(self._cfg("render.safe_area.top_fraction", 0.12)) * H
         bottom = H - float(self._cfg("render.safe_area.bottom_fraction", 0.10)) * H
         max_rows = int(self._cfg("render.captions.max_rows", 2))
         row_h = 124 * H / 1920.0
+        if self.plan.get("caption_px"):
+            row_h *= self._caption_px() / (float(self._cfg("render.captions.font_px", 92)) * W / 1080.0)
         cy = float(self.plan.get("caption_y", float(self._cfg("render.captions.default_y", 1420)) * H / 1920.0))
         for j, ln in enumerate(self.lines):
             rows = self._rows(ln["words"])
@@ -702,7 +713,8 @@ class Checker:
 
         limit("max_whips", trs.count("whip"), "whips")
         limit("max_flashes", trs.count("flash"), "flashes")
-        limit("max_leaks", len(self.plan.get("leaks") or []), "light leaks")
+        limit("max_leaks", len(self.plan.get("leaks") or []) + trs[1:].count("leakfade"),
+              "light leaks (leaks + leakfade transitions)")
         limit("max_leak_strength", max([lk[2] for lk in self.plan.get("leaks") or []] or [0]), "leak strength")
         limit("max_duration", self.D, "duration")
         limit("min_duration", self.D, "duration", more=False)
@@ -712,6 +724,68 @@ class Checker:
               "longest caption line (characters)")
         gold = max([sum(1 for w in ln["words"] if len(w) > 2 and w[2]) for ln in self.lines] or [0])
         limit("max_gold_words", gold, "gold words in a line")
+        hook = self.plan.get("hook")
+        if isinstance(hook, dict):
+            limit("max_hook_words", len(hook["text"].replace("*", "").split()), "hook words")
+        limit("min_people_shots", sum(1 for s in self.shots if s.get("people") is True), "shots with people",
+              more=False)
+        if isinstance(p.get("caption_px"), (int, float)) and abs(self._caption_px() - float(p["caption_px"])) > 0.5:
+            self.wrn(38, "prefs", f"caption size {self._caption_px():g} px breaks the feedback preference "
+                                  f"caption_px = {p['caption_px']:g} (set caption_px)")
+
+    # -- rule 41 -----------------------------------------------------------
+    def _source_faces(self, src: str) -> list | None:
+        """Face boxes analysis.json found in the photo/clip a shot shows (None when it is not listed)."""
+        if not isinstance(self.analysis, dict):
+            return None
+        for item in (self.analysis.get("photos") or []) + (self.analysis.get("clips") or []):
+            if not isinstance(item, dict) or src not in (item.get("path"), item.get("prepared_path")):
+                continue
+            prepared = item.get("prepared_path")
+            # faces describe prepared_path when there is one; orig_faces then describe path
+            first, second = ("faces", "orig_faces") if (not prepared or src == prepared) else ("orig_faces", "faces")
+            return list(item.get(first) or item.get(second) or [])
+        return None
+
+    def check_consent(self) -> None:
+        for i, s in enumerate(self.shots):
+            faces = self._source_faces(s["src"])
+            if not faces or s.get("people") is True or s.get("consent") is True:
+                continue
+            blur = s.get("blur") or []
+            if all(any(covers(b, f) for b in blur) for f in faces):
+                continue
+            self.err(41, f"shots[{i}]", f"faces detected but shot not marked people ({len(faces)} face(s) in "
+                                        f"analysis.json); mark people/consent, blur the faces or use another shot")
+
+    # -- rule 42 -----------------------------------------------------------
+    def check_cards(self) -> None:
+        cards = self.plan.get("cards") or []
+        ect = float(self.ec["t"]) if isinstance(self.ec, dict) else None
+        prev_t1 = None
+        order = sorted(range(len(cards)), key=lambda k: float(cards[k]["t0"]))
+        for k in order:
+            c = cards[k]
+            where = f"cards[{k}]"
+            t0, t1 = float(c["t0"]), float(c["t1"])
+            if t1 <= t0:
+                self.err(42, where, f"t1 {t1:g} must be after t0 {t0:g}")
+                continue
+            if t1 > self.D + TILE_TOL:
+                self.err(42, where, f"ends at {t1:g} s, after the reel ({self.D:g} s)")
+            if ect is not None and t1 > ect + TILE_TOL:
+                self.err(42, where, f"runs to {t1:g} s, over the end card ({ect:g} s)")
+            if prev_t1 is not None and t0 < prev_t1 - TILE_TOL:
+                self.err(42, where, f"starts at {t0:g} s while the previous card is on screen (until {prev_t1:g} s)")
+            prev_t1 = t1
+            n = len(c["text"].replace("*", "").split()) + len((c.get("sub") or "").split())
+            need = 0.6 + 0.25 * n
+            if t1 - t0 < need - TILE_TOL:
+                self.wrn(42, where, f"on screen {t1 - t0:.2f} s; {n} word(s) need at least {need:.2f} s to read")
+            if c.get("style", "statement") == "statement" and len(c["text"].split()) > 12:
+                self.wrn(42, f"{where}.text", f"{len(c['text'].split())} words; a statement card holds at most 12")
+            if c.get("style") == "number" and len(c["text"].split()) > 1:
+                self.wrn(42, f"{where}.text", "a number card shows one numeral or short label")
 
 
 def non_finite(obj: Any, path: tuple = ()) -> list[str]:
@@ -726,6 +800,14 @@ def non_finite(obj: Any, path: tuple = ()) -> list[str]:
         for i, v in enumerate(obj):
             out += non_finite(v, path + (i,))
     return out
+
+
+def covers(blur: list, face: list, margin: float = 0.02) -> bool:
+    """True when the blur box [x, y, w, h] contains the face box (with a small margin of slack)."""
+    bx, by, bw, bh = blur
+    fx, fy, fw, fh = face
+    return (fx >= bx - margin and fy >= by - margin and fx + fw <= bx + bw + margin
+            and fy + fh <= by + bh + margin)
 
 
 def _sha1(path: str | os.PathLike) -> str | None:

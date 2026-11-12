@@ -6,7 +6,8 @@ Internal helper module of the render engine (see engine.py for the public API).
 * ``make_sprite``: one pre-rendered piece of text (alpha mask + soft shadow,
   optional letter tracking for the spaced end-card tagline).
 * ``draw_sprite``: composites a sprite onto an RGB uint8 frame in place,
-  touching only its region.
+  touching only its region; ``draw_sprite_scaled`` scales it about its ink
+  centre first (kinetic text cards).
 * ``layout_words``: a caption line or the hook as balanced rows inside a box
   (captions: at most 2 rows in 960 px at a 1080-wide frame), shrinking the
   font a little when needed; ``balanced_rows``/``greedy_rows`` do the splitting.
@@ -90,26 +91,51 @@ def make_sprite(text: str, font_path: str, px: float, color, shadow_sigma: float
                   base, pad, adv, ink_top, ink_bottom)
 
 
+def _composite(img: np.ndarray, alpha: np.ndarray, shadow: np.ndarray, color, x0: int, y0: int,
+               opacity: float) -> None:
+    """Blend an alpha mask (and its shadow) whose top-left lands at (x0, y0) onto img in place."""
+    H, W = img.shape[:2]
+    h, w = alpha.shape
+    X0, Y0, X1, Y1 = max(0, x0), max(0, y0), min(W, x0 + w), min(H, y0 + h)
+    if X0 >= X1 or Y0 >= Y1:
+        return
+    sx, sy = X0 - x0, Y0 - y0
+    a = alpha[sy:sy + Y1 - Y0, sx:sx + X1 - X0] * opacity
+    s = shadow[sy:sy + Y1 - Y0, sx:sx + X1 - X0] * opacity
+    roi = img[Y0:Y1, X0:X1].astype(np.float32)
+    roi *= (1.0 - s)[..., None]
+    col = np.array(color, np.float32) * 255.0
+    roi = roi * (1.0 - a)[..., None] + col * a[..., None]
+    img[Y0:Y1, X0:X1] = (roi + 0.5).astype(np.uint8)
+
+
 def draw_sprite(img: np.ndarray, sp: Sprite, x: float, y_baseline: float, opacity: float,
                 color=None) -> None:
     """Composite a sprite onto img (RGB uint8, in place): pen origin at (x, baseline)."""
     if opacity <= 0.002:
         return
-    H, W = img.shape[:2]
-    x0 = int(round(x)) - sp.left
-    y0 = int(round(y_baseline)) - sp.baseline
-    h, w = sp.alpha.shape
-    X0, Y0, X1, Y1 = max(0, x0), max(0, y0), min(W, x0 + w), min(H, y0 + h)
-    if X0 >= X1 or Y0 >= Y1:
+    _composite(img, sp.alpha, sp.shadow, color if color is not None else sp.color,
+               int(round(x)) - sp.left, int(round(y_baseline)) - sp.baseline, opacity)
+
+
+def draw_sprite_scaled(img: np.ndarray, sp: Sprite, x: float, y_baseline: float, opacity: float,
+                       scale: float, color=None) -> None:
+    """draw_sprite, scaled about the centre of the word's ink (kinetic type pops in from smaller)."""
+    if opacity <= 0.002 or scale <= 0.01:
         return
-    sx, sy = X0 - x0, Y0 - y0
-    a = sp.alpha[sy:sy + Y1 - Y0, sx:sx + X1 - X0] * opacity
-    s = sp.shadow[sy:sy + Y1 - Y0, sx:sx + X1 - X0] * opacity
-    roi = img[Y0:Y1, X0:X1].astype(np.float32)
-    roi *= (1.0 - s)[..., None]
-    col = np.array(color if color is not None else sp.color, np.float32) * 255.0
-    roi = roi * (1.0 - a)[..., None] + col * a[..., None]
-    img[Y0:Y1, X0:X1] = (roi + 0.5).astype(np.uint8)
+    if abs(scale - 1.0) < 1e-3:
+        draw_sprite(img, sp, x, y_baseline, opacity, color)
+        return
+    h, w = sp.alpha.shape
+    nw, nh = max(1, int(round(w * scale))), max(1, int(round(h * scale)))
+    a = cv2.resize(sp.alpha, (nw, nh), interpolation=cv2.INTER_LINEAR)
+    s = cv2.resize(sp.shadow, (nw, nh), interpolation=cv2.INTER_LINEAR)
+    cx = sp.left + sp.advance / 2           # ink centre inside the sprite
+    cy = (sp.ink_top + sp.ink_bottom) / 2
+    X = x + sp.advance / 2                  # ink centre on screen
+    Y = y_baseline - (sp.baseline - cy)
+    _composite(img, a, s, color if color is not None else sp.color,
+               int(round(X - cx * nw / w)), int(round(Y - cy * nh / h)), opacity)
 
 
 # ---------------------------------------------------------------------------

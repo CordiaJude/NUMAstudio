@@ -21,7 +21,7 @@ Paths as in commands/make-reel.md section 1 (`S`, `STUDIO`, `STATE`, `JOB`).
 
 | Kind | What to run |
 |---|---|
-| reel, trial_reel | Read commands/make-reel.md and follow every section with `$ARGUMENTS` = `DAY` (it resolves the day folder from the date). Pass `--template` from the row's Template column to baseline_plan.py (make-reel step 5). For a Trial Reel set plan `meta` tag `trial_reel: true`; posting it as a Trial Reel goes through the Graph API or Claude in Chrome (Composio has no Trial Reels). |
+| reel, trial_reel | Read commands/make-reel.md and follow every section with `$ARGUMENTS` = `DAY` (it resolves the day folder from the date). Make-reel step 5 runs `baseline_plan.py --template NAME` with the row's Template column. For a Trial Reel set plan `meta` tag `trial_reel: true`; posting it as a Trial Reel goes through the Graph API or Claude in Chrome (Composio has no Trial Reels). |
 | carousel | Today's carousel comes from the reel it is `derived_from` (the Shot list says so; default: yesterday's reel). With that reel's job: `python3 "$S/formats.py" "$SRC/work/plan.json" "$SRC/out/<slug>_reel.mp4" --out "$JOB/out" --slug "<today's slug>" --only carousel,cover --json`; LOOK at two slides; caption via the copywriter (numa-caption skill); `claims_scan.py --file` on the copy. |
 | stories | The Story set from the most recent finished reel: `python3 "$S/formats.py" "$SRC/work/plan.json" "$SRC/out/<slug>_reel.mp4" --out "$JOB/out" --slug "<today's slug>" --only story --json`; one line of text per frame from the reel's lines. |
 

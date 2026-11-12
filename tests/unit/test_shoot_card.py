@@ -21,15 +21,15 @@ import shoot_card as sc
 # ---------------------------------------------------------------------------
 ROOM = {"ask_the_dpt_reel": "sauna", "community_reel": "plunge room", "trial_reel": "outside",
         "offer_event_collab_reel": "front of house", "regulate_reel": "class studio"}
-TITLES = ["Why we plunge", "Sauna vs infrared", "Gulf water in winter", "Discover NUMA", "Box breathing",
+TITLES = ["Why we plunge", "Sauna vs infrared", "Gulf water in winter", "Plunge temperature", "Box breathing",
           "What red light does", "Your first plunge", "Cold snap calm", "Sweat there recover here",
           "Numa Nights tease", "Numa Nights recap", "Contrast flow basics", "Member moment", "Midtown mornings",
-          "First month offer", "Desk breath reset", "Heat then cold", "Plunge buddy", "New Year reset",
+          "Steam and stillness", "Desk breath reset", "Heat then cold", "Plunge buddy", "New Year reset",
           "Meet Kandi", "Four count breath", "Sauna etiquette", "The front door", "Year in review",
           "Free Flow explained", "Hold the exhale", "Breath before bed"]
 
 SPEC_EXAMPLE = {
-    "day": 7, "date": "2026-12-09", "title": "Your first plunge", "series": "first_plunge", "pillar": "community",
+    "day": 9, "date": "2026-12-09", "title": "Your first plunge", "series": "first_plunge", "pillar": "community",
     "goal": "community", "template": "member_story_reel", "length_s": 45, "hook_text": "Three minutes.",
     "lines": ["Three minutes. That's all it takes.", "The first ten seconds are loud. Then it gets quiet.",
               "You come out different than you went in.",
@@ -73,7 +73,7 @@ def script_for(row: dict, title: str) -> dict:
              "people": False, "ai_motion": True, "room": room},
         ],
         "music": {"mood": "calm, warm piano", "bpm": [90, 100], "source": "generate"},
-        "cta": "Save this for your first visit." if edu or not row.get("sales") else "Try a month with Discover NUMA, $49.",
+        "cta": "Save this for your first visit." if edu or row.get("goal") != "offer" else "Try a month with Discover NUMA, $49.",
         "share_line": "Send this to your plunge buddy.", "safety_line": True, "needs_consent": True, "batch_room": room,
     }
 
@@ -152,7 +152,8 @@ def test_december_2026_skeleton(capsys):
         assert r["status"] == "Planned"
     fridays = [r for r in rows if r["weekday"] == "Fri"]
     assert [r["pillar"] for r in fridays] == ["offers_events", "collective_collabs", "offers_events", "collective_collabs"]
-    assert [r["sales"] for r in fridays] == [True, False, True, False]
+    assert [r["goal"] for r in fridays] == ["offer", "community", "offer", "community"]
+    assert all("sales" not in r for r in rows)  # derived from goal and text, never a stale slot flag
     assert all(r["derived_from"] == r["day"] - 1 for r in rows if r["kind"] == "carousel" and r["day"] > 1)
     for r in rows:  # batch sessions: Monday films Tue-Thu, Thursday films Fri-Mon, always before the day
         if r["film_by"]:
@@ -196,36 +197,55 @@ def test_card_matches_the_spec_example_structure(tmp_path, capsys):
     assert run(["card", write(tmp_path, SPEC_EXAMPLE, "row.json")]) == 0
     text = capsys.readouterr().out
     lines = text.rstrip("\n").splitlines()
-    assert lines[0].startswith('DAY 07 · Wed Dec 9 · "Your first plunge"')
+    assert lines[0].startswith('DAY 09 · Wed Dec 9 · "Your first plunge"')
     assert "FILM BY: Mon Dec 7 (batch shoot: plunge room)" in lines[0]
     heads = ["WHERE TO PUT FILES", "WHAT TO FILM", "READ THIS OUT LOUD", "MUSIC:"]
     pos = [next(i for i, ln in enumerate(lines) if ln.startswith(h)) for h in heads]
     assert pos == sorted(pos)
-    assert "Drive > NUMA Reels > 2026-12 December > Day 07 - 2026-12-09 - Your first plunge" in text
-    # filing rules at the top: where, voiceover naming and re-record, music, file names, phone settings, changes
+    assert "Drive > NUMA Reels > 2026-12 December > Day 09 - 2026-12-09 - Your first plunge" in text
+    # filing rules at the top: where, voiceover naming and re-record, music, file names, changes
     filing = "\n".join(lines[pos[0]:pos[1]])
-    for needle in ["photos/", "clips/", '"voiceover 07"', "Re-record", "Music Library", "File names don't matter",
-                   "Sheet row"]:
+    for needle in ["photos/", "clips/", '"voiceover 09"', "re-record", "Music optional", "Any file names",
+                   "Sheet edits optional"]:
         assert needle in filing, needle
-    assert "phone vertical, 4K at 30 fps, hold each shot 5 seconds, don't zoom" in lines[pos[1]]
+    assert lines[pos[1]] == "WHAT TO FILM  (vertical, 4K 30 fps, hold 5 s, no zoom)"  # phone settings
     shots = [ln for ln in lines if ln.lstrip().startswith("[ ]")]
     assert [s.split(".")[0].strip() for s in shots] == ["[ ] 1", "[ ] 2", "[ ] 3", "[ ] 4", "[ ] 5"]
-    assert "Close-up: a hand touching the water surface, slow, 5 s" in shots[0] and "(line 1)" in shots[0]
+    assert shots[0].strip() == "[ ] 1. Close-up: a hand touching the water surface, slow (line 1)"
     assert "Medium:" in shots[1] and "Wide:" in shots[3]
-    assert "(consent list only)" in shots[2] and "consent" not in shots[0]
-    assert "AI motion shot" in shots[4] and "Photo, overhead: the plunge from above" in shots[4]
-    assert sum("AI motion shot" in s for s in shots) == 1
+    assert "consent list only; line 3" in shots[2] and "consent" not in shots[0]
+    assert shots[4].strip() == "[ ] 5. Photo, overhead: the plunge from above (line 4; AI motion)"
+    assert sum("AI motion" in s for s in shots) == 1
     assert "steam over the sauna stones" not in text  # library shots are not Katie's to film
-    assert "Also snap if it's easy: a candle by the plunge" in text
+    assert "Also snap: a candle by the plunge" in text
     read = lines[pos[2]]
-    for tip in ["closet or carpeted", "12 inches", "normal voice", "one take", "1 second of silence"]:
+    for tip in ["closet or carpeted room", "phone 12 in away", "one take", "1 s silence each end"]:
         assert tip in read, tip
     assert lines[pos[2] + 1] == '  "Three minutes. That\'s all it takes.'
     assert '$49. Send this to your plunge buddy."' in text
-    assert "MUSIC: none needed (Claude makes it" in text and "LENGTH: 45 seconds (these 5 shots + reused library shots)" in text
+    assert "MUSIC: none needed (Claude makes it)." in text and "LENGTH: 45 s (5 shots + library)." in text
     assert lines[-1] == "IF YOU CAN'T: skip it. Claude will find another way."
     assert lines[-1].lower().startswith("if you can't: skip it.")
-    assert len(lines) < 40  # one phone screen or two
+
+
+def test_card_reads_in_under_a_minute(tmp_path, capsys):
+    """About as long as the spec p.36 example (~165 words): at most 180 words for a 5-shot card."""
+    import re
+    spec = {k: v for k, v in SPEC_EXAMPLE.items() if k != "photos"}  # the spec card has no extra stills
+    assert run(["card", write(tmp_path, spec, "row.json")]) == 0
+    text = capsys.readouterr().out
+    words = re.findall(r"[A-Za-z][A-Za-z']*", text)
+    assert len(words) <= 180, len(words)
+    assert len(text.splitlines()) <= 25
+
+
+def test_card_shot_numbers_match_the_script(tmp_path, capsys):
+    s = copy.deepcopy(SPEC_EXAMPLE)
+    s["shots"][1]["source"] = "library"  # shot 2 comes from the library
+    assert run(["card", write(tmp_path, s, "row.json")]) == 0
+    shots = [ln.strip() for ln in capsys.readouterr().out.splitlines() if ln.strip().startswith("[ ]")]
+    assert [x.split(".")[0] for x in shots] == ["[ ] 1", "[ ] 3", "[ ] 4", "[ ] 5"]
+    assert "(line 3)" in shots[1] or "line 3)" in shots[1]
 
 
 def test_card_no_filming_needed_first_line(tmp_path, capsys):
@@ -239,6 +259,9 @@ def test_card_no_filming_needed_first_line(tmp_path, capsys):
     assert lines[0].startswith("NO FILMING NEEDED")
     assert not any(ln.startswith(("WHAT TO FILM", "READ THIS OUT LOUD")) for ln in lines)
     assert "FILM BY" not in lines[2]
+    text = "\n".join(lines)
+    assert "photos/" in text and "Any file names" in text  # where-to-put-files stays
+    assert "voiceover" not in text and "re-record" not in text and "Music optional" not in text  # nothing to record
     assert lines[-1].startswith("IF YOU CAN'T: skip it.")
 
 
@@ -259,7 +282,7 @@ def test_card_voice_reader_and_capture_moment(tmp_path, capsys):
     assert run(["card", write(tmp_path, s, "row.json"), "--out", str(out)]) == 0
     text = out.read_text(encoding="utf-8")
     assert "READ THIS OUT LOUD (Fallon Gleason reads this)" in text
-    assert "(during Numa Nights)" in text
+    assert "(during Numa Nights; line 1)" in text
     assert 'Music Library "calm_72_ember.mp3"' in text
 
 
@@ -327,6 +350,9 @@ def with_shots(n_new: int, n_library: int = 0) -> dict:
     (lambda: mutate(caption={"text": "Recover with us.", "hashtags": ["#MobileAL", "#detox"]}), "banned claim"),
     (lambda: mutate(cta="Studies show it heals."), "banned claim"),
     (lambda: mutate(goal="sales"), "goal"),
+    (lambda: mutate(day=7), "does not match date"),
+    (lambda: mutate(series="ask_the_dpt", pillar="education", goal="education", cta="Save this.",
+                    lines=["Sauna or infrared?", "Here is what we know.", "Book your first month, $49."]), "Ask the DPT"),
 ])
 def test_script_rules_fail(case, needle):
     errs, _ = script_errors(case())
@@ -586,3 +612,40 @@ def test_digest_data_reads_the_export(tmp_path, capsys, fmt):
 
 def test_rooms_match_the_digest():
     assert sc.ROOMS == dd.ROOMS
+
+
+# ---------------------------------------------------------------------------
+# sales are derived, never a stale flag (rule 1)
+# ---------------------------------------------------------------------------
+def test_sales_from_goal_even_with_a_stale_false_flag(tmp_path, capsys):
+    p = december()
+    row(p, 2).update(goal="offer", sales=False, cta="Book your first month")  # Fri Dec 4 is the week's offer
+    code, vs = violations(tmp_path, capsys, p)
+    assert code == 1 and "1-sales-per-week" in rules(vs)
+
+
+def test_sales_from_cta_text_only(tmp_path, capsys):
+    p = december()
+    row(p, 2).update(cta="Book your first month", template="offer_promo")  # goal stays community
+    code, vs = violations(tmp_path, capsys, p)
+    assert code == 1 and "1-sales-per-week" in rules(vs)
+    p = december()
+    row(p, 2)["lines"] = row(p, 2)["lines"][:3] + ["Try a month with Discover NUMA, $49."]
+    assert "1-sales-per-week" in rules(violations(tmp_path, capsys, p)[1])
+
+
+def test_sales_flag_forces_and_collab_friday_is_not_sales(tmp_path, capsys):
+    p = december()
+    row(p, 2)["sales"] = True
+    assert "1-sales-per-week" in rules(violations(tmp_path, capsys, p)[1])
+    p = december()
+    assert not sc.is_sales(row(p, 11)) and not sc.is_sales(row(p, 25))  # collab Fridays
+    assert sc.is_sales(row(p, 4)) and sc.is_sales(row(p, 18))  # offer Fridays
+    assert violations(tmp_path, capsys, p)[0] == 0
+
+
+def test_offer_hidden_in_an_ask_the_dpt_reel(tmp_path, capsys):
+    p = december()
+    row(p, 14)["lines"] = row(p, 14)["lines"][:3] + ["Discover NUMA is $49 for your first month."]
+    code, vs = violations(tmp_path, capsys, p)
+    assert code == 1 and any("Ask the DPT" in v["message"] for v in vs)

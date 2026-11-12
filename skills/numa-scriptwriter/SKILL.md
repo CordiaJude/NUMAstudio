@@ -27,7 +27,7 @@ You plan each reel before anything is filmed, so the edit has the right material
 2. **Voiceover script** (`lines`): one short sentence per story beat, in NUMA's voice. Words in all lines <= 2.3 x (`length_s` - `outro_s`): a 30 s voiced part is about 65-70 words, then 6-8 s of music-only outro.
 3. **Shot list** (`shots`): numbered, each tied to a line (`line`), with framing (wide, medium, close, overhead), hold (`seconds`, 5 by default), `people`, and exactly one `ai_motion` hero shot. Example: `3. Close-up: hand breaking the water surface of the plunge, 5 s, slow`.
 4. **Photos** (`photos`): stills worth grabbing when they beat video (finished space, people mid-laugh, steam, a candle).
-5. **Audio direction** (`music`): mood and tempo ("calm, warm piano", `bpm` [90, 100]) and source: `generate` (Higgsfield makes it), `library` (Music Library by mood, files named mood_bpm_title.mp3), `folder` (Katie may drop a track), `natural`. Never a trending song. Who reads (`voiceover_by`) and the recording tips, which the card prints.
+5. **Audio direction** (`music`): mood and tempo ("calm, warm piano", `bpm` [90, 100]) and source: `generate` (Higgsfield makes it), `library` (Music Library by mood, files named mood_bpm_title.mp3), `folder` (Katie may drop a track), `natural`. Never a trending song. Who reads (`voiceover_by`). Recording tips (the card prints them short): a quiet room with soft surfaces (a closet or carpeted bedroom), phone about 12 inches from the mouth, a normal talking voice, one take of the whole script, 1 second of silence at the start and end.
 6. **On-screen text and CTA** (`cta`, `on_screen`) matched to the day's goal (table below).
 7. **Draft caption and hashtags** (`caption`): follow skills/numa-caption/SKILL.md for one recommended caption and 3-5 hashtags; the Copywriter finalizes on build day.
 
@@ -53,7 +53,7 @@ You plan each reel before anything is filmed, so the edit has the right material
 
 ## Templates (templates.json)
 
-Each entry defines the arc (beats in order), beat count, typical length, signature moment, story turn, pacing, look, transitions and hook style; presets are named, fully resolved variants. Put the id in `template`; build day passes it to baseline_plan.py `--template`.
+Each entry defines the arc (beats in order), beat count, typical length, signature moment, story turn, pacing, look, transitions and hook style; presets are named, fully resolved variants. Put the id in `template`; build day runs `baseline_plan.py --template NAME` with it.
 
 | id | Name | Beats | Length | Signature moment | Goal |
 |---|---|---|---|---|---|
@@ -81,26 +81,28 @@ Pick by the row's series and goal; the signature is a wipe only with a true befo
 
 Never hand-write it: `python3 "$S/shoot_card.py" card script.json --out "SHOOT CARD.txt"`. It prints "NO FILMING NEEDED" first when the day needs nothing from her, then the header, the filing rules, the shots, the script with the recording tips, music, length, and always ends "IF YOU CAN'T: skip it.":
 ```
-DAY 07 · Wed Dec 9 · "Your first plunge"    FILM BY: Mon Dec 7 (batch shoot: plunge room)
+DAY 09 · Wed Dec 9 · "Your first plunge"    FILM BY: Mon Dec 7 (batch shoot: plunge room)
 
 WHERE TO PUT FILES
-  Drive > NUMA Reels > 2026-12 December > Day 07 - 2026-12-09 - Your first plunge
-  Photos -> photos/   Videos -> clips/   Voice memo -> name it "voiceover 07"
-  Only in this day's folder. File names don't matter; Claude sorts by content.
-  Re-record: replace the voiceover file. Reading the week's scripts back to back is fine: one file per day.
-  Music: optional. Drop a track here, or Claude picks from Music Library by the mood below.
-  Changes: optional. Edit this day's Sheet row; nothing waits on it.
+  Drive > NUMA Reels > 2026-12 December > Day 09 - 2026-12-09 - Your first plunge
+  Photos -> photos/  Videos -> clips/
+  Voice memo -> "voiceover 09"; re-record by replacing it. Music optional.
+  Any file names. Sheet edits optional.
 
-WHAT TO FILM  (phone vertical, 4K at 30 fps, hold each shot 5 seconds, don't zoom)
-  [ ] 1. Close-up: a hand touching the water surface, slow, 5 s   (line 1)
-  [ ] 3. Close-up: face after, eyes closed, calm, 5 s   (consent list only) (line 3)
-  [ ] 5. Photo, overhead: the plunge from above   (line 4) (AI motion shot)
+WHAT TO FILM  (vertical, 4K 30 fps, hold 5 s, no zoom)
+  [ ] 1. Close-up: a hand touching the water surface, slow (line 1)
+  [ ] 2. Medium: someone stepping into the plunge, shoulders down (line 2)
+  [ ] 3. Close-up: face after, eyes closed, calm (consent list only; line 3)
+  [ ] 4. Wide: the plunge room, lights on, nobody in it (line 4)
+  [ ] 5. Photo, overhead: the plunge from above (line 4; AI motion)
 
-READ THIS OUT LOUD  (quiet room with soft surfaces like a closet or carpeted bedroom, phone 12 inches away, normal voice, one take, 1 second of silence at the start and end)
+READ THIS OUT LOUD  (closet or carpeted room, phone 12 in away, one take, 1 s silence each end)
   "Three minutes. That's all it takes.
-   ...
+   The first ten seconds are loud. Then it gets quiet.
+   You come out different than you went in.
+   Try a month with Discover NUMA, $49. Send this to your plunge buddy."
 
-MUSIC: none needed (Claude makes it: calm, warm piano, 90-100 BPM).    LENGTH: 45 seconds (these 5 shots + reused library shots).
+MUSIC: none needed (Claude makes it).  LENGTH: 45 s (5 shots + library).
 IF YOU CAN'T: skip it. Claude will find another way.
 ```
 
@@ -120,7 +122,7 @@ python3 "$S/shoot_card.py" script script.json --json
 ## Worked example (script.json, spec p.36)
 
 ```json
-{"day": 7, "date": "2026-12-09", "title": "Your first plunge", "series": "first_plunge", "pillar": "community",
+{"day": 9, "date": "2026-12-09", "title": "Your first plunge", "series": "first_plunge", "pillar": "community",
  "goal": "community", "template": "member_story_reel", "length_s": 45, "hook_text": "Three minutes.",
  "lines": ["Three minutes. That's all it takes.", "The first ten seconds are loud. Then it gets quiet.",
            "You come out different than you went in.", "Try a month with Discover NUMA, $49. Send this to your plunge buddy."],

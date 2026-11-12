@@ -8,7 +8,7 @@
 | T3 Finish | ACCEPTED (round 3 re-review 4/4 PASS) | 3 | 2 minor logged |
 | T4 Validator/baseline/claims | ACCEPTED (re-review 10/10 PASS) | 2 | cosmetic: duplicate hits per rule |
 | T5 Vision/prep | ACCEPTED (re-review 6/6 PASS) | 2 | minor: color_range tag on OpenCV path |
-| T6 Formats | IN REVIEW | 1 | |
+| T6 Formats | REVISING | 2 | B: sentence fragments; reach fps (engine short segment → T12); M: mid-caption cut, music-only carousel |
 | T7 Ops scripts | ACCEPTED (round 3 re-review PASS) | 3 | |
 | T8a Director+librarian/scout/analyst | ACCEPTED (9/10; --template depends on T12, verified in T11) | 2 | |
 | T8b Crew agents + skills | ACCEPTED (re-review 8/8 PASS) | 2 | |

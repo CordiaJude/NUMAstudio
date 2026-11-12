@@ -77,6 +77,27 @@ def script_calls(text: str) -> list[tuple[str, str | None, list[str]]]:
     return calls
 
 
+def prose_calls(text: str) -> list[tuple[str, list[str]]]:
+    """(script, flags) for prose sentences that name one script and backtick a flag ("Pass `--x` to a.py")."""
+    calls, fenced = [], False
+    for line in text.splitlines():
+        if line.strip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        for sentence in re.split(r"(?<=[.;])\s+", line):
+            scripts = set(re.findall(r"([A-Za-z_][A-Za-z0-9_]*\.py)\b", sentence))
+            flags = re.findall(r"`[^`]*?(?<![\w-])(--[a-z][a-z0-9-]*)[^`]*`", sentence)
+            if len(scripts) == 1 and flags:
+                calls.append((scripts.pop(), flags))
+    return calls
+
+
+# Flags a later task adds (DECISIONS D14: T12 adds baseline_plan.py --template). The integration task empties this.
+PENDING_FLAGS = {("baseline_plan.py", "--template"): "T12 adds --template (DECISIONS D14)"}
+
+
 def argparse_flags(script: Path) -> set[str]:
     return set(re.findall(r"""["'](--[a-z][a-z0-9-]*)["']""", script.read_text(encoding="utf-8")))
 
@@ -161,10 +182,28 @@ def test_scripts_and_flags_exist(texts):
                 assert sub in subs, f"{name}: {script} has no subcommand {sub!r}"
             known = argparse_flags(path)
             for f in flags:
-                assert f in known, f"{name}: {script} has no flag {f}"
+                assert f in known or (script, f) in PENDING_FLAGS, f"{name}: {script} has no flag {f}"
             seen.add(script)
+        for script, flags in prose_calls(text):
+            path = SCRIPTS / script
+            assert path.exists(), f"{name}: names missing script {script}"
+            for f in flags:
+                assert f in argparse_flags(path) or (script, f) in PENDING_FLAGS, f"{name}: {script} has no flag {f} (prose)"
     assert {"shoot_card.py", "digest_data.py", "metrics.py", "dashboard.py", "ledger.py", "prefs.py",
             "library.py", "claims_scan.py", "formats.py"} <= seen
+
+
+def test_prose_flag_detection():
+    assert prose_calls("Pass `--template` from the row to baseline_plan.py.") == [("baseline_plan.py", ["--template"])]
+    assert prose_calls("Run `baseline_plan.py --nope X` today.") == [("baseline_plan.py", ["--nope"])]
+    assert prose_calls("No flags for engine.py here.") == []
+
+
+def test_pending_flags_are_referenced(texts):
+    used = {(s, f) for t in texts.values() for s, _, fl in script_calls(t) for f in fl}
+    used |= {(s, f) for t in texts.values() for s, fl in prose_calls(t) for f in fl}
+    for key in PENDING_FLAGS:
+        assert key in used or key[1] in argparse_flags(SCRIPTS / key[0]), f"stale PENDING_FLAGS entry {key}"
 
 
 def test_shoot_card_subcommands_used(texts):
@@ -303,7 +342,7 @@ def test_scriptwriter_skill(texts):
         "templates.json", "Ask the DPT", "guides or facilitators", "No questions to Katie",
     ]:
         assert needle in t, needle
-    for tip in ["closet or carpeted bedroom", "12 inches", "normal voice", "one take", "1 second of silence"]:
+    for tip in ["closet or carpeted bedroom", "12 inches", "normal talking voice", "one take", "1 second of silence"]:
         assert tip in t, tip                                                                    # R190
     assert "words_per_second" in t and "outro_music_only_s" in t
 

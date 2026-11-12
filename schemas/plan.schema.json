@@ -17,6 +17,7 @@
     "caption_y": { "type": "number", "minimum": 0, "description": "Vertical centre of the caption block in output pixels. Default 1420 (at 1920 high)." },
     "font_regular": { "type": "string", "minLength": 1, "description": "Absolute path. Default: brand.json fonts caption_regular." },
     "font_italic": { "type": "string", "minLength": 1, "description": "Absolute path. Default: brand.json fonts caption_italic." },
+    "caption_px": { "type": "number", "minimum": 40, "maximum": 200, "description": "Caption font size in plan pixels (feedback preference caption_px). Default: config render.captions.font_px (92 at 1080 wide)." },
     "hook": {
       "type": "object",
       "description": "Frame-zero hook text, drawn at full opacity from frame 0 until t1.",
@@ -33,6 +34,12 @@
     "lines": { "type": "array", "items": { "$ref": "#/$defs/line" }, "default": [] },
     "leaks": { "type": "array", "items": { "$ref": "#/$defs/leak" }, "default": [] },
     "endcard": { "$ref": "#/$defs/endcard" },
+    "cards": {
+      "type": "array",
+      "description": "Kinetic type: large animated text cards drawn over the picture (education templates). Cards never overlap each other or the end card (validate_plan.py rule 42).",
+      "items": { "$ref": "#/$defs/card" },
+      "default": []
+    },
     "signature": {
       "type": "object",
       "description": "The reel's one signature moment: a before/after wipe or a flash reveal.",
@@ -193,6 +200,22 @@
       ],
       "minItems": 3,
       "maxItems": 3
+    },
+    "card": {
+      "type": "object",
+      "required": ["t0", "t1", "text"],
+      "properties": {
+        "t0": { "type": "number", "minimum": 0, "description": "When the card starts revealing (s); a card at 0 is fully shown from frame 0." },
+        "t1": { "type": "number", "exclusiveMinimum": 0, "description": "When the card has faded out (s)." },
+        "text": { "type": "string", "minLength": 1, "description": "Main text. 'number': a numeral or short label (\"1\", \"MYTH\") in large gold italic. 'statement': a short line; wrap words in *asterisks* for gold italic, with no markup the last word is gold." },
+        "style": { "enum": ["number", "statement"], "default": "statement" },
+        "sub": { "type": "string", "minLength": 1, "description": "Smaller white line under the main text (e.g. the point a number card introduces)." },
+        "align": { "enum": ["center", "left"], "default": "center" },
+        "bg": { "enum": ["blur", "teal"], "default": "blur", "description": "blur = the picture blurred and darkened under the card; teal = brand water_teal with cream text." },
+        "y": { "type": "number", "minimum": 0, "description": "Vertical centre of the card block in plan pixels. Default 0.40 x height (always kept inside the safe area, above the captions)." }
+      },
+      "patternProperties": { "^_": {} },
+      "additionalProperties": false
     },
     "endcard": {
       "type": "object",

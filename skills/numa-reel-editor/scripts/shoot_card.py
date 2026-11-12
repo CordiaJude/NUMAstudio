@@ -151,16 +151,14 @@ DEFAULT_WEEK: list[dict[str, Any]] = [
 COLLAB_FRIDAY = {"pillar": "collective_collabs", "goal": "community", "template": "class_spotlight",
                  "slot_notes": "Collab week: 'Sweat there, recover here' or Meet the Collective"}
 
+# Filing rules (spec p.32-33), compact. "record" lines are left off cards with nothing to film or record.
 FILING_RULES = [
-    "Photos -> photos/   Videos -> clips/   Voice memo -> name it \"voiceover {nn}\"",
-    "Only in this day's folder. File names don't matter; Claude sorts by content.",
-    "Re-record: replace the voiceover file. Reading the week's scripts back to back is fine: one file per day.",
-    "Music: optional. Drop a track here, or Claude picks from Music Library by the mood below.",
-    "Changes: optional. Edit this day's Sheet row; nothing waits on it.",
+    ("always", "Photos -> photos/  Videos -> clips/"),
+    ("record", "Voice memo -> \"voiceover {nn}\"; re-record by replacing it. Music optional."),
+    ("always", "Any file names. Sheet edits optional."),
 ]
-PHONE_SETTINGS = "phone vertical, 4K at 30 fps, hold each shot 5 seconds, don't zoom"
-RECORDING_TIPS = ("quiet room with soft surfaces like a closet or carpeted bedroom, phone 12 inches away, "
-                  "normal voice, one take, 1 second of silence at the start and end")
+PHONE_SETTINGS = "vertical, 4K 30 fps, hold 5 s, no zoom"
+RECORDING_TIPS = "closet or carpeted room, phone 12 in away, one take, 1 s silence each end"
 LAST_LINE = "IF YOU CAN'T: skip it. Claude will find another way."
 
 
@@ -438,6 +436,8 @@ def script_problems(s: dict, templates: dict | None = None, where: str = "script
     if errs:
         return errs, warns
     lines, shots = s["lines"], s["shots"]
+    if date.fromisoformat(s["date"]).day != s["day"]:
+        errs.append(f"{where}: day {s['day']} does not match date {s['date']} (Day NN is the day of the month)")
     wps, outro = config_wps(), float(s.get("outro_s", config_outro()))
     limit = wps * (float(s["length_s"]) - outro)
     words = sum(word_count(x) for x in lines)
@@ -738,10 +738,10 @@ def music_text(music: dict | None) -> str:
     mood = f"{music.get('mood', '')}{tempo}".strip(", ")
     src = music.get("source")
     if src == "generate":
-        return f"MUSIC: none needed (Claude makes it: {mood})."
+        return "MUSIC: none needed (Claude makes it)."
     if src == "library":
         track = f" \"{music['track']}\"" if music.get("track") else " by mood"
-        return f"MUSIC: none needed (Claude picks from Music Library{track}: {mood})."
+        return f"MUSIC: none needed (Claude picks from Music Library{track})."
     if src == "natural":
         return "MUSIC: none needed (the clips' own sound)."
     return f"MUSIC: optional. Drop a {mood} track named \"music\" here, or Claude picks one."
@@ -751,8 +751,10 @@ def shot_text(s: dict) -> str:
     framing = {"wide": "Wide", "medium": "Medium", "close": "Close-up", "overhead": "Overhead"}[s["framing"]]
     if s.get("kind", "video") == "photo":
         body = f"Photo, {framing.lower()}: {s['what']}"
+    elif s["seconds"] == 5:  # the WHAT TO FILM header says "hold 5 s"
+        body = f"{framing}: {s['what']}"
     else:
-        body = f"{framing}: {s['what']}, {s['seconds']:g} s"
+        body = f"{framing}: {s['what']}, hold {s['seconds']:g} s"
     if s.get("time_of_day"):
         body += f", {s['time_of_day']}"
     tags = []
@@ -762,8 +764,8 @@ def shot_text(s: dict) -> str:
         tags.append("consent list only")
     tags.append(f"line {s['line']}")
     if s["ai_motion"]:
-        tags.append("AI motion shot")
-    return f"{body}   ({') ('.join(tags)})"
+        tags.append("AI motion")
+    return f"{body} ({'; '.join(tags)})"
 
 
 def render_card(r: dict) -> str:
@@ -799,14 +801,15 @@ def render_card(r: dict) -> str:
     root = nc.brand_value("drive.root", "NUMA Reels")
     L.append("WHERE TO PUT FILES")
     L.append(f"  Drive > {root} > {month_folder(d)} > {folder}")
-    L += [f"  {x}".replace("{nn}", f"{int(r['day']):02d}") for x in FILING_RULES]
+    L += [f"  {x}".replace("{nn}", f"{int(r['day']):02d}") for when, x in FILING_RULES
+          if when == "always" or not nothing]
     L.append("")
     if fresh:
         L.append(f"WHAT TO FILM  ({PHONE_SETTINGS})")
-        for i, s in enumerate(fresh, 1):
-            L.append(f"  [ ] {i}. {shot_text({**s, 'n': i})}")
+        for s in fresh:
+            L.append(f"  [ ] {s['n']}. {shot_text(s)}")
         if r.get("photos"):
-            L.append(f"  Also snap if it's easy: {'; '.join(r['photos'])}")
+            L.append(f"  Also snap: {'; '.join(r['photos'])}")
         L.append("")
     if reading:
         who = str(r.get("voiceover_by") or "Katie")
@@ -820,10 +823,10 @@ def render_card(r: dict) -> str:
         L.append("")
     if kind in REEL_KINDS:
         reused = len([s for s in r.get("shots") or [] if s.get("source") == "library"])
-        parts = f"these {len(fresh)} shots" if fresh else "library and brand photos"
+        parts = f"{len(fresh)} shots" if fresh else "library and brand photos"
         if fresh and reused:
-            parts += " + reused library shots"
-        L.append(f"{music_text(r.get('music'))}    LENGTH: {r['length_s']:g} seconds ({parts}).")
+            parts += " + library"
+        L.append(f"{music_text(r.get('music'))}  LENGTH: {r['length_s']:g} s ({parts}).")
     else:
         L.append(f"POST: {r.get('post') or kind.title()}. Nothing to record.")
     L.append(LAST_LINE)
@@ -854,7 +857,8 @@ def shot_list_text(r: dict) -> str:
     if not fresh:
         return "No filming needed"
     out = []
-    for i, s in enumerate(fresh, 1):
+    for s in fresh:
+        i = s.get("n")
         room = s.get("room") or r.get("batch_room")
         framing = {"wide": "Wide", "medium": "Medium", "close": "Close-up", "overhead": "Overhead"}.get(s.get("framing"), "")
         what = f"Photo, {framing.lower()}: {s.get('what')}" if s.get("kind") == "photo" else \

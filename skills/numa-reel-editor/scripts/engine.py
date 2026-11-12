@@ -36,8 +36,10 @@ Per frame (spec p.18-20): active shot(s) framed with an eased sub-pixel zoom/pan
 (cubic warp, the view never leaves the source: no bars, no mirrored edges), the
 colour look, the transition (punch, whip, leakfade, fade, flash, wipe, cut),
 bloom, light leaks (plan ``leaks`` + automatic on leakfade), vignette and bottom
-gradient, the frame-zero hook text, word-by-word captions (safe areas, off
-faces), the end card, seeded film grain and the global fades (fade-in <= 0.2 s
+gradient, the frame-zero hook text, kinetic text cards (plan ``cards``: large serif text
+with a gold accent revealed word by word over the blurred, darkened picture or
+brand teal; the hook waits while a card is on screen), word-by-word captions
+(safe areas, off faces), the end card, seeded film grain and the global fades (fade-in <= 0.2 s
 and none with a hook, so frame 0 is never black; 0.8 s fade-out).
 
 Determinism: the picture is a pure function of (plan, size, frame index);
@@ -99,6 +101,17 @@ LINE_FADE_OUT_S = 0.35
 PREVIEW_TILE_W = 360
 GRAIN_SIGMA = 2.0            # light film grain (8-bit levels), seeded by plan.seed
 GRAIN_BANK = 4
+# Kinetic text cards (R195): per-word rise + scale reveal over a blurred, darkened picture
+CARD_BG_IN_S = 0.25
+CARD_OUT_S = 0.3
+CARD_WORD_S = 0.45           # each word's reveal
+CARD_STAGGER_S = 0.09        # between words
+CARD_NUMBER_DELAY_S = 0.05
+CARD_SUB_DELAY_S = 0.3       # a number card's line follows its numeral
+CARD_RISE_PX = 46
+CARD_WORD_POP = 0.14         # words grow from 86% to full size
+CARD_NUMBER_POP = 0.35       # the numeral grows from 65%
+CARD_DARKEN = 0.42
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +339,7 @@ class Renderer:
         self._build_hook()
         self._build_captions()
         self._build_endcard()
+        self._build_cards()
         self._cache_dir: Path | None = None
 
     def _warn(self, msg: str) -> None:
@@ -448,9 +462,12 @@ class Renderer:
         W, H = self.width, self.height
         self.rise = cfg["rise_px"] * H / 1920   # 22 px at 1920 high
         self.word_fade = float(cfg["fade_in_s"])
+        cpx = self.plan.get("caption_px")
+        self.caption_px = float(cpx) * self.sx if cpx else float(cfg["font_px"]) * self.s
         default_y = self.plan.get("caption_y")
         pw_, ph_ = tuple(self.plan.get("size") or self.cfg["size"])
         cy = (float(default_y) if default_y is not None else cfg["default_y"] * ph_ / 1920) * self.sy
+        self._caption_y = cy
         self._lines = []
         self.caption_boxes = []   # (t_first, t_end, x0, y0, x1, y1) after placement, for tests/QA
         margin = 0.015 * H
@@ -458,7 +475,7 @@ class Renderer:
         firsts = [float(ln["words"][0][1]) for ln in plan_lines]
         for li, ln in enumerate(plan_lines):
             words = [(str(w[0]), bool(len(w) > 2 and w[2]), float(w[1])) for w in ln["words"]]
-            blk = et.layout_words(words, self.font_regular, self.font_italic, cfg["font_px"] * self.s, W,
+            blk = et.layout_words(words, self.font_regular, self.font_italic, self.caption_px, W,
                                   et.CAPTION_BOX_PX * self.s, int(cfg["max_rows"]),
                                   (self.white, self.accent), 8 * self.s, 3 * self.s)
             if not blk.fit:
@@ -556,6 +573,121 @@ class Renderer:
                               "tag": (tag_y - (tag.baseline - tag.ink_top), tag_bottom) if tag else None,
                               "sub": (sub_y - (sub.baseline - sub.ink_top), sub_y + (sub.ink_bottom - sub.baseline))
                               if sub else None}}
+
+    def _card_block(self, words, px: float, max_rows: int, box: float, colors, sigma: float,
+                    shadow_opacity: float) -> et.TextBlock:
+        """Lay out card words at px, shrinking until every row fits the box."""
+        while True:
+            blk = et.layout_words(words, self.font_regular, self.font_italic, px, self.width, box, max_rows,
+                                  colors, sigma, 3 * self.s, shadow_opacity=shadow_opacity)
+            if (blk.fit and blk.x_max - blk.x_min <= box + 1) or px < 24 * self.s:
+                return blk
+            px *= 0.92
+
+    def _build_cards(self) -> None:
+        """Kinetic type (R195): each plan card laid out once; drawn per frame by _draw_cards."""
+        W, H = self.width, self.height
+        self._cards = []
+        self.card_boxes = []   # (t0, t1, x0, y0, x1, y1) of each card's ink, for tests/QA
+        cards = sorted(self.plan.get("cards") or [], key=lambda c: float(c["t0"]))
+        cream = tuple(nc.brand_color("cream"))
+        teal = tuple(nc.brand_color("water_teal"))
+        # the card area: under the top safe area, above the caption block
+        cap_rows_top = self._caption_y - 1.0 * et.ROW_HEIGHT_EM * self.caption_px
+        area_top = self.safe_top + 0.01 * H
+        area_bottom = min(self.safe_bottom, cap_rows_top) - 0.02 * H
+        box = 0.84 * W
+        margin_x = (W - box) / 2
+        for ci, c in enumerate(cards):
+            style, align, bg = c.get("style", "statement"), c.get("align", "center"), c.get("bg", "blur")
+            white = cream if bg == "teal" else self.white
+            shadow = 0.55 if bg == "teal" else 1.0
+            scale = 1.0
+            while True:
+                if style == "number":
+                    main_words = [(c["text"].replace("*", ""), True, 0.0)]
+                    main = self._card_block(main_words, 520 * self.s * scale, 1, box, (white, self.accent),
+                                            14 * self.s, shadow)
+                else:
+                    main_words = [(t, g, 0.0) for t, g in et.hook_words(c["text"])]
+                    main = self._card_block(main_words, 124 * self.s * scale, 4, box, (white, self.accent),
+                                            12 * self.s, shadow)
+                sub = None
+                if c.get("sub"):
+                    sw = et.hook_words(c["sub"]) if "*" in c["sub"] else [(w, False) for w in c["sub"].split()]
+                    sub = self._card_block([(t, g, 0.0) for t, g in sw], 76 * self.s * scale, 3, box,
+                                           (white, self.accent), 8 * self.s, shadow)
+                gap = 0.35 * (sub.px if sub else 0)
+                height = main.height + (gap + sub.height if sub else 0)
+                if height <= area_bottom - area_top or scale < 0.3:
+                    break
+                scale *= 0.9
+            cy = float(c["y"]) * self.sy if "y" in c else 0.40 * H
+            top = min(max(cy - height / 2, area_top), max(area_top, area_bottom - height))
+            parts = []
+            y = top
+            for k, blk in enumerate([main, sub]):
+                if blk is None:
+                    continue
+                words = []
+                for r in range(blk.rows):
+                    row = [(sp, x, rr, t) for sp, x, rr, t in blk.words if rr == r]
+                    dx = margin_x - min(x for _, x, _, _ in row) if align == "left" and row else 0.0
+                    words += [(sp, x + dx, rr, t) for sp, x, rr, t in row]
+                parts.append((blk, y, words, k))
+                y += blk.height + gap
+            ink = [(x, blk.baseline(ty, r) - (sp.baseline - sp.ink_top), x + sp.advance,
+                    blk.baseline(ty, r) + (sp.ink_bottom - sp.baseline))
+                   for blk, ty, words, _ in parts for sp, x, r, _ in words]
+            t0, t1 = float(c["t0"]), float(c["t1"])
+            self._cards.append({"t0": t0, "t1": t1, "style": style, "bg": bg, "parts": parts,
+                                "teal": teal, "instant": t0 <= 1.0 / self.fps + 1e-9})
+            self.card_boxes.append((t0, t1, min(b[0] for b in ink), min(b[1] for b in ink),
+                                    max(b[2] for b in ink), max(b[3] for b in ink)))
+
+    def _card_at(self, t: float) -> dict | None:
+        for c in self._cards:
+            if c["t0"] - 1e-9 <= t < c["t1"]:
+                return c
+        return None
+
+    def _draw_cards(self, img: np.ndarray, t: float) -> np.ndarray:
+        c = self._card_at(t)
+        if c is None:
+            return img
+        age, left = t - c["t0"], c["t1"] - t
+        out_k = em.smooth(min(1.0, left / CARD_OUT_S))
+        bg_k = (1.0 if c["instant"] else em.smooth(min(1.0, age / CARD_BG_IN_S))) * out_k
+        if bg_k > 0.002:
+            if c["bg"] == "teal":
+                layer = np.empty_like(img)
+                layer[:] = np.array(c["teal"], np.uint8)
+            else:
+                W, H = self.width, self.height
+                small = cv2.resize(img, (max(4, W // 8), max(4, H // 8)), interpolation=cv2.INTER_AREA)
+                small = cv2.GaussianBlur(small, (0, 0), 2.5)
+                layer = cv2.resize(small, (W, H), interpolation=cv2.INTER_LINEAR)
+                layer = cv2.convertScaleAbs(layer, alpha=CARD_DARKEN)
+            img = cv2.addWeighted(img, 1.0 - bg_k, layer, bg_k, 0.0)
+        img = np.ascontiguousarray(img)
+        k = 0
+        for blk, top, words, part in c["parts"]:
+            for sp, x, r, _ in words:
+                if c["instant"]:
+                    q = 1.0
+                else:
+                    start = (CARD_NUMBER_DELAY_S if c["style"] == "number" and part == 0 else 0.08) + k * CARD_STAGGER_S
+                    if part == 1 and c["style"] == "number":
+                        start += CARD_SUB_DELAY_S
+                    q = em.ease_out((age - start) / CARD_WORD_S)
+                k += 1
+                if q <= 0:
+                    continue
+                pop = CARD_NUMBER_POP if c["style"] == "number" and part == 0 else CARD_WORD_POP
+                scale = 1.0 - pop * (1.0 - q)
+                rise = CARD_RISE_PX * self.s * (1.0 - q)
+                et.draw_sprite_scaled(img, sp, x, blk.baseline(top, r) + rise, q * out_k, scale)
+        return img
 
     # frame -------------------------------------------------------------------
     def _view(self, i: int, t: float, extra: float = 1.0) -> np.ndarray:
@@ -745,7 +877,13 @@ class Renderer:
             img = self._draw_endcard(img, t)
             self._draw_captions(img, t)
             return img
-        self._draw_hook(img, t)
+        if self._cards:
+            card = self._card_at(t)
+            img = self._draw_cards(img, t)
+            if card is None:
+                self._draw_hook(img, t)   # a card on screen is the frame's text: the hook waits
+        else:
+            self._draw_hook(img, t)
         self._draw_captions(img, t)
         return img
 
