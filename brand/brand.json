@@ -1086,7 +1086,7 @@
           "\\bsickness\\b",
           "\\b(get|gets|getting|got)\\s+sick\\b",
           "\\b(flu|cold|sick)[ -]?season\\b",
-          "\\b(fight|fights|fighting|beat|beats|ward(s|ing)?\\s+off|keep(s|ing)?\\s+away|avoid|recover(s|y|ing)?\\s+from|get(ting)?\\s+over|less|fewer|no\\s+more|never)\\s+(\\w+\\s+){0,2}?(sick|sickness|ill|flu|colds?|bugs?|viruse?s?|infections?)\\b",
+          "\\b(fight|fights|fighting|beat|beats|ward(s|ing)?\\s+off|keep(s|ing)?\\s+away|avoid|recover(s|y|ing)?\\s+from|get(ting)?\\s+over|less|fewer|no\\s+more|never)\\s+(\\w+\\s+){0,2}?(sick|sickness|ill|flu|colds?(?!\\s*(plunges?|water|tubs?|showers?|exposure|immersion|therapy|dips?|soaks?|baths?)\\b)|bugs?|viruse?s?|infections?)\\b",
           "#(flu|sick)\\w*"
         ],
         "applies_to": "all"

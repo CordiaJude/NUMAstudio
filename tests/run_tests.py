@@ -57,6 +57,29 @@ SCRIPT_LINES = ["Heat first, then the cold.", "Breathe slow and stay with it.",
                 "This is how you reset.", "Come try it in Mobile."]
 
 
+# The shoot card the Librarian saves as work/plan_row.json (title, hook, on-screen lines) for each case.
+CARDS = {
+    "photos_only": ("Quiet morning at NUMA", "Your morning reset starts here.",
+                    ["The sauna is warm by six.", "Take ten slow breaths.", "Walk out lighter.",
+                     "Doors open at six.", "Bring a friend this week."]),
+    "clips_only": ("Plunge day", "Watch this first cold plunge.",
+                   ["Two minutes in the cold.", "Breathe through the first ten seconds.", "Then it gets easier.",
+                    "Warm up in the sauna after.", "Book your first plunge."]),
+    "voice_and_music": ("Welcome to NUMA", "This is how you reset.",
+                        ["Heat first, then the cold.", "Breathe slow and stay with it.", "Rest between rounds.",
+                         "Leave lighter than you came.", "Come try it in Mobile."]),
+    "music_only": ("Contrast therapy 101", "Heat first, then the cold.",
+                   ["Twelve minutes in the sauna.", "Two minutes in the plunge.", "Rest and repeat.",
+                    "Three rounds is plenty.", "Come try it in Mobile."]),
+    "heic_photos": ("Red light evening", "Ten quiet minutes under red light.",
+                    ["Lie back and breathe.", "Let the room go quiet.", "Ten minutes is enough.",
+                     "Pair it with the sauna.", "Book a red light session."]),
+    "combined_track": ("Welcome to NUMA", "This is how you reset.",
+                       ["Heat first, then the cold.", "Breathe slow and stay with it.", "Rest between rounds.",
+                        "Leave lighter than you came.", "Come try it in Mobile."]),
+}
+
+
 class StepFailed(Exception):
     pass
 
@@ -148,7 +171,11 @@ def build_case(name: str, job: Path, args) -> dict:
     raw = job / "raw"
     raw.mkdir(parents=True, exist_ok=True)
     secs = args.seconds
-    facts = {"script": None, "words_expected": False, "master": None}
+    title, hook, on_screen = CARDS[name]
+    (job / "work").mkdir(parents=True, exist_ok=True)
+    (job / "work" / "plan_row.json").write_text(json.dumps(
+        {"title": title, "hook_text": hook, "on_screen": on_screen}, indent=2) + "\n", encoding="utf-8")
+    facts = {"script": None, "words_expected": False, "master": None, "hook": hook}
     if name == "photos_only":
         make_photos(raw / "photos")
     elif name == "clips_only":
@@ -221,8 +248,17 @@ def check(cond: bool, msg: str) -> None:
 
 
 def run_case(name: str, root: Path, args) -> tuple[str, list]:
-    job = nc.JobPaths(root / f"2026-12-01 {name.replace('_', ' ').title()}").make()
     log: list = []
+    try:
+        return _run_case(name, root, args, log)
+    except StepFailed as e:
+        e.log = log
+        raise
+
+
+def _run_case(name: str, root: Path, args, log: list) -> tuple[str, list]:
+    day = (CASES + EXTRA).index(name) + 1
+    job = nc.JobPaths(root / f"Day {day:02d} - 2026-12-{day:02d} - {CARDS[name][0]}").make()
     t = time.time()
     facts = build_case(name, job.job, args)
     log.append(("fixtures", round(time.time() - t, 1), 0))
@@ -251,7 +287,7 @@ def run_case(name: str, root: Path, args) -> tuple[str, list]:
     if facts["words_expected"]:
         check(len(A.get("words", [])) >= 5, f"voice: transcript has {len(A.get('words', []))} words")
 
-    b_args = [work, "--duration", args.seconds]
+    b_args = [work, "--duration", args.seconds, "--hook", facts["hook"]]
     if facts["script"]:
         b_args += ["--script", facts["script"]]
     step(log, "baseline_plan", "baseline_plan.py", *b_args)
@@ -301,7 +337,10 @@ def run_case(name: str, root: Path, args) -> tuple[str, list]:
     produced = {p.name for p in out.iterdir()}
     for kind, pattern in (("reach cut", rf"^{slug}_reach\.mp4$"), ("story set", rf"^{slug}_story_1\.(jpg|mp4)$"),
                           ("carousel", rf"^{slug}_carousel_1\.jpg$"), ("cover", rf"^{slug}_cover\.jpg$")):
-        check(any(re.match(pattern, n) for n in produced), f"formats: no {kind} in out/ ({sorted(produced)})")
+        check(any(re.match(pattern, n) for n in produced),
+              f"formats: no {kind} in out/ ({'; '.join(fm.get('warnings') or []) or sorted(produced)})")
+    for f in fm.get("files") or []:
+        check(Path(f).is_file() and Path(f).stat().st_size > 0, f"formats: listed file missing or empty: {f}")
     if P.get("lines"):
         check(f"{slug}.srt" in produced, "formats: no .srt although the plan has captions")
 
@@ -347,13 +386,15 @@ def main(argv=None) -> int:
             why, log = run_case(name, root, args)
             ok = True
         except StepFailed as e:
-            ok, why, log = False, str(e), []
+            ok, why, log = False, str(e), getattr(e, "log", [])
         except subprocess.TimeoutExpired as e:
             ok, why, log = False, f"timeout: {e.cmd[1] if e.cmd else ''}", []
         secs = time.time() - t
         results.append({"case": name, "pass": ok, "seconds": round(secs, 1), "detail": why,
                         "steps": [{"step": s, "seconds": d, "exit": c} for s, d, c in log]})
         print(f"{'PASS' if ok else 'FAIL'}  {name:16s} {secs:6.1f}s  {why}", flush=True)
+        if log:
+            print("      " + ", ".join(f"{s} {d:g}s" for s, d, _ in log), flush=True)
 
     passed = sum(r["pass"] for r in results)
     print("\n| Case | Result | Time | Detail |\n|------|--------|------|--------|")

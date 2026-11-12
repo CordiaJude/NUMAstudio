@@ -14,7 +14,7 @@
 | T8b Crew agents + skills | ACCEPTED (re-review 8/8 PASS) | 2 | |
 | T9 30-day system | ACCEPTED (re-review 6/6 PASS) | 2 | |
 | T10 Setup/posting | ACCEPTED (re-review 7/7 PASS; 2 minors fixed by orchestrator) | 2 | |
-| T12 Templates/prefs/kinetic/rule41 | IN PROGRESS | 1 | |
+| T12 Templates/prefs/kinetic/rule41 | IN REVIEW | 1 | |
 | T11 Integration | IN PROGRESS | 1 | |
 
 ## Minor findings for final polish
