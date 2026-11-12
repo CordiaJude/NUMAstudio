@@ -7,7 +7,7 @@
 | T2 Analyze | ACCEPTED (re-review PASS 7/7; orchestrator fixed minor: no script alignment on mismatch) | 2 | |
 | T3 Finish | ACCEPTED (round 3 re-review 4/4 PASS) | 3 | 2 minor logged |
 | T4 Validator/baseline/claims | ACCEPTED (re-review 10/10 PASS) | 2 | cosmetic: duplicate hits per rule |
-| T5 Vision/prep | IN REVIEW | 1 | |
+| T5 Vision/prep | REVISING | 2 | M: faces/focus for prepared_path (consent); prep runtime |
 | T6 Formats | PENDING | 0 | |
 | T7 Ops scripts | REVISING | 2 | B: library people detection; M: prefs mapping, sources negatives, dashboard contrast/layout |
 | T8a Director+librarian/scout/analyst | IN PROGRESS | 1 | |
