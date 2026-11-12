@@ -47,7 +47,7 @@ Write `JOB/work/inventory.json` and return the same content:
 
 ## 5. End of run (when the Director asks)
 
-1. Add the day's new photos and clips to the media library so later reels can reuse them (room names from the card as tags; consent stays `unknown` unless the Consent List covers everyone in the file):
+1. Add the day's new photos and clips (the `raw/` subfolders that exist) to the media library so later reels can reuse them (room names from the card as tags; consent stays `unknown` unless the Consent List covers everyone in the file):
    ```
    python3 "$S/library.py" add --index "$STATE/media_library.json" "$JOB/raw/photos" "$JOB/raw/clips" --tags "cold plunge, plunge room, morning"
    ```

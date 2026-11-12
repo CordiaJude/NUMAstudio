@@ -106,3 +106,13 @@ def test_errors(nc, tmp_path, capsys):
 def test_vague_length_notes_set_no_duration(nc, note):
     r = prefs.match_rule(note)
     assert r is None or r.key != "max_duration"
+
+
+def test_looser_later_note_never_loosens(nc, tmp_path):
+    f = tmp_path / "p.json"
+    run(["add", "--file", str(f), "no whips", "--date", "2026-12-01"])
+    run(["add", "--file", str(f), "fewer whips", "--date", "2026-12-05"])
+    run(["add", "--file", str(f), "slower cuts", "--date", "2026-12-01"])
+    run(["add", "--file", str(f), "slower cuts", "--date", "2026-12-02"])   # min_shot_seconds 1.25
+    limits = json.loads(f.read_text())["limits"]
+    assert limits["max_whips"] == 0 and limits["min_shot_seconds"] == 1.25

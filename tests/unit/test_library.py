@@ -34,12 +34,14 @@ def test_add_probe_and_query(nc, tmp_path, media, capsys):
                 "--tags", "Cold Plunge, morning, smiling, group", "--people", "yes"]) == 0
     assert run(["add", "--index", str(idx), str(media["wide"]), "--tags", "outside,sign", "--no-faces"]) == 0
     assert run(["add", "--index", str(idx), str(media["clip"]), "--tags", "sauna, morning",
-                "--link", "https://drive.google.com/file/d/abc", "--people", "no"]) == 0
+                "--link", "https://drive.google.com/file/d/abc"]) == 0
+    assert run(["add", "--index", str(idx), str(media["clip"]), "--people", "no"]) == 2  # only `tag` can say no
     data = json.loads(idx.read_text())
     items = {it["name"]: it for it in data["items"]}
     assert items["plunge_sharp.jpg"]["orientation"] == "vertical" and items["outside.jpg"]["orientation"] == "horizontal"
     assert items["sauna.mp4"]["kind"] == "clip" and items["sauna.mp4"]["duration"] == pytest.approx(2.0, abs=0.1)
-    assert items["sauna.mp4"]["link"].startswith("https://drive") and items["sauna.mp4"]["consent"] == "n/a"
+    assert items["sauna.mp4"]["link"].startswith("https://drive") and items["sauna.mp4"]["consent"] == "unknown"
+    assert items["sauna.mp4"]["people"] is None  # nothing found proves nothing
     assert items["plunge_sharp.jpg"]["tags"] == ["cold plunge", "morning", "smiling", "group"]
     assert items["plunge_sharp.jpg"]["consent"] == "unknown"
     assert items["plunge_sharp.jpg"]["sharpness"] > items["plunge_blurry.jpg"]["sharpness"]
@@ -50,8 +52,11 @@ def test_add_probe_and_query(nc, tmp_path, media, capsys):
     assert [r["name"] for r in lib.query(data, ["morning"], kind="clip", min_duration=1.5)] == ["sauna.mp4"]
     assert lib.query(data, ["morning"], min_duration=5) == []
     assert [r["name"] for r in lib.query(data, [], orient="horizontal")] == ["outside.jpg"]
-    assert all(not r["people"] or r["consent"] == "yes" for r in lib.query(data, [], usable=True))
-    assert len(lib.query(data, ["morning"], usable=True)) == 1
+    assert lib.query(data, [], usable=True) == []  # nothing is cleared yet
+    assert run(["tag", "--index", str(idx), items["sauna.mp4"]["id"], "--people", "no"]) == 0
+    data = json.loads(idx.read_text())
+    assert [r["name"] for r in lib.query(data, ["morning"], usable=True)] == ["sauna.mp4"]
+    assert data["items"][[i["name"] for i in data["items"]].index("sauna.mp4")]["consent"] == "n/a"
 
     # tag: consent granted makes the people shots usable; ids are stable
     sid = items["plunge_sharp.jpg"]["id"]
@@ -66,6 +71,9 @@ def test_add_probe_and_query(nc, tmp_path, media, capsys):
     again = {it["name"]: it for it in json.loads(idx.read_text())["items"]}
     assert again["plunge_sharp.jpg"]["tags"] == ["cold plunge", "morning", "smiling", "front of house"]
     assert again["plunge_sharp.jpg"]["consent"] == "yes" and len(again) == 4
+    assert run(["add", "--index", str(idx), str(media["clip"])]) == 0  # re-add keeps the tag decision
+    clip = {it["name"]: it for it in json.loads(idx.read_text())["items"]}["sauna.mp4"]
+    assert clip["people"] is False and clip["people_source"] == "tag"
 
 
 def test_folder_add_and_errors(nc, tmp_path, media):
@@ -82,22 +90,32 @@ def test_folder_add_and_errors(nc, tmp_path, media):
     assert run([]) == 2
 
 
-def test_people_detection_on_bundled_photos(nc, tmp_path, assets_dir, monkeypatch):
-    """Consent gate: the 5-person sauna photo is people=yes and never usable without consent."""
+def test_people_detection_on_bundled_photos(nc, tmp_path, assets_dir):
+    """Consent gate: detectors only ever say yes; 'no people' needs an explicit tag after looking."""
     idx = tmp_path / "lib.json"
     photos = assets_dir / "brand-photos"
-    assert run(["add", "--index", str(idx), str(photos / "sauna-people.jpg"), str(photos / "mats-bolsters.jpg"),
-                str(photos / "cold-plunge.jpg")]) == 0
+    names = ["sauna-people.jpg", "breathwork-class.jpg", "mats-bolsters.jpg"]
+    assert run(["add", "--index", str(idx), *[str(photos / n) for n in names]]) == 0
     items = {it["name"]: it for it in json.loads(idx.read_text())["items"]}
     if not lib.face_detector().available:
         pytest.skip("no face detector in this OpenCV build")
     assert items["sauna-people.jpg"]["people"] is True and items["sauna-people.jpg"]["faces"] >= 3
-    assert items["sauna-people.jpg"]["consent"] == "unknown"
-    assert items["mats-bolsters.jpg"]["people"] is False and items["mats-bolsters.jpg"]["faces"] == 0
+    assert items["sauna-people.jpg"]["people_source"] == "detector"
+    for n in ("breathwork-class.jpg", "mats-bolsters.jpg"):  # people lying down / empty room: both unknown
+        assert items[n]["people"] in (None, True) and items[n]["consent"] == "unknown"
     data = json.loads(idx.read_text())
-    usable = [r["name"] for r in lib.query(data, [], people=False, usable=True)]
-    assert "sauna-people.jpg" not in usable and "mats-bolsters.jpg" in usable
-    assert "sauna-people.jpg" not in [r["name"] for r in lib.query(data, [], usable=True)]
+    assert lib.query(data, [], usable=True) == []
+    assert lib.query(data, [], people=False) == []
+    # the Director looks: the mats photo has nobody in it, the breathwork class has people
+    assert run(["tag", "--index", str(idx), items["mats-bolsters.jpg"]["id"], "--people", "no"]) == 0
+    assert run(["tag", "--index", str(idx), items["breathwork-class.jpg"]["id"], "--people", "yes"]) == 0
+    data = json.loads(idx.read_text())
+    assert [r["name"] for r in lib.query(data, [], usable=True)] == ["mats-bolsters.jpg"]
+    assert [r["name"] for r in lib.query(data, [], people=False, usable=True)] == ["mats-bolsters.jpg"]
+    # consent for the sauna group makes it usable too
+    assert run(["tag", "--index", str(idx), items["sauna-people.jpg"]["id"], "--consent", "yes"]) == 0
+    data = json.loads(idx.read_text())
+    assert sorted(r["name"] for r in lib.query(data, [], usable=True)) == ["mats-bolsters.jpg", "sauna-people.jpg"]
 
 
 def test_no_detector_means_unknown(nc, tmp_path, assets_dir, monkeypatch):

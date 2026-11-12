@@ -163,15 +163,27 @@ def load_json_arg(value: str, what: str) -> Any:
     return nc.read_json(Path(value).expanduser(), what)
 
 
+def api_error(obj: Any) -> str | None:
+    """The error text of a Composio envelope or a Graph error body ({"error": {"message": ...}}), if any."""
+    if not isinstance(obj, dict):
+        return None
+    for node in (obj, obj.get("data"), (obj.get("data") or {}).get("data") if isinstance(obj.get("data"), dict) else None):
+        if isinstance(node, dict) and node.get("error"):
+            err = node["error"]
+            if isinstance(err, dict):
+                msg = err.get("message") or err.get("error_user_msg") or json.dumps(err, sort_keys=True)
+                code = err.get("code")
+                return f"{msg} (code {code})" if code is not None else str(msg)
+            return str(err)
+    return None
+
+
 def check_composio(obj: Any, where: str) -> None:
-    """A Composio envelope with successful: false carries the API error: report it instead of 'no insights'."""
-    if isinstance(obj, dict) and obj.get("successful") is False:
-        err = obj.get("error")
-        if not err and isinstance(obj.get("data"), dict):
-            err = obj["data"].get("error")
-        if isinstance(err, dict):
-            err = err.get("message") or json.dumps(err, sort_keys=True)
-        raise nc.UserError(f"{where}: the Composio call failed: {err or 'no error message'}")
+    """A failed Composio call (successful: false) or a Graph error body: report the API's error text."""
+    err = api_error(obj)
+    failed = isinstance(obj, dict) and obj.get("successful") is False
+    if failed or (err and insight_items(obj) is None):
+        raise nc.UserError(f"{where}: the Instagram insights call failed: {err or 'no error message'}")
 
 
 def insight_items(obj: Any) -> list[dict] | None:

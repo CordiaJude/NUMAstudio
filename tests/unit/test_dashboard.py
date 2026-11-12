@@ -122,3 +122,11 @@ def test_leaderboard_cards_and_cap(nc, tmp_path):
     assert 'class="cards"' in html and 'data-label="Views"' in html and "table.cards td::before" in html
     assert "Show the other 6 reels" in html
     assert 'class="sr"' not in html and "Darker is better" not in html
+
+
+def test_dark_heat_ink_rule_wins(nc):
+    """Same specificity: the dark-theme heat ink rules must come after the base (light) rule."""
+    css = db.css()
+    base = css.index(".heat td.v{color:var(--ink-l)}")
+    dark = [i for i in (css.find(':root:not([data-theme="light"]) .heat td.v{color:var(--ink-d)}'), css.find(':root[data-theme="dark"] .heat td.v'))]
+    assert all(i > base for i in dark) and css.count("--ink-l)") == 1

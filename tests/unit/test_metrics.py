@@ -140,5 +140,17 @@ def test_composio_failure_reported(nc, store, tmp_path, capsys):
     f = tmp_path / "fail.json"
     f.write_text(json.dumps({"successful": False, "error": "Invalid OAuth access token", "data": {}}))
     assert run(["ingest", "--store", str(store), "--reel", "r", "--pull", "48h", "--data", str(f)]) == 1
-    assert "Composio call failed: Invalid OAuth access token" in capsys.readouterr().err
+    assert "insights call failed: Invalid OAuth access token" in capsys.readouterr().err
     assert run(["account", "--store", str(store), "--data", str(f)]) == 1
+
+
+def test_graph_error_body_reported(nc, store, tmp_path, capsys):
+    f = tmp_path / "err.json"
+    f.write_text(json.dumps({"data": {"error": {"message": "(#100) The value must be a valid insights metric",
+                                                "type": "OAuthException", "code": 100}}}))
+    assert run(["ingest", "--store", str(store), "--reel", "r", "--pull", "48h", "--data", str(f)]) == 1
+    err = capsys.readouterr().err
+    assert "ERROR: --data: the Instagram insights call failed: (#100) The value must be a valid insights metric (code 100)" in err
+    f.write_text(json.dumps({"error": {"message": "Unsupported get request"}}))
+    assert run(["account", "--store", str(store), "--data", str(f), "--date", "2026-01-01"]) == 1
+    assert "Unsupported get request" in capsys.readouterr().err

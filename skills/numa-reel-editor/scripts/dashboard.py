@@ -189,10 +189,11 @@ HEAT_DARK, CARD_DARK = (127, 179, 181), (33, 31, 28)
 CSS = """
 :root{color-scheme:light;--bg:#faf6ee;--card:#ffffff;--ink:#22201c;--ink2:#5b554c;--muted:#6b6459;
 --line:#e6dfd2;--accent:#3f6f72;--accent-soft:#d8e6e6;--ember:#a8502d;--good:#2f6b3f;--bad:#a8502d;--heat:@HEAT_LIGHT@}
+.heat td.v{color:var(--ink-l)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#171614;--card:#211f1c;
 --ink:#f1ece3;--ink2:#c9c1b4;--muted:#9a9184;--line:#36322c;--accent:#7fb3b5;--accent-soft:#2b3b3c;--ember:#e08a63;
 --good:#8cc79a;--bad:#e08a63;--heat:@HEAT_DARK@}
-.heat td.v{color:var(--ink-d)}}
+:root:not([data-theme="light"]) .heat td.v{color:var(--ink-d)}}
 :root[data-theme="dark"]{color-scheme:dark;--bg:#171614;--card:#211f1c;--ink:#f1ece3;--ink2:#c9c1b4;--muted:#9a9184;
 --line:#36322c;--accent:#7fb3b5;--accent-soft:#2b3b3c;--ember:#e08a63;--good:#8cc79a;--bad:#e08a63;--heat:@HEAT_DARK@}
 :root[data-theme="dark"] .heat td.v{color:var(--ink-d)}
@@ -228,7 +229,6 @@ a{color:var(--accent)}
 .heat td{padding:0;border:1px solid var(--card);min-width:30px;height:30px;text-align:center;font-size:11px}
 .heat th{font-weight:500;font-size:12px;padding:4px}
 .heat td span{display:block;line-height:30px}
-.heat td.v{color:var(--ink-l)}
 .legend{display:flex;align-items:center;gap:8px;color:var(--ink2);font-size:12px;margin-top:8px}
 .legend i{display:inline-block;width:18px;height:12px;border-radius:2px}
 svg{display:block;width:100%;height:auto}

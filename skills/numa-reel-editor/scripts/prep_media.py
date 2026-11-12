@@ -185,7 +185,7 @@ def stabilize_vidstab(src: str, info: dict, dst: Path, post: str | None, scratch
             "-vf", f"{_scale(w, h)},vidstabdetect=shakiness=10:accuracy=15:stepsize=6:result={trf}",
             "-f", "null", "-"], cwd=scratch, what="ffmpeg vidstabdetect")
     chain = (f"{_scale(w, h)},vidstabtransform=input={trf}:relative=1:smoothing={VIDSTAB_SMOOTHING}:optzoom=1:"
-             f"zoomspeed=0:interpol=bicubic:crop=black,unsharp=5:5:0.5:3:3:0")
+             f"zoomspeed=0:interpol=bilinear:crop=black,unsharp=5:5:0.5:3:3:0")
     if post:
         chain += "," + post
     tmp = scratch / "vidstab.mp4"

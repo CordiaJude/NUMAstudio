@@ -118,14 +118,20 @@ RULE_BY_ID = {r.id: r for r in RULES}
 
 
 def compute_limits(notes: list[dict]) -> dict:
-    """Notes in order; later notes override earlier ones on the same key; contradictions keep the later one."""
+    """Notes in date order. On the same max_/min_ key the stricter value wins (a looser later note never
+    loosens a limit); other keys (caption_px) take the later note; a min above its max keeps the later one."""
     limits: dict[str, float] = {}
     order: dict[str, int] = {}
     for i, n in enumerate(sorted(notes, key=lambda n: (n.get("last_date") or "", n["id"]))):
         r = RULE_BY_ID.get(n.get("rule") or "")
         if r is None:
             continue
-        limits[r.key] = r.value(int(n.get("times", 1)))
+        v = r.value(int(n.get("times", 1)))
+        if r.key in limits and r.key.startswith("max_"):
+            v = min(v, limits[r.key])      # a later, looser note never loosens a stricter limit
+        elif r.key in limits and r.key.startswith("min_"):
+            v = max(v, limits[r.key])
+        limits[r.key] = v
         order[r.key] = i
     for lo, hi in OPPOSITES:
         if lo in limits and hi in limits and limits[lo] > limits[hi]:

@@ -126,11 +126,12 @@ prep_media runs on items vision flags `shaky` or `dark` (auto). The analyst then
 ```
 python3 "$S/library.py" query --index "$STATE/media_library.json" --tags "<line topic>" --usable --orientation vertical --limit 8 --json
 ```
-then the bundled brand photos (`assets.brand_photos_dir` in brand.json). Copy what you choose into `raw/scout/` or `raw/library/`, re-run stages 2-3, and record every outside file:
+then the bundled brand photos (`assets.brand_photos_dir` in brand.json; use them in place, by absolute path). Copy library picks into `raw/library/` (the Scout's finds are already in `raw/scout/`), save generated voice or music (F1, F2) in `raw/generated/`, and record every outside file:
 ```
-python3 "$S/sources.py" add "$JOB" --kind stock --path "<file>" --source "Pexels" --license pexels --url "<page>"
+python3 "$S/sources.py" add "$JOB" --kind photo --path "$JOB/raw/library/<file>" --source "NUMA media library" --license numa_owned
+python3 "$S/sources.py" add "$JOB" --kind music --path "$JOB/raw/generated/music.mp3" --source "Higgsfield ElevenLabs Music v2.5" --license higgsfield_paid
 ```
-You decide what to use from the Scout's finds. Write `work/material.json` (line -> chosen sources, gaps left, fallback used).
+Then re-run stages 2-3 (add `--voice`/`--music` for generated audio) and the analyst's ratings: photo and clip ids can shift when files are added. Music order (REQUIREMENTS interpretation 8): the folder's file, then the Music Library track the card names, then F2. You decide what to use from the Scout's finds. Write `work/material.json` (line -> chosen sources, gaps left, fallback used).
 
 **5. Story and shot plan (Director).** Pick the arc (numa-reel-editor skill, Edit grammar), one story beat per spoken line, hook in frame zero, one signature moment. Start from the baseline, then edit `plan.json` by judgment:
 ```
@@ -181,7 +182,7 @@ python3 "$S/formats.py" "$JOB/work/plan.json" "$JOB/out/SLUG_reel.mp4" --out "$J
 python3 "$S/check_output.py" "$JOB/out/SLUG_reach.mp4" --kind reach --report "$JOB/out"
 python3 "$S/check_output.py" "$JOB/out/SLUG_hook_1.mp4" --kind hook --report "$JOB/out"
 ```
-Outputs: reach cut-down, Story set, carousel, cover, `.srt`, hook variants (config `formats`). LOOK at the cover and two carousel slides. A failing extra output is regenerated once with `--only <kind>`, else dropped and logged; it never blocks the main reel.
+Outputs: reach cut-down, Story set, carousel, cover, `.srt`, hook variants (config `formats`). LOOK at the cover and two carousel slides. Higgsfield's virality predictor may score the hook variants (motion agent, reserve credits) as a second opinion only. A failing extra output is regenerated once with `--only <kind>`, else dropped and logged; it never blocks the main reel.
 
 **12. Caption (copywriter -> Director).** The copywriter writes 3 captions (1 recommended), a Story line and an email paragraph (numa-caption skill). You pick one and write `out/SLUG_copy.txt`. Then scan every text surface:
 ```
@@ -191,10 +192,11 @@ python3 "$S/sources.py" check "$JOB" --plan "$JOB/work/plan.json"
 Any `fail` hit: F11. Any `WARN`: reword or keep with a logged reason. sources check fails: fix the license record or swap the file (F2).
 
 **13. Deliver (R41).**
-1. Upload everything in `out/` to the day folder's `Finished/` (brand.json `drive.finished`). Upload fails: F15; deliver the reel in chat (attach the file) and keep the queued upload in `work/upload_queue.json`.
-2. Plan Sheet row: Status "Ready to post" and the Reel link. When brand.json `posting.auto_post` is true and `posting.legal_review_done` is true, hand off to the `post-reel` command with `JOB`; when auto-post is on but the legal review is not done, keep "Ready to post" and use the legal-review escalation.
-3. Add the new raw files to the media library (librarian) and sync `STATE` back to Drive.
-4. Write `work/delivered.json` (files, Drive links, row status) and send the delivery note (section 6).
+1. Send the reel file in this chat (in a scheduled run: the run's result and notification) with the delivery note (section 6). Chat delivery is primary.
+2. Upload everything in `out/` to the day folder's `Finished/` (brand.json `drive.finished`). Upload fails: F15 (the reel was already delivered in chat); keep the queued upload in `work/upload_queue.json`.
+3. Plan Sheet row: Status "Ready to post" and the Reel link. When brand.json `posting.auto_post` is true and `posting.legal_review_done` is true, hand off to the `post-reel` command with `JOB`; when auto-post is on but the legal review is not done, keep "Ready to post" and use the legal-review escalation.
+4. Add the new raw files to the media library (librarian) and sync `STATE` back to Drive.
+5. Write `work/delivered.json` (files, Drive links, row status).
 
 ## 4. Failure and fallback table (spec p.5-6)
 
@@ -238,16 +240,19 @@ Every fallback, every steering input applied, every WARN kept, every escalation 
 ```
 NUMA reel ready: Day 07 - Your first plunge (45 s)
 Story: a first-timer's nerves turn into a grin in 45 seconds.
-Caption: "Everyone hates the cold. Then this happens..." (picked from 3)
-Made: reel, 10 s reach cut, 4 Stories, 6-slide carousel, cover, captions file
-Decided:
+Captions (posting 1; all 3 are in the copy file):
+1. Everyone hates the cold. Then this happens...
+2. Your first plunge, start to finish.
+3. Sweat there, recover here.
+Made: reel, reach cut, 4 Stories, 6 slides, cover, captions file
+Decided (full log in work/decisions.md):
 - Opened on the plunge close-up: strongest image
 - No music in the folder: generated a 45 s calm bed (5.8 credits)
 - Blurred a guest not on the Consent List (shot 6)
 Critic: 86/100, round 2
 Status: in Finished/, marked Ready to post
 ```
-State what was made and what you decided and why. No questions, no "let me know", no options for her to pick.
+One-line story, the 3 caption options with the one you post, and the Decisions list: what was made, what you decided and why, every fallback used. No questions, no "let me know", no options for her to pick.
 
 ## 7. Done means
 

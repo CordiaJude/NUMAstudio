@@ -26,9 +26,10 @@ def ffmpeg(*args, data: bytes | None = None) -> None:
                    input=data, check=True)
 
 
-def walk_clip(path: Path, *, amp: float, seconds: float = 3.0, fps: int = 30, size=(240, 426), seed: int = 11) -> Path:
+def walk_clip(path: Path, *, amp: float, seconds: float = 3.0, fps: int = 30, size=(240, 426), seed: int = 11,
+              photo: str = "breathwork-class.jpg") -> Path:
     W, H = size
-    with Image.open(BRAND / "breathwork-class.jpg") as im:
+    with Image.open(BRAND / photo) as im:
         big = np.asarray(im.convert("RGB").resize((int(H * 1.35 * im.width / im.height), int(H * 1.35))))
     Hb, Wb = big.shape[:2]
     n = int(seconds * fps)
@@ -69,6 +70,10 @@ def job(tmp_path_factory):
            "-vf", "scale=480:-2,crop=240:320,eq=brightness=-0.3:contrast=0.6,fps=30",
            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest",
            raw / "c1_dark.mp4")
+    walk_clip(raw / "c2_shaky_face.mp4", amp=0.01, size=(360, 640), photo="cold-plunge.jpg")
+    ffmpeg("-loop", "1", "-i", BRAND / "sauna-people.jpg", "-t", "2",
+           "-vf", "scale=360:540,eq=brightness=-0.3:contrast=0.5,fps=30",
+           "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", raw / "c3_dark_faces.mp4")
     with Image.open(BRAND / "sauna-people.jpg") as im:
         rgb = np.asarray(im.convert("RGB").resize((360, 540))).astype(np.float32)
     Image.fromarray((rgb * 0.45).astype(np.uint8)).save(raw / "p_dark.jpg", quality=95)
@@ -190,3 +195,75 @@ def test_cli(job, run_script, tmp_path):
     assert r.returncode == 0, r.stderr
     rep = json.loads(r.stdout)
     assert {x["status"] for x in rep["items"] if x["ops"]} == {"unchanged"}
+
+
+def fresh_focus(e) -> tuple[list, list]:
+    """Independent detection on the prepared file's frames in the clip's best window."""
+    det = vision.FaceDetector()
+    info = numa_common.media_info(e["prepared_path"])
+    times, frames = vision.sample_clip(e["prepared_path"], [info["width"], info["height"]], e["duration"])
+    t0, t1 = e["windows"][0][:2]
+    found = [det.detect(f) for t, f in zip(times, frames) if t0 <= t < t1]
+    best = min(found, key=lambda fs: (-len(fs), -sum(b[2] * b[3] for b in fs)))   # the frame vision.py uses
+    return best, vision.face_focus(best)
+
+
+def test_faces_follow_the_prepared_copy(job):
+    e = item(job["A"], "c2_shaky_face")
+    assert e["prepared_path"] and e["orig_faces"] and e["orig_focus"]
+    faces, focus = fresh_focus(e)
+    assert faces and e["faces"]
+    assert abs(e["focus"][0] - focus[0]) <= 0.03 and abs(e["focus"][1] - focus[1]) <= 0.03
+    assert e["focus"][0] > 0.55, "the fixture face is right of centre"
+
+
+def test_brightened_dark_clip_gains_faces(job):
+    e = item(job["A"], "c3_dark_faces")
+    assert e["prepared_path"]
+    assert len(e["faces"]) > len(e["orig_faces"])
+    assert max(s["faces"] for s in e["scores"]) >= len(e["faces"])
+
+
+def test_forced_op_survives_auto_and_off_restores_faces(job, tmp_path, nc):
+    A = json.loads(job["path"].read_text())
+    path = tmp_path / "work" / "analysis.json"
+    nc.write_json(path, A)
+    fine = item(A, "p_fine")
+    pm.run_prep(path, ids=fine["id"], brighten="on")
+    B = json.loads(path.read_text())
+    assert item(B, "p_fine")["prepared_path"] and "orig_faces" in item(B, "p_fine")
+    r = pm.run_prep(path)                              # a later auto run keeps the forced step
+    row = next(x for x in r["items"] if x["id"] == fine["id"])
+    assert row["ops"] == ["brighten"] and row["status"] == "unchanged"
+    pm.run_prep(path, ids=fine["id"], brighten="off")
+    C = json.loads(path.read_text())
+    e = item(C, "p_fine")
+    assert "prepared_path" not in e and "orig_faces" not in e and "orig_focus" not in e
+    assert e["faces"] == fine["faces"] and e["focus"] == fine["focus"]
+    r = pm.run_prep(path, ids=fine["id"])              # forced record gone: auto leaves it alone
+    assert r["items"][0]["ops"] == []
+
+
+def test_large_clips_are_scaled_down(tmp_path):
+    assert pm.out_size({"width": 3840, "height": 2160}) == (1920, 1080)
+    assert pm.out_size({"width": 2160, "height": 3840}) == (1080, 1920)
+    assert pm.out_size({"width": 720, "height": 1280}) == (720, 1280)
+    src = tmp_path / "big.mp4"
+    ffmpeg("-f", "lavfi", "-i", "testsrc2=size=1440x1200:rate=30:duration=1", "-c:v", "libx264",
+           "-preset", "ultrafast", "-pix_fmt", "yuv420p", src)
+    out = tmp_path / "out.mp4"
+    pm.prepare_clip({"path": str(src), "duration": 1.0}, False, True, out)
+    info = numa_common.media_info(out)
+    assert (info["width"], info["height"]) == (1296, 1080)
+
+
+def test_opencv_output_keeps_timing(job, tmp_path):
+    e = item(job["A"], "c0_shaky")
+    out = tmp_path / "cv.mp4"
+    pm.prepare_clip(e, True, True, out, method="opencv")
+    a, b = numa_common.media_info(e["path"]), numa_common.media_info(out)
+    assert abs(a["duration"] - b["duration"]) < 0.1 and abs((b["fps"] or 0) - a["fps"]) < 0.5
+
+
+def test_shaky_motion_is_not_rewarded():
+    assert vision.second_score(150, 20, 0, 0.5, shaky=True) < vision.second_score(150, 0, 0, 0.5)
