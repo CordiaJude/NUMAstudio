@@ -132,6 +132,11 @@
       "status": "research",
       "source": "spec p.50",
       "note": "Along these lines, with the Dauphin St address, a Book button and a link to discover.numawellness.org."
+    },
+    "account_owners": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q33"
     }
   },
   "socials": {
@@ -156,6 +161,11 @@
       "status": "needs_katie",
       "source": "spec p.50, p.56 Q33",
       "note": "Categories and wording should match (sauna, cold plunge, breathwork); the weekly best reel is posted there too."
+    },
+    "instagram_account": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q32"
     }
   },
   "voice": {
@@ -225,6 +235,16 @@
       "value": null,
       "status": "needs_katie",
       "source": "spec p.55 Q23"
+    },
+    "inspiration_accounts": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q18"
+    },
+    "off_limits_topics": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q24"
     }
   },
   "offerings": {
@@ -397,6 +417,21 @@
       "status": "research",
       "source": "spec p.24",
       "note": "Never shown or implied, including in AI shots and outpainted backgrounds."
+    },
+    "priority_offer": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q14"
+    },
+    "upcoming": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q16"
+    },
+    "rates_considered": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q50"
     }
   },
   "team": {
@@ -452,6 +487,11 @@
       "status": "needs_katie",
       "source": "spec p.55 Q29-Q31",
       "note": "Who films, best batch-shoot times, rooms or moments never to film."
+    },
+    "voiceover": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q28"
     }
   },
   "positioning": {
@@ -597,6 +637,56 @@
       "status": "research",
       "source": "spec p.33",
       "note": "Starting mix; re-weighted every month from performance data."
+    },
+    "differentiator": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q9"
+    },
+    "join_reasons": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q11"
+    },
+    "hesitations": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q11"
+    },
+    "member_stories": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q12"
+    },
+    "goals_90d": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q13"
+    },
+    "paid_ads": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q37"
+    },
+    "past_best_posts": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q39"
+    },
+    "past_flops": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q40"
+    },
+    "audience_size": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q41"
+    },
+    "ask_the_dpt": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q45"
     }
   },
   "assets": {
@@ -630,7 +720,12 @@
       "source": "spec p.23",
       "note": "6 professional photos: cold plunge, sauna with logo, breathwork class, red light, mats, people in sauna."
     },
-    "ownership": "Brand files were downloaded from numawellness.org's image CDN; they belong to NUMA (spec p.23)."
+    "ownership": "Brand files were downloaded from numawellness.org's image CDN; they belong to NUMA (spec p.23).",
+    "logo_credit": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q17"
+    }
   },
   "palette": {
     "value": {
@@ -1280,7 +1375,8 @@
     "clips": "clips",
     "voiceover": "voiceover",
     "music": "music",
-    "finished": "Finished"
+    "finished": "Finished",
+    "root_link": ""
   },
   "posting": {
     "auto_post": {
@@ -1324,6 +1420,11 @@
       "value": null,
       "status": "needs_katie",
       "source": "spec p.56 Q38"
+    },
+    "legal_counsel": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q51"
     }
   },
   "escalation": {

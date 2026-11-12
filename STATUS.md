@@ -13,7 +13,7 @@
 | T8a Director+librarian/scout/analyst | ACCEPTED (9/10; --template depends on T12, verified in T11) | 2 | |
 | T8b Crew agents + skills | REVISING | 2 | M: consent gate for faces w/o people flag; ledger sheet mirror |
 | T9 30-day system | IN REVIEW | 1 | |
-| T10 Setup/posting | IN PROGRESS | 1 | |
+| T10 Setup/posting | IN REVIEW | 1 | |
 | T12 Templates/prefs/kinetic | PENDING | 0 | |
 | T11 Integration | PENDING | 0 | |
 
@@ -32,3 +32,4 @@
 - T12: add validate_plan rule 41: shot whose analysis item has faces/orig_faces but plan people!=true → ERROR unless consent true or blur covers all faces (T8b review).
 - T12: claims_scan illness rule false-fails 'I said I could never do a cold plunge' (T9 report).
 - shoot_card.py month | head prints BrokenPipe ERROR (minor).
+- T11: wire NUMA_BRAND=STATE/brand.json (when newer) into make-reel, librarian, build-today, plan-month, night-check, digest (D18).

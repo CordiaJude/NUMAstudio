@@ -21,14 +21,7 @@ DOCS = {"guide": REPO / "docs" / "SETUP_GUIDE.md", "questions": REPO / "docs" / 
 
 # brand.json keys the questionnaire writes that the shipped brand.json does not carry yet
 # (requested shared-file change, T10 report). The integration task empties this set.
-PENDING_BRAND_KEYS = {
-    "positioning.differentiator", "positioning.join_reasons", "positioning.hesitations",
-    "positioning.member_stories", "positioning.goals_90d", "offerings.priority_offer",
-    "offerings.upcoming", "assets.logo_credit", "voice.inspiration_accounts", "voice.off_limits_topics",
-    "team.voiceover", "socials.instagram_account", "business.account_owners", "positioning.paid_ads",
-    "positioning.past_best_posts", "positioning.past_flops", "positioning.audience_size",
-    "positioning.ask_the_dpt", "offerings.rates_considered", "posting.legal_counsel", "drive.root_link",
-}
+PENDING_BRAND_KEYS: set[str] = set()
 
 # One distinctive phrase per question (spec p.54-57), in order.
 QUESTIONS = [
