@@ -17,7 +17,17 @@ it, and every exact step is a tested script. Breaking: brand.json moved to schem
 table below) and analysis.json to schema_version 2 (re-run `analyze.py`; v1 plans still render).
 
 ### Release check (golden test, spec p.52)
-GOLDEN_PLACEHOLDER
+- M2 golden test (`tests/golden_year_one.py`, Year One test pack, Linux sandbox, 4 cores): PASS.
+  Analysis 107.7 BPM, transcript with "Mobile", 50 words. Example plan (the hand-built edit, captions
+  re-synced to this transcript) and baseline plan (`--template transformation`, before/after wipe):
+  0 validator errors, before/after wipe, cuts within one frame of a beat (25/25 and 26/26), every
+  caption word within 0.1 s of the transcript, output spec met, 39.0 s vs the reference's 39.0 s,
+  -15 LUFS vs the reference's -16 LUFS, drop-to-file 2.0 and 1.7 min (limit 15).
+- M3 five-folder suite (`tests/run_tests.py`): 5/5 PASS.
+- Jude's rating against the hand-built reference (the manual M2 step) is pending; record it here
+  before tagging. Sandbox notes for the rating: the example-plan reel tracks the reference shot for
+  shot; the baseline reel reuses a "before" photo in the closing montage and ends on the brand
+  default sign-off instead of "Year one. Thank you, Mobile.".
 
 ### Added
 - **Data and contracts.** `config/studio.json` (agent model tiers, Higgsfield prices and the
