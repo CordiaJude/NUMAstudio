@@ -38,8 +38,8 @@ Only these situations go to a human, and only to brand.json `escalation.contact`
 | Situation | One-line message (example) | Work-around while waiting |
 |---|---|---|
 | Instagram returns Meta error 190 (token invalid) | "NUMA Studio: Instagram disconnected (Meta error 190). Fix: reconnect Instagram in Composio (Claude Settings > Connectors)." | Save the reel to `Finished/`, mark the row "Ready to post", queue the post |
-| A card payment fails on Claude or Higgsfield | "NUMA Studio: Higgsfield card declined. Fix: update the card at higgsfield.ai > Billing." | Engine motion only (F8 move 2); Claude: nothing to do until renewed |
-| Auto-posting is on but brand.json `posting.legal_review_done` is false | "NUMA Studio: auto-posting is waiting on the one-time claims legal review. Fix: send brand.json claims to counsel, then set posting.legal_review_done = true." | Mark the row "Ready to post"; send this once a week at most |
+| A card payment fails on Claude or Higgsfield | "NUMA Studio: Higgsfield card declined. Fix: update the card at higgsfield.ai > Billing." | Finish the reel locally with engine motion only (F8 move 2), queue the uploads and posts (F15 move 2), and reschedule what cannot finish until the card is renewed |
+| Auto-posting is on but brand.json `posting.legal_review_done.value` is false | "NUMA Studio: auto-posting is waiting on the one-time claims legal review. Fix: send brand.json claims to counsel, then set posting.legal_review_done = true." | Mark the row "Ready to post"; send this once a week at most |
 
 Anything else is the Director's to solve.
 
@@ -68,7 +68,7 @@ Paths used below (quote them; folder names contain spaces):
 
 **Closure check:** read brand.json `closures.location`. Today is a closure or holiday: follow F13 before anything else.
 
-**Feedback memory (R277):** `python3 "$S/prefs.py" list --file "$STATE/preferences.json" --json` and honour every note. When note.txt or the row contains revision feedback ("fewer whips", "more people"), record it so Katie never repeats it: `python3 "$S/prefs.py" add --file "$STATE/preferences.json" "fewer whips"`. Below, `PREFS` = `--prefs "$STATE/preferences.json"` (omit it only when the file does not exist yet).
+**Feedback memory (R277):** skip this when `STATE/preferences.json` does not exist yet (first run). Otherwise `python3 "$S/prefs.py" list --file "$STATE/preferences.json" --json` and honour every note. When note.txt or the row contains revision feedback ("fewer whips", "more people"), record it so Katie never repeats it: `python3 "$S/prefs.py" add --file "$STATE/preferences.json" "fewer whips"`. The baseline and validate calls below pass `--prefs "$STATE/preferences.json"`; drop that flag only while the file does not exist.
 
 ## 2. Crews and parallelism
 
@@ -94,8 +94,8 @@ Rendering is CPU-bound: never start two renders at once.
 | # | Output that marks it done | Inputs |
 |---|---|---|
 | 1 | `raw/` complete + `work/inventory.json` | Drive folder |
-| 2 | `work/analysis.json` with `corrections` | `raw/`, `work/script.txt` |
-| 3 | `photos[].focus` in analysis.json; `work/prep/index.json` | analysis.json |
+| 2 | `work/analysis.json` (analyze.py with transcription, then fix_transcript.py; the librarian's quick pass writes to `work/ingest/`, never here) | `raw/`, `work/script.txt` |
+| 3 | vision fields present in analysis.json (`photos[].focus`, `flags`, `clips[].windows`) | analysis.json |
 | 4 | `work/material.json` | inventory, shoot card |
 | 5 | `work/plan.json` | analysis.json, ratings, plan row, prefs |
 | 6 | `work/motion.json` | plan.json |
@@ -122,22 +122,24 @@ python3 "$S/prep_media.py" "$JOB/work/analysis.json" --json
 ```
 prep_media runs on items vision flags `shaky` or `dark` (auto). The analyst then rates every item and writes `work/ratings.json` (agents/analyst.md).
 
-**4. Material check.** Compare the inventory and ratings with the shoot card: every scripted line needs at least one usable shot, the reel needs a voice (or F1), music (or F2) and enough visuals (about one shot per 2-4 beats). For each gap, send the **scout** (agents/scout.md: Claude in Chrome first; Chrome or the desktop app unavailable means cloud web search) before any weaker substitute, then, in order:
+**4. Material check.** Compare the inventory and ratings with the shoot card: every scripted line needs at least one usable shot, the reel needs a voice (or F1), music (or F2) and enough visuals (about one shot per 2-4 beats). For each gap, send the **scout** (agents/scout.md: Claude in Chrome first; Chrome or the desktop app unavailable means cloud web search) before any weaker substitute, then, in order (skip the library query when `STATE/media_library.json` does not exist yet):
 ```
 python3 "$S/library.py" query --index "$STATE/media_library.json" --tags "<line topic>" --usable --orientation vertical --limit 8 --json
 ```
-then the bundled brand photos (`assets.brand_photos_dir` in brand.json; use them in place, by absolute path). Copy library picks into `raw/library/` (the Scout's finds are already in `raw/scout/`), save generated voice or music (F1, F2) in `raw/generated/`, and record every outside file:
+then the bundled brand photos (`assets.brand_photos_dir` in brand.json; use them in place, by absolute path). Copy library picks into `raw/library/` (the Scout's finds are already in `raw/scout/`), save generated voice or music (F1, F2) in `raw/generated/`. On every run, gaps or not, record the folder's own voiceover and music and every outside file:
 ```
+python3 "$S/sources.py" add "$JOB" --kind voice --path "$JOB/raw/voiceover.m4a" --source "reel folder (Katie)" --license numa_owned
+python3 "$S/sources.py" add "$JOB" --kind music --path "$JOB/raw/music.mp3" --source "reel folder" --license numa_owned
 python3 "$S/sources.py" add "$JOB" --kind photo --path "$JOB/raw/library/<file>" --source "NUMA media library" --license numa_owned
 python3 "$S/sources.py" add "$JOB" --kind music --path "$JOB/raw/generated/music.mp3" --source "Higgsfield ElevenLabs Music v2.5" --license higgsfield_paid
 ```
-Then re-run stages 2-3 (add `--voice`/`--music` for generated audio) and the analyst's ratings: photo and clip ids can shift when files are added. Music order (REQUIREMENTS interpretation 8): the folder's file, then the Music Library track the card names, then F2. You decide what to use from the Scout's finds. Write `work/material.json` (line -> chosen sources, gaps left, fallback used).
+Record **every** audio file the reel uses, the folder's own included (a Music Library track: `--source "NUMA Music Library" --license "<its license>"`). When the folder had one combined voice+music track, plan `music.path` is `work/master.wav`: record that path too, with the source file's license. Do this before step 5 so baseline_plan.py copies the license into plan.json `music.license`; otherwise set `music.license` by hand from `work/sources.json`. Then re-run stages 2-3 (add `--voice`/`--music` for generated audio) and the analyst's ratings: photo and clip ids can shift when files are added. Music order (REQUIREMENTS interpretation 8): the folder's file, then the Music Library track the card names, then F2. You decide what to use from the Scout's finds. Write `work/material.json` (line -> chosen sources, gaps left, fallback used).
 
 **5. Story and shot plan (Director).** Pick the arc (numa-reel-editor skill, Edit grammar), one story beat per spoken line, hook in frame zero, one signature moment. Start from the baseline, then edit `plan.json` by judgment:
 ```
-python3 "$S/baseline_plan.py" "$JOB/work" --template <plan row Template> --hook "<hook text>" --duration <s> --before P3 --after P7 --turn <s> --script "$JOB/work/script.txt" PREFS
+python3 "$S/baseline_plan.py" "$JOB/work" --hook "<hook text>" --duration <s> --before P3 --after P7 --turn <s> --script "$JOB/work/script.txt" --prefs "$STATE/preferences.json"
 ```
-Use `--template` when the plan row names a template; `--before/--after/--turn` only when a true before/after pair exists (else the signature is a flash reveal); `--script` for music-only reels (F1 move 3). Then rewrite shots, transitions, looks, captions, `music`, `ai`, `meta` (slug, title, series, pillar, hook_type, day) and `formats` (reach cut, 3-5 Story frames, 5-8 carousel slides, cover title, 2-3 hook variants) by hand, following the edit grammar. People shots: `people: true` and `consent: true` only after checking the Consent List (else F12).
+Pass `--template NAME` when the day's row names a template (e.g. `--template offer_promo`); `--before/--after/--turn` only when a true before/after pair exists (else the signature is a flash reveal); `--script` for music-only reels (F1 move 3). Then rewrite shots, transitions, looks, captions, `music`, `ai`, `meta` (slug, title, series, pillar, hook_type, day) and `formats` (reach cut, 3-5 Story frames, 5-8 carousel slides, cover title, 2-3 hook variants) by hand, following the edit grammar. People shots: `people: true` and `consent: true` only after checking the Consent List (else F12).
 
 **6. Motion (motion agent).** Hand it the 2-3 hero photos you chose (config `higgsfield.clips_per_reel`, max 4), the shot each replaces and the intent ("steam drift, slow push-in"). It owns models, prompts, inspection and re-rolls, and runs `ledger.py check` before every job:
 ```
@@ -147,7 +149,7 @@ Blocked or Higgsfield unavailable: F8 / F15; the reel renders without motion cli
 
 **7. Validate.** Must show 0 ERRORs before any render:
 ```
-python3 "$S/validate_plan.py" "$JOB/work/plan.json" "$JOB/work/analysis.json" PREFS
+python3 "$S/validate_plan.py" "$JOB/work/plan.json" "$JOB/work/analysis.json" --prefs "$STATE/preferences.json"
 ```
 Fix every ERROR; fix WARNs unless the plan deliberately needs them (log why).
 
@@ -194,7 +196,7 @@ Any `fail` hit: F11. Any `WARN`: reword or keep with a logged reason. sources ch
 **13. Deliver (R41).**
 1. Send the reel file in this chat (in a scheduled run: the run's result and notification) with the delivery note (section 6). Chat delivery is primary.
 2. Upload everything in `out/` to the day folder's `Finished/` (brand.json `drive.finished`). Upload fails: F15 (the reel was already delivered in chat); keep the queued upload in `work/upload_queue.json`.
-3. Plan Sheet row: Status "Ready to post" and the Reel link. When brand.json `posting.auto_post` is true and `posting.legal_review_done` is true, hand off to the `post-reel` command with `JOB`; when auto-post is on but the legal review is not done, keep "Ready to post" and use the legal-review escalation.
+3. Plan Sheet row: Status "Ready to post" and the Reel link. When brand.json `posting.auto_post.value` is true and `posting.legal_review_done.value` is true, hand off to the `post-reel` command with `JOB`; when auto-post is on but the legal review is not done, keep "Ready to post" and use the legal-review escalation.
 4. Add the new raw files to the media library (librarian) and sync `STATE` back to Drive.
 5. Write `work/delivered.json` (files, Drive links, row status).
 

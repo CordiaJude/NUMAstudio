@@ -147,8 +147,8 @@ def test_agent_frontmatter(agent, config):
     assert tools, f"{agent}: tools must be an explicit list"
     assert len(tools) == len(set(tools)), f"{agent}: duplicate tools"
     for t in tools:
-        assert t in CORE_TOOLS or re.fullmatch(r"mcp__[A-Za-z0-9_-]+__[A-Za-z0-9_-]+", t), f"{agent}: unknown tool {t!r}"
-    assert "*" not in fm.get("tools", "")
+        assert t in CORE_TOOLS or re.fullmatch(r"mcp__[A-Za-z0-9_-]+__(?:\*|[A-Za-z0-9_-]+)", t), f"{agent}: unknown tool {t!r}"
+    assert fm.get("tools", "").strip() != "*", f"{agent}: no blanket tool access"
 
 
 def test_agent_tiers_match_spec(config):
@@ -164,7 +164,9 @@ def test_tool_lists_fit_the_job():
     tools = {a: frontmatter(OWNED[a])["tools"] for a in ("librarian", "scout", "analyst")}
     assert "Google_Drive" in tools["librarian"]  # ingest through the Drive connector (R13, R14)
     assert "claude-in-chrome" in tools["scout"] and "WebSearch" in tools["scout"]  # Chrome + cloud fallback (R124)
-    assert "mcp__" not in tools["analyst"]  # local scripts only
+    assert tools["analyst"] == "Bash, Read, Write"  # local scripts only
+    for a in ("librarian", "scout"):
+        assert "tools are not visible" in body(OWNED[a])  # D17: connector missing -> Director works it (F15/F17)
 
 
 def test_no_model_ids_in_instructions(texts):
@@ -325,13 +327,13 @@ def test_folder_resolution_order_r13(texts):
 def test_inputs_prefs_and_steering(texts):
     t = texts["make-reel"]
     for needle in ["$ARGUMENTS", "SHOOT CARD", "note.txt", "never a required step", 'prefs.py" list',
-                   'prefs.py" add', "PREFS", "Closure check"]:
+                   'prefs.py" add', "Closure check", "does not exist yet"]:
         assert needle in t, needle
     # every call that takes --prefs gets it (R277)
     for script in ("baseline_plan.py", "validate_plan.py"):
         for seg in code_segments(t):
             if f'{script}"' in seg:
-                assert "PREFS" in seg, f"{script} call without PREFS: {seg!r}"
+                assert '--prefs "$STATE/preferences.json"' in seg, f"{script} call without --prefs: {seg!r}"
 
 
 def test_decision_authority_and_escalation(texts, brand):
@@ -374,7 +376,7 @@ def test_no_credit_path_and_closures(texts):
 def test_librarian_steps(texts):
     t = texts["librarian"]
     for needle in ["`JOB/raw/`", "keeping Drive subfolders", "HEIC", "SHOOT CARD", "work/script.txt",
-                   "inventory.json", '"missing"', "Match by content", 'analyze.py" "$JOB/raw" "$JOB/work" --no-transcribe',
+                   "inventory.json", '"missing"', "Match by content", 'analyze.py" "$JOB/raw" "$JOB/work/ingest" --no-transcribe', "tools are not visible",
                    'library.py" add', "never contact Katie"]:
         assert needle in t, needle
     assert t.find("## 1. Download") < t.find("## 3. Check against the shoot card") < t.find("## 4. Report")
@@ -443,9 +445,11 @@ def lint_hits(text: str) -> list[str]:
     text = LINT_ALLOW.sub("", text)
     hits = []
     for n, line in enumerate(text.splitlines(), 1):
-        for sentence in re.split(r"(?<=[.;!?])\s+|\s+-\s+", line):
+        for sentence in re.split(r"(?<=[.;!?])\s+|\s+-\s+|\|", line):  # table cells are separate
             for m in LINT_RE.finditer(sentence):
-                if NEGATION.search(sentence[: m.start()]):
+                # a negation counts only in the same clause, within 3 words before the match ("never ask Katie")
+                clause = re.split(r"[,:;()]", sentence[: m.start()])[-1]
+                if NEGATION.search(" ".join(clause.split()[-3:])):
                     continue
                 hits.append(f"line {n}: {m.group(0)!r} in {sentence.strip()[:120]!r}")
     return hits
@@ -471,6 +475,8 @@ def test_r119_no_questions_or_confirm_steps(rel):
     "Want me to post it now?",
     "List the folders and ask which one Katie will use.",
     "Katie, is this caption OK?",
+    "If no reply, ask Katie.",
+    "When nothing is found in the folder, confirm with Katie.",
 ])
 def test_r119_lint_catches(bad):
     assert lint_hits(bad), bad
@@ -483,6 +489,7 @@ def test_r119_lint_catches(bad):
     "Nothing waits on her approval.",
     "Katie is informed, never asked.",
     "Series: Ask the DPT (Katie, education only).",
+    "| No voiceover (Director asks for lines) | Katie's cloned voice, with consent |",
 ])
 def test_r119_lint_allows_negated_rules(good):
     assert not lint_hits(good), good
