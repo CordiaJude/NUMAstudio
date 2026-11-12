@@ -9,7 +9,7 @@
 | T4 Validator/baseline/claims | REVISING (review: 0 blocking) | 2 | M: hashtag stems, NaN; 8 minors |
 | T5 Vision/prep | PENDING | 0 | |
 | T6 Formats | PENDING | 0 | |
-| T7 Ops scripts | PENDING | 0 | |
+| T7 Ops scripts | IN PROGRESS | 1 | |
 | T8 Instructions A | PENDING | 0 | |
 | T9 Instructions B | PENDING | 0 | |
 | T10 Setup/posting | PENDING | 0 | |
