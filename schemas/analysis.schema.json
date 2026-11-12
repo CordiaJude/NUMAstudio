@@ -34,6 +34,7 @@
         "music": { "type": ["string", "null"] },
         "master": { "type": ["string", "null"], "description": "work/master.wav, or null when there is no audio at all." },
         "combined": { "type": "boolean", "description": "true when one file held voice and music together." },
+        "generated_pad": { "type": "boolean", "description": "true when music is analyze.py's offline pad (work/pad.wav), the last-resort fallback." },
         "clip_audio": {
           "type": "array",
           "description": "Clips whose own sound is usable for natural-sound bursts.",

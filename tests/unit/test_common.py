@@ -67,6 +67,22 @@ def test_ffmpeg_env_override(nc, monkeypatch, tmp_path):
         nc.ffmpeg_bin()
 
 
+def test_ffprobe_env_override_missing_file_raises(nc, monkeypatch, tmp_path):
+    monkeypatch.setenv("NUMA_FFPROBE", str(tmp_path / "missing-ffprobe"))
+    with pytest.raises(nc.UserError, match="NUMA_FFPROBE"):
+        nc.ffprobe_bin()
+
+
+def test_schema_errors_sort_indexes_numerically(nc, plan_factory):
+    plan = plan_factory()
+    shot = plan["shots"][0]
+    plan["shots"] = [dict(shot, t0=float(i), t1=float(i + 1)) for i in range(12)]
+    plan["shots"][10]["tr"] = "zoom"
+    plan["shots"][2]["tr"] = "zoom"
+    errs = [e for e in nc.schema_errors("plan", plan) if ".tr:" in e]
+    assert errs[0].startswith("shots[2].tr") and errs[1].startswith("shots[10].tr"), errs
+
+
 def test_ffprobe_bin_none_when_absent(nc, monkeypatch, tmp_path):
     fake_ffmpeg = tmp_path / "ffmpeg-imageio-linux64"
     fake_ffmpeg.write_text("")
@@ -85,8 +101,7 @@ def test_media_info_video_with_and_without_ffprobe(nc, tmp_path, make_video, mon
     assert a["sample_rate"] == 48000 and a["channels"] == 2
 
     nc.clear_caches()
-    monkeypatch.setenv("NUMA_FFPROBE", str(tmp_path / "no-ffprobe"))
-    assert nc.ffprobe_bin() is None
+    monkeypatch.setattr(nc, "ffprobe_bin", lambda: None)  # as with the imageio-ffmpeg fallback
     raw = nc.ffprobe_json(clip)
     assert raw["_fallback"] is True and {s["codec_type"] for s in raw["streams"]} == {"video", "audio"}
     b = nc.media_info(clip)
@@ -101,7 +116,7 @@ def test_media_info_rotation_and_silent_clip(nc, tmp_path, make_video, monkeypat
     for fallback in (False, True):
         nc.clear_caches()
         if fallback:
-            monkeypatch.setenv("NUMA_FFPROBE", str(tmp_path / "none"))
+            monkeypatch.setattr(nc, "ffprobe_bin", lambda: None)
         info = nc.media_info(clip)
         assert abs(info["rotation"]) == 90
         assert (info["width"], info["height"]) == (240, 320)  # display size

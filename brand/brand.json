@@ -49,7 +49,7 @@
     "phone": {
       "value": null,
       "status": "needs_katie",
-      "source": "spec p.24, p.50, p.56 Q43",
+      "source": "research/4-mobile-competitor-audit.md (developer kit; directory listings); spec p.24, p.50, p.56 Q43",
       "candidates": ["251-289-1758", "251-310-3656", "251-423-8238"],
       "note": "Directory listings show three numbers. Katie picks one; then use it everywhere (Instagram, Google Business Profile, Facebook, Mindbody, website). Never print a candidate."
     },
@@ -78,7 +78,8 @@
   "voice": {
     "description": { "value": "Honest, grounded, warm, communal; invites people to participate, never to perform; no hype.", "status": "from_website", "source": "spec p.22" },
     "reference_lines": { "value": ["Find a collective rhythm in the chaos of life.", "Your reset starts here.", "Take your first deep breath."], "status": "from_website", "source": "spec p.22" },
-    "site_lines": { "value": ["Less Noise. More Presence.", "Everyone hates the cold.", "A screen-free space.", "We started Numa because we needed it."], "status": "from_website", "source": "spec p.24" },
+    "site_lines": { "value": ["Less Noise. More Presence.", "Everyone hates the cold.", "We started Numa because we needed it."], "status": "from_website", "source": "spec p.24" },
+    "site_themes": { "value": ["The site describes NUMA as a screen-free space (a description, not a quoted line)."], "status": "from_website", "source": "spec p.24" },
     "share_line_example": { "value": "Send this to the friend who needs a reset.", "status": "generated", "source": "spec p.19" },
     "community_word": { "value": "members", "status": "needs_katie", "source": "spec p.55 Q21", "note": "Default until Katie answers (members, community, the collective)." },
     "emoji": { "value": "0-2 per caption, earthy only", "status": "needs_katie", "source": "spec p.55 Q22", "note": "Default until Katie answers (yes, a few, or none)." },
@@ -186,7 +187,7 @@
         { "name": "University of South Alabama teams", "handle": null, "order": 5 }
       ],
       "status": "research",
-      "source": "spec p.25, p.56 Q49",
+      "source": "research/4-mobile-competitor-audit.md (developer kit; handles); spec p.25, p.56 Q49",
       "concept": "Sweat there, recover here",
       "note": "Collab posts, never reposts. Katie confirms partners before any outreach."
     },
@@ -199,7 +200,7 @@
         { "name": "Mobile Cryotherapy", "handle": "@mobile_cryotherapy" }
       ],
       "status": "research",
-      "source": "spec p.11, p.24, p.47",
+      "source": "research/4-mobile-competitor-audit.md (developer kit; handles, ~913 followers); spec p.11, p.24, p.47",
       "note": "The Scout logs the last 12 posts of each, monthly."
     },
     "content_mix": {
@@ -272,30 +273,39 @@
   },
 
   "claims": {
-    "_readme": "The claims policy as data. claims_scan.py, validate_plan.py and the Critic use it on ALL text: voiceover, on-screen text, captions, hashtags and pinned comments. Patterns are Python regular expressions matched case-insensitively. Phrases in 'allow_exact' are removed before scanning (they contain words like 'blood pressure' on purpose). This policy is general information from research, not legal advice; an advertising lawyer reviews it once before launch.",
+    "_readme": "The claims policy as data. claims_scan.py, validate_plan.py and the Critic use it on ALL text: voiceover, on-screen text, captions, hashtags and pinned comments. Patterns are Python regular expressions matched case-insensitively. Before scanning, phrases in 'allow_exact' and matches of 'allow_patterns' are removed (the safety line names 'blood pressure' on purpose; 'treat yourself' and 'a treat' are not medical). Each banned entry has a severity: 'fail' (a banned claim: exit 1, Critic hard gate) or 'warn' (ambiguous or outcome language: a WARN line for review). This policy is general information from research, not legal advice; an advertising lawyer reviews it once before launch.",
     "source": "spec p.20-22",
     "principle": "Sell the experience, never the outcome.",
     "banned": [
-      { "id": "inflammation", "label": "inflammation", "patterns": ["\\binflamm\\w*"], "applies_to": "all" },
-      { "id": "immunity", "label": "immunity or immune", "patterns": ["\\bimmun(e|ity|ities)"], "applies_to": "all" },
-      { "id": "detox", "label": "detox or toxins", "patterns": ["\\bdetox\\w*", "\\btoxin(s)?\\b"], "applies_to": "all" },
-      { "id": "fat_weight", "label": "burns fat, calories or weight loss", "patterns": ["\\bburn(s|ing|ed)?[ -]?(fat|calories)", "\\bfat[ -]?burn\\w*", "\\bcalorie(s)?\\b", "\\bweight[ -]?loss", "\\blos(e|es|ing)[ -]?weight\\b"], "applies_to": "all" },
-      { "id": "heal_cure_treat_prevent", "label": "heals, cures, treats, prevents", "patterns": ["\\bheal(s|ed|er|ers)?\\b", "\\bhealing", "\\bcur(e|es|ed)\\b", "\\btreat(s|ed|ing|ment|ments)?\\b", "\\bprevent(s|ed|ing|ion|ive|ative)?\\b"], "applies_to": "all" },
-      { "id": "mental_health_conditions", "label": "anxiety, depression, PTSD, trauma (as something a session fixes)", "patterns": ["\\banxiety", "\\bdepress(ion|ed|ive)?\\b", "\\bptsd", "\\btrauma(s|tic)?\\b"], "applies_to": "all" },
-      { "id": "arthritis", "label": "arthritis", "patterns": ["\\barthrit\\w*"], "applies_to": "all" },
-      { "id": "pain_relief", "label": "pain relief", "patterns": ["\\bpain[ -]?relie(f|ve|ves|ving)", "\\brelie(f|ve|ves|ving)( of| from)?[ -]?pain\\b"], "applies_to": "all" },
-      { "id": "blood_pressure", "label": "blood pressure", "patterns": ["\\bblood[ -]?pressure"], "applies_to": "all" },
-      { "id": "heart_health", "label": "heart health", "patterns": ["\\bheart[ -]?health(y)?", "\\bheart[ -]?disease"], "applies_to": "all" },
-      { "id": "anti_aging", "label": "anti-aging, collagen, wrinkles", "patterns": ["\\banti[ -]?ag(e|ing)", "\\bcollagen", "\\bwrinkl\\w*"], "applies_to": "all" },
-      { "id": "illness", "label": "COVID or illness", "patterns": ["\\bcovid", "\\billness(es)?\\b", "\\bdementia\\b"], "applies_to": "all" },
-      { "id": "proof_language", "label": "\"science-backed\", \"clinically proven\", \"studies show\"", "patterns": ["\\bscience[ -]?backed", "\\bclinically[ -]?proven", "\\bstudies[ -]?(show|prove)\\w*", "\\bresearch[ -]?(shows|proves)\\b"], "applies_to": "all" },
-      { "id": "fda", "label": "\"FDA-approved\" or the FDA logo (\"FDA-cleared\" only when naming the exact device and its exact cleared use)", "patterns": ["\\bfda[ -]?(approved|cleared)"], "applies_to": "all", "visual_rule": "Never show the FDA logo." },
-      { "id": "hormones", "label": "dopamine or hormone numbers", "patterns": ["\\bdopamine", "\\bnorepinephrine", "\\bnoradrenaline", "\\bcortisol", "\\bgrowth[ -]?hormone", "\\bhormone(s)?\\b"], "applies_to": "all" },
-      { "id": "breathwork_therapy", "label": "\"breathwork therapy\" from anyone who isn't licensed for it", "patterns": ["\\bbreathwork[ -]?therap(y|ies|ist|ists)\\b"], "applies_to": "all" }
+      {"id": "inflammation", "label": "inflammation", "severity": "fail", "patterns": ["\\binflamm\\w*"], "applies_to": "all"},
+      {"id": "immunity", "label": "immunity or immune", "severity": "fail", "patterns": ["\\bimmun(e|ity|ities)"], "applies_to": "all"},
+      {"id": "detox", "label": "detox or toxins", "severity": "fail", "patterns": ["\\bdetox\\w*", "\\btoxin(s)?\\b"], "applies_to": "all"},
+      {"id": "fat_weight", "label": "burns fat, calories or weight loss", "severity": "fail", "patterns": ["\\bburn(s|ing|ed)?[ -]?(fat|calories)", "\\bfat[ -]?burn\\w*", "\\bcalorie(s)?\\b", "\\bweight[ -]?loss", "\\blos(e|es|ing)[ -]?weight\\b"], "applies_to": "all"},
+      {"id": "heals", "label": "heals (a body, injury or condition)", "severity": "fail", "patterns": ["\\bheal(s|ed)\\b", "\\bheal\\s+(your|the|my|our|their)\\b", "\\bheal(ing)?\\s+(\\w+\\s+){0,2}?(pain|aches?|injur\\w*|depression|anxiety|stress|insomnia|sleep|conditions?|symptoms?|diseases?|illness\\w*|inflamm\\w*|arthritis|ptsd|trauma|muscles?|soreness|joints?|headaches?|migraines?|fatigue|burnout|wounds?)\\b"], "applies_to": "all"},
+      {"id": "healing_ambiguous", "label": "\"healing\" can read as a health claim; keep it only in proper names (e.g. a business called Healing Arts)", "severity": "warn", "patterns": ["\\bhealing"], "applies_to": "all"},
+      {"id": "cures", "label": "cures", "severity": "fail", "patterns": ["\\bcur(es|ed|ing)\\b", "\\b(to|will|can|may|might|that|which|it|they|we|could|helps?|helps? to)\\s+cure\\b", "#cure\\w*"], "applies_to": "all"},
+      {"id": "cure_ambiguous", "label": "\"cure\" as a noun (\"the cure for Monday\") still suggests an outcome; reword", "severity": "warn", "patterns": ["\\bcure\\b"], "applies_to": "all"},
+      {"id": "treats", "label": "treats (a condition)", "severity": "fail", "patterns": ["\\btreat(s|ed|ing)?\\s+(\\w+\\s+){0,2}?(pain|aches?|injur\\w*|depression|anxiety|stress|insomnia|sleep|conditions?|symptoms?|diseases?|illness\\w*|inflamm\\w*|arthritis|ptsd|trauma|muscles?|soreness|joints?|headaches?|migraines?|fatigue|burnout|wounds?)\\b", "#treat(ment)?s?\\b"], "applies_to": "all"},
+      {"id": "treat_ambiguous", "label": "\"treat\"/\"treatment\" outside \"treat yourself\" or \"a treat\" can read as medical; check the context", "severity": "warn", "patterns": ["\\btreat(s|ed|ing|ment|ments)?\\b"], "applies_to": "all"},
+      {"id": "prevents", "label": "prevents (an illness or condition)", "severity": "fail", "patterns": ["\\bprevent(s|ed|ing|ion|ive|ative)?\\s+(\\w+\\s+){0,2}?(illness\\w*|diseases?|sickness|sick|flu|colds?|dementia|aging|heart|injur\\w*|inflamm\\w*|depression|anxiety|burnout|cancer|infections?)\\b"], "applies_to": "all"},
+      {"id": "prevent_ambiguous", "label": "\"prevent\" near health topics is a claim; fine for safety (\"prevent slipping\")", "severity": "warn", "patterns": ["\\bprevent(s|ed|ing|ion|ive|ative)?\\b"], "applies_to": "all"},
+      {"id": "mental_health_conditions", "label": "anxiety, depression, PTSD, trauma (as something a session fixes)", "severity": "fail", "patterns": ["\\banxiety", "\\bdepression", "\\bdepressive\\b", "\\bptsd", "\\btrauma(s|tic)?\\b(?![- ]informed)"], "applies_to": "all"},
+      {"id": "depressed_ambiguous", "label": "\"depressed\" reads as a mental-health condition", "severity": "warn", "patterns": ["\\bdepressed\\b"], "applies_to": "all"},
+      {"id": "arthritis", "label": "arthritis", "severity": "fail", "patterns": ["\\barthrit\\w*"], "applies_to": "all"},
+      {"id": "pain_relief", "label": "pain relief", "severity": "fail", "patterns": ["\\bpain[ -]?relie(f|ve|ves|ving)", "\\brelie(f|ve|ves|ving)( of| from)?[ -]?pain\\b"], "applies_to": "all"},
+      {"id": "blood_pressure", "label": "blood pressure", "severity": "fail", "patterns": ["\\bblood[ -]?pressure"], "applies_to": "all"},
+      {"id": "heart_health", "label": "heart health", "severity": "fail", "patterns": ["\\bheart[ -]?health(y)?", "\\bheart[ -]?disease"], "applies_to": "all"},
+      {"id": "anti_aging", "label": "anti-aging, collagen, wrinkles", "severity": "fail", "patterns": ["\\banti[ -]?ag(e|ing)", "\\bcollagen", "\\bwrinkl\\w*"], "applies_to": "all"},
+      {"id": "illness", "label": "COVID, illness, disease, sickness or flu as something a session helps with", "severity": "fail", "patterns": ["\\bcovid", "\\billness(es)?\\b", "\\bdementia\\b", "\\bdisease(s)?\\b", "\\bsickness\\b", "\\b(get|gets|getting|got)\\s+sick\\b", "\\b(flu|cold|sick)[ -]?season\\b", "\\b(fight|fights|fighting|beat|beats|ward(s|ing)?\\s+off|keep(s|ing)?\\s+away|avoid|recover(s|y|ing)?\\s+from|get(ting)?\\s+over|less|fewer|no\\s+more|never)\\s+(\\w+\\s+){0,2}?(sick|sickness|ill|flu|colds?|bugs?|viruse?s?|infections?)\\b", "#(flu|sick)\\w*"], "applies_to": "all"},
+      {"id": "sick_flu_ambiguous", "label": "\"sick\"/\"flu\" in a wellness post can imply a health claim; check the context", "severity": "warn", "patterns": ["\\bsick\\b", "\\bflu\\b"], "applies_to": "all"},
+      {"id": "proof_language", "label": "\"science-backed\", \"clinically proven\", \"studies show\"", "severity": "fail", "patterns": ["\\bscience[ -]?backed", "\\bclinically[ -]?proven", "\\bstudies[ -]?(show|prove)\\w*", "\\bresearch[ -]?(shows|proves)\\b"], "applies_to": "all"},
+      {"id": "fda", "label": "\"FDA-approved\" or the FDA logo (\"FDA-cleared\" only when naming the exact device and its exact cleared use)", "severity": "fail", "patterns": ["\\bfda[ -]?(approved|cleared)"], "applies_to": "all"},
+      {"id": "hormones", "label": "dopamine or hormone numbers", "severity": "fail", "patterns": ["\\bdopamine", "\\bnorepinephrine", "\\bnoradrenaline", "\\bcortisol", "\\bgrowth[ -]?hormone", "\\bhormone(s)?\\b(?![- ]free)"], "applies_to": "all"},
+      {"id": "breathwork_therapy", "label": "\"breathwork therapy\" from anyone who isn't licensed for it", "severity": "fail", "patterns": ["\\bbreathwork[ -]?therap(y|ies|ist|ists)\\b"], "applies_to": "all"},
+      {"id": "hedges", "label": "\"May help\", \"studies suggest\" and disclaimers don't fix a claim; reword the claim itself.", "severity": "warn", "patterns": ["\\bmay help\\b", "\\bstudies suggest\\b", "#?not ?medical ?advice"], "applies_to": "all"},
+      {"id": "outcome_verbs", "label": "Outcome promises (sleep, metabolism, soreness, recovery speed, stress levels) sell the outcome, not the experience; reword", "severity": "warn", "patterns": ["\\b(improve[sd]?|improving|better|deeper)\\s+(your\\s+)?sleep\\b", "\\bboost(s|ed|ing)?\\s+(your\\s+)?(metabolism|energy|mood|circulation|focus|recovery|performance)\\b", "\\b(reduce[sd]?|reducing|less|lower(s|ed|ing)?|ease[sd]?|easing)\\s+(your\\s+)?(muscle\\s+)?soreness\\b", "\\brecover(s|ing)?\\s+faster\\b", "\\bfaster\\s+recovery\\b", "\\bspeed(s|ing)?\\s+(up\\s+)?(your\\s+)?recovery\\b", "\\b(lower(s|ed|ing)?|reduce[sd]?|reducing|cut(s|ting)?)\\s+(your\\s+)?stress(\\s+levels?)?\\b", "\\bimprove[sd]?\\s+(your\\s+)?(circulation|recovery|focus|mood|performance|metabolism)\\b"], "applies_to": "all"}
     ],
-    "warn": [
-      { "id": "hedges", "label": "\"May help\", \"studies suggest\" and disclaimers don't fix a claim; reword the claim itself.", "patterns": ["\\bmay help\\b", "\\bstudies suggest\\b", "#?not ?medical ?advice"], "applies_to": "all" }
-    ],
+    "allow_patterns": ["\\btreat(ing)?\\s+(yourself|yourselves|myself|ourselves|themselves)\\b", "\\ba\\s+(\\w+\\s+)?treat\\b(?!\\s+(for|of)\\b)"],
     "allow_exact": ["Talk to your doctor first if you have a heart, blood pressure or breathing condition."],
     "modalities": {
       "cold_plunge": {

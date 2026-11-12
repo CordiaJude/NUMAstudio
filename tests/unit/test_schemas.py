@@ -32,6 +32,7 @@ def analysis_doc(job):
         "transcript": "Katie saw.",
         "voice_present": True,
         "audio": {"voice": str(job.raw / "vo.m4a"), "music": str(job.raw / "music.mp3"), "master": str(job.work / "master.wav"),
+                  "combined": False, "generated_pad": False,
                   "clip_audio": [{"id": "C0", "peaks": [1.2], "mean_db": -24.0}]},
         "photos": [{"id": "P0", "path": str(job.raw / "a.jpg"), "size": [840, 718], "faces": [[0.4, 0.2, 0.1, 0.15]], "focus": [0.45, 0.3],
                     "sharpness": 120.5, "brightness": 0.42}],
@@ -65,6 +66,25 @@ def test_example_plan_validates(nc, assets_dir):
     plan = nc.read_json(assets_dir / "example-plan-year-one.json")
     assert nc.schema_errors("plan", plan) == []
     assert "schema_version" not in plan  # v1-shaped plans stay valid
+
+
+def test_v2_example_plan_validates(nc, assets_dir):
+    plan = nc.read_json(assets_dir / "example-plan-year-one-v2.json")
+    assert nc.schema_errors("plan", plan) == []
+    assert plan["schema_version"] == 2
+    for key in ("hook", "signature", "music", "meta", "ai", "formats"):
+        assert key in plan, key
+    assert plan["signature"]["type"] == "wipe"
+    assert any(s["tr"] == "wipe" and abs(s["t0"] - plan["signature"]["t"]) < 1e-6 for s in plan["shots"])
+    shots = plan["shots"]
+    assert shots[0]["t0"] == 0 and shots[-1]["t1"] == plan["duration"]
+    assert all(a["t1"] == b["t0"] for a, b in zip(shots, shots[1:]))
+    # placeholder prefixes resolve: /NUMA_PLUGIN/ files exist in this checkout
+    for path in (plan["font_regular"], plan["font_italic"], plan["endcard"]["logo"], shots[-1]["src"]):
+        assert path.startswith("/NUMA_PLUGIN/")
+        assert (nc.PLUGIN_ROOT / path[len("/NUMA_PLUGIN/"):]).is_file(), path
+    srcs = [s["src"] for s in shots]
+    assert all(p.startswith(("/YEAR_ONE_PACK/", "/NUMA_PLUGIN/")) for p in srcs)
 
 
 def test_full_v2_plan_validates(nc, plan_factory, job):
@@ -158,6 +178,7 @@ def test_analysis_document_validates(nc, analysis_doc):
     (lambda a: a["words"][0].update(p=1.5), "words[0].p: must be <= 1"),
     (lambda a: a["photos"][0].update(faces=[[0.1, 0.2, 0.3]]), "photos[0].faces[0]: must have at least 4 items"),
     (lambda a: a["photos"][0].update(size=[840]), "photos[0].size: must have at least 2 items"),
+    (lambda a: a["audio"].update(generated_pad="yes"), "audio.generated_pad: must be boolean"),
 ])
 def test_bad_analysis_rejected(nc, analysis_doc, mutate, expected):
     mutate(analysis_doc)
@@ -257,17 +278,17 @@ def test_transcript_fixes_r148(brand):
     assert "Numa Nights" in brand["transcript_fixes"]["protect"]
 
 
-def _scan(brand, text):
-    for phrase in brand["claims"]["allow_exact"]:
+def _scan(brand, text, severity="fail"):
+    """The scanning contract from docs/CONTRACTS.md section 6; returns rule ids hit at `severity`."""
+    claims = brand["claims"]
+    for phrase in claims["allow_exact"]:
         text = text.replace(phrase, " ")
-    hits = []
-    rules = brand["claims"]["banned"] + [{"id": "dosing_line", "patterns": brand["claims"]["dosing_line"]["patterns"]}]
-    for rule in rules:
-        for pat in rule["patterns"]:
-            if re.search(pat, text, re.IGNORECASE):
-                hits.append(rule["id"])
-                break
-    return hits
+    for pat in claims.get("allow_patterns", []):
+        text = re.sub(pat, " ", text, flags=re.IGNORECASE)
+    rules = [r for r in claims["banned"] if r.get("severity", "fail") == severity]
+    if severity == "fail" and claims["dosing_line"]["blocked"]:
+        rules.append({"id": "dosing_line", "patterns": claims["dosing_line"]["patterns"]})
+    return [r["id"] for r in rules if any(re.search(p, text, re.IGNORECASE) for p in r["patterns"])]
 
 
 @pytest.mark.parametrize("text", [
@@ -278,6 +299,9 @@ def _scan(brand, text):
     "COVID recovery", "science-backed", "Clinically proven", "Studies show", "FDA-approved", "FDA cleared panels",
     "250% dopamine", "hormone levels", "breathwork therapy", "#immunityboost", "#detox",
     "57 minutes of sauna and 11 of cold a week",
+    "Sauna cures stress", "treating anxiety", "heals your body", "#cureanxiety",
+    "fights disease", "no more getting sick", "beat flu season", "fewer colds this winter", "ward off illness", "#flushot",
+    "trauma", "hormones", "depression",
 ])
 def test_banned_claims_catch_every_spec_item(brand, text):
     assert _scan(brand, text), text
@@ -296,6 +320,46 @@ def test_banned_claims_catch_every_spec_item(brand, text):
 ])
 def test_brand_voice_lines_pass_the_scanner(brand, text):
     assert _scan(brand, text) == [], text
+
+
+@pytest.mark.parametrize("text, warn_id", [
+    ("Treat yourself to a Friday contrast session.", None),
+    ("Our new Flow Space is a real treat.", None),
+    ("A little treat after work.", None),
+    ("Cold brew and summer treats at the front desk.", "treat_ambiguous"),
+    ("The cure for Monday: three minutes of cold.", "cure_ambiguous"),
+    ("Meet our neighbors at Healing Arts.", "healing_ambiguous"),
+    ("Grip mats help prevent slipping.", "prevent_ambiguous"),
+    ("Our guides are trauma-informed.", None),
+    ("Hormone-free snacks after class.", None),
+    ("Depress the button to start the circuit.", None),
+    ("That first plunge was sick.", "sick_flu_ambiguous"),
+])
+def test_innocent_wording_never_hard_fails(brand, text, warn_id):
+    assert _scan(brand, text) == [], text
+    warns = _scan(brand, text, "warn")
+    if warn_id:
+        assert warn_id in warns, (text, warns)
+    else:
+        assert warns == [], (text, warns)
+
+
+@pytest.mark.parametrize("text", [
+    "Improves sleep", "better sleep tonight", "boost metabolism", "Boost your energy", "reduce soreness",
+    "less muscle soreness", "recover faster", "faster recovery", "speeds recovery", "speed up your recovery",
+    "lowers stress levels", "reduce stress", "improve circulation",
+])
+def test_outcome_language_warns(brand, text):
+    assert "outcome_verbs" in _scan(brand, text, "warn"), text
+    assert _scan(brand, text) == [], text
+
+
+def test_every_claim_rule_has_a_severity(brand):
+    sev = {r["id"]: r["severity"] for r in brand["claims"]["banned"]}
+    assert set(sev.values()) == {"fail", "warn"}
+    assert "warn" not in brand["claims"]  # unified into banned[] with severity
+    for pat in brand["claims"]["allow_patterns"]:
+        re.compile(pat)
 
 
 def test_claims_structure(brand):

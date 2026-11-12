@@ -47,6 +47,35 @@ reconstructed from the git history.
   counsel).
 - Operational numbers (Higgsfield budget, Instagram API version) moved from
   `brand/brand.json` to `config/studio.json`.
+- brand.json key migration (full table in `docs/CONTRACTS.md` section 6;
+  there is no compatibility shim, readers must use the new keys):
+
+  | v1 key | v2 location |
+  |--------|-------------|
+  | `claims.banned_patterns` | `claims.banned[].patterns` (with id, label, severity `fail`/`warn`) |
+  | `claims.hold_until_counsel` | `claims.dosing_line` |
+  | `competitors_to_track` | `positioning.competitors` |
+  | `collab_partners`, `series`, `content_mix` | `positioning.collab_partners`, `positioning.series`, `positioning.content_mix` |
+  | `budgets` | `config/studio.json` `budget` |
+  | `instagram_api` | `config/studio.json` `instagram.graph_api_version` |
+  | `admin_contact` | `escalation.contact` / `escalation.for` |
+  | `handles` | `socials` |
+  | `hashtags` | `captions.hashtags` |
+  | `posting.cta_link` | `business.cta_link` |
+  | `posting.default_slots_central` | `posting.posting_time` |
+  | `name`, `founders`, `location`, `facility`, `phone`, `hours_note` | `business.*` (`hours_note` -> `business.hours`) |
+  | `sessions`, `offers`, `events`, `not_offered` | `offerings.*` |
+  | `collective` | `team.collective` |
+  | `community_word`, `emoji` | `voice.*` |
+  | `transcript_fixes` map | `transcript_fixes.fixes[]` + `protect` |
+  | `closures.source` | `closures.location` |
+- Claims rules carry a severity: `fail` for the spec's banned list, `warn` for
+  ambiguous wording ("Healing Arts", "summer treats", "prevent slipping") and
+  outcome language ("improves sleep", "recover faster"); `allow_patterns`
+  exempt "treat yourself" and "a treat". Illness rules now cover disease,
+  sickness and flu in a health context.
+- `assets/example-plan-year-one-v2.json`: the Year One reel as a full v2 plan
+  (placeholder path prefixes rewritten by the golden harness).
 - `assets/example-plan-year-one.json` carries a note that it is an example
   whose paths point at the original build machine.
 

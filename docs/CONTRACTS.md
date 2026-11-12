@@ -198,6 +198,11 @@ Producers may add fields; consumers ignore fields they don't know.
 
 Timing is never changed by corrections: `fix_transcript.py` edits `w` only.
 
+**v1 analysis files are rejected.** v1 `analyze.py` wrote no `schema_version`,
+`voice_present`, `clips[].has_audio`/`fps`/`size`; such a file fails the
+schema. There is no migration: re-run `analyze.py` on the job's `raw/` folder
+(it is idempotent and cheap compared with a render).
+
 ---
 
 ## 4. plan.json
@@ -339,10 +344,18 @@ an end-card field.
 ### Example
 
 `skills/numa-reel-editor/assets/example-plan-year-one.json` is the v1 Year One
-plan, kept as a worked example (schema_version 1 shape). Its paths point at the
+plan, kept as the v1 compatibility fixture (schema_version 1 shape). Its paths point at the
 original build machine (`/home/claude/...`, `/mnt/user-data/...`) and do not
 exist here: it validates against the schema but not against the file-existence
 rules, and cannot be rendered as is.
+
+`skills/numa-reel-editor/assets/example-plan-year-one-v2.json` is the same
+reel as a full v2 plan (`hook`, `signature` wipe, `music`, `ai`, `meta`,
+`formats`). Plans require absolute paths, so it uses two placeholder
+prefixes: `/YEAR_ONE_PACK/` (the Year One test-pack folder: `raw/`, `work/`)
+and `/NUMA_PLUGIN/` (the plugin root, for bundled fonts, wordmark and ripple
+image). The golden harness rewrites both prefixes before checking files or
+rendering; the plan validates against the schema as is.
 
 ---
 
@@ -382,7 +395,7 @@ rules. `E` = ERROR (exit 1), `W` = WARN. Tolerances: tiling 1 ms; beat 1 frame
 | 24 | Caption vs transcript (needs analysis.json): words aligned by sequence; text mismatch after normalizing case/punctuation or appear time off by more than 0.15 s is W; off by more than 0.5 s, or a caption word missing from the transcript, is E | W/E | R84 |
 | 25 | Caption block or hook outside the safe area (top 12%, bottom 10% of the height) | E | R67 |
 | 26 | Caption block overlaps a face box of the shot on screen at that time | W | R68 |
-| 27 | Any text (lines, hook, endcard tagline/subtitle, formats texts) hits a banned claim in brand.json (or the dosing line while blocked) | E | R128 |
+| 27 | Any text (lines, hook, endcard tagline/subtitle, formats texts) hits a `fail` claim in brand.json (or the dosing line while blocked); `warn`-severity hits are W | E/W | R128 |
 | 28 | Shot with `people: true` and `consent` not true | E | R141 |
 | 29 | v2 plan without `music`, or `music.license` empty for a source other than `natural`/`pad` | E | R141 |
 | 30 | `ai.people` or `ai.scenes` true, or any `ai_generated` shot, while `ai.label_required` is not true | E | R139 |
@@ -394,6 +407,8 @@ rules. `E` = ERROR (exit 1), `W` = WARN. Tolerances: tiling 1 ms; beat 1 frame
 | 36 | `formats.reach_cut` not 8-12 s long or outside the reel; any `formats` time outside the reel | E | R231 |
 | 37 | `fps` other than 30 or `size` other than 1080x1920 for the main reel | W | R36, R230 |
 | 38 | Preference limits from `--prefs` (e.g. max whips) exceeded | W | R278 |
+| 39 | Never open on the logo: shot 0 `src` is the brand wordmark or the phoenix mark (`assets.wordmark`, `assets.secondary_mark`, compared by resolved path) | E | R44, R70 |
+| 40 | Movement from frame 1: shot 0 is a still (`kind` image) with `z[0] == z[1]`, no pan (`pan` absent or [0, 0]) and `tr` `cut`, and the plan has no `hook` (no moving hook text) | E | R70 |
 
 The validator prints `OK: <n> shots, <duration> s, <w> warnings` on success.
 
@@ -431,7 +446,7 @@ walks and unwraps.
 | `endcard` | `tagline`, `default_subtitle`, `signoff_examples` | engine, baseline_plan |
 | `captions` | `opening_rule`, `hashtags` {count [3,5], base, community_tag, never}, `disclosure` | copywriter, claims_scan |
 | `transcript_fixes` | `protect` (phrases never changed), `fixes[]` {to, variants, case_sensitive, next_words} | fix_transcript, analyze |
-| `claims` | `banned[]` {id, label, patterns (Python regex, case-insensitive), applies_to "all"}, `warn[]`, `allow_exact` (removed before scanning), `modalities` {say, never_say}, `rules[]`, `safety_line` {text, applies_to}, `dosing_line` {text, blocked, patterns} | claims_scan, validate_plan, scriptwriter, critic |
+| `claims` | `banned[]` {id, label, severity `fail`/`warn` (default `fail`), patterns (Python regex, case-insensitive), applies_to "all"}, `allow_exact` and `allow_patterns` (removed before scanning), `modalities` {say, never_say}, `rules[]`, `safety_line` {text, applies_to}, `dosing_line` {text, blocked, patterns} | claims_scan, validate_plan, scriptwriter, critic |
 | `consent` | `list` {location, columns}, `default`, `ai_processing_covered`, `social_posts_covered`, `children`, `voice_clone`, `release_form` | motion, critic, librarian |
 | `closures` | `location`, `rule`, `known` | plan-month |
 | `drive` | Drive names: `root`, `plan_dir`, `plan_sheet`, `music_library`, `music_naming`, `digests`, `consent_list`, `closures`, `metrics_sheet`, `month_folder`, `day_folder`, `shoot_card`, `photos`, `clips`, `voiceover`, `music`, `finished` | librarian, plan-month |
@@ -439,11 +454,56 @@ walks and unwraps.
 | `escalation` | `contact` (Jude Moore), `never_ask`, `for[]`, `rule` | make-reel, all tasks |
 
 **Claims scanning contract.** Scan every text surface (voiceover script,
-on-screen text, caption, hashtags, pinned comment). Remove each
-`allow_exact` phrase, then test every `banned[].patterns` and, while
-`dosing_line.blocked` is true, `dosing_line.patterns` with `re.IGNORECASE`.
-Any match is a banned claim (exit 1 / Critic hard gate); `warn[]` matches are
-warnings. Hashtags are also checked against `captions.hashtags.never`.
+on-screen text, caption, hashtags, pinned comment). First remove each
+`allow_exact` phrase and every match of `allow_patterns` (e.g. "treat
+yourself", "a real treat"), then test every `banned[].patterns` and, while
+`dosing_line.blocked` is true, `dosing_line.patterns`, all with
+`re.IGNORECASE`.
+
+| Severity | Meaning | Script result |
+|----------|---------|---------------|
+| `fail` (default) | A banned claim from the spec list (or the blocked dosing line) | `ERROR:` line, exit 1; Critic hard gate |
+| `warn` | Ambiguous wording that is usually innocent ("Healing Arts", "the cure for Monday", "summer treats", "prevent slipping") or outcome language ("improves sleep", "recover faster", "lowers stress levels") | `WARN:` line, exit 0; the Director rewords or confirms |
+
+Fail patterns use context or lookarounds so innocent uses don't hard-fail
+(e.g. `trauma` but not `trauma-informed`, `hormone` but not `hormone-free`,
+"treats" only before a condition word). Hashtags are also checked against
+`captions.hashtags.never`.
+
+**Key migration (v1 brand.json -> v2).** Readers of the old keys must use the
+new ones; there is no compatibility shim.
+
+| v1 key | v2 location |
+|--------|-------------|
+| `name` {value, short} | `business.name.value` {full, short, with_city} |
+| `founders`, `location`, `facility`, `phone`, `hours_note` | `business.founders`, `business.location` (now an object), `business.facility` (now an object), `business.phone` (+ `candidates`), `business.hours` |
+| `sessions` (strings) | `offerings.sessions` (objects with `minutes`, `guidance`, `price` fact) |
+| `offers` | `offerings.offers` |
+| `events` | `offerings.events` |
+| `not_offered` | `offerings.not_offered` |
+| `collective` | `team.collective` |
+| `handles` {instagram} | `socials` {instagram, facebook, ios_app, google_business_profile} |
+| `voice` {value, reference_lines} | `voice.description`, `voice.reference_lines` (3 site reference lines), `voice.site_lines` |
+| `community_word`, `emoji` | `voice.community_word`, `voice.emoji` |
+| `palette` {cedar, teal, cream, caption_gold} | `palette.value` {cedar_ember, water_teal, cream, caption_gold, caption_text} + `palette.roles` |
+| `fonts` {caption_regular, caption_italic} (paths relative to the skill) | `fonts.value` {family, caption_regular, caption_italic, license} (paths relative to the plugin root) |
+| `assets` {wordmark, ...} (plain paths) | `assets.<key>.value` (facts) |
+| `endcard` {tagline, default_subtitle} | `endcard.tagline.value`, `endcard.default_subtitle.value`, `endcard.signoff_examples` |
+| `series` (names) | `positioning.series.value` (objects) |
+| `content_mix` | `positioning.content_mix.value` |
+| `collab_partners` | `positioning.collab_partners` |
+| `competitors_to_track` | `positioning.competitors` |
+| `hashtags` {base, community_tag, never} | `captions.hashtags` {count, base, community_tag (fact), never} |
+| `transcript_fixes` {wrong: right} map | `transcript_fixes.fixes[]` {to, variants, case_sensitive, next_words} + `transcript_fixes.protect` |
+| `claims.banned_patterns` | `claims.banned[].patterns` (with id, label, severity) |
+| `claims.hold_until_counsel` | `claims.dosing_line` {text, blocked, patterns} |
+| `claims.safety_line` (string) | `claims.safety_line.text` |
+| `budgets` | `config/studio.json` `budget` (and `higgsfield.credits_per_month`) |
+| `instagram_api` | `config/studio.json` `instagram.graph_api_version` |
+| `posting.auto_post`, `posting.cta_link`, `posting.default_slots_central` | `posting.auto_post`, `business.cta_link`, `posting.posting_time` |
+| `admin_contact` {name, for} | `escalation.contact`, `escalation.for` |
+| `consent` {list, ai_processing_covered} | `consent.list.location`, `consent.ai_processing_covered` |
+| `closures.source` | `closures.location` |
 
 Operational numbers that used to sit in v1 brand.json (Higgsfield budget,
 Instagram API version) now live in `config/studio.json`.
@@ -567,9 +627,9 @@ fail. Exit 0 valid, 1 any ERROR (or WARN with `--strict`).
 claims_scan.py [TEXT ...] [--file FILE ...] [--plan PLAN_JSON] [--hashtags TEXT] [--json]
 ```
 Scans texts (`-` reads stdin), files, and every text field of a plan against
-brand.json claims (section 6) and `hashtags.never`. Prints
-`ERROR: banned claim "<label>" in <where>: "<matched text>"` per hit; exit 1
-on any banned hit, 0 when clean (warn-rule hits are `WARN:` lines).
+brand.json claims (section 6) and `captions.hashtags.never`. Prints
+`ERROR: banned claim "<label>" in <where>: "<matched text>"` per `fail` hit;
+exit 1 on any `fail` hit, 0 otherwise (`warn`-severity hits are `WARN:` lines).
 
 ### engine.py [T1]
 ```

@@ -319,7 +319,11 @@ def _describe(err) -> str:
 def schema_errors(schema_name: str, obj: Any) -> list[str]:
     """All schema violations as readable one-liners: '<path>: <problem>', sorted by path."""
     validator = _validator(schema_name)
-    errs = sorted(validator.iter_errors(obj), key=lambda e: (list(map(str, e.absolute_path)), e.validator))
+    def order(e):
+        # int-aware: shots[2] sorts before shots[10]
+        return ([(0, p, "") if isinstance(p, int) else (1, 0, str(p)) for p in e.absolute_path], str(e.validator))
+
+    errs = sorted(validator.iter_errors(obj), key=order)
     lines: list[str] = []
     for e in errs:
         line = f"{json_path(e.absolute_path)}: {_describe(e)}"
@@ -360,8 +364,9 @@ def _load_brand(path: str, _mtime_ns: int) -> dict:
     brand = read_json(path, "brand file")
     validate_against("brand", brand, what=f"brand file {path}")
     claims = brand["claims"]
-    rules = list(claims["banned"]) + list(claims.get("warn", [])) + [
-        {"id": "dosing_line", "patterns": claims["dosing_line"]["patterns"]}
+    rules = list(claims["banned"]) + [
+        {"id": "dosing_line", "patterns": claims["dosing_line"]["patterns"]},
+        {"id": "allow_patterns", "patterns": claims.get("allow_patterns", [])},
     ]
     for rule in rules:
         for pat in rule["patterns"]:
@@ -399,11 +404,10 @@ def load_config(path: str | os.PathLike | None = None) -> dict:
 
 def clear_caches() -> None:
     """Forget cached brand/config/schemas/binaries (tests, long-running callers)."""
-    _load_brand.cache_clear()
-    _load_config.cache_clear()
-    _validator.cache_clear()
-    ffmpeg_bin.cache_clear()
-    ffprobe_bin.cache_clear()
+    for fn in (_load_brand, _load_config, _validator, ffmpeg_bin, ffprobe_bin):
+        clear = getattr(fn, "cache_clear", None)  # absent when a test has swapped the function
+        if clear:
+            clear()
 
 
 def dig(data: Any, dotted: str, default: Any = None) -> Any:
@@ -602,11 +606,14 @@ def ffmpeg_bin() -> str:
 def ffprobe_bin() -> str | None:
     """Path to ffprobe ($NUMA_FFPROBE, system, or next to ffmpeg), or None.
 
+    $NUMA_FFPROBE pointing at a missing file is a UserError (like $NUMA_FFMPEG).
     The imageio-ffmpeg fallback ships no ffprobe; ffprobe_json()/media_info() then
     parse `ffmpeg -i` output instead, so callers never need ffprobe directly."""
     env = os.environ.get("NUMA_FFPROBE")
     if env:
-        return env if Path(env).is_file() else None
+        if not Path(env).is_file():
+            raise UserError(f"NUMA_FFPROBE points to a missing file: {env}")
+        return env
     found = shutil.which("ffprobe")
     if found:
         return found
