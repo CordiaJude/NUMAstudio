@@ -454,7 +454,7 @@ def correct(analysis: dict, script: Sequence[str] | None = None, brand: dict | N
                 if SCRIPT_FALLBACK_WARNING not in warnings:
                     warnings.append(SCRIPT_FALLBACK_WARNING)
                 analysis["voice_present"] = True  # captions exist, so the voice chain and captions apply
-        elif words:
+        elif words and ratio >= GARBAGE_RATIO:  # an unrelated script must not respell a kept transcript
             words, script_corr, confirmed = align_to_script(words, script)
             corrections.extend(script_corr)
     corrections.extend(apply_brand_fixes(words, protect, fixes, skip=confirmed))

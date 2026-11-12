@@ -4,7 +4,7 @@
 |------|-------|-------|---------------|
 | T0 Foundation | ACCEPTED (review PASS x2, 223 unit tests green) | 2 | 2 minor logged below |
 | T1 Engine | IN PROGRESS | 1 | |
-| T2 Analyze | REVISING | 2 | B: py3.10 f-string syntax; M: voice_present w/ script captions, garbage rule, audio-only exit |
+| T2 Analyze | ACCEPTED (re-review PASS 7/7; orchestrator fixed minor: no script alignment on mismatch) | 2 | |
 | T3 Finish | REVISING (review: 0 blocking) | 2 | M: TP limiter, silent master, black-bar detection |
 | T4 Validator/baseline/claims | REVISING (review: 0 blocking) | 2 | M: hashtag stems, NaN; 8 minors |
 | T5 Vision/prep | PENDING | 0 | |
