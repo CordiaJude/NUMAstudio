@@ -241,11 +241,14 @@ def beat_grid(A: dict, D: float) -> tuple[list[float], float]:
 # Captions
 # ---------------------------------------------------------------------------
 class RowMeter:
-    """Counts caption rows the way the engine wraps them (92 px font, 960 px box)."""
+    """Counts caption rows the way the engine wraps them (92 px font, or the caption_px pref, 960 px box).
 
-    def __init__(self) -> None:
+    Also carries the caption preferences: max_chars per line and max_gold words per line."""
+
+    def __init__(self, px: float | None = None, max_chars: int = 70, max_gold: int = 2) -> None:
         from PIL import ImageFont
-        px = int(_cfg("render.captions.font_px", 92))
+        px = int(round(px or _cfg("render.captions.font_px", 92)))
+        self.max_chars, self.max_gold = max_chars, max_gold
         self.fr = ImageFont.truetype(str(nc.brand_font("regular")), px)
         self.fi = ImageFont.truetype(str(nc.brand_font("italic")), px)
 
@@ -263,7 +266,7 @@ def _clean(w: str) -> str:
     return re.sub(r"[^\w']+", "", w.lower()).strip("'")
 
 
-def pick_gold(words: list[str]) -> set[int]:
+def pick_gold(words: list[str], max_gold: int = 2) -> set[int]:
     """1-2 key words: the longest content words (later wins ties); 2 for lines of 6+ words."""
     cand = [(len(_clean(w)), i) for i, w in enumerate(words) if _clean(w) not in STOP and len(_clean(w)) >= 4]
     if not cand:
@@ -271,12 +274,13 @@ def pick_gold(words: list[str]) -> set[int]:
     if not cand:
         return set()
     cand.sort(key=lambda x: (-x[0], -x[1]))
-    n = 2 if len(words) >= 6 and len(cand) >= 2 else 1
-    return {i for _, i in cand[:n]}
+    n = min(max_gold, 2 if len(words) >= 6 and len(cand) >= 2 else 1)
+    return {i for _, i in cand[:max(0, n)]}
 
 
-def split_sentences(words: list[dict], meter: RowMeter, max_chars: int = 70) -> list[list[dict]]:
+def split_sentences(words: list[dict], meter: RowMeter, max_chars: int | None = None) -> list[list[dict]]:
     """Words -> lines: one sentence per line, split at pauses, then at commas/midpoints to stay within 2 rows."""
+    max_chars = meter.max_chars if max_chars is None else max_chars
     groups: list[list[dict]] = []
     cur: list[dict] = []
     for j, w in enumerate(words):
@@ -307,9 +311,9 @@ def split_sentences(words: list[dict], meter: RowMeter, max_chars: int = 70) -> 
     return out
 
 
-def make_line(group: list[dict], end: float) -> dict:
+def make_line(group: list[dict], end: float, max_gold: int = 2) -> dict:
     texts = [x["w"] for x in group]
-    gold = pick_gold(texts)
+    gold = pick_gold(texts, max_gold)
     ws = []
     for i, x in enumerate(group):
         w: list = [x["w"], r3(x["appear"])]
@@ -327,12 +331,16 @@ def lines_from_words(words: list[dict], body_end: float, D: float, meter: RowMet
         last = float(g[-1]["appear"])
         nxt = float(groups[j + 1][0]["appear"]) if j + 1 < len(groups) else min(body_end, D)
         end = min(float(g[-1]["end"]) + 0.6, nxt, body_end, D)
-        lines.append(make_line(g, max(end, last)))
+        lines.append(make_line(g, max(end, last), meter.max_gold))
     return lines
 
 
-def lines_from_script(script: str, grid: list[float], body_end: float, meter: RowMeter) -> list[dict]:
-    """R92: script sentences as timed on-screen lines, starting on beats, ~2.3 words a second."""
+def lines_from_script(script: str, grid: list[float], body_end: float, meter: RowMeter,
+                      spread_to: float | None = None) -> list[dict]:
+    """R92: script sentences as timed on-screen lines, starting on beats, ~2.3 words a second.
+
+    spread_to (template reels): the lines start evenly across 0.3 s..spread_to (one per story beat) instead
+    of back to back, each held until shortly before the next."""
     sentences: list[str] = []
     for raw in script.splitlines():
         raw = " ".join(raw.split())
@@ -375,11 +383,23 @@ def lines_from_script(script: str, grid: list[float], body_end: float, meter: Ro
         nc.warn(f"the script is too long for {body_end:.1f} s: {len(lay) - len(kept)} line(s) left out")
         chosen = (kept, rate0 * 1.75)
     lay, rate = chosen
+    hold = 0.0
+    if spread_to is not None and lay and lay[-1][2] < spread_to - 0.2:
+        spread: list[tuple[list[str], float, float]] = []
+        prev_end = 0.0
+        for j, (g, _, _) in enumerate(lay):
+            t = max(on_beat(0.3 + j * (spread_to - 0.3) / len(lay)), prev_end + 0.1)
+            prev_end = t + (len(g) - 1) / rate + 0.8
+            spread.append((g, t, prev_end))
+        if spread[-1][2] <= body_end - 0.2:
+            lay, hold = spread, 2.0
     lines = []
     for j, (g, t, end) in enumerate(lay):
         nxt = lay[j + 1][1] if j + 1 < len(lay) else body_end
+        if hold:
+            end = max(end, min(end + hold, nxt - 0.1))
         group = [{"w": w, "appear": t + i / rate} for i, w in enumerate(g)]
-        lines.append(make_line(group, min(end, nxt)))
+        lines.append(make_line(group, min(end, nxt), meter.max_gold))
     return lines
 
 

@@ -68,6 +68,9 @@ ENDCARD_TAIL_PREF_S = 3.0
 HOOK_VARIANT_S = (3.0, 5.0, 4.0)      # opening length: min, max, preferred
 STORY_CLIP_DEFAULT_S = 5.0
 SHORT_CAPTION_CHARS = 48              # carousel captions are short
+STORY_TEXT_CHARS = 64                 # a story line: one caption line of at most 2 rows
+HOOK_TEXT_CHARS = 52                  # hook text: 3 rows at most
+MIN_LAST_SEGMENT_S = 0.5              # defence: no tiny final encoder segment (see reach_plan)
 SRT_ROW_CHARS = 42                    # standard subtitle row width
 AUDIO_FADE_IN_S = 0.08
 AUDIO_JOIN_FADE_S = 0.12
@@ -162,23 +165,6 @@ def still_time(plan: dict, t: float) -> float:
     D = float(plan["duration"])
     hi = max(0.0, D - STILL_END_GUARD)
     return r3(min(max(float(t), min(STILL_MIN_T, hi)), hi))
-
-
-def shorten(text: str, limit: int = SHORT_CAPTION_CHARS) -> str:
-    """A short caption: the first clause that fits, else whole words cut with an ellipsis."""
-    t = plain(text)
-    if len(t) <= limit:
-        return t
-    for part in re.split(r"(?<=[,;:.!?])\s+|\s+[-–—]\s+", t):
-        p = part.strip().rstrip(",;:-–—").strip()
-        if 3 <= len(p) <= limit:
-            return p
-    out = ""
-    for w in t.split():
-        if len(out) + len(w) + 2 > limit:
-            break
-        out = f"{out} {w}".strip()
-    return (out.rstrip(",;:") + "…") if out else t[:limit]
 
 
 def text_words(text: str, appear: float, step: float = 0.01) -> list[list]:
@@ -308,22 +294,88 @@ def hook_for(plan: dict, text: str, duration: float) -> dict:
     return h
 
 
+def clear_hook_window(d: dict) -> dict:
+    """Drop captions that would share the screen with the hook text (or repeat it)."""
+    hook = d.get("hook")
+    if not hook:
+        return d
+    gone = float(hook.get("t1", 2.0)) + engine.HOOK_FADE_OUT_S
+    d["lines"] = [ln for ln in d.get("lines") or []
+                  if float(ln["words"][0][1]) >= gone and norm(line_text(ln)) != norm(hook["text"])]
+    return d
+
+
+def snap_reach_window(plan: dict, a: float, b: float, warnings: list[str] | None = None) -> tuple[float, float]:
+    """Move the window edges off caption lines: a line cut at t1 is played to its end (+0.3 s) while the
+    cut stays <= 12 s, else left out; a line cut at t0 is started from its first word, else left out.
+    WARN when neither works."""
+    lo, hi = nc.config_value("render.length_s.reach_cut", [8, 12])
+    D = float(plan["duration"])
+    lines = [(float(ln["words"][0][1]), float(ln["end"]), line_text(ln)) for ln in _lines(plan)]
+    for _ in range(4):
+        moved = False
+        for f, e, text in lines:
+            if f < a - EPS and e > a + 0.05:                      # cut at the start
+                if b - (f - 0.2) <= hi + EPS and f - 0.2 >= 0:
+                    a, moved = max(0.0, f - 0.2), True
+                elif b - (e + 0.05) >= lo - EPS:
+                    a, moved = e + 0.05, True
+                elif warnings is not None:
+                    warnings.append(f"reach cut starts in the middle of the caption {text!r}")
+                break
+        for f, e, text in lines:
+            if f < b - 0.05 and e + 0.3 > b + 0.01:               # cut (or not finished) at the end
+                if min(D, e + 0.3) - a <= hi + EPS:
+                    b, moved = min(D, e + 0.3), True
+                elif (f - 0.1) - a >= lo - EPS:
+                    b, moved = f - 0.1, True
+                elif warnings is not None:
+                    warnings.append(f"reach cut ends in the middle of the caption {text!r}")
+                break
+        if not moved:
+            break
+    return r3(a), r3(b)
+
+
+def _bad_tail_frames(seconds: float, fps: float) -> int:
+    """Frames of the last encoder segment when it would be shorter than MIN_LAST_SEGMENT_S, else 0."""
+    seg = max(1, int(round(fps * engine.SEGMENT_S)))
+    r = max(1, int(round(seconds * fps))) % seg
+    return r if 0 < r < math.ceil(MIN_LAST_SEGMENT_S * fps) else 0
+
+
 def reach_plan(plan: dict, rc: dict) -> tuple[dict, list[tuple[float, float]]]:
     """Derived reach plan and the reel-audio segments that play under it."""
     a, b = float(rc["t0"]), float(rc["t1"])
     lo, hi = nc.config_value("render.length_s.reach_cut", [8, 12])
+    D = float(plan["duration"])
+    fps = float(plan.get("fps") or 30)
+    ec = plan.get("endcard")
+    tail = 0.0
+    tail_max = 0.0
+    if isinstance(ec, dict) and b <= float(ec["t"]) + 0.05 and not a < float(ec["t"]) < b - 0.05:
+        tail_max = min(ENDCARD_TAIL_PREF_S, hi - (b - a), D - float(ec["t"]))
+        if tail_max >= ENDCARD_TAIL_MIN_S - EPS:
+            tail = tail_max
+    # defence: keep the encoder's last 2 s segment at least 0.5 s long (whole frames)
+    r = _bad_tail_frames(b - a + tail, fps)
+    if r:
+        n = int(round((b - a + tail) * fps))
+        up = math.ceil(MIN_LAST_SEGMENT_S * fps) - r
+        if tail and tail - r / fps >= ENDCARD_TAIL_MIN_S - EPS:
+            tail = (n - r) / fps - (b - a)
+        elif not tail and b + up / fps <= D + EPS and (n + up) / fps <= hi + EPS:
+            b = a + (n + up) / fps - tail
+        elif (n - r) / fps >= lo - EPS:
+            b = a + (n - r) / fps - tail
     d = clip_plan(plan, a, b)
     segments = [(a, b)]
-    ec = plan.get("endcard")
-    if isinstance(ec, dict) and "endcard" not in d and b <= float(ec["t"]) + 0.05:
-        room = hi - (b - a)
-        tail = min(ENDCARD_TAIL_PREF_S, room, float(plan["duration"]) - float(ec["t"]))
-        if tail >= ENDCARD_TAIL_MIN_S - EPS:
-            tail = r3(tail)
-            d = add_endcard_tail(plan, d, tail)
-            segments.append((float(ec["t"]), float(ec["t"]) + tail))
+    if tail:
+        tail = r6(tail)
+        d = add_endcard_tail(plan, d, tail)
+        segments.append((float(ec["t"]), float(ec["t"]) + tail))
     d["hook"] = hook_for(plan, rc["hook"], float(d["duration"]))
-    return d, segments
+    return clear_hook_window(d), segments
 
 
 def opening_length(plan: dict) -> float:
@@ -331,9 +383,12 @@ def opening_length(plan: dict) -> float:
     lo, hi, pref = HOOK_VARIANT_S
     ce = content_end(plan)
     cands = [float(s["t1"]) for s in sorted_shots(plan) if lo - EPS <= float(s["t1"]) <= min(hi, ce) + EPS]
-    if cands:
-        return r6(min(cands, key=lambda x: (abs(x - pref), x)))
-    return r6(min(pref, ce if ce >= lo else float(plan["duration"])))
+    L = min(cands, key=lambda x: (abs(x - pref), x)) if cands else min(pref, ce if ce >= lo else float(plan["duration"]))
+    fps = float(plan.get("fps") or 30)
+    r = _bad_tail_frames(L, fps)
+    if r:   # defence: no tiny final encoder segment
+        L = (int(round(L * fps)) - r) / fps
+    return r6(L)
 
 
 def hook_variant_plan(plan: dict, hv: dict, length: float) -> dict:
@@ -355,7 +410,7 @@ def hook_variant_plan(plan: dict, hv: dict, length: float) -> dict:
             first.pop("speed", None)
         first["tr"] = "cut"
     d["hook"] = hook_for(plan, hv["text"], float(d["duration"]))
-    return d
+    return clear_hook_window(d)
 
 
 def still_plan(plan: dict, t: float, text: str | None) -> dict:
@@ -407,22 +462,116 @@ def story_clip_plan(plan: dict, t: float, text: str, length: float) -> dict:
 # ---------------------------------------------------------------------------
 # Defaults for missing formats entries
 # ---------------------------------------------------------------------------
+class NoDefault(nc.UserError):
+    """A missing formats entry cannot be derived from this plan: that output is skipped with a WARN."""
+
+
 def _lines(plan: dict) -> list[dict]:
     return [ln for ln in plan.get("lines") or [] if ln.get("words")]
 
 
-def _text_pool(plan: dict) -> list[str]:
-    """Fallback texts in order of preference, distinct."""
-    pool = []
-    hook = (plan.get("hook") or {}).get("text")
-    title = (plan.get("meta") or {}).get("title")
-    ec = plan.get("endcard") if isinstance(plan.get("endcard"), dict) else {}
-    for t in (hook, title, *(line_text(ln) for ln in _lines(plan)), ec.get("subtitle"),
-              nc.brand_value("endcard.default_subtitle", None), ec.get("tagline"),
-              nc.brand_value("endcard.tagline", None)):
-        if t and norm(t) and norm(t) not in {norm(p) for p in pool}:
-            pool.append(str(t))
-    return pool
+_CLOSERS = "\"')]”’"
+
+
+def ends_sentence(text: str) -> bool:
+    return plain(text).rstrip(_CLOSERS)[-1:] in (".", "?", "!", "…")
+
+
+def good_text(text: str) -> bool:
+    """Display text that reads as a whole: starts with a capital (or a digit/quote), ends like a sentence."""
+    t = plain(text)
+    first = next((c for c in t if c.isalnum()), "")
+    return bool(t) and not first.islower() and ends_sentence(t)
+
+
+def sentences(plan: dict) -> list[dict]:
+    """Caption lines joined into sentences: {text, first, last, end, lines, complete}."""
+    out: list[dict] = []
+    cur: dict | None = None
+    for i, ln in enumerate(_lines(plan)):
+        txt = plain(line_text(ln))
+        if cur is None:
+            cur = {"parts": [], "first": float(ln["words"][0][1]), "lines": []}
+        cur["parts"].append(txt)
+        cur["lines"].append(i)
+        cur["last"], cur["end"] = float(ln["words"][-1][1]), float(ln["end"])
+        if ends_sentence(txt):
+            out.append(cur)
+            cur = None
+    if cur is not None:
+        out.append(cur)
+    for s in out:
+        s["text"] = " ".join(s.pop("parts"))
+        s["complete"] = good_text(s["text"])
+    return out
+
+
+def fit_text(text: str, limit: int) -> str | None:
+    """The whole sentence when it fits, else its first clause with an ellipsis; None when nothing reads well."""
+    t = plain(text)
+    if len(t) <= limit:
+        return t if good_text(t) else None
+    for part in re.split(r"(?<=[,;:.!?])\s+|\s+[-–—]\s+", t):
+        p = part.strip()
+        if ends_sentence(p) and 3 <= len(p) <= limit and good_text(p):
+            return p
+        p = p.rstrip(",;:-–— ").strip()
+        if 3 <= len(p) <= limit - 1 and not p[:1].islower():
+            return p + "…"
+    return None
+
+
+def sentence_texts(plan: dict, limit: int, exclude: tuple[str, ...] = ()) -> list[tuple[dict, str]]:
+    """(sentence, display text) for every complete sentence that fits (or shortens at a clause)."""
+    skip = {norm(x) for x in exclude if x}
+    out = []
+    for s in sentences(plan):
+        if not s["complete"] or norm(s["text"]) in skip:
+            continue
+        t = fit_text(s["text"], limit)
+        if t and norm(t) not in skip:
+            out.append((s, t))
+    return out
+
+
+def shoot_card_texts(plan: dict, plan_dir: Path | None) -> list[str]:
+    """Titles and lines from the job's shoot card: work/plan_row.json, script.json (work/ or raw/),
+    work/script.txt, and the "Day NN - date - Title" folder name. Titles first."""
+    work = Path(plan.get("out_dir") or plan_dir or ".")
+    folders = []
+    for f in (work, plan_dir, work.parent / "raw"):
+        if f is not None and f not in folders:
+            folders.append(f)
+    titles: list[str] = []
+    texts: list[str] = []
+    for folder in folders:
+        for name in ("plan_row.json", "script.json"):
+            f = folder / name
+            if not f.is_file():
+                continue
+            try:
+                data = nc.read_json(f, name)
+            except nc.UserError:
+                continue
+            if not isinstance(data, dict):
+                continue
+            titles += [data[k].strip() for k in ("title", "topic", "hook_text")
+                       if isinstance(data.get(k), str) and data[k].strip()]
+            texts += [x.strip() for k in ("on_screen", "lines") for x in data.get(k) or []
+                      if isinstance(x, str) and x.strip()]
+        script = folder / "script.txt"
+        if script.is_file():
+            body = " ".join(script.read_text(encoding="utf-8", errors="replace").split())
+            texts += [p.strip() for p in re.split(r"(?<=[.?!])\s+", body) if p.strip()]
+    m = re.match(r"^Day \d+ - \d{4}-\d{2}-\d{2} - (.+)$", work.parent.name)
+    if m:
+        titles.append(m.group(1).strip())
+    seen, out = set(), []
+    for t in titles + texts:
+        if norm(t) and norm(t) not in seen:
+            seen.add(norm(t))
+            out.append(t)
+    return out
 
 
 def _content_shots(plan: dict) -> list[dict]:
@@ -435,20 +584,28 @@ def _mid(s: dict, ce: float) -> float:
     return t0 + 0.55 * (t1 - t0)
 
 
-def default_reach(plan: dict) -> dict:
+def _hook_text(plan: dict) -> str | None:
+    h = plan.get("hook")
+    return h.get("text") if isinstance(h, dict) else None
+
+
+def _title(plan: dict) -> str | None:
+    t = (plan.get("meta") or {}).get("title")
+    return t if isinstance(t, str) and t.strip() else None
+
+
+def default_reach_window(plan: dict) -> tuple[float, float]:
     lo, hi = nc.config_value("render.length_s.reach_cut", [8, 12])
     D = float(plan["duration"])
     if D < lo - EPS:
-        raise nc.UserError(f"the reel is {D:g} s long; a reach cut needs at least {lo:g} s")
+        raise NoDefault(f"the reel is {D:g} s long; a reach cut needs at least {lo:g} s")
     ce = content_end(plan)
     has_ec = isinstance(plan.get("endcard"), dict) and ce < D
-    target = hi - ENDCARD_TAIL_PREF_S if has_ec else (lo + hi) / 2
-    target = max(lo, target)
-    lines = _lines(plan)
-    spans = [(float(ln["words"][0][1]), float(ln["end"])) for ln in lines]
+    target = max(lo, hi - ENDCARD_TAIL_PREF_S if has_ec else (lo + hi) / 2)
+    spans = [(s["first"], s["end"]) for s in sentences(plan)]
     peaks = [(float(s["t0"]), float(s["t1"])) for s in sorted_shots(plan) if s.get("peak")]
     starts = sorted({0.0} | {float(s["t0"]) for s in sorted_shots(plan) if float(s["t0"]) <= ce - lo + EPS}
-                    | {round(f, 6) for f, _ in spans if f <= ce - lo + EPS})
+                    | {round(max(0.0, f - 0.2), 6) for f, _ in spans if f <= ce - lo + EPS})
     ends = sorted({float(s["t1"]) for s in sorted_shots(plan)} | {round(e + 0.3, 6) for _, e in spans} | {ce})
     best = None
     for a in starts:
@@ -460,7 +617,7 @@ def default_reach(plan: dict) -> dict:
                 if a - EPS <= f and e <= b + 0.3 + EPS:
                     score += 1.0
                 elif f < b and e > a:
-                    score -= 2.0
+                    score -= 2.0          # a sentence cut at either edge
             if any(a - EPS <= f <= a + 0.6 for f, _ in spans):
                 score += 0.5
             score += 0.5 * sum(1 for p0, p1 in peaks if p0 < b and p1 > a)
@@ -468,105 +625,106 @@ def default_reach(plan: dict) -> dict:
             key = (-round(score, 6), a, b)
             if best is None or key < best[0]:
                 best = (key, a, b)
-    if best is None:  # the content alone is shorter than a reach cut: take the opening through the end card
-        a, b = 0.0, min(D, float(hi))
-    else:
-        _, a, b = best
-    hook_text = plan.get("hook", {}).get("text") if isinstance(plan.get("hook"), dict) else None
-    new = None
-    title = (plan.get("meta") or {}).get("title")
-    if title and norm(title) != norm(hook_text or ""):
-        new = title
-    else:
-        for (f, e), ln in zip(spans, lines):
-            if a - EPS <= f and e <= b + EPS and norm(line_text(ln)) != norm(hook_text or ""):
-                new = line_text(ln)
-                break
-    new = new or hook_text or (_text_pool(plan) or [None])[0]
-    if not new:
-        raise nc.UserError("no text for the reach cut's hook: add formats.reach_cut.hook, a hook or meta.title")
-    return {"t0": r3(a), "t1": r3(b), "hook": new}
+    if best is None:  # the content alone is shorter than a reach cut: the opening through the end card
+        return 0.0, min(D, float(hi))
+    return best[1], best[2]
+
+
+def default_reach_hook(plan: dict, a: float, b: float, plan_dir: Path | None) -> str:
+    """New hook text, never the reel's own: the title, a sentence of the window, another sentence,
+    or the shoot card."""
+    hook = _hook_text(plan) or ""
+    excl = (hook,)
+    title = _title(plan)
+    if title and norm(title) != norm(hook):
+        return title
+    cands = sentence_texts(plan, HOOK_TEXT_CHARS, excl)
+    inside = [t for s, t in cands if a - 0.3 <= s["first"] and s["end"] <= b + 0.3]
+    for t in inside + [t for _, t in cands]:
+        return t
+    for t in shoot_card_texts(plan, plan_dir):
+        f = fit_text(t, HOOK_TEXT_CHARS) or (plain(t) if len(plain(t)) <= HOOK_TEXT_CHARS
+                                             and not plain(t)[:1].islower() else None)
+        if f and norm(f) != norm(hook):
+            return f
+    raise NoDefault("no new hook text for the reach cut (no meta.title, no second sentence, no shoot-card "
+                    "title or script); the reel's own hook is never reused: add formats.reach_cut")
+
+
+def default_reach(plan: dict, plan_dir: Path | None = None) -> dict:
+    a, b = default_reach_window(plan)
+    a, b = snap_reach_window(plan, a, b)
+    return {"t0": r3(a), "t1": r3(b), "hook": default_reach_hook(plan, a, b, plan_dir)}
 
 
 def default_story(plan: dict) -> list[dict]:
     ce = content_end(plan)
-    lines = [ln for ln in _lines(plan) if float(ln["words"][0][1]) < ce]
-    n = 3 if len(lines) <= 4 else 4 if len(lines) <= 8 else 5
+    sents = [(s, t) for s, t in sentence_texts(plan, STORY_TEXT_CHARS) if s["first"] < ce]
+    n = 3 if len(sents) <= 4 else 4 if len(sents) <= 8 else 5
     out: list[dict] = []
     used: set[str] = set()
-    if lines:
-        k = min(n, len(lines))
-        picks = sorted({round(i * (len(lines) - 1) / max(1, k - 1)) for i in range(k)})
+    if sents:
+        k = min(n, len(sents))
+        picks = sorted({round(i * (len(sents) - 1) / max(1, k - 1)) for i in range(k)})
         for i in picks:
-            ln = lines[i]
-            t = min(float(ln["words"][-1][1]) + 0.35, float(ln["end"]), ce - 0.2)
-            out.append({"t": still_time(plan, t), "text": line_text(ln)})
-            used.add(norm(line_text(ln)))
+            s, text = sents[i]
+            # the frame where the sentence's last line is on screen in full
+            t = min(s["last"] + 0.35, s["end"], ce - 0.2)
+            out.append({"t": still_time(plan, t), "text": text})
+            used.add(norm(text))
     shots = _content_shots(plan)
-    pool = [t for t in _text_pool(plan) if norm(t) not in used]
-    while len(out) < n and pool:   # few caption lines: spread the rest over the shots
+    pool = [fit_text(x, STORY_TEXT_CHARS) for x in (_hook_text(plan), _title(plan)) if x]
+    pool = [p for p in pool if p and norm(p) not in used]
+    while len(out) < n and pool:   # few sentences: spread the hook/title over the shots
         s = shots[min(len(shots) - 1, (2 * len(out) + 1) * len(shots) // (2 * n))]
-        out.append({"t": still_time(plan, _mid(s, ce)), "text": pool.pop(0)})
+        text = pool.pop(0)
+        used.add(norm(text))
+        out.append({"t": still_time(plan, _mid(s, ce)), "text": text})
     if len(out) < 3:
-        raise nc.UserError("not enough text for a story set (3 lines needed): add formats.story or captions")
+        raise NoDefault("not enough whole sentences for a story set (3 needed); add formats.story")
     return sorted(out, key=lambda e: e["t"])
 
 
 def default_carousel(plan: dict) -> list[dict]:
+    """Slide 1: the hook (or title) on the opening shot; then one slide per sentence, on the frame where
+    it is spoken."""
     ce = content_end(plan)
     shots = _content_shots(plan)
-    times: list[float] = []
-    for s in shots:
-        times.append(still_time(plan, _mid(s, ce)))
-    if len(shots) < 5:   # few shots: more frames from the longest ones
-        for s in sorted(shots, key=lambda s: -(min(float(s["t1"]), ce) - float(s["t0"]))):
-            t0, t1 = float(s["t0"]), min(float(s["t1"]), ce)
-            for f in (0.2, 0.85):
-                if len(times) >= 5:
-                    break
-                times.append(still_time(plan, t0 + f * (t1 - t0)))
-    times = sorted(set(times))
-    if len(times) > 8:
-        times = [times[round(i * (len(times) - 1) / 7)] for i in range(8)]
-    lines = _lines(plan)
-    hook = (plan.get("hook") or {}).get("text") or (plan.get("meta") or {}).get("title")
-    used_lines: set[int] = set()
+    lead = _hook_text(plan) or _title(plan)
+    out: list[dict] = []
     used: set[str] = set()
-    pool = _text_pool(plan)
-    out = []
-    for k, t in enumerate(times):
-        text = None
-        if k == 0 and hook:
-            text = hook
-        else:
-            on = [i for i, ln in enumerate(lines) if float(ln["words"][0][1]) - 0.3 <= t <= float(ln["end"]) + 0.3]
-            near = sorted(range(len(lines)),
-                          key=lambda i: (abs((float(lines[i]["words"][0][1]) + float(lines[i]["end"])) / 2 - t), i))
-            for i in on + near:
-                cand = shorten(line_text(lines[i]))
-                if i not in used_lines and norm(cand) not in used:
-                    text = cand
-                    used_lines.add(i)
-                    break
-            if text is None:
-                text = next((shorten(p) for p in pool if norm(shorten(p)) not in used), None)
-        if text is None or norm(text) in used:
+    if lead and fit_text(lead, SHORT_CAPTION_CHARS):
+        out.append({"t": still_time(plan, _mid(shots[0], ce)), "text": lead})
+        used.add(norm(lead))
+    sents = [(s, t) for s, t in sentence_texts(plan, SHORT_CAPTION_CHARS) if s["first"] < ce
+             and norm(t) not in used]
+    room = 8 - len(out)
+    if len(sents) > room:
+        sents = [sents[round(i * (len(sents) - 1) / (room - 1))] for i in range(room)]
+    for s, text in sents:
+        t = still_time(plan, min((s["first"] + s["last"]) / 2 + 0.3, s["end"], ce - 0.2))
+        if any(abs(t - o["t"]) < 0.3 for o in out):
             continue
-        used.add(norm(text))
         out.append({"t": t, "text": text})
+        used.add(norm(text))
+    title = _title(plan)
+    if len(out) < 5 and title and norm(title) not in used and fit_text(title, SHORT_CAPTION_CHARS):
+        free = [s for s in shots if all(abs(_mid(s, ce) - o["t"]) > 0.3 for o in out)]
+        if free:
+            out.append({"t": still_time(plan, _mid(free[-1], ce)), "text": title})
     if len(out) < 5:
-        raise nc.UserError("not enough shots or text for a 5-slide carousel: add formats.carousel")
-    return out
+        raise NoDefault(f"only {len(out)} slide(s) of whole-sentence text for a carousel (5 needed); "
+                        f"add formats.carousel")
+    return sorted(out, key=lambda e: e["t"])
 
 
 def default_cover(plan: dict) -> dict:
     ce = content_end(plan)
     shots = _content_shots(plan)
     s = next((s for s in shots if s.get("peak")), shots[0])
-    title = (plan.get("meta") or {}).get("title") or (plan.get("hook") or {}).get("text") \
-        or (_text_pool(plan) or [None])[0]
+    title = _title(plan) or _hook_text(plan)
     if not title:
-        raise nc.UserError("no cover title: add formats.cover.title, meta.title or a hook")
+        raise NoDefault("no cover title: add formats.cover, meta.title or a hook")
     return {"t": still_time(plan, _mid(s, ce)), "title": title}
 
 
@@ -574,31 +732,28 @@ def default_hook_variants(plan: dict, have: list[dict]) -> list[dict]:
     """Fill hook variants up to config formats.hook_variants.count (new text or a new first shot)."""
     lo_n, hi_n = nc.config_value("formats.hook_variants.count", [2, 3])
     want = hi_n if not have else max(lo_n, len(have))
-    hook = (plan.get("hook") or {}).get("text")
-    title = (plan.get("meta") or {}).get("title")
+    hook = _hook_text(plan)
+    title = _title(plan)
     shots = _content_shots(plan)
     first = sorted_shots(plan)[0]
     others = [s for s in shots if s["src"] != first["src"]]
     alt = next((s for s in others if s.get("peak")), others[0] if others else None)
-    lines = _lines(plan)
+
+    def with_alt(text: str) -> dict:
+        c = {"text": text, "src": alt["src"]}
+        if alt.get("kind") == "video":
+            c["start"] = float(alt.get("start", 0.0))
+        return c
+
+    texts = [t for _, t in sentence_texts(plan, HOOK_TEXT_CHARS, (hook or "",))]
     cands: list[dict] = []
     if title:
         cands.append({"text": title})
     if alt is not None and hook:
-        c = {"text": hook, "src": alt["src"]}
-        if alt.get("kind") == "video":
-            c["start"] = float(alt.get("start", 0.0))
-        cands.append(c)
-    # whole sentences first (a caption line can be half a sentence), in reel order
-    ranked = sorted(lines, key=lambda ln: (line_text(ln).rstrip()[-1:] not in ".?!", len(line_text(ln)) > 60))
-    for ln in ranked[:3]:
-        cands.append({"text": line_text(ln)})
+        cands.append(with_alt(hook))
+    cands += [{"text": t} for t in texts[:3]]
     if alt is not None:
-        for ln in ranked[:2]:
-            c = {"text": line_text(ln), "src": alt["src"]}
-            if alt.get("kind") == "video":
-                c["start"] = float(alt.get("start", 0.0))
-            cands.append(c)
+        cands += [with_alt(t) for t in texts[:2]]
     seen = {(norm(hook or ""), first["src"])} | {(norm(h["text"]), h.get("src", first["src"])) for h in have}
     out = list(have)
     for c in cands:
@@ -612,36 +767,44 @@ def default_hook_variants(plan: dict, have: list[dict]) -> list[dict]:
     return out
 
 
-def resolve_formats(plan: dict, kinds: set[str], warnings: list[str]) -> tuple[dict, list[str]]:
-    """The formats to render: the plan's entries, defaults for missing ones. Returns (formats, defaulted)."""
+def resolve_formats(plan: dict, kinds: set[str], warnings: list[str],
+                    plan_dir: Path | None = None) -> tuple[dict, list[str], set[str]]:
+    """The formats to render: the plan's entries, defaults for missing ones.
+
+    Returns (formats, defaulted keys, skipped kinds); a default that cannot be made is a WARN and its
+    output is skipped, so the other outputs still render."""
     fm = copy.deepcopy(plan.get("formats") or {})
-    defaulted = []
-    if "reach" in kinds and "reach_cut" not in fm:
-        fm["reach_cut"] = default_reach(plan)
-        defaulted.append("reach_cut")
-    if "story" in kinds and "story" not in fm:
-        fm["story"] = default_story(plan)
-        defaulted.append("story")
-    if "carousel" in kinds and "carousel" not in fm:
-        fm["carousel"] = default_carousel(plan)
-        defaulted.append("carousel")
-    if "cover" in kinds and "cover" not in fm:
-        fm["cover"] = default_cover(plan)
-        defaulted.append("cover")
+    defaulted: list[str] = []
+    skipped: set[str] = set()
+    makers = {"reach": ("reach_cut", lambda: default_reach(plan, plan_dir)),
+              "story": ("story", lambda: default_story(plan)),
+              "carousel": ("carousel", lambda: default_carousel(plan)),
+              "cover": ("cover", lambda: default_cover(plan))}
+    for kind, (key, make) in makers.items():
+        if kind in kinds and key not in fm:
+            try:
+                fm[key] = make()
+                defaulted.append(key)
+            except NoDefault as e:
+                warnings.append(f"{kind}: skipped: {e}")
+                skipped.add(kind)
     if "hooks" in kinds:
         have = fm.get("hook_variants") or []
         full = default_hook_variants(plan, have)
         if len(full) != len(have):
             defaulted.append("hook_variants")
         fm["hook_variants"] = full
-        if len(full) < 2:
+        if not full:
+            warnings.append("hooks: skipped: no new hook text or first shot in this plan; add formats.hook_variants")
+            skipped.add("hooks")
+        elif len(full) < 2:
             warnings.append(f"hook variants: only {len(full)} distinct opening(s) could be made from this plan "
                             f"(add formats.hook_variants, meta.title or more shots)")
     rc = fm.get("reach_cut")
-    hook = (plan.get("hook") or {}).get("text")
+    hook = _hook_text(plan)
     if "reach" in kinds and rc and hook and norm(rc["hook"]) == norm(hook):
         warnings.append("formats.reach_cut.hook is the reel's own hook; a reach cut should open on new hook text")
-    return fm, defaulted
+    return fm, defaulted, skipped
 
 
 def check_formats(plan: dict, fm: dict) -> None:
@@ -928,6 +1091,11 @@ class Job:
 def render_reach(job: Job, fm: dict) -> None:
     w = job.warnings.setdefault("reach", [])
     rc = fm["reach_cut"]
+    a, b = snap_reach_window(job.plan, float(rc["t0"]), float(rc["t1"]), w)
+    if (a, b) != (r3(rc["t0"]), r3(rc["t1"])):
+        w.append(f"reach cut moved from {float(rc['t0']):g}-{float(rc['t1']):g} s to {a:g}-{b:g} s "
+                 f"so it does not cut a caption line")
+        rc = fm["reach_cut"] = dict(rc, t0=a, t1=b)
     d, segments = reach_plan(job.plan, rc)
     d = check_derived(d, "reach cut", w)
     out = job.name("reach")
@@ -1066,10 +1234,17 @@ def run(plan_path: str | Path, reel: str | Path, out_dir: str | Path | None = No
     if not slug_:
         raise nc.UsageError("--slug: give a name with letters or digits")
     run_warn: list[str] = []
-    fm, defaulted = resolve_formats(plan, set(kinds), run_warn)
+    fm, defaulted, skipped = resolve_formats(plan, set(kinds), run_warn, plan_path.parent)
+    asked = list(kinds)
+    kinds = [k for k in kinds if k not in skipped]
     check_formats(plan, fm)
     job = Job(plan, plan_path, reel, out, slug_, draft, workers, progress)
     job.warnings["formats"] = run_warn
+    for k in skipped:   # a skipped output must not leave an earlier run's files behind
+        if k in ("story", "carousel", "hooks"):
+            job.clear({"hooks": "hook"}.get(k, k), ("jpg", "mp4"))
+        else:
+            job.name(k).unlink(missing_ok=True)
     if "reach" in kinds or "hooks" in kinds or ("story" in kinds and any(st.get("clip") for st in fm["story"])):
         job.audio(run_warn)   # fail before rendering anything when there is no sound to cut
     steps = {"reach": lambda: render_reach(job, fm), "story": lambda: render_story(job, fm),
@@ -1082,7 +1257,7 @@ def run(plan_path: str | Path, reel: str | Path, out_dir: str | Path | None = No
     for ws in job.warnings.values():
         for msg in ws:
             nc.warn(msg)
-    return write_report(job, kinds, fm, defaulted)
+    return write_report(job, asked, fm, defaulted)
 
 
 def write_report(job: Job, kinds: list[str], fm: dict, defaulted: list[str]) -> dict:

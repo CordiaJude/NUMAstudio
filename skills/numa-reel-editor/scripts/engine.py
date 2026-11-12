@@ -1026,6 +1026,20 @@ def _frame_range(fps: float, duration: float, t_from: float | None, t_to: float 
     return range(max(0, a), max(a + 1, b))
 
 
+MIN_TAIL_SEGMENT_S = 0.5
+
+
+def segment_starts(frames: range, seg_len: int, fps: float) -> list[int]:
+    """First frame of each encoder segment. A last segment shorter than MIN_TAIL_SEGMENT_S joins the one
+    before it: x264 gives a 1-2 frame stream a smaller B-frame delay, and the concat join would then leave a
+    timestamp gap (a frame lasting three frame durations, a non-constant frame rate). Depends only on the
+    frame range, never on the worker count."""
+    starts = list(range(frames.start, frames.stop, seg_len))
+    if len(starts) > 1 and frames.stop - starts[-1] < max(3, int(round(MIN_TAIL_SEGMENT_S * fps))):
+        starts.pop()
+    return starts
+
+
 def _as_plan(plan: dict | str | os.PathLike) -> dict:
     return load_plan(plan) if isinstance(plan, (str, os.PathLike)) else plan
 
@@ -1093,7 +1107,7 @@ def render_video(plan: dict | str | os.PathLike, out_path: str | os.PathLike, *,
     out.parent.mkdir(parents=True, exist_ok=True)
     enc_args, enc_info = encoder_args(encoder, r.draft, r.fps, segment_s)
     seg_len = max(1, int(round(r.fps * segment_s)))
-    starts = list(range(frames.start, frames.stop, seg_len))
+    starts = segment_starts(frames, seg_len, r.fps)
     timings: dict[str, float] = {}
     old_threads = cv2.getNumThreads()
     scratch_root = Path(os.environ.get("NUMA_RENDER_CACHE") or plan["out_dir"]).expanduser()
@@ -1107,7 +1121,8 @@ def render_video(plan: dict | str | os.PathLike, out_path: str | os.PathLike, *,
         r.build_cache(cache, frames.start / r.fps, (frames.stop - 1) / r.fps)
         timings["prepare_s"] = round(time.perf_counter() - t0, 3)
         t1 = time.perf_counter()
-        jobs = [(k, a, min(a + seg_len, frames.stop), str(tmpd / f"seg_{k:05d}.mp4")) for k, a in enumerate(starts)]
+        ends = starts[1:] + [frames.stop]
+        jobs = [(k, a, b, str(tmpd / f"seg_{k:05d}.mp4")) for k, (a, b) in enumerate(zip(starts, ends))]
         pool_n = min(workers, len(jobs))
         try:
             if pool_n > 1:

@@ -13,7 +13,7 @@
 | T8a Director+librarian/scout/analyst | ACCEPTED (9/10; --template depends on T12, verified in T11) | 2 | |
 | T8b Crew agents + skills | ACCEPTED (re-review 8/8 PASS) | 2 | |
 | T9 30-day system | REVISING | 2 | B: stale sales flag; M: card length, prose flag test |
-| T10 Setup/posting | IN REVIEW | 1 | |
+| T10 Setup/posting | REVISING | 2 | M: Q24 template schema; STATE/brand.json write |
 | T12 Templates/prefs/kinetic/rule41 | IN PROGRESS | 1 | |
 | T11 Integration | PENDING | 0 | |
 
