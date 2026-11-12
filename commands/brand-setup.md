@@ -70,7 +70,7 @@ The same command changes any brand value later, outside the questionnaire: colou
    The `brand.json` check must be `pass`; on `fail` its detail names the field (e.g. `palette.value.cream`). Fix it and run again. Never leave brand.json invalid: every script refuses to run on it.
 2. Save it where every run reads it:
    - `STATE/brand.json` (the run-time copy, DECISIONS D18: run commands point `NUMA_BRAND` at it when it is newer than the bundled file), uploaded to Drive brand.json `drive.plan_dir` as `brand.json` so cloud runs get it at once;
-   - `BRAND` (the installed plugin's brand.json; scripts read it through `numa_common.load_brand()` when `NUMA_BRAND` is not set);
+   - `BRAND` (the installed plugin's brand.json, without `escalation.channel`; scripts read it through `numa_common.load_brand()` when `NUMA_BRAND` is not set);
    - Jude commits the same file to the plugin's GitHub repo (the marketplace source, spec p.13 step 2) so reinstalls carry the answers, **without** `escalation.channel` (a private address lives only in `STATE/brand.json`, never in the public repo).
 3. Summary for Jude: answered, still open ("don't know" list with question numbers), rules applied, new claims rules, and the brand.json line from step 1.
 

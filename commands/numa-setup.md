@@ -64,7 +64,7 @@ Ask Jude this one question, once: "Which Google Drive folder holds NUMA's reel m
 
 ### Jude's escalation channel: ask once
 
-Ask Jude this one question, once: "Where should NUMA Studio send you its rare one-line fixes (Meta error 190, a declined card, the legal review): an email address, or the Claude app notification?" Store the answer as brand.json `escalation.channel` (an email address, or `notification`) in `STATE/brand.json` only (validated with `NUMA_BRAND="$STATE/brand.json" python3 "$S/setup_check.py" --skip-render`, uploaded to Drive `drive.plan_dir`). Never write it into the plugin's brand.json or the repo: the repo is public. A re-run with `escalation.channel` already set moves on.
+Ask Jude this one question, once: "Where should NUMA Studio send you its rare one-line fixes (Meta error 190, a declined card, the legal review): an email address, or the Claude app notification?" If `STATE/brand.json` does not exist yet, copy the bundled brand.json there first. Store the answer as brand.json `escalation.channel` (an email address, or `notification`) in `STATE/brand.json` only (validated with `NUMA_BRAND="$STATE/brand.json" python3 "$S/setup_check.py" --skip-render`, uploaded to Drive `drive.plan_dir`). Never write it into the plugin's brand.json or the repo: the repo is public. A re-run with `escalation.channel` already set moves on.
 
 ## 5. Drive structure (spec p.49 step 6): create what is missing
 
