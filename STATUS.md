@@ -14,7 +14,7 @@
 | T8b Crew agents + skills | ACCEPTED (re-review 8/8 PASS) | 2 | |
 | T9 30-day system | REVISING | 2 | B: stale sales flag; M: card length, prose flag test |
 | T10 Setup/posting | IN REVIEW | 1 | |
-| T12 Templates/prefs/kinetic | PENDING | 0 | |
+| T12 Templates/prefs/kinetic/rule41 | IN PROGRESS | 1 | |
 | T11 Integration | PENDING | 0 | |
 
 ## Minor findings for final polish
