@@ -368,7 +368,7 @@ def remove_old_test_dirs() -> None:
             shutil.rmtree(old, ignore_errors=True)
 
 
-def test_plan(work: Path) -> dict:
+def make_test_plan(work: Path) -> dict:
     photos = sorted(nc.brand_asset("brand_photos_dir").glob("*.jpg"))
     end_t = 2.25
     return {
@@ -405,7 +405,7 @@ def run_step(cmd: list[str], what: str, timeout: float) -> str | None:
     return f"{what} exit {proc.returncode}: " + ((errors or lines or ["no output"])[-1])
 
 
-def test_render(blockers: list[str]) -> tuple[Result, dict]:
+def render_test_reel(blockers: list[str]) -> tuple[Result, dict]:
     name = "test render"
     fix = "fix the failed checks above, then run setup_check.py again (NUMA_DEBUG=1 shows details)"
     if blockers:
@@ -422,7 +422,7 @@ def test_render(blockers: list[str]) -> tuple[Result, dict]:
         import analyze  # the same offline pad the pipeline uses when a folder has no audio
         analyze.make_pad(work / "pad.wav", RENDER_SECONDS)
         analyze.normalize_to(work / "pad.wav", work / "master.wav", seconds=RENDER_SECONDS)
-        nc.write_json(work / "plan.json", test_plan(work))
+        nc.write_json(work / "plan.json", make_test_plan(work))
     except Exception as e:  # noqa: BLE001 - any failure here is a setup problem to report
         return failed(name, f"cannot prepare the test plan: {one_line(e)}", fix), info
     scripts = Path(__file__).resolve().parent
@@ -484,7 +484,7 @@ def run_checks(skip_render: bool, download_model: bool) -> tuple[list[Result], d
                   "fonts", "assets", "brand.json", "config"}
         blockers = [r.name for r in results if r.name in needed and r.status == "fail"]
         try:
-            r, render = test_render(blockers)
+            r, render = render_test_reel(blockers)
         except Exception as e:  # noqa: BLE001
             r = failed("test render", f"crashed: {type(e).__name__}: {one_line(e)}", "run with NUMA_DEBUG=1 and report it")
         results.append(r)

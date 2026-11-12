@@ -195,5 +195,5 @@ def test_one_crashing_check_does_not_hide_the_others(monkeypatch):
 
 
 def test_render_is_blocked_by_failed_prerequisites():
-    r, info = setup_check.test_render(["ffmpeg"])
+    r, info = setup_check.render_test_reel(["ffmpeg"])
     assert r.status == "fail" and "ffmpeg" in r.detail and info == {}
