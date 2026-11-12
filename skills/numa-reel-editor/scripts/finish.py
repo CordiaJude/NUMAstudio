@@ -31,6 +31,7 @@ import json
 import math
 import os
 import re
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -49,12 +50,13 @@ NAT_DEFAULT_GAIN_DB = -6.0
 STRIP_TILE = (270, 480)
 STRIP_AT = (0.05, 0.25, 0.45, 0.65, 0.85, 0.97)
 MAX_PASSES = 8              # gain/ceiling refinement passes (each: gain+limit, AAC encode, measure)
-TP_HEADROOM_DB = 0.5        # first limiter ceiling sits this far under the limit (AAC overshoot)
+TP_HEADROOM_DB = 1.0        # first limiter ceiling: 1 dB under the limit for resample + AAC overshoot
 TP_MARGIN_DB = 0.2          # extra step when the encoded true peak is still over
 LUFS_SETTLE = 0.3           # stop refining once within this of the target
-MAX_GAIN_DB = 40.0
+MAX_GAIN_DB = 80.0          # a quiet but real recording (peak above SILENT_PEAK_DB) can still reach -15
 LIMITER_OVERSAMPLE = 4      # limit at 192 kHz so inter-sample (true) peaks are caught
-SILENT_INPUT_LUFS = -60.0   # an audio file quieter than this counts as missing
+QUIET_START_PEAK_DB = -12.0 # first gain for audio below the -70 LUFS gate: bring its peak here
+SILENT_PEAK_DB = -80.0      # audio whose peak is below this is silence (digital zero, dither, hiss)
 # Soft pad used only when there is no audio at all (failure table: "natural sound from the clips plus a soft pad").
 PAD_DEFAULT = {"chord_hz": [110.0, 164.81, 220.0, 277.18], "level_db": -20.0, "swell_hz": 0.08,
                "detune_hz": 0.35, "lowpass_hz": 1400}
@@ -182,12 +184,13 @@ def plan_bursts(plan: dict | None, duration: float, warnings: list[str]) -> list
 
 
 def audible(path: Path) -> bool:
-    """True when the file has audio louder than SILENT_INPUT_LUFS integrated."""
+    """True when the file's peak reaches SILENT_PEAK_DB: quiet recordings count, silence does not."""
     try:
-        i = measure_audio(path)["integrated_lufs"]
+        m = measure_audio(path)
     except nc.UserError:
         return False
-    return i is not None and math.isfinite(i) and i >= SILENT_INPUT_LUFS
+    peaks = [v for v in (m["true_peak_db"], m["max_db"]) if v is not None and math.isfinite(v)]
+    return bool(peaks) and max(peaks) >= SILENT_PEAK_DB
 
 
 def pick_bed(work: Path, plan: dict | None, warnings: list[str]) -> tuple[str, list[str]]:
@@ -197,7 +200,7 @@ def pick_bed(work: Path, plan: dict | None, warnings: list[str]) -> tuple[str, l
     if master.is_file():
         if audible(master):
             return "master", ["-i", str(master)]
-        why = "master.wav is silent"
+        why = f"master.wav is silent (peak below {SILENT_PEAK_DB:g} dBFS)"
     music = (plan or {}).get("music") or {}
     mpath = music.get("path") if isinstance(music, dict) else None
     if isinstance(mpath, str) and Path(mpath).is_file() and audible(Path(mpath)):
@@ -387,18 +390,26 @@ def finish(work: Path, out: Path, video: Path | None = None, plan_path: Path | N
         build_premix(bed, bed_args, voice, duck_file, bursts, clean, duration, pre)
         measured = measure_pass(pre, target)
         in_i = to_float(measured.get("input_i"))
+        in_tp = to_float(measured.get("input_tp"))
         gain: float | None = None
-        if in_i is None or in_i < -70:
-            msg = "the audio is silent before normalization; left as is"
+        if in_tp is None or in_tp < SILENT_PEAK_DB:
+            msg = f"the audio is silent before normalization (peak below {SILENT_PEAK_DB:g} dBFS); left as is"
             warnings.append(msg)
             nc.warn(msg)
+        elif in_i is None:
+            # quieter than the -70 LUFS measurement gate but not silent: start from the peak
+            gain = max(-MAX_GAIN_DB, min(MAX_GAIN_DB, QUIET_START_PEAK_DB - in_tp))
         else:
             gain = max(-MAX_GAIN_DB, min(MAX_GAIN_DB, target["i"] - in_i))
         ceiling = target["tp"] - TP_HEADROOM_DB
         loud: dict[str, Any] = {}
         passes = 0
         prev: tuple[float, float, float] | None = None
+        slope = 1.0  # LU gained per dB of gain; falls under heavy limiting, kept across ceiling changes
         m4a = Path(tmpd) / "audio.m4a"
+        best_m4a, best_aud = Path(tmpd) / "best.m4a", Path(tmpd) / "best.wav"
+        best: tuple[float, int, tuple] | None = None   # (distance from target, pass, (gain, ceiling))
+        settled = False
         for passes in range(1, MAX_PASSES + 1):
             used = (gain, ceiling)
             normalize_pass(pre, gain, ceiling, aud, duration)
@@ -409,7 +420,14 @@ def finish(work: Path, out: Path, video: Path | None = None, plan_path: Path | N
             i_now, tp_now = loud["integrated_lufs"], loud["true_peak_db"]
             tp_over = tp_now is not None and tp_now > target["tp"]
             i_off = i_now is not None and math.isfinite(i_now) and abs(i_now - target["i"]) > LUFS_SETTLE
+            in_spec = (not tp_over and i_now is not None and math.isfinite(i_now)
+                       and abs(i_now - target["i"]) <= tol)
+            if in_spec and (best is None or abs(i_now - target["i"]) < best[0]):
+                shutil.copyfile(m4a, best_m4a)
+                shutil.copyfile(aud, best_aud)
+                best = (abs(i_now - target["i"]), passes, used)
             if not tp_over and not i_off:
+                settled = True
                 break
             if passes == MAX_PASSES:
                 break
@@ -420,15 +438,18 @@ def finish(work: Path, out: Path, video: Path | None = None, plan_path: Path | N
                 ceiling = min(target["tp"] - TP_MARGIN_DB, ceiling + (target["tp"] - tp_now) / 2)
             if i_off:
                 # secant step: under heavy limiting 1 dB of gain buys less than 1 LU
-                slope = 1.0
                 if prev is not None and prev[2] == used[1] and abs(used[0] - prev[0]) > 0.05:
                     slope = min(1.0, max(0.25, (i_now - prev[1]) / (used[0] - prev[0])))
                 prev = (used[0], i_now, used[1])
                 gain = max(-MAX_GAIN_DB, min(MAX_GAIN_DB, gain + (target["i"] - i_now) / slope))
-            else:
-                prev = None
             nc.info(f"loudness pass {passes}: {i_now:.2f} LUFS, true peak {tp_now:.2f} dB; "
                     f"gain {gain:+.2f} dB, limiter ceiling {ceiling:.2f} dB")
+        if not settled and best is not None:
+            # the refinement ran out of passes off target: deliver the best in-spec pass instead
+            shutil.copyfile(best_m4a, m4a)
+            shutil.copyfile(best_aud, aud)
+            gain, ceiling = best[2]
+            nc.info(f"using loudness pass {best[1]} (closest in-spec result)")
         mux(video, m4a, out, duration)
     loud = measure_audio(out)  # the delivered file, measured independently of the passes
 

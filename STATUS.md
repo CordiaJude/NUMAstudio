@@ -7,7 +7,7 @@
 | T2 Analyze | ACCEPTED (re-review PASS 7/7; orchestrator fixed minor: no script alignment on mismatch) | 2 | |
 | T3 Finish | REVISING | 3 | M: one-sided bar regression; minors: quiet master, limiter headroom, qa dup |
 | T4 Validator/baseline/claims | ACCEPTED (re-review 10/10 PASS) | 2 | cosmetic: duplicate hits per rule |
-| T5 Vision/prep | IN PROGRESS | 1 | |
+| T5 Vision/prep | IN REVIEW | 1 | |
 | T6 Formats | PENDING | 0 | |
 | T7 Ops scripts | IN REVIEW | 1 | |
 | T8 Instructions A | PENDING | 0 | |

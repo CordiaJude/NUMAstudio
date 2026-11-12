@@ -196,3 +196,19 @@ def test_cli(job, run_script, tmp_path):
     assert r.returncode == 0, r.stderr
     rep = json.loads(r.stdout)
     assert rep["detector"] == "yunet" and len(rep["photos"]) == 5
+
+
+def test_haar_fallback_backend(job, tmp_path, nc):
+    det = vision.FaceDetector("haar")
+    if not det.available:
+        pytest.skip(f"no Haar cascades in this OpenCV build: {det.reason}")
+    img = vision.read_image(str(BRAND / "mats-bolsters.jpg"))
+    assert det.detect(img) == []                     # an empty room: no faces
+    path = tmp_path / "analysis.json"
+    path.write_bytes(job["first_bytes"])
+    report = vision.run_vision(path, clips=False, backend="haar")
+    assert report["detector"] == "haar"
+    B = json.loads(path.read_text())
+    assert nc.schema_errors("analysis", B) == []
+    for p in B["photos"]:
+        assert all(len(b) == 4 and all(0 <= v <= 1 for v in b) for b in p["faces"])

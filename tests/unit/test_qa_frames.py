@@ -54,7 +54,13 @@ def test_last_second_stays_last_after_a_late_cut():
     sel = qa_frames.select_times(plan, 10.0, 12)
     assert sel[-1] == {"t": 9.5, "why": "last second"}
     cut = next(s for s in sel if s["why"].startswith("cut 1"))
-    assert 9.2 < cut["t"] < 9.5
+    assert 9.2 < cut["t"] <= 9.5 - qa_frames.MIN_GAP_S
+    # a cut too close to the end to show apart from the last-second frame is dropped
+    late = {"duration": 10.0, "shots": [{"t0": 0.0, "t1": 9.4, "tr": "cut"}, {"t0": 9.4, "t1": 10.0, "tr": "punch"}]}
+    sel = qa_frames.select_times(late, 10.0, 12)
+    assert not any(s["why"].startswith("cut") for s in sel)
+    ts = [s["t"] for s in sel]
+    assert min(b - a for a, b in zip(ts, ts[1:])) >= qa_frames.MIN_GAP_S
     assert [s["t"] for s in sel] == sorted(s["t"] for s in sel)
 
 

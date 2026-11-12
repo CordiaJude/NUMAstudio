@@ -54,7 +54,7 @@ CHROMA_BOOST = 1.06           # saturation lift that goes with a brighten
 SMOOTH_RADIUS_S = 0.5         # OpenCV fallback: camera path moving-average radius (s)
 MAX_CORRECTION = 0.06         # OpenCV fallback: largest shift correction (fraction of the frame)
 MAX_ANGLE = math.radians(2.0)  # OpenCV fallback: largest rotation correction
-X264 = ["-c:v", "libx264", "-preset", "fast", "-crf", "17", "-profile:v", "high", "-pix_fmt", "yuv420p",
+X264 = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-profile:v", "high", "-pix_fmt", "yuv420p",
         "-threads", "4", "-x264-params", "threads=4:lookahead_threads=1"]
 BITEXACT = ["-map_metadata", "-1", "-map_chapters", "-1", "-fflags", "+bitexact", "-flags:v", "+bitexact",
             "-flags:a", "+bitexact", "-movflags", "+faststart"]

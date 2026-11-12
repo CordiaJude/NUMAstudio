@@ -74,8 +74,13 @@ def select_times(plan: dict, duration: float, count: int = 12, fps: float = 30.0
         t1 = float(shot.get("t1", duration))
         tr = shot.get("tr", "cut")
         t = t0 + SETTLE_S.get(tr, 0.10)
-        t = min(t, t0 + max(frame, (t1 - t0) - frame), last["t"] - frame)
-        if 0.0 < t < last["t"]:
+        t = min(t, t0 + max(frame, (t1 - t0) - frame))
+        if last["t"] - t < MIN_GAP_S:
+            # too close to the last-second frame: show the new shot a little earlier, or not at all
+            t = last["t"] - MIN_GAP_S
+            if t <= t0:
+                continue
+        if 0.0 < t:
             cuts.append({"t": round(t, 3), "why": f"cut {i} ({tr})"})
     chosen = [first] + evenly(cuts, count - 2) + [last]
 

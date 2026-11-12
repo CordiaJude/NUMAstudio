@@ -11,7 +11,7 @@ import check_output
 import finish
 
 FF = numa_common.ffmpeg_bin()
-DUR = 4
+DUR = 3
 
 
 def ff(*args):
@@ -55,6 +55,9 @@ def files(tmp_path_factory):
     f["dark_top"] = root / "dark_top.mp4"  # a dark, flat region on one side only: picture, not a bar
     ff("-f", "lavfi", "-i", f"testsrc2=size=1080x1440:rate=30:duration={DUR}", "-i", good, "-map", "0:v",
        "-vf", "pad=1080:1920:0:480:color=0x080808", *h264(), *aud, f["dark_top"])
+    f["top_bar"] = root / "top_bar.mp4"  # crop/pan overshoot: an 11 % strip on one edge only
+    ff("-f", "lavfi", "-i", f"testsrc2=size=1080x1708:rate=30:duration={DUR}", "-i", good, "-map", "0:v",
+       "-vf", "pad=1080:1920:0:212:color=0x101010", *h264(), *aud, f["top_bar"])
     f["frozen"] = root / "frozen.mp4"
     ff("-f", "lavfi", "-i", f"testsrc2=size=1080x1920:rate=30:duration={DUR},loop=loop=45:size=1:start=15",
        "-i", good, "-map", "0:v", "-t", str(DUR), *h264(), *aud, f["frozen"])
@@ -90,6 +93,7 @@ def test_reel_length_rule(files):
     ("silent", "silent"),
     ("letterbox", "letterbox"),
     ("graded_bars", "letterbox"),
+    ("top_bar", "black bar on the top edge"),
     ("frozen", "frozen frame"),
 ])
 def test_each_violation_is_caught(files, name, needle):

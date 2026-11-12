@@ -9,7 +9,8 @@ adds, in place:
 
   faces     face boxes [x, y, w, h], normalized 0-1 of the source (YuNet face
             detector bundled in assets/models, run at two scales, filtered by
-            size, confidence, landmark geometry and non-maximum suppression)
+            size, confidence, landmark geometry and non-maximum suppression;
+            OpenCV's built-in Haar cascades are the fallback when YuNet is unavailable)
   focus     the main subject point [x, y]: the largest faces first, else the
             centroid of a saliency + edge-energy map with a mild centre prior
   flags     weak-media signals for the Director's fallbacks: landscape,
@@ -82,37 +83,65 @@ def r4(x: float) -> float:
 # Face detection
 # ---------------------------------------------------------------------------
 class FaceDetector:
-    """YuNet (cv2.FaceDetectorYN) at two scales with false-positive filters.
+    """Deterministic face detection with false-positive filters.
 
-    Filters: minimum face size relative to the image, confidence (the mean of
-    both scales when both found the face), plausible box aspect, landmark geometry (both eyes above the
-    nose, nose above the mouth, eye distance a sensible fraction of the box) and
-    NMS / containment suppression across scales."""
+    Primary: YuNet (cv2.FaceDetectorYN, MIT model bundled in assets/models) at
+    two scales. Filters: minimum face size relative to the image, confidence
+    (the mean of both scales when both found the face), plausible box aspect,
+    landmark geometry (both eyes above the nose, nose above the mouth, eye
+    distance a sensible fraction of the box) and NMS / containment suppression.
 
-    def __init__(self) -> None:
+    Fallback (YuNet unavailable, or backend="haar"): OpenCV's built-in Haar
+    cascades, frontal (default + alt2) and profile (both directions), multi-scale,
+    with the same size floor; a frontal face is kept when both frontal cascades
+    agree or an eye is found in its upper half, a profile face needs more
+    neighbours. `backend` is "yunet", "haar" or None (no detector at all)."""
+
+    def __init__(self, backend: str = "auto") -> None:
         import cv2
         self.cv2 = cv2
-        self.available = False
+        self.backend: str | None = None
         self.reason = ""
-        if not hasattr(cv2, "FaceDetectorYN"):
-            self.reason = f"OpenCV {cv2.__version__} has no FaceDetectorYN (needs opencv-python-headless >= 4.8)"
-            return
-        if not MODEL_PATH.is_file():
-            self.reason = f"face model missing: {MODEL_PATH}"
-            return
+        self.score1 = cfg("face_score")
+        self.score2 = cfg("face_score_multi")
+        self.min_frac = cfg("face_min_frac")
         try:
             cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
         except Exception:  # noqa: BLE001 - older builds without the logging module
             pass
-        try:
-            self.net = cv2.FaceDetectorYN.create(str(MODEL_PATH), "", (320, 320), 0.5, 0.3, 5000)
-        except Exception as e:  # noqa: BLE001 - unreadable model or unsupported build
-            self.reason = f"cannot load the face model ({type(e).__name__}: {e})"
+        if backend in ("auto", "yunet"):
+            if not hasattr(cv2, "FaceDetectorYN"):
+                self.reason = f"OpenCV {cv2.__version__} has no FaceDetectorYN"
+            elif not MODEL_PATH.is_file():
+                self.reason = f"face model missing: {MODEL_PATH}"
+            else:
+                try:
+                    self.net = cv2.FaceDetectorYN.create(str(MODEL_PATH), "", (320, 320), 0.5, 0.3, 5000)
+                    self.backend = "yunet"
+                    return
+                except Exception as e:  # noqa: BLE001 - unreadable model or unsupported build
+                    self.reason = f"cannot load the face model ({type(e).__name__}: {e})"
+        if backend in ("auto", "haar"):
+            self._init_haar()
+
+    def _init_haar(self) -> None:
+        cv2 = self.cv2
+        folder = Path(getattr(getattr(cv2, "data", None), "haarcascades", "") or "")
+        names = {"frontal": "haarcascade_frontalface_default.xml", "alt2": "haarcascade_frontalface_alt2.xml",
+                 "profile": "haarcascade_profileface.xml", "eye": "haarcascade_eye.xml"}
+        if not hasattr(cv2, "CascadeClassifier") or not all((folder / n).is_file() for n in names.values()):
+            self.reason = (self.reason + "; " if self.reason else "") + \
+                f"OpenCV {cv2.__version__} has no built-in Haar cascades"
             return
-        self.available = True
-        self.score1 = cfg("face_score")
-        self.score2 = cfg("face_score_multi")
-        self.min_frac = cfg("face_min_frac")
+        self.cascades = {k: cv2.CascadeClassifier(str(folder / n)) for k, n in names.items()}
+        if any(c.empty() for c in self.cascades.values()):
+            self.reason = (self.reason + "; " if self.reason else "") + "cannot load the Haar cascades"
+            return
+        self.backend = "haar"
+
+    @property
+    def available(self) -> bool:
+        return self.backend is not None
 
     def _raw(self, bgr) -> list[tuple[float, float, float, float, float]]:
         """Raw detections at this image's size: (x, y, w, h, score) in px, after the geometry check."""
@@ -132,6 +161,8 @@ class FaceDetector:
 
     def detect(self, bgr) -> list[list[float]]:
         """Face boxes [x, y, w, h] normalized to the image, largest first."""
+        if self.backend == "haar":
+            return self._detect_haar(bgr)
         if not self.available:
             return []
         cv2 = self.cv2
@@ -160,7 +191,51 @@ class FaceDetector:
         for c in kept:
             if all(_iou(c, o) < 0.3 and _contain(c, o) < 0.6 for o in chosen):
                 chosen.append(c)
-        chosen.sort(key=lambda c: (-round(c[2] * c[3]), round(c[0]), round(c[1])))
+        return self._normalize(chosen, W, H)
+
+    def _detect_haar(self, bgr) -> list[list[float]]:
+        cv2 = self.cv2
+        H, W = bgr.shape[:2]
+        scale = min(1.0, 640 / max(H, W))
+        gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+        if scale < 1.0:
+            gray = cv2.resize(gray, (round(W * scale), round(H * scale)), interpolation=cv2.INTER_AREA)
+        gray = cv2.equalizeHist(gray)
+        gw = gray.shape[1]
+        min_px = max(16, int(self.min_frac * min(gray.shape[:2])))
+
+        def run(name, img, neighbours):
+            found = self.cascades[name].detectMultiScale(img, scaleFactor=1.15, minNeighbors=neighbours,
+                                                         minSize=(min_px, min_px))
+            return [tuple(float(v) for v in r) for r in (found if len(found) else [])]
+
+        frontal, alt2 = run("frontal", gray, 5), run("alt2", gray, 3)
+        cands = []
+        for b in frontal:
+            agree = any(_iou((*b, 0), (*o, 0)) >= 0.4 for o in alt2)
+            agree_eye = False
+            if not agree:
+                x, y, w, h = (int(v) for v in b)
+                upper = gray[y:y + h // 2 + 1, x:x + w]
+                agree_eye = len(self.cascades["eye"].detectMultiScale(
+                    upper, scaleFactor=1.1, minNeighbors=4, minSize=(max(4, w // 8), max(4, w // 8)))) > 0
+            if agree or agree_eye:
+                cands.append((*b, 1.0 if agree else 0.9, 0))
+        for b in run("profile", gray, 10):
+            cands.append((*b, 0.8, 0))
+        for x, y, w, h in run("profile", cv2.flip(gray, 1), 10):
+            cands.append((gw - x - w, y, w, h, 0.8, 0))
+        cands.sort(key=lambda c: (-c[4], -c[2] * c[3], c[0], c[1]))
+        chosen: list[tuple] = []
+        for c in cands:
+            if all(_iou(c, o) < 0.3 and _contain(c, o) < 0.6 for o in chosen):
+                chosen.append(c)
+        chosen = [(x / scale, y / scale, w / scale, h / scale, s, k) for x, y, w, h, s, k in chosen]
+        return self._normalize(chosen, W, H)
+
+    @staticmethod
+    def _normalize(chosen: list[tuple], W: int, H: int) -> list[list[float]]:
+        chosen = sorted(chosen, key=lambda c: (-round(c[2] * c[3]), round(c[0]), round(c[1])))
         boxes = []
         for x, y, bw, bh, _s, _k in chosen[:MAX_FACES]:
             x0, y0 = max(0.0, x), max(0.0, y)
@@ -526,8 +601,8 @@ def process_clip(entry: dict, det: FaceDetector) -> None:
 # ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
-def run_vision(analysis_path: Path, *, clips: bool = True) -> dict:
-    """Amend analysis.json in place; returns the report."""
+def run_vision(analysis_path: Path, *, clips: bool = True, backend: str = "auto") -> dict:
+    """Amend analysis.json in place; returns the report. `backend`: auto (YuNet, else Haar), yunet or haar."""
     import cv2
     started = time.monotonic()
     analysis_path = Path(analysis_path)
@@ -538,14 +613,18 @@ def run_vision(analysis_path: Path, *, clips: bool = True) -> dict:
     if errs:
         raise nc.UserError(f"{analysis_path}: not a valid analysis.json ({errs[0]}); re-run analyze.py")
     cv2.setNumThreads(1)   # identical results on every run and machine core count
-    det = FaceDetector()
+    det = FaceDetector(backend)
     warnings = list(A.get("warnings") or [])
+    msg = None
     if not det.available:
         msg = f"face detection unavailable ({det.reason}): focus points come from saliency only"
+    elif det.backend == "haar" and det.reason:
+        msg = f"YuNet face detector unavailable ({det.reason}): using OpenCV Haar cascades (more missed faces)"
+    if msg:
         nc.warn(msg)
         if msg not in warnings:
             warnings.append(msg)
-    report: dict[str, Any] = {"analysis": str(analysis_path), "detector": "yunet" if det.available else None,
+    report: dict[str, Any] = {"analysis": str(analysis_path), "detector": det.backend,
                               "photos": [], "clips": []}
     for p in A.get("photos", []):
         process_photo(p, det)

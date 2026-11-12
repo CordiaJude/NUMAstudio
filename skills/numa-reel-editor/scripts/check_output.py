@@ -34,6 +34,7 @@ SILENT_MAX_DB = -50.0               # or no sample louder than this
 CLIP_SAMPLE_DB = -0.1               # a sample at full scale = clipped
 FREEZE_MIN_S = 1.0
 FREEZE_NOISE = "-60dB"
+ANALYSIS_SIZE = (270, 480)          # frames are downscaled for bar detection
 BAR_FRACTION = 0.02                 # a border band wider than 2 % of the frame can be a bar
 BAR_LUMA = 40.0                     # dark: graded "black" bars sit up to about luma 40 (0-255)
 BAR_STD = 6.0                       # flat: grain allowed, picture detail not
@@ -42,7 +43,10 @@ BAR_EDGE = 15.0                     # sharp: the rows just inside differ by at l
 BAR_INTERIOR = 20.0                 # the picture inside is clearly brighter or busier than the band
 BAR_PAIR_LUMA = 10.0                # both bars of a pair have about the same level
 BAR_SIZE_MATCH = 0.02               # a bar keeps its size (fraction) across the frames it is seen on
-ANALYSIS_SIZE = (270, 480)          # frames are downscaled for bar detection
+SINGLE_BAR_MAX = 0.15               # a lone strip on one edge up to 15 % is a bar (crop/pan overshoot);
+                                    # a larger dark area on one side is picture (sky, ceiling)
+SINGLE_BAR_MATCH = 1.5 / ANALYSIS_SIZE[1]   # ...and it is the same size (about a row) on most frames
+SINGLE_BAR_SHARE = 0.6              # "most frames"
 
 
 # --------------------------------------------------------------------------- measurement helpers
@@ -207,9 +211,10 @@ def detect_black_bars(path: str | Path, duration: float,
                       exempt: list[tuple[float, float]] | None = None) -> list[str]:
     """Descriptions of letterbox/pillarbox bars on frames sampled once a second (skipping fades and exempt windows).
 
-    Bars come in matching pairs (top+bottom or left+right, same level) and must be stable: the same
-    size on at least two sampled frames (or on the only frame sampled). A dark sky or a dark top
-    region alone is a picture, not a bar."""
+    Paired bars (top+bottom or left+right, same level) must keep their size on at least two sampled
+    frames (or the only frame sampled). A lone strip on one edge counts when it is at most 15 % of
+    the frame and the same size on most sampled frames (crop or pan overshoot); a larger dark area
+    on one side (a dark sky or ceiling) is picture, not a bar."""
     exempt = exempt or []
     end = duration - 1.0  # the global fade-out
     times = []
@@ -222,6 +227,7 @@ def detect_black_bars(path: str | Path, duration: float,
         times = [round(duration / 2, 3)]
     frames = _gray_frames(path, times)
     hits: dict[str, list[tuple[float, float, float]]] = {"letterbox": [], "pillarbox": []}
+    lone: dict[str, list[tuple[float, float]]] = {"top": [], "bottom": [], "left": [], "right": []}
     for t, frame in frames:
         sizes = bar_sizes(frame)
         lb = _pair(sizes, "top", "bottom")
@@ -230,6 +236,10 @@ def detect_black_bars(path: str | Path, duration: float,
         pb = _pair(sizes, "left", "right")
         if pb:
             hits["pillarbox"].append((t, *pb))
+        for side, (frac, _level) in sizes.items():
+            paired = (lb and side in ("top", "bottom")) or (pb and side in ("left", "right"))
+            if not paired and BAR_FRACTION < frac <= SINGLE_BAR_MAX:
+                lone[side].append((t, frac))
     found: list[str] = []
     for kind, seen in hits.items():
         if not seen:
@@ -251,6 +261,17 @@ def detect_black_bars(path: str | Path, duration: float,
             sides = ("top", "bottom", "height") if kind == "letterbox" else ("left", "right", "width")
             found.append(f"black bars ({kind}, {sides[0]} {a:.0%} and {sides[1]} {b:.0%} of the {sides[2]}) "
                          f"at {_times(h[0] for h in g)}")
+    need = max(2, math.ceil(SINGLE_BAR_SHARE * len(frames))) if len(frames) > 1 else 1
+    for side, seen in lone.items():
+        best: list[tuple[float, float]] = []
+        for _t, frac in seen:
+            group = [h for h in seen if abs(h[1] - frac) <= SINGLE_BAR_MATCH]
+            if len(group) > len(best):
+                best = group
+        if len(best) >= need:
+            dim = "height" if side in ("top", "bottom") else "width"
+            found.append(f"black bar on the {side} edge ({max(h[1] for h in best):.0%} of the {dim}) "
+                         f"at {_times(h[0] for h in best)}")
     return found
 
 

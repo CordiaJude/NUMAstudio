@@ -262,7 +262,7 @@ def test_silent_master_falls_back(media, tmp_path):
     out = tmp_path / "out" / "s.mp4"
     sec = finish.finish(work, out, qa=False)
     assert sec["audio_bed"] == "generated_pad" and sec["ok"]
-    assert any("master.wav is silent" in w for w in sec["warnings"])
+    assert any("master.wav is silent (peak below -80 dBFS)" in w for w in sec["warnings"])
     i_lufs, tp = ebur128(out)
     assert abs(i_lufs + 15) <= 1.0 and tp <= -1.5
 
@@ -281,6 +281,17 @@ def test_extreme_inputs_still_meet_spec(media, tmp_path, src, codec):
     i_lufs, tp = ebur128(out)
     assert abs(i_lufs + 15) <= 1.0 and tp <= -1.5, (i_lufs, tp, sec)
     assert sec["ok"]
+
+
+def test_very_quiet_master_is_normalized_not_replaced(media, tmp_path):
+    work = make_job(tmp_path, media, nat=False, voice=False)
+    # about -68 LUFS, peak about -57 dBFS: below loudnorm's -70 LUFS gate after EQ, but a real recording
+    ff("-f", "lavfi", "-i", f"aevalsrc='0.0014*sin(2*PI*220*t)':s=48000:d={DUR}", "-ac", "2", work / "master.wav")
+    out = tmp_path / "out" / "quiet.mp4"
+    sec = finish.finish(work, out, qa=False)
+    assert sec["audio_bed"] == "master" and sec["ok"]
+    i_lufs, tp = ebur128(out)
+    assert abs(i_lufs + 15) <= 1.0 and tp <= -1.5
 
 
 def test_true_peak_over_limit_is_corrected(media, tmp_path, monkeypatch):

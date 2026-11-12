@@ -205,6 +205,8 @@ schema. There is no migration: re-run `analyze.py` on the job's `raw/` folder
 
 ---
 
+Vision fields (written by vision.py): photos[]/clips[] `flags` (subset of landscape, low_res, blurry, shaky, dark), `faces`, `focus`, clips[] `scores` and `windows`. prep_media.py records prepared sources in `WORK/prep/index.json` (source SHA-256 + steps) and sets `prepared_path`.
+
 ## 4. plan.json
 
 Schema: `schemas/plan.schema.json`. The edit decision list and the only
