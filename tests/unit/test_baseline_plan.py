@@ -119,7 +119,8 @@ def test_voice_music_follows_the_edit_grammar(make_job):
     assert plan["music"]["source"] == "folder" and plan["music"]["license"] is None  # no record in sources.json
     fm = plan["formats"]
     assert 8 <= fm["reach_cut"]["t1"] - fm["reach_cut"]["t0"] <= 12
-    assert 3 <= len(fm["story"]) <= 5 and 5 <= len(fm["carousel"]) <= 8 and fm["cover"]["title"]
+    assert 3 <= len(fm["story"]) <= 5 and fm["cover"]["title"]
+    assert "carousel" not in fm   # 4 whole sentences (one is the hook): too few for 5 slides
 
 
 def test_outro_recap_montage_two_beats_each(make_job):
@@ -323,7 +324,8 @@ def test_every_template_yields_a_valid_plan(make_job, tid, shape):
     iss = vp.validate(plan, A)
     assert errors(iss) == [], errors(iss)
     assert plan["template"] == tid and plan["meta"]["hook_type"] == T["hook_style"]
-    assert plan["duration"] == min(60.0, T["default_length_s"])
+    lo_t, hi_t = T["typical_length_s"]   # the default, moved to a sentence end when it would cut the voice
+    assert plan["duration"] == T["default_length_s"] or lo_t <= plan["duration"] <= hi_t
     assert plan["signature"]["type"] == "flash"  # a wipe needs a true before/after pair
     allowed = set(T["transitions"]) | {"flash", "fade"}   # flash/fade: the end card
     assert {s["tr"] for s in plan["shots"]} <= allowed | {"cut"}
@@ -447,3 +449,84 @@ def test_library_consent_and_min_people_shots(make_job, tmp_path):
     more = build(work, A, library=consent, prefs={"min_people_shots": base_people + 2})
     assert sum(1 for s in more["shots"] if s.get("people")) == base_people + 2
     assert errors(vp.validate(more, A)) == []
+
+
+LONG_VO = ("Katie walked into an empty room in Mobile. The floors were cracked and the walls were cold. "
+           "She saw a place where people could breathe together. Every morning she showed up anyway, before "
+           "anyone else. Today the sauna is warm and the plunge is ready for you. Thank you, Mobile, for one "
+           "whole year of showing up. Send this to the friend who needs a reset.")
+
+
+def _vo_job(make_job, text=LONG_VO, duration=60.0):
+    work, A = make_job("voice_music", duration=duration)
+    A["words"] = _words(text, 0.9)
+    A["transcript"] = " ".join(w["w"] for w in A["words"])
+    return work, A
+
+
+def test_template_length_never_cuts_a_sentence(make_job, capsys):
+    work, A = _vo_job(make_job, duration=39.0)
+    T = bp.load_template("holiday_hours")
+    plan = build(work, A, template=T)
+    lo_t, hi_t = T["typical_length_s"]
+    assert lo_t <= plan["duration"] <= hi_t and plan["duration"] != T["default_length_s"]
+    shown = " ".join(w[0] for ln in plan["lines"] for w in ln["words"])
+    assert shown.rstrip().endswith((".", "!", "?")), shown
+    assert "mid-sentence" in capsys.readouterr().err
+    assert errors(vp.validate(plan, A)) == []
+
+
+def test_formats_text_is_whole_sentences(make_job):
+    work, A = _vo_job(make_job, text=VOICE + " " + LONG_VO)
+    plan = build(work, A)
+    fm = plan["formats"]
+    assert fm["story"] and fm["carousel"]
+    for item in fm["story"] + fm["carousel"]:
+        t = item["text"]
+        assert t[0].isupper() and t.endswith((".", "!", "?", "\u2026")), t
+    texts = [x["text"] for x in fm["story"] + fm["carousel"]]
+    assert "but she does." not in texts and "I don't know how she does it," not in texts
+
+
+def test_statement_card_replaces_its_caption(make_job):
+    work, A = _vo_job(make_job, duration=60.0)
+    plan = build(work, A, template=bp.load_template("myth_vs_fact"))
+    plan2 = build(work, A, template=bp.load_template("holiday_hours"))
+    for p in (plan, plan2):
+        captions = {bp._hook_key(" ".join(w[0] for w in ln["words"])) for ln in p["lines"]}
+        for c in p.get("cards", []):
+            if c["style"] == "statement":
+                assert bp._hook_key(c["text"]) not in captions   # no caption repeats a card
+    # whole clauses on cards, never clipped words
+    assert bp.card_text("Katie walked into an empty room in Mobile.", 4) == "Katie walked into an empty room in Mobile."
+    assert bp.card_text("Thank you, Mobile, for one whole year of showing up.", 4) == "Thank you."
+
+
+def test_before_after_with_faces_and_no_consent_is_blurred(make_job, capsys):
+    work, A = make_job("photos", duration=40.0)
+    A["photos"][1]["faces"] = [[0.4, 0.2, 0.2, 0.15]]
+    plan = build(work, A, template=bp.load_template("transformation"), before="P1", after="P2")
+    shot = next(s for s in plan["shots"] if s["src"] == A["photos"][1]["path"])
+    assert shot["blur"] and "people" not in shot
+    assert "faces are blurred" in capsys.readouterr().err
+    assert errors(vp.validate(plan, A)) == []
+
+
+def test_cli_exits_1_when_its_plan_fails_validation(make_job, run_script, monkeypatch):
+    work, A = make_job("photos")
+    A["photos"][0]["faces"] = [[0.4, 0.2, 0.2, 0.15]]
+    A["photos"][0]["consent"] = True
+    (work / "analysis.json").write_text(json.dumps(A))
+    ok = run_script("baseline_plan.py", work)
+    assert ok.returncode == 0, ok.stderr
+    # a plan the validator rejects (here: a banned claim in the hook) must not exit 0
+    bad = run_script("baseline_plan.py", work, "--hook", "Sauna cures stress.")
+    assert bad.returncode == 1 and "ERROR: plan check:" in bad.stderr and "Traceback" not in bad.stderr
+    assert (work / "plan.json").is_file()
+
+
+def test_min_shot_seconds_holds_at_most_4_beats_or_peak(make_job):
+    work, A = make_job("voice_music", duration=60.0)
+    plan = build(work, A, duration=35.0, prefs={"min_shot_seconds": 2.0})
+    iss = vp.validate(plan, A, {"min_shot_seconds": 2.0})
+    assert not [i for i in iss if i.rule in (15, 38)], iss

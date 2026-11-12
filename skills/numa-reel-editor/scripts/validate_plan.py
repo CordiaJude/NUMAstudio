@@ -490,7 +490,9 @@ class Checker:
                 for ci in range(i1, i2):
                     j, k, w = cap[ci]
                     self.err(24, f"lines[{j}].words[{k}]", f"'{w[0]}' is not in the transcript")
-        missing = len(tw) - shown
+        on_cards = sum(len(str(c.get("text", "")).split()) for c in self.plan.get("cards") or []
+                       if c.get("style", "statement") == "statement")   # a card can carry a spoken line
+        missing = len(tw) - shown - on_cards
         if missing > max(3, 0.1 * len(tw)):
             self.wrn(24, "lines", f"captions show {shown} of {len(tw)} spoken words; every spoken word appears as it's spoken")
 

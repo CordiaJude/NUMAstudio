@@ -674,6 +674,11 @@ Duration = min(`--duration`, audio, 60).
   boxes over the faces (WARN either way).
 - `formats.reach_cut.hook` is never the reel's hook: `meta.title`, else the
   strongest other caption line; no reach cut without one.
+- `formats.story`/`carousel` use whole sentences only (caption lines joined,
+  formats.py's defaults); none when there are too few.
+- A template's default length that would cut the voice mid-sentence moves to
+  the next sentence end inside `typical_length_s` (else the last whole one), WARN.
+- The plan is written either way; exit 1 when its own validation has an ERROR.
 
 ### validate_plan.py [T4]
 ```
