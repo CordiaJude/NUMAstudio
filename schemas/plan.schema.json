@@ -153,6 +153,7 @@
         },
         "focus": { "$ref": "#/$defs/point", "description": "Point the zoom/pan centres on, normalized [x, y] of the source." },
         "faces": { "type": "array", "items": { "$ref": "#/$defs/box" }, "description": "Face boxes [x, y, w, h] normalized; captions avoid them." },
+        "blur": { "type": "array", "items": { "$ref": "#/$defs/box" }, "description": "Regions [x, y, w, h] normalized to the source to blur heavily (people not on the consent list); applies to stills and video for the whole shot." },
         "peak": { "type": "boolean", "default": false, "description": "Emotional peak: may hold longer than 4 beats." },
         "people": { "type": "boolean", "description": "A recognizable person is in the shot." },
         "consent": { "type": "boolean", "description": "Every recognizable person in the shot is on the consent list." },

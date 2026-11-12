@@ -13,6 +13,7 @@
 | T8 Instructions A | PENDING | 0 | |
 | T9 Instructions B | PENDING | 0 | |
 | T10 Setup/posting | PENDING | 0 | |
+| T12 Templates/prefs/kinetic | PENDING | 0 | |
 | T11 Integration | PENDING | 0 | |
 
 ## Minor findings for final polish

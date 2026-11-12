@@ -270,6 +270,7 @@ Shots tile the timeline: `shots[0].t0 = 0`, each `t0` equals the previous
 | `pan` | [x, y] | [0, 0] | Drift over the shot as a fraction of frame size |
 | `tr` | `cut`/`punch`/`whip`/`leakfade`/`fade`/`flash`/`wipe` | `cut` | Transition into this shot |
 | `crop` | [left, top, right, bottom] px | none | Image: crop in source pixels before framing |
+| `blur` | [[x,y,w,h], ...] normalized | none | Source regions blurred beyond recognition for the whole shot (non-consented people, spec p.6); engine applies it before framing |
 | `focus` | [x, y] 0-1 | centre (or vision focus) | Point zoom/pan centre on (smart framing) |
 | `faces` | box[] 0-1 | [] | Faces in the source; captions avoid them |
 | `peak` | bool | false | Emotional peak: may exceed 4 beats |
