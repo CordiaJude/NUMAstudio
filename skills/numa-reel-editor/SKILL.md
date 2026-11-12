@@ -39,6 +39,9 @@ When the folder is thin or lacks something the script needs, go look for it with
 3. Download everything into a fresh working folder, e.g. `~/numa/<date>/raw/`. Convert HEIC to JPG (`pip install pillow-heif`).
 4. If visuals or audio are missing, search for them with Claude in Chrome first (see above), then use `assets/brand-photos/` or generate what's needed. Never stop to ask.
 
+## Brand data
+Read `brand/brand.json` at the plugin root before anything else: offers, team, voice, series, banned claims, budgets, API version, admin contact. Values marked `research` or `placeholder` aren't confirmed; prefer `confirmed` ones and never invent facts.
+
 ## Step 2: Set up tools (first run on a machine)
 `pip install --break-system-packages faster-whisper librosa opencv-python-headless pillow numpy imageio-ffmpeg pillow-heif` (drop the flag if pip rejects it). The scripts use the system `ffmpeg` if present, otherwise the one from imageio-ffmpeg. Scripts live in this skill's `scripts/` folder; call them by absolute path. Work in a new folder per reel, e.g. `~/NUMA Reels/<date>-<topic>/`.
 
@@ -98,7 +101,7 @@ Inspect a frame of every result; re-roll once with lower motion if a face, hand,
 Anything on the banned-claims list (voiceover, on-screen text, visuals, caption or hashtags); content NUMA didn't make (collabs excepted); an AI-animated person without the AI label; a recognizable person not on the Consent List; music with no recorded license source; silent, clipped or non-48 kHz audio, or not 1080x1920; NUMA misspelled or a wrong price, date or offer; an AI shot that warps a face, hand, logo or text, or shows something NUMA doesn't have; black bars, mirrored edges or frozen frames. Otherwise score hook 20, retention 15, story 15, shareability 10, beat sync 10, captions 10, brand look 10, audio 10; pass at 80+ with nothing below 3 and hook at least 4; max 3 fix rounds.
 
 ## Step 6: Render
-1. Write `plan.json` in the work folder (schema below). Preview first: `python3 <skill>/scripts/engine.py plan.json preview <5-10 times>` writes `preview.jpg`. **Look at it.** Check: no mirrored edges, captions readable and not covering faces (otherwise move `caption_y` within 1300-1500), the right shot on each line, a clean end card. Fix and repeat.
+1. Start from `python3 <skill>/scripts/baseline_plan.py <work_dir>` (a valid beat-synced draft), then rewrite it into your plan (schema below). Run `python3 <skill>/scripts/validate_plan.py plan.json analysis.json` and fix every ERROR before any render. Preview first: `python3 <skill>/scripts/engine.py plan.json preview <5-10 times>` writes `preview.jpg`. **Look at it.** Check: no mirrored edges, captions readable and not covering faces (otherwise move `caption_y` within 1300-1500), the right shot on each line, a clean end card. Fix and repeat.
 2. Full render: `python3 <skill>/scripts/engine.py plan.json`, about 3-6 minutes for 40 s. Run it in the background and poll; don't block.
 3. Finish: `python3 <skill>/scripts/finish.py <work_dir> "<work_dir>/NUMA_<topic>_<date>.mp4"`. It masters the audio (softens harsh, too-close voices with EQ and a little room tone, loudness-normalizes, 48 kHz AAC; 96 kHz plays silent on iPhones), muxes, and writes `qa_strip.jpg` plus the audio level. Add `--clean-voice` to skip the room tone when the voice is already distant or studio-clean.
 4. **Look at `qa_strip.jpg`.** If it prints a WARNING or anything looks off, fix and re-render.

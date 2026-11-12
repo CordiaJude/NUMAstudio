@@ -43,8 +43,10 @@ master = a.master
 if not master and voice and music and voice != music:
     vd = dur(voice); total = min(vd + 7.5, 60)
     run('-i', voice, '-i', music, '-filter_complex',
-        f'[1]volume=-14dB,atrim=0:{total},asetpts=N/SR/TB[m];[0]apad=pad_dur={total}[v];'
-        f'[m][v]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=400[md];[md][v]amix=inputs=2:weights=1 1.6:normalize=0,atrim=0:{total}',
+        f'[0]aresample=48000,aformat=channel_layouts=stereo,apad=whole_dur={total},asplit=2[v1][v2];'
+        f'[1]aresample=48000,aformat=channel_layouts=stereo,volume=-14dB,atrim=0:{total},asetpts=N/SR/TB[m];'
+        f'[m][v1]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=400[md];'
+        f'[md][v2]amix=inputs=2:weights=1 1.6:normalize=0:duration=longest,atrim=0:{total}',
         '-ar', '48000', '-ac', '2', os.path.join(work, 'master.wav'))
     beats_src = music
 else:
@@ -54,7 +56,9 @@ else:
 M = os.path.join(work, 'master.wav'); D = dur(M)
 # words
 words = []
+music_only = (not voice) and (not a.master) and bool(music)
 try:
+    if music_only: raise StopIteration  # nothing spoken: no captions, and Whisper invents words on pure music
     run('-i', voice or M, '-ac', '1', '-ar', '16000', '-f', 'f32le', os.path.join(work, 'a.raw'))
     from faster_whisper import WhisperModel
     wm = WhisperModel('small.en', compute_type='int8')
@@ -62,6 +66,7 @@ try:
     for s in segs:
         for w in s.words:
             words.append({'w': w.word.strip(), 'appear': round(max(w.start, w.end - 0.4), 2), 'end': round(w.end, 2)})
+except StopIteration: pass
 except Exception as e: print('transcription failed:', e)
 # beats
 import librosa

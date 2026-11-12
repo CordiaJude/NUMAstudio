@@ -21,6 +21,15 @@ Then connect **Google Drive** and **Higgsfield** under Settings → Connectors a
 | `skills/numa-brand-check` | Reviews any video or graphic against the brand before posting |
 | `commands/make-reel` | One command, whole workflow |
 | `commands/numa-setup` | Readiness check for packages, Drive and Higgsfield |
+| `commands/plan-month` | Plans 30 days: Sheet, Drive folders, shoot cards, credit split |
+| `skills/numa-scriptwriter` | Scripts, hooks, shot lists and shoot cards, with the claims check |
+| `agents/` | The crew: librarian, scout, analyst, motion, scriptwriter, copywriter, editor (mid/small models) and critic (top model) |
+| `brand/brand.json` | Single source of truth for NUMA's brand; values marked research/placeholder until Katie confirms |
+| `scripts/baseline_plan.py`, `scripts/validate_plan.py` | Valid beat-synced starting plan; plan checker that fails before a long render |
+| `tests/run_tests.py` | Five-folder test suite (milestone M3) |
+
+## Tests
+`python3 tests/run_tests.py` builds five material folders from the bundled brand photos and generated audio and runs analyze, baseline plan, validate, render and finish on each. Add `--voice some_voice_file` to test with a real voiceover. Last run (v1.3.0, Linux sandbox, 10 s renders): all 5 passed (photos + music 71 s, clips only 202 s, voice + music 136 s, combined track 116 s, HEIC photos 73 s). Clip-heavy renders are the slow path; see "Faster renders" in the brief.
 
 ## Costs
 Plan on Higgsfield Plus (1,200 credits a month). Kling 3.0 motion clips cost about 9 credits each, photo outpaint and upscale 2, a custom music bed about 6. With no credits, reels are still made, just without AI motion.

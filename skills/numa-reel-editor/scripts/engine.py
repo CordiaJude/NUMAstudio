@@ -78,11 +78,35 @@ class VidSrc:
             if not ok: break
             s.idx += 1; s.raw = fr
         if s.cur is None or s.cur[0] != s.idx:
-            rgb = cv2.cvtColor(s.raw, cv2.COLOR_BGR2RGB)
-            im = Image.fromarray(rgb)
-            c = canvas(im) if im.width / im.height >= 0.85 else ImageOps.fit(im, (SW, SH), Image.BILINEAR)
-            s.cur = (s.idx, to_bgr(grade_arr(np.asarray(c).astype(np.float32) / 255, s.look)))
+            c = canvas_fast(s.raw)
+            rgb = cv2.cvtColor(c, cv2.COLOR_BGR2RGB).astype(np.float32) / 255
+            s.cur = (s.idx, to_bgr(grade_arr(rgb, s.look)))
         return s.cur[1]
+
+_masks = {}
+def _cover(img, w, h, interp=cv2.INTER_AREA):
+    ih, iw = img.shape[:2]; k = max(w / iw, h / ih)
+    r = cv2.resize(img, (max(w, int(iw * k + 0.5)), max(h, int(ih * k + 0.5))), interpolation=interp)
+    y0 = (r.shape[0] - h) // 2; x0 = (r.shape[1] - w) // 2
+    return r[y0:y0 + h, x0:x0 + w]
+def canvas_fast(bgr):
+    """OpenCV version of canvas() for video frames (about 20x faster than the PIL path)."""
+    ih, iw = bgr.shape[:2]
+    if iw / ih < 0.85:
+        return _cover(bgr, SW, SH, cv2.INTER_LINEAR)
+    hh = int(SH * 0.92); ww = int(iw * hh / ih); CW = max(ww, SW)
+    small = _cover(bgr, max(CW // 8, 8), SH // 8)
+    bg = cv2.resize(cv2.GaussianBlur(small, (0, 0), 10), (CW, SH), interpolation=cv2.INTER_LINEAR)
+    bg = (bg.astype(np.float32) * 0.4)
+    fg = cv2.resize(bgr, (ww, hh), interpolation=cv2.INTER_LINEAR).astype(np.float32)
+    key = (ww, hh)
+    if key not in _masks:
+        m = np.zeros((hh, ww), np.float32); m[40:hh - 40, :] = 1
+        _masks[key] = cv2.GaussianBlur(m, (0, 0), 40)[..., None]
+    m = _masks[key]; x0 = (CW - ww) // 2; y0 = (SH - hh) // 2
+    reg = bg[y0:y0 + hh, x0:x0 + ww]
+    bg[y0:y0 + hh, x0:x0 + ww] = fg * m + reg * (1 - m)
+    return np.clip(bg, 0, 255).astype(np.uint8)
 
 SHOTS = P['shots']; SRC = []
 for sh in SHOTS:
