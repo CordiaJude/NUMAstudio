@@ -36,3 +36,5 @@
 - T12 follow-up: baseline_plan writes formats story/carousel text as caption-line fragments; use whole sentences (reuse formats.py sentence joining) and never set reach_cut.hook equal to reel hook.
 - T6 minors: no WARN when final-segment defence lengthens window; reach hook reappears as caption ~3 s later; near-duplicate carousel pictures; report ok:true when outputs skipped (should list skipped).
 - T12 minors: rule 24 counts transcript words past duration and omits card words in message; card text can exceed template max_words; formats.default_carousel shortens with ellipsis (not whole sentences).
+- Verify r001-110 minors: analyze role guess "voice_track" → combined; fix_transcript lowercases line-start / doesn't insert dropped script word; speech_spans fallback spills into outro; baseline --script without --duration uses full 60 s music (should be script length + outro); voice-only folder gives <15 s master (F2 instructions cover).
+- Verify r111-220 notes: myth_vs_fact MYTH card hides hook at frame 0.
