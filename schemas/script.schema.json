@@ -77,6 +77,7 @@
     "derived_from": { "type": ["integer", "null"], "minimum": 1, "maximum": 31, "description": "Plan-row field: the day whose topic and material this post reuses (e.g. Tuesday's carousel from Monday's reel); exempt from the 14-day rule." },
     "length_class": { "enum": ["growth", "atmosphere", null], "description": "growth 45-60 s; atmosphere or announcement 15-30 s (config render.length_s)." },
     "repost": { "type": "boolean", "description": "Must be false: other people's content appears only as collab posts." },
+    "credits_planned": { "type": "number", "minimum": 0, "maximum": 150, "description": "Plan-row field: Higgsfield credits budgeted for this day at month planning (config budget, ledger.py)." },
     "batch_session": { "type": ["string", "null"], "description": "Plan-row field: which weekly batch session films this day." },
     "folder": { "type": "string", "description": "Drive day folder name: Day NN - YYYY-MM-DD - Title." },
     "folder_link": { "type": ["string", "null"] },

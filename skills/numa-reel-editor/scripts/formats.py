@@ -504,12 +504,9 @@ def default_story(plan: dict) -> list[dict]:
             used.add(norm(line_text(ln)))
     shots = _content_shots(plan)
     pool = [t for t in _text_pool(plan) if norm(t) not in used]
-    j = 0
-    while len(out) < n and pool:
-        s = shots[(len(out) * max(1, len(shots) // n) + j) % len(shots)]
-        t = still_time(plan, _mid(s, ce))
-        out.append({"t": t, "text": pool.pop(0)})
-        j += 1
+    while len(out) < n and pool:   # few caption lines: spread the rest over the shots
+        s = shots[min(len(shots) - 1, (2 * len(out) + 1) * len(shots) // (2 * n))]
+        out.append({"t": still_time(plan, _mid(s, ce)), "text": pool.pop(0)})
     if len(out) < 3:
         raise nc.UserError("not enough text for a story set (3 lines needed): add formats.story or captions")
     return sorted(out, key=lambda e: e["t"])
