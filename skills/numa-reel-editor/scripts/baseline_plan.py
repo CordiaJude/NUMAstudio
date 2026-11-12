@@ -21,7 +21,15 @@ improves story order, looks and key words. It is never the final creative plan.
   a pair of photo/clip ids (P3, C0, ...), else a white-flash reveal on the
   biggest caption line.
 * Whips at most every third cut, varied transitions, zooms alternating in and
-  out, a pan across wide photos, before/warm looks split at --turn.
+  out, a pan across wide photos. Looks: the 'before' look only when the reel
+  has a before/after arc (--turn, or --before/--after, whose wipe is the turn);
+  shots up to the turn are 'before', the rest 'warm'. Without one, everything
+  is warm: a voiceover reel with no before material should not look cold, and
+  the tense section keeps only its 2-beat rhythm.
+* The brand wordmark/phoenix in the material is left out (the end card carries
+  the logo); photos with a logo in them never open the reel.
+* Music from the folder gets its license from WORK/sources.json when sources.py
+  recorded one, else null (validate_plan warns: NUMA's own file).
 * End card on the last beats, held 3.5-5 s, over the bundled ripple image.
 * Captions: one sentence per line (2 rows max), 1-2 gold key words per line.
   Music-only material with --script FILE (one sentence per line) gets the
@@ -34,6 +42,7 @@ Duration = min(--duration, audio, 60 s). Deterministic: same inputs, same plan.
 """
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 import statistics
@@ -83,6 +92,14 @@ def r3(x: float) -> float:
 # ---------------------------------------------------------------------------
 # Material
 # ---------------------------------------------------------------------------
+def _sha1(path: str | Path) -> str | None:
+    try:
+        p = Path(path)
+        return hashlib.sha1(p.read_bytes()).hexdigest() if p.is_file() and p.stat().st_size < 20_000_000 else None
+    except OSError:
+        return None
+
+
 def _image_size(path: Path) -> tuple[int, int] | None:
     try:
         from PIL import Image
@@ -96,15 +113,23 @@ def collect_media(A: dict) -> list[Media]:
     items: list[Media] = []
     sharp = [p.get("sharpness") for p in A.get("photos", []) + A.get("clips", []) if p.get("sharpness") is not None]
     top = max(sharp) if sharp else 0.0
-    logos = set()
-    for key in ("wordmark", "secondary_mark"):
+    logos: set[str] = set()
+    for key in ("wordmark", "secondary_mark", "wordmark_light"):
         try:
             logos.add(str(nc.brand_asset(key).resolve()))
         except nc.UserError:
             pass
+    logo_hashes = {h for h in map(_sha1, logos) if h}
+
+    def is_mark(path: str) -> bool:
+        """The brand wordmark/phoenix itself (same file, same bytes, or named like it): never a shot."""
+        stem = Path(path).stem.lower()
+        return (str(Path(path).resolve()) in logos or _sha1(path) in logo_hashes
+                or bool(re.search(r"(word|work)[ _-]?mark|phoenix", stem)))
 
     def is_logo(path: str) -> bool:
-        return str(Path(path).resolve()) in logos or "logo" in Path(path).stem.lower()
+        """A photo with the logo in it (e.g. sauna-logo.jpg): fine in the body, never the opener."""
+        return "logo" in Path(path).stem.lower()
 
     for p in A.get("photos", []):
         src = p.get("prepared_path") or p["path"]
@@ -128,6 +153,10 @@ def collect_media(A: dict) -> list[Media]:
         for m in items:  # no analysis scores: folder order decides
             m.score = 0.0
     items = [m for m in items if m.kind == "image" or m.duration > 0.1]
+    marks = [m for m in items if is_mark(m.src)]
+    for m in marks:
+        nc.warn(f"{m.id} {Path(m.src).name} is the brand logo: left out (the end card carries the logo)")
+    items = [m for m in items if m not in marks]
     if items:
         return items
     # R96: no visuals in the folder -> the bundled brand photos
@@ -320,17 +349,46 @@ def snap(t: float, points: list[float]) -> int:
     return min(range(len(points)), key=lambda i: (abs(points[i] - t), i))
 
 
+def merge_anchors(anchors: list[int], fixed: set[int], min_gap: int = 2) -> list[int]:
+    """Drop optional anchors (caption-line starts) less than `min_gap` beats from a kept one."""
+    kept: list[int] = []
+    for a in sorted(set(anchors)):
+        if kept and a - kept[-1] < min_gap:
+            if a in fixed and kept[-1] not in fixed:
+                kept[-1] = a  # a fixed anchor (start, signature, turn, end) wins over a line start
+                if len(kept) > 1 and kept[-1] - kept[-2] < min_gap and kept[-2] not in fixed:
+                    del kept[-2]
+            elif a in fixed:
+                kept.append(a)  # two fixed anchors: keep both
+            continue
+        kept.append(a)
+    return kept
+
+
+def pieces(g: int, step: int) -> list[int]:
+    """Split a gap of g beats into 2-beat (step 2) or 4-beat pieces; an odd gap gets one 3-beat (or 1-beat) piece."""
+    if g <= 2:
+        return [g]
+    out: list[int] = []
+    odd = 3 if g % 2 else 0
+    rest = g - odd
+    if step == 2:
+        out = [2] * (rest // 2)
+    else:
+        out = [4] * (rest // 4) + ([2] if rest % 4 else [])
+    if odd:
+        out.append(odd)
+    return out
+
+
 def fill(points: list[float], anchors: list[int], tense_end: float) -> list[int]:
     """Cut indices into `points`: anchors kept, gaps filled with 2-beat (tense) or 4-beat pieces."""
     cuts = [anchors[0]]
     for a, b in zip(anchors, anchors[1:]):
-        g = b - a
         step = 2 if points[a] < tense_end - 1e-6 else 4
-        k = max(1, math.ceil(g / step))
-        base, extra = divmod(g, k)
         idx = a
-        for piece in range(k):
-            idx += base + (1 if piece < extra else 0)
+        for n in pieces(b - a, step):
+            idx += n
             cuts.append(idx)
     return cuts
 
@@ -422,7 +480,9 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
 
     anchors = sorted({0, len(points) - 1, *(i for i, _ in line_anchor),
                       *([sig_idx] if sig_idx is not None else []), *([turn_idx] if turn_idx is not None else [])})
-    cut_idx = fill(points, anchors, tense_end)
+    fixed = {0, len(points) - 1, *([sig_idx] if sig_idx is not None else []),
+             *([turn_idx] if turn_idx is not None else [])}
+    cut_idx = fill(points, merge_anchors(anchors, fixed), tense_end)
     times = [points[i] for i in cut_idx] + montage_pts[1:] + ([end_t] if end_t is not None else []) + [D]
     times = [r3(t) for t in times]
     dedup = [times[0]]
@@ -585,12 +645,9 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
     if audio.get("generated_pad") and audio.get("music"):
         plan["music"] = {"source": "pad", "path": audio["music"], "license": None,
                          "title": "Offline generated pad (last resort)"}
-    elif audio.get("music"):
-        plan["music"] = {"source": "folder", "path": audio["music"], "license": "Supplied by NUMA in the reel folder",
-                         "title": None}
-    elif audio.get("combined") and audio.get("master"):
-        plan["music"] = {"source": "folder", "path": audio["master"], "license": "Supplied by NUMA in the reel folder",
-                         "title": None}
+    elif audio.get("music") or (audio.get("combined") and audio.get("master")):
+        path = audio.get("music") or audio["master"]
+        plan["music"] = {"source": "folder", "path": path, "license": recorded_license(work, path), "title": None}
     else:
         plan["music"] = {"source": "natural", "path": None, "license": None, "title": None}
     plan["ai"] = {"people": False, "scenes": False, "label_required": False}
@@ -600,6 +657,23 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
     if formats:
         plan["formats"] = formats
     return plan
+
+
+def recorded_license(work: Path, path: str) -> str | None:
+    """The license recorded for this file in WORK/sources.json (sources.py), else None for the Director to fill."""
+    src = work / "sources.json"
+    if not src.is_file():
+        return None
+    try:
+        entries = nc.read_json(src, "sources file")
+    except nc.UserError as e:
+        nc.warn(f"cannot read {src}: {e}")
+        return None
+    for e in entries if isinstance(entries, list) else []:
+        if isinstance(e, dict) and e.get("path") and Path(str(e["path"])).resolve() == Path(path).resolve():
+            lic = e.get("license")
+            return lic.strip() if isinstance(lic, str) and lic.strip() else None
+    return None
 
 
 def make_formats(plan: dict, lines: list[dict], sig_t: float | None, story_end: float, grid: list[float],

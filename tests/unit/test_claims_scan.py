@@ -206,3 +206,60 @@ def test_cli_usage_and_missing_file(run_script, tmp_path):
     assert r.returncode == 2 and "ERROR:" in r.stderr
     r = run_script("claims_scan.py", "--file", tmp_path / "nope.txt")
     assert r.returncode == 1 and "ERROR:" in r.stderr and "Traceback" not in r.stderr
+
+
+# ---- revision 2: run-together hashtags, obfuscation, dosing context, modality-aware rewrites ----
+@pytest.mark.parametrize("tag, rule", [
+    ("#sundaydetox", "detox"), ("#sweatoutthetoxins", "detox"), ("#boostimmunity", "immunity"),
+    ("#antiinflammatory", "inflammation"), ("#fatburning", "fat_weight"), ("#painreliefnow", "pain_relief"),
+    ("#curestress", "cures"), ("#healsyourbody", "heals"), ("#nomoreanxiety", "mental_health_conditions"),
+    ("#weightlossjourney", "fat_weight"), ("#sciencebackedwellness", "proof_language"),
+])
+def test_run_together_hashtags_fail(tag, rule):
+    assert rule in fails(tag), (tag, fails(tag))
+
+
+@pytest.mark.parametrize("tag", ["#securesleep", "#community", "#traumainformed", "#hormonefree", "#treatyourself",
+                                 "#influencer", "#heartwarming", "#MobileAL", "#coldplunge", "#curiouscat",
+                                 "#manicuremonday", "#saunasunday"])
+def test_innocent_hashtags_pass(tag):
+    assert fails(tag) == [], (tag, fails(tag))
+
+
+@pytest.mark.parametrize("text, rule", [
+    ("D e t o x", "detox"), ("d.e.t.o.x your body", "detox"), ("D-E-T-O-X", "detox"),
+    ("Dеtox", "detox"),            # Cyrillic e
+    ("іmmunity boost", "immunity"),  # Cyrillic i
+    ("ＤＥＴＯＸ", "detox"),        # full-width (NFKC)
+    ("de\u200btox", "detox"),       # zero-width space
+    ("reduces inflamation", "misspelled_claim"), ("boost your imunity", "misspelled_claim"),
+])
+def test_obfuscated_and_misspelled_claims_fail(text, rule):
+    assert rule in fails(text), (text, fails(text))
+
+
+@pytest.mark.parametrize("text", ["Only 57 spots left for the 11 am class", "Doors open at 11, 57 Dauphin St.",
+                                  "a b c d e f g", "I. AM. HERE."])
+def test_no_false_positive_for_numbers_and_spaced_letters(text):
+    assert fails(text) == [], (text, fails(text))
+
+
+@pytest.mark.parametrize("text", ["57 min in the sauna and 11 in the cold", "Sauna for 57 minutes a week",
+                                  "11 minutes of cold plunge a week"])
+def test_dosing_line_variants_fail(text):
+    assert {"dosing_line", "dosing_line_any"} & set(fails(text)), (text, fails(text))
+
+
+@pytest.mark.parametrize("text, say", [
+    ("Sauna cures stress", "Deep, quiet heat to unwind."),
+    ("The cold plunge cures stress", "Three minutes of cold. Walk out wide awake."),
+    ("Breathwork cures stress", "Guided breathing to help you slow down."),
+])
+def test_rewrite_follows_the_modality_named(text, say):
+    (hit,) = [h for h in cs.scan_text(text) if h.rule == "cures"]
+    assert hit.suggestion == say
+
+
+def test_cli_run_together_hashtag(run_script):
+    r = run_script("claims_scan.py", "--hashtags", "#sundaydetox")
+    assert r.returncode == 1 and '"#sundaydetox"' in r.stderr

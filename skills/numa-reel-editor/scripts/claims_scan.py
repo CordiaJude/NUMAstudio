@@ -30,9 +30,11 @@ As a module:
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
-from dataclasses import dataclass, asdict
+import unicodedata
+from dataclasses import dataclass, asdict, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable
@@ -68,9 +70,22 @@ BUILTIN_RULES: list[dict] = [
         "id": "dosing_line_any",
         "label": "the website dosing line (\"57 minutes of sauna and 11 of cold\"), blocked until counsel clears it",
         "severity": "fail",
-        "patterns": [r"\b57\b[^.!?\n]{0,60}?\b11\b", r"\b11\b[^.!?\n]{0,40}?\bcold\b[^.!?\n]{0,40}?\b57\b"],
+        "patterns": [
+            r"\b57\s*(min|mins|minutes)\b[^.!?\n]{0,60}?\b(sauna|heat|cold|plunge)\b",
+            r"\b(sauna|heat)\b[^.!?\n]{0,30}?\b57\s*(min|mins|minutes)\b",
+            r"\b11\s*(min|mins|minutes)\b[^.!?\n]{0,30}?\b(cold|plunge|ice)\b",
+            r"\b(cold|plunge|ice)\b[^.!?\n]{0,30}?\b11\s*(min|mins|minutes)\b",
+        ],
         "source": "spec p.22",
         "needs_dosing_blocked": True,
+    },
+    {
+        "id": "misspelled_claim",
+        "label": "a banned claim, misspelled (inflamation, imunity, detocks, artheritis)",
+        "severity": "fail",
+        "patterns": [r"\binflam(?!m)\w*", r"\bimun(e|ity|ities)\b", r"\bdetocks\w*", r"\bartherit\w*",
+                     r"\bcolagen\b", r"\bwrinkels?\b"],
+        "source": "spec p.20 (misspellings carry the same claim)",
     },
     {
         "id": "breathwork_therapy",
@@ -115,6 +130,7 @@ class _Rule:
     patterns: list[re.Pattern]
     suggestion: str | None
     builtin: bool = False
+    tag_patterns: list[re.Pattern] = field(default_factory=list)
 
 
 @dataclass
@@ -125,6 +141,7 @@ class _Rules:
     never_tags: set[str]
     not_offered: list[str]
     device_names: list[str]
+    say_by_modality: dict[str, str] = field(default_factory=dict)
 
 
 def _modality_suggestion(claims: dict, patterns: list[re.Pattern]) -> str | None:
@@ -155,6 +172,32 @@ def _device_names(claims: dict) -> list[str]:
     return names
 
 
+# Words that name a modality in a text (keys of brand.json claims.modalities).
+MODALITY_WORDS = {
+    "cold_plunge": r"\b(cold|plunges?|plunging|ice\s*bath|chill)\b",
+    "sauna": r"\b(sauna|heat|sweat\w*)\b",
+    "red_light": r"\b(red[ -]?light|panels?|wavelengths?|nm)\b",
+    "breathwork": r"\b(breath\w*)\b",
+}
+
+# Hashtag bodies are matched without word boundaries; these innocent words are blanked first.
+TAG_GUARDS = ("secur", "procur", "manicur", "pedicur", "obscur", "traumainformed", "traumaaware",
+              "hormonefree", "treatyourself", "treatyoself", "community", "mercury", "curious", "curat")
+
+
+def _tag_pattern(pat: str) -> re.Pattern | None:
+    """A rule pattern for run-together hashtag bodies: word boundaries removed; patterns that need spaces skipped."""
+    if re.search(r"\\s|\[ -\]| ", pat):
+        loose = re.sub(r"\\s[+*]?\??|\[ -\]\??| ", "", pat)
+    else:
+        loose = pat
+    loose = loose.replace("\\b", "")
+    try:
+        return re.compile(loose, FLAGS)
+    except re.error:
+        return None
+
+
 def build_rules(brand: dict) -> _Rules:
     claims = brand["claims"]
     principle = claims.get("principle")
@@ -165,6 +208,8 @@ def build_rules(brand: dict) -> _Rules:
         brand_ids.add(r["id"])
         sugg = r.get("rewrite") or _modality_suggestion(claims, pats) or (principle if r.get("severity", "fail") == "fail" else None)
         rules.append(_Rule(r["id"], r["label"], r.get("severity", "fail"), pats, sugg))
+        rules[-1].tag_patterns = [tp for tp in map(_tag_pattern, r["patterns"]) if tp] \
+            if r.get("severity", "fail") == "fail" else []
     dosing = claims.get("dosing_line") or {}
     blocked = bool(dosing.get("blocked"))
     if blocked and dosing.get("patterns"):
@@ -176,7 +221,8 @@ def build_rules(brand: dict) -> _Rules:
         if b.get("needs_dosing_blocked") and not blocked:
             continue
         pats = [re.compile(p, FLAGS) for p in b["patterns"]]
-        rules.append(_Rule(b["id"], b["label"], b["severity"], pats, _modality_suggestion(claims, pats) or principle, True))
+        rules.append(_Rule(b["id"], b["label"], b["severity"], pats, _modality_suggestion(claims, pats) or principle, True,
+                           [tp for tp in map(_tag_pattern, b["patterns"]) if tp] if b["id"] == "misspelled_claim" else []))
     not_offered = [str(x) for x in (nc.fact(brand.get("offerings", {}).get("not_offered")) or []) if x]
     never = {t.lower() for t in (brand.get("captions", {}).get("hashtags", {}).get("never") or [])}
     return _Rules(
@@ -186,6 +232,8 @@ def build_rules(brand: dict) -> _Rules:
         never_tags=never,
         not_offered=not_offered,
         device_names=_device_names(claims),
+        say_by_modality={k: say[0] for k, m in (claims.get("modalities") or {}).items() if isinstance(m, dict)
+                         for say in [[x for x in m.get("say") or [] if isinstance(x, str) and "(" not in x]] if say},
     )
 
 
@@ -213,6 +261,24 @@ _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 _HASHTAG = re.compile(r"#(\w+)")
 
 
+# Common Cyrillic/Greek letters that look like Latin ones.
+CONFUSABLES = str.maketrans({
+    "а": "a", "в": "b", "е": "e", "ё": "e", "к": "k", "м": "m", "н": "h", "о": "o", "р": "p", "с": "c", "т": "t",
+    "у": "y", "х": "x", "і": "i", "ї": "i", "ј": "j", "ѕ": "s", "ԁ": "d", "ӏ": "l", "ɡ": "g",
+    "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H", "О": "O", "Р": "P", "С": "C", "Т": "T",
+    "У": "Y", "Х": "X", "І": "I", "Ј": "J", "Ѕ": "S",
+    "α": "a", "ε": "e", "ι": "i", "κ": "k", "ν": "v", "ο": "o", "ρ": "p", "τ": "t", "υ": "u", "χ": "x",
+    "Α": "A", "Β": "B", "Ε": "E", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N", "Ο": "O", "Ρ": "P", "Τ": "T", "Χ": "X",
+    "\u200b": None, "\u200c": None, "\u200d": None, "\u2060": None, "\ufeff": None, "\u00ad": None,
+})
+_SPACED = re.compile(r"(?<![\w.])(?:[^\W\d_][\s.\-_*·•]+){2,}[^\W\d_](?![\w])")
+
+
+def normalize(text: str) -> str:
+    """NFKC, look-alike Cyrillic/Greek letters mapped to Latin, invisible characters removed."""
+    return unicodedata.normalize("NFKC", text).translate(CONFUSABLES)
+
+
 def _blank(text: str, start: int, end: int) -> str:
     return text[:start] + " " * (end - start) + text[end:]
 
@@ -233,7 +299,8 @@ def _variants(text: str) -> list[str]:
     spaced = re.sub(r"(?<=\w)[-‐‑–](?=\w)", " ", text)
     joined = re.sub(r"(?<=\w)[-‐‑–](?=\w)", "", text)
     tags = " ".join(_CAMEL.sub(" ", m.group(1)).replace("_", " ") for m in _HASHTAG.finditer(text))
-    for v in (spaced, joined, tags):
+    collapsed = _SPACED.sub(lambda m: re.sub(r"[\s.\-_*·•]+", "", m.group(0)), text)
+    for v in (spaced, joined, tags, collapsed):
         if v and v not in out:
             out.append(v)
     return out
@@ -250,6 +317,11 @@ def scan_text(text: str, where: str = "text", brand: dict | None = None) -> list
     seen: set[tuple[str, str]] = set()
     if not text or not text.strip():
         return hits
+    text = normalize(text)
+    mentioned = [(m.start(), k) for k, pat in MODALITY_WORDS.items() if k in rules.say_by_modality
+                 for m in [re.search(pat, text, FLAGS)] if m]
+    text_say = rules.say_by_modality[min(mentioned)[1]] if mentioned else None
+    hit_rules: set[str] = set()
     for variant in _variants(text):
         clean = _remove_allowed(variant, rules)
         found: list[tuple[int, int, _Rule, str]] = []
@@ -273,7 +345,21 @@ def scan_text(text: str, where: str = "text", brand: dict | None = None) -> list
             if key in seen:
                 continue
             seen.add(key)
-            hits.append(Hit(rule.id, rule.label, severity, " ".join(matched.split()), where, rule.suggestion))
+            hit_rules.add(rule.id)
+            sugg = (text_say or rule.suggestion) if rule.suggestion else None
+            hits.append(Hit(rule.id, rule.label, severity, " ".join(matched.split()), where, sugg))
+    for m in _HASHTAG.finditer(text):  # run-together hashtags: #sundaydetox, #boostimmunity
+        body = m.group(1).lower().replace("_", "")
+        for g in TAG_GUARDS:
+            body = body.replace(g, " " * len(g))
+        for rule in rules.rules:
+            if rule.id in hit_rules or rule.severity != "fail":
+                continue
+            if any(tp.search(body) for tp in rule.tag_patterns):
+                hit_rules.add(rule.id)
+                seen.add((rule.id, _norm(m.group(0))))
+                hits.append(Hit(rule.id, rule.label, "fail", "#" + m.group(1), where,
+                                text_say or rule.suggestion))
     for m in _HASHTAG.finditer(text):
         tag = "#" + m.group(1)
         if tag.lower() in rules.never_tags and ("hashtag_never", tag.lower()) not in seen:

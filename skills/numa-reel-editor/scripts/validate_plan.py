@@ -22,6 +22,7 @@ with --strict).
 from __future__ import annotations
 
 import difflib
+import hashlib
 import math
 import os
 import re
@@ -141,6 +142,18 @@ class Checker:
         P = self.plan
         if not isinstance(P, dict):
             self.err(1, "plan", "must be a JSON object")
+            return self.issues
+        bad_numbers = False
+        for where in non_finite(P):
+            self.err(1, where, "is not a finite number (NaN or Infinity)")
+            bad_numbers = True
+        if isinstance(self.analysis, (dict, list)):
+            bad = non_finite(self.analysis)
+            for where in bad:
+                self.err(1, f"analysis {where}", "is not a finite number (NaN or Infinity)")
+            if bad:
+                self.analysis = None
+        if bad_numbers:
             return self.issues
         for line in nc.schema_errors("plan", P):
             where, _, msg = line.partition(": ")
@@ -268,12 +281,13 @@ class Checker:
                 logos.add(os.path.realpath(lp))
         if isinstance(self.ec, dict) and self.ec.get("logo") and os.path.isabs(self.ec["logo"]):
             logos.add(os.path.realpath(self.ec["logo"]))
+        logo_hashes = {h for h in (_sha1(p) for p in logos) if h}
         firsts = [("shots[0].src", self.shots[0]["src"])]
         for i, h in enumerate((P.get("formats") or {}).get("hook_variants") or []):
             if h.get("src"):
                 firsts.append((f"formats.hook_variants[{i}].src", h["src"]))
         for where, src in firsts:
-            if os.path.isabs(src) and os.path.realpath(src) in logos:
+            if os.path.isabs(src) and (os.path.realpath(src) in logos or _sha1(src) in logo_hashes):
                 self.err(39, where, "the reel opens on the logo; open on the strongest image instead")
 
     # -- rules 6, 7 --------------------------------------------------------
@@ -579,7 +593,10 @@ class Checker:
             if not isinstance(m, dict):
                 self.err(29, "music", "missing: a v2 plan records its music source and license")
             elif m["source"] not in ("natural", "pad") and not (m.get("license") or "").strip():
-                self.err(29, "music.license", f"empty for source '{m['source']}'; record where the license comes from")
+                if m["source"] == "folder":
+                    self.wrn(29, "music.license", "empty: NUMA's own file (reel folder); record its license in sources.txt")
+                else:
+                    self.err(29, "music.license", f"empty for source '{m['source']}'; record where the license comes from")
         ai = P.get("ai") or {}
         gen = [i for i, s in enumerate(self.shots) if s.get("ai_generated")]
         if (ai.get("people") or ai.get("scenes") or gen) and not ai.get("label_required"):
@@ -697,6 +714,31 @@ class Checker:
         limit("max_gold_words", gold, "gold words in a line")
 
 
+def non_finite(obj: Any, path: tuple = ()) -> list[str]:
+    """Paths of every NaN/Infinity number (Python's json accepts them; JSON Schema and the rules don't)."""
+    out: list[str] = []
+    if isinstance(obj, float) and not math.isfinite(obj):
+        out.append(nc.json_path(path))
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            out += non_finite(v, path + (k,))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            out += non_finite(v, path + (i,))
+    return out
+
+
+def _sha1(path: str | os.PathLike) -> str | None:
+    """Content hash of a small file (logo comparison); None when unreadable or large."""
+    try:
+        p = Path(path)
+        if not p.is_file() or p.stat().st_size > 20_000_000:
+            return None
+        return hashlib.sha1(p.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
 def load_prefs(path: str | os.PathLike) -> dict:
     """Numeric limits from a --prefs file: {"max_whips": 1} or {"limits": {...}} (prefs.py limits --json)."""
     data = nc.read_json(Path(path).expanduser().resolve(), "prefs file")
@@ -723,14 +765,23 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
 
     plan_path = Path(args.plan).expanduser().resolve()
-    plan = nc.read_json(plan_path, "plan")
     analysis_path = None
-    if args.analysis:
-        analysis_path = Path(args.analysis).expanduser().resolve()
-    elif (plan_path.parent / "analysis.json").is_file():
-        analysis_path = plan_path.parent / "analysis.json"
-    analysis = nc.read_json(analysis_path, "analysis") if analysis_path else None
-    prefs = load_prefs(args.prefs) if args.prefs else None
+    try:
+        plan = nc.read_json(plan_path, "plan")
+        if args.analysis:
+            analysis_path = Path(args.analysis).expanduser().resolve()
+        elif (plan_path.parent / "analysis.json").is_file():
+            analysis_path = plan_path.parent / "analysis.json"
+        analysis = nc.read_json(analysis_path, "analysis") if analysis_path else None
+        prefs = load_prefs(args.prefs) if args.prefs else None
+    except nc.UserError as e:
+        if not args.json:
+            raise
+        nc.error_line(str(e))
+        nc.print_json({"ok": False, "plan": str(plan_path), "analysis": str(analysis_path) if analysis_path else None,
+                       "shots": 0, "duration": None,
+                       "errors": [Issue("ERROR", 1, "input", " ".join(str(e).split())).as_dict()], "warnings": []})
+        return 1
 
     issues = validate(plan, analysis, prefs, plan_path)
     errors = [i for i in issues if i.level == "ERROR"]

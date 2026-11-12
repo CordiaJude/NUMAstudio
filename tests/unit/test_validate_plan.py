@@ -653,3 +653,57 @@ def test_cli_prefs_file(base, job, run_script, tmp_path):
     prefs.write_text(json.dumps({"limits": {"max_whips": 0}}))
     r = run_script("validate_plan.py", pp, "--prefs", prefs)
     assert r.returncode == 0 and "[rule 38]" in r.stderr
+
+
+# ---- revision 2: NaN/Infinity, --json on fatal input, folder license, logo copies ----
+def test_non_finite_numbers_are_errors(base):
+    p = base(duration=float("nan"))
+    (i,) = find(run(p), 1, "ERROR", "duration")
+    assert "not a finite number" in i.message
+    p = base()
+    p["shots"][1]["t1"] = float("inf")
+    p["leaks"] = [[1.0, float("-inf"), 0.3]]
+    iss = run(p)
+    assert find(iss, 1, "ERROR", "shots[1].t1") and find(iss, 1, "ERROR", "leaks[0][1]")
+    A = analysis(BEATS)
+    A["beats"][3] = float("nan")
+    assert find(run(base(), A), 1, "ERROR", "analysis beats[3]")
+
+
+def test_cli_nan_plan(base, job, run_script):
+    text = json.dumps(base()).replace('"t1": 3.0', '"t1": NaN', 1)
+    pp = job.work / "plan.json"
+    pp.write_text(text)
+    r = run_script("validate_plan.py", pp)
+    assert r.returncode == 1 and "not a finite number" in r.stderr and "unexpected" not in r.stderr
+
+
+@pytest.mark.parametrize("content", ["{not json", '{"duration": 3}'])
+def test_cli_json_reports_fatal_input(job, run_script, content):
+    pp = job.work / "plan.json"
+    pp.write_text(content)
+    r = run_script("validate_plan.py", pp, "--json")
+    assert r.returncode == 1
+    report = json.loads(r.stdout)
+    assert report["ok"] is False and report["errors"] and report["errors"][0]["level"] == "ERROR"
+
+
+def test_cli_json_missing_plan(run_script, tmp_path):
+    r = run_script("validate_plan.py", tmp_path / "nope.json", "--json")
+    assert r.returncode == 1 and json.loads(r.stdout)["ok"] is False
+
+
+def test_rule29_folder_music_without_license_warns(base, job, make_audio):
+    music = make_audio(job.raw / "music.wav", seconds=0.5, kind="silence")
+    p = base(music={"source": "folder", "path": str(music), "license": None, "title": None})
+    iss = run(p)
+    assert find(iss, 29, "WARN", "music.license", "NUMA's own file") and not find(iss, 29, "ERROR")
+
+
+def test_rule39_copy_of_wordmark_in_material(base, job):
+    import shutil
+    copy_path = job.raw / "IMG_0001.png"
+    shutil.copy(ASSETS / "Numa_Workmark_Dark.png", copy_path)
+    p = base()
+    p["shots"][0]["src"] = str(copy_path)
+    assert find(run(p), 39, "ERROR", "shots[0].src")

@@ -116,7 +116,7 @@ def test_voice_music_follows_the_edit_grammar(make_job):
     assert shots[-1]["src"].endswith("heroimage.jpg") and shots[-1]["t0"] == ec["t"]
     assert ec["logo"].endswith("Numa_Workmark_Dark.png") and ec["tagline"] == "Wellness Collective"
     # music recorded, formats defaults
-    assert plan["music"]["source"] == "folder" and plan["music"]["license"]
+    assert plan["music"]["source"] == "folder" and plan["music"]["license"] is None  # no record in sources.json
     fm = plan["formats"]
     assert 8 <= fm["reach_cut"]["t1"] - fm["reach_cut"]["t0"] <= 12
     assert 3 <= len(fm["story"]) <= 5 and 5 <= len(fm["carousel"]) <= 8 and fm["cover"]["title"]
@@ -254,3 +254,54 @@ def test_cli_errors(make_job, run_script, tmp_path):
     assert r.returncode == 1 and "invalid JSON" in r.stderr and "Traceback" not in r.stderr
     r = run_script("baseline_plan.py")
     assert r.returncode == 2
+
+
+# ---- revision 2 ------------------------------------------------------------------
+def _beats(s):
+    return round((s["t1"] - s["t0"]) / PERIOD, 2)
+
+
+@pytest.mark.parametrize("shape", ["voice_music", "photos", "music_only"])
+def test_shots_are_two_or_four_beats(make_job, shape):
+    work, A = make_job(shape)
+    plan = build(work, A, script="Three minutes of cold.\nWalk out wide awake.\nRelax, breathe, disconnect.")
+    ec = plan["endcard"]["t"]
+    lengths = [_beats(s) for s in plan["shots"][1:] if s["t0"] < ec and s["t1"] <= ec]
+    odd = [n for n in lengths if n not in (2, 4)]
+    assert len(odd) <= 1 and all(n >= 2 for n in odd), lengths
+    assert not [i for i in vp.validate(plan, A) if i.rule == 3]
+
+
+def test_merge_anchors_and_pieces():
+    assert bp.merge_anchors([0, 1, 3, 4, 9, 10], fixed={0, 10}) == [0, 3, 10]
+    assert bp.merge_anchors([0, 5, 6], fixed={0, 5, 6}) == [0, 5, 6]
+    assert bp.pieces(8, 2) == [2, 2, 2, 2] and bp.pieces(10, 4) == [4, 4, 2] and bp.pieces(7, 4) == [4, 3]
+
+
+def test_looks(make_job):
+    work, A = make_job("voice_music")
+    assert {s["look"] for s in build(work, A)["shots"][:-1]} == {"warm"}  # no before material: never cold
+    work, A = make_job("photos")
+    plan = build(work, A, before="P2", after="P4")
+    wipe_t = plan["signature"]["t"]
+    for s in plan["shots"][:-1]:
+        assert s["look"] == ("before" if s["t1"] <= wipe_t + 1e-6 else "warm")
+
+
+def test_wordmark_in_material_is_left_out(make_job, job):
+    import shutil
+    work, A = make_job("photos")
+    mark = job.raw / "brand.png"
+    shutil.copy(Path(bp.nc.brand_asset("wordmark")), mark)
+    A["photos"].insert(0, {"id": "P9", "path": str(mark), "size": [800, 300], "sharpness": 999.0})
+    plan = build(work, A)
+    assert not [s for s in plan["shots"] if s["src"] == str(mark)]
+
+
+def test_music_license_from_sources_json(make_job):
+    work, A = make_job("photos")
+    (work / "sources.json").write_text(json.dumps([{"kind": "music", "path": A["audio"]["music"],
+                                                    "source": "NUMA Drive", "license": "Owned by NUMA"}]))
+    plan = build(work, A)
+    assert plan["music"]["license"] == "Owned by NUMA"
+    assert not [i for i in vp.validate(plan, A) if i.rule == 29]
