@@ -10,7 +10,7 @@
 | T5 Vision/prep | ACCEPTED (re-review 6/6 PASS) | 2 | minor: color_range tag on OpenCV path |
 | T6 Formats | IN PROGRESS | 1 | |
 | T7 Ops scripts | ACCEPTED (round 3 re-review PASS) | 3 | |
-| T8a Director+librarian/scout/analyst | IN REVIEW | 1 | |
+| T8a Director+librarian/scout/analyst | REVISING | 2 | M: sources for folder audio; stage-2 marker; --template pending T12 |
 | T8b Crew agents + skills | IN PROGRESS | 1 | |
 | T9 30-day system | IN PROGRESS | 1 | |
 | T10 Setup/posting | PENDING | 0 | |
