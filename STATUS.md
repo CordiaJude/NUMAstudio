@@ -8,7 +8,7 @@
 | T3 Finish | ACCEPTED (round 3 re-review 4/4 PASS) | 3 | 2 minor logged |
 | T4 Validator/baseline/claims | ACCEPTED (re-review 10/10 PASS) | 2 | cosmetic: duplicate hits per rule |
 | T5 Vision/prep | ACCEPTED (re-review 6/6 PASS) | 2 | minor: color_range tag on OpenCV path |
-| T6 Formats | IN PROGRESS | 1 | |
+| T6 Formats | IN REVIEW | 1 | |
 | T7 Ops scripts | ACCEPTED (round 3 re-review PASS) | 3 | |
 | T8a Director+librarian/scout/analyst | ACCEPTED (9/10; --template depends on T12, verified in T11) | 2 | |
 | T8b Crew agents + skills | IN REVIEW | 1 | |
@@ -28,3 +28,4 @@
 - T1: render cache under out_dir may sync if work folder is in Drive; document NUMA_RENDER_CACHE / prefer system temp for synced paths.
 - Cleanup for user: empty folder /nonexistent_ro/x created by a reviewer test (safety check blocked removal).
 - T8a follow-up (from T8b): make-reel step 10 pass critic analysis.json, sources.json, plan_row.json, STATE/consent_list.json; scout.md add Higgsfield unlimited-window draft batching (R227).
+- T12: baseline_plan reach_cut.hook should differ from the reel hook (e.g. meta.title or second line).
