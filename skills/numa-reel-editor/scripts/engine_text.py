@@ -56,7 +56,7 @@ class Sprite:
 
 
 def make_sprite(text: str, font_path: str, px: float, color, shadow_sigma: float,
-                shadow_dy: float = 0.0, tracking: float = 0.0) -> Sprite:
+                shadow_dy: float = 0.0, tracking: float = 0.0, shadow_opacity: float = SHADOW_OPACITY) -> Sprite:
     """Render text (pen origin on the baseline) to an alpha mask with a soft shadow."""
     f = font(font_path, int(round(px)))
     ascent, descent = f.getmetrics()
@@ -85,7 +85,7 @@ def make_sprite(text: str, font_path: str, px: float, color, shadow_sigma: float
     if shadow_dy:
         M = np.float32([[1, 0, 0], [0, 1, shadow_dy]])
         sh = cv2.warpAffine(sh, M, (w, h))
-    return Sprite(a, (sh * SHADOW_OPACITY).astype(np.float32), tuple(c / 255.0 for c in color),
+    return Sprite(a, np.clip(sh * shadow_opacity, 0, 1).astype(np.float32), tuple(c / 255.0 for c in color),
                   base, pad, adv, ink_top, ink_bottom)
 
 
@@ -192,7 +192,7 @@ class TextBlock:
 
 
 def layout_words(words, reg_path, ita_path, base_px, W, box, max_rows, colors, shadow_sigma,
-                 shadow_dy) -> TextBlock:
+                 shadow_dy, shadow_opacity: float = SHADOW_OPACITY) -> TextBlock:
     """words: [(text, gold, appear_time)]. Tries full size, then shrinks to MIN_FONT_SCALE."""
     pairs = [(t, g) for t, g, _ in words]
     chosen = None
@@ -223,7 +223,7 @@ def layout_words(words, reg_path, ita_path, base_px, W, box, max_rows, colors, s
         for i in idx:
             text, g, t = words[i]
             sp = make_sprite(text, ita_path if g else reg_path, px * (ITALIC_SCALE if g else 1.0),
-                             gold if g else white, shadow_sigma, shadow_dy)
+                             gold if g else white, shadow_sigma, shadow_dy, shadow_opacity=shadow_opacity)
             blk.words.append((sp, x, r, t))
             x += ws[i] + gap
     return blk

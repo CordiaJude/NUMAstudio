@@ -89,6 +89,8 @@ FADE_IN_FLOOR = 0.35         # brightness of frame 0 without a hook (never a bla
 HOOK_FADE_OUT_S = 0.3
 LINE_FADE_OUT_S = 0.35
 PREVIEW_TILE_W = 360
+GRAIN_SIGMA = 3.0            # light film grain (8-bit levels), seeded by plan.seed
+GRAIN_BANK = 4
 
 
 # ---------------------------------------------------------------------------
@@ -350,19 +352,21 @@ class Renderer:
         m = np.clip(vig * grad[:, None] * 255 + 0.5, 0, 255).astype(np.uint8)
         self._mask = cv2.merge([m, m, m])
         top_rows = int(0.36 * H)
-        prof = 1 - 0.40 * np.clip((0.36 - y[:top_rows]) / 0.36, 0, 1) ** 1.2   # shade behind the hook
+        prof = 1 - 0.50 * np.clip((0.36 - y[:top_rows]) / 0.36, 0, 1) ** 1.2   # shade behind the hook
         self._hook_shade = prof.astype(np.float32)
 
     def _build_grain(self) -> None:
+        """A small bank of seeded grain fields (luma only), stored as +/- uint8 parts for fast saturating adds."""
         W, H = self.width, self.height
         rng = np.random.default_rng([self.seed, 0x6A41])
         hw, hh = (W + 64) // 2, (H + 64) // 2
         self._grain = []
-        amp = 4.5
-        for _ in range(6):
+        for _ in range(GRAIN_BANK):
             g = rng.standard_normal((hh, hw), dtype=np.float32)
-            g = cv2.resize(g, (hw * 2, hh * 2), interpolation=cv2.INTER_LINEAR) * amp
-            self._grain.append(np.round(g).astype(np.int16))
+            g = np.round(cv2.resize(g, (hw * 2, hh * 2), interpolation=cv2.INTER_LINEAR) * GRAIN_SIGMA)
+            pos = np.clip(g, 0, 255).astype(np.uint8)
+            neg = np.clip(-g, 0, 255).astype(np.uint8)
+            self._grain.append((cv2.merge([pos, pos, pos]), cv2.merge([neg, neg, neg])))
 
     def _build_leaks(self) -> None:
         rng = np.random.default_rng([self.seed, 0x1EA4])
@@ -387,7 +391,7 @@ class Renderer:
         if not words:
             return
         blk = et.layout_words(words, self.font_regular, self.font_italic, 100 * self.s, W, 0.86 * W, 3,
-                              (self.white, self.accent), 9 * self.s, 3 * self.s)
+                              (self.white, self.accent), 12 * self.s, 3 * self.s, shadow_opacity=1.3)
         if "y" in hook:
             top = float(hook["y"]) * self.sy - blk.height / 2
         else:
@@ -659,14 +663,13 @@ class Renderer:
         return img
 
     def _add_grain(self, img: np.ndarray, n: int) -> np.ndarray:
-        g = self._grain[(n * 7 + self.seed) % len(self._grain)]
+        pos, neg = self._grain[(n * 7 + self.seed) % len(self._grain)]
         ox = (n * 37 + self.seed * 11) % 64
         oy = (n * 53 + self.seed * 5) % 64
-        tile = g[oy:oy + self.height, ox:ox + self.width]
-        out = img.astype(np.int16)
-        out += tile[..., None]
-        np.clip(out, 0, 255, out=out)
-        return out.astype(np.uint8)
+        H, W = self.height, self.width
+        # pos and neg never overlap, so this equals clip(img + grain)
+        img = cv2.add(img, pos[oy:oy + H, ox:ox + W])
+        return cv2.subtract(img, neg[oy:oy + H, ox:ox + W])
 
     def frame_index(self, n: int) -> np.ndarray:
         """Frame number n of the reel (t = n / fps)."""
@@ -723,13 +726,13 @@ def videotoolbox_available() -> bool:
     return b"h264_videotoolbox" in (out.stdout or b"")
 
 
-def encoder_args(encoder: str, draft: bool, fps: float) -> tuple[list[str], dict]:
+def encoder_args(encoder: str, draft: bool, fps: float, segment_s: float = SEGMENT_S) -> tuple[list[str], dict]:
     """ffmpeg output arguments for one segment's video stream, plus a summary for render.json."""
     cfg = nc.config_value("render")
     v = cfg["video"]
     preset = cfg["draft"]["preset"] if draft else v.get("preset", "medium")
     crf = cfg["draft"]["crf"] if draft else v["crf"]
-    gop = str(int(round(fps * SEGMENT_S)))
+    gop = str(max(1, int(round(fps * segment_s))))
     color = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"]
     if encoder == "videotoolbox":
         args = ["-c:v", "h264_videotoolbox", "-profile:v", "high", "-b:v", "10M", "-maxrate", v["maxrate"],
@@ -740,7 +743,7 @@ def encoder_args(encoder: str, draft: bool, fps: float) -> tuple[list[str], dict
                 "-maxrate", v["maxrate"], "-bufsize", v["bufsize"], "-g", gop, "-threads", "1"]
         info = {"encoder": "libx264", "preset": preset, "crf": crf, "encoder_threads": 1}
     args += ["-pix_fmt", v.get("pix_fmt", "yuv420p"), *color]
-    info["segment_s"] = SEGMENT_S
+    info["segment_s"] = segment_s
     return args, info
 
 
@@ -754,7 +757,8 @@ def _segment_cmd(out: Path, W: int, H: int, fps: float, enc_args: list[str]) -> 
             "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-framerate", _rate(fps),
             "-i", "pipe:0", "-an", "-sn",
             "-vf", "scale=out_color_matrix=bt709:out_range=tv:flags=bicubic+accurate_rnd+full_chroma_int",
-            *enc_args, "-flags:v", "+bitexact", "-f", "h264", str(out)]
+            *enc_args, "-fflags", "+bitexact", "-flags:v", "+bitexact", "-map_metadata", "-1",
+            "-f", "mp4", str(out)]
 
 
 def _encode_segment(r: "Renderer", frames: range, out: Path, enc_args: list[str]) -> None:
@@ -827,17 +831,22 @@ def render_frame(plan: dict | str | os.PathLike, t: float, size: tuple[int, int]
         return r.frame(t)
 
 
-def _mux(stream: Path, out: Path, fps: float) -> None:
-    nc.ffmpeg("-fflags", "+bitexact+genpts", "-framerate", _rate(fps), "-f", "h264", "-i", str(stream),
-              "-c:v", "copy", "-map_metadata", "-1", "-flags:v", "+bitexact", "-movflags", "+faststart",
-              "-video_track_timescale", str(int(round(Fraction(fps).limit_denominator(1001).numerator * 512))),
-              "-f", "mp4", str(out), what="ffmpeg mux")
+def _mux(segments: list[Path], out: Path) -> None:
+    """Join the segment MP4s (concat demuxer, stream copy) into one faststart MP4."""
+    lst = out.with_name("segments.txt")
+    lst.write_text("ffconcat version 1.0\n" + "".join(f"file '{p.name}'\n" for p in segments), encoding="utf-8")
+    nc.ffmpeg("-f", "concat", "-safe", "0", "-i", str(lst), "-map", "0:v", "-c:v", "copy",
+              "-fflags", "+bitexact", "-flags:v", "+bitexact", "-map_metadata", "-1",
+              "-movflags", "+faststart", "-f", "mp4", str(out), what="ffmpeg mux")
 
 
 def render_video(plan: dict | str | os.PathLike, out_path: str | os.PathLike, *, t_from: float | None = None,
                  t_to: float | None = None, size: tuple[int, int] | None = None, draft: bool | None = None,
-                 workers: int | None = None, encoder: str = "libx264", progress: bool = True) -> dict:
-    """Render [t_from, t_to) (default: the whole reel) to an MP4 without audio. Returns the render.json dict."""
+                 workers: int | None = None, encoder: str = "libx264", progress: bool = True,
+                 segment_s: float = SEGMENT_S) -> dict:
+    """Render [t_from, t_to) (default: the whole reel) to an MP4 without audio. Returns the render.json dict.
+
+    segment_s is the encoder segment (GOP) length; the bytes depend on it, never on workers."""
     t_start = time.perf_counter()
     plan = _as_plan(plan)
     workers = max(1, int(workers or os.cpu_count() or 1))
@@ -855,8 +864,8 @@ def render_video(plan: dict | str | os.PathLike, out_path: str | os.PathLike, *,
     frames = _frame_range(r.fps, duration, t_from, t_to)
     out = Path(out_path).expanduser().resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
-    enc_args, enc_info = encoder_args(encoder, r.draft, r.fps)
-    seg_len = max(1, int(round(r.fps * SEGMENT_S)))
+    enc_args, enc_info = encoder_args(encoder, r.draft, r.fps, segment_s)
+    seg_len = max(1, int(round(r.fps * segment_s)))
     starts = list(range(frames.start, frames.stop, seg_len))
     timings: dict[str, float] = {}
     old_threads = cv2.getNumThreads()
@@ -868,7 +877,7 @@ def render_video(plan: dict | str | os.PathLike, out_path: str | os.PathLike, *,
         r.build_cache(cache, frames.start / r.fps, (frames.stop - 1) / r.fps)
         timings["prepare_s"] = round(time.perf_counter() - t0, 3)
         t1 = time.perf_counter()
-        jobs = [(k, a, min(a + seg_len, frames.stop), str(tmpd / f"seg_{k:05d}.h264")) for k, a in enumerate(starts)]
+        jobs = [(k, a, min(a + seg_len, frames.stop), str(tmpd / f"seg_{k:05d}.mp4")) for k, a in enumerate(starts)]
         pool_n = min(workers, len(jobs))
         try:
             if pool_n > 1:
@@ -895,12 +904,8 @@ def render_video(plan: dict | str | os.PathLike, out_path: str | os.PathLike, *,
             r.close()
         timings["render_encode_s"] = round(time.perf_counter() - t1, 3)
         t2 = time.perf_counter()
-        stream = tmpd / "all.h264"
-        with open(stream, "wb") as f:
-            for _k, _a, _b, path in jobs:
-                f.write(Path(path).read_bytes())
-        tmp_out = tmpd / ("out" + (out.suffix or ".mp4"))
-        _mux(stream, tmp_out, r.fps)
+        tmp_out = tmpd / "joined.mp4"
+        _mux([Path(j[3]) for j in jobs], tmp_out)
         os.replace(tmp_out, out) if tmp_out.stat().st_dev == out.parent.stat().st_dev else \
             out.write_bytes(tmp_out.read_bytes())
         timings["mux_s"] = round(time.perf_counter() - t2, 3)
