@@ -47,12 +47,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numa_common as nc  # noqa: E402
 import vision  # noqa: E402
 
-PREP_VERSION = 1
+PREP_VERSION = 2
+MAX_SHORT_SIDE = 1080         # prepared clips are scaled down so the shorter side is at most this
+VIDSTAB_SMOOTHING = 30        # vid.stab smoothing window (frames each side)
+JUMP_LIMIT = 0.04             # a stabilized frame-to-frame jump above this fraction of the width is a failure
 TARGET_LUMA = 0.40            # brighten to about this mean luma (0-1)
 MAX_GAMMA = 2.2               # strongest lift (out = in ** (1 / gamma))
 CHROMA_BOOST = 1.06           # saturation lift that goes with a brighten
-SMOOTH_RADIUS_S = 0.5         # OpenCV fallback: camera path moving-average radius (s)
-MAX_CORRECTION = 0.06         # OpenCV fallback: largest shift correction (fraction of the frame)
+SMOOTH_RADIUS_S = 1.0         # OpenCV fallback: camera path Gaussian smoothing radius (s)
+MAX_CORRECTION = 0.08         # OpenCV fallback: largest shift correction (fraction of the frame)
 MAX_ANGLE = math.radians(2.0)  # OpenCV fallback: largest rotation correction
 X264 = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-profile:v", "high", "-pix_fmt", "yuv420p",
         "-threads", "4", "-x264-params", "threads=4:lookahead_threads=1"]
@@ -163,37 +166,52 @@ def _encode_out(tmp: Path) -> list[str]:
     return [*X264, *BITEXACT, str(tmp)]
 
 
+def out_size(info: dict) -> tuple[int, int]:
+    """Prepared size: the display size scaled so the shorter side is at most MAX_SHORT_SIDE, even numbers."""
+    W, H = int(info["width"]), int(info["height"])
+    k = min(1.0, MAX_SHORT_SIDE / min(W, H))
+    return max(2, int(round(W * k / 2)) * 2), max(2, int(round(H * k / 2)) * 2)
+
+
+def _scale(w: int, h: int) -> str:
+    return f"scale={w}:{h}:flags=lanczos"
+
+
 def stabilize_vidstab(src: str, info: dict, dst: Path, post: str | None, scratch: Path) -> None:
-    """Two-pass vid.stab; optzoom=1 picks the static zoom that hides every border."""
+    """Two-pass vid.stab at the output size; optzoom=1 picks the static zoom that hides every border."""
+    w, h = out_size(info)
     trf = "transforms.trf"
     nc.run([nc.ffmpeg_bin(), "-hide_banner", "-nostdin", "-v", "error", "-y", "-i", src, "-an", "-sn",
-            "-vf", f"vidstabdetect=shakiness=8:accuracy=15:stepsize=6:result={trf}", "-f", "null", "-"],
-           cwd=scratch, what="ffmpeg vidstabdetect")
-    chain = f"vidstabtransform=input={trf}:smoothing=15:optzoom=1:zoomspeed=0:interpol=bicubic:crop=black"
-    chain += ",unsharp=5:5:0.5:3:3:0"
+            "-vf", f"{_scale(w, h)},vidstabdetect=shakiness=10:accuracy=15:stepsize=6:result={trf}",
+            "-f", "null", "-"], cwd=scratch, what="ffmpeg vidstabdetect")
+    chain = (f"{_scale(w, h)},vidstabtransform=input={trf}:relative=1:smoothing={VIDSTAB_SMOOTHING}:optzoom=1:"
+             f"zoomspeed=0:interpol=bicubic:crop=black,unsharp=5:5:0.5:3:3:0")
     if post:
         chain += "," + post
-    tmp = scratch / "out.mp4"
+    tmp = scratch / "vidstab.mp4"
     nc.run([nc.ffmpeg_bin(), "-hide_banner", "-nostdin", "-v", "error", "-y", "-i", src,
             "-map", "0:v:0", *audio_args(info, 0), "-vf", chain, "-fps_mode", "passthrough", *_encode_out(tmp)],
            cwd=scratch, what="ffmpeg vidstabtransform")
     shutil.move(str(tmp), str(dst))
 
 
-def _read_frames(src: str, w: int, h: int, extra_vf: str = ""):
-    """Yield BGR frames (h x w x 3) of the clip in display orientation, one at a time."""
+def _read_frames(src: str, w: int, h: int, rate: float | None = None, gray: bool = False):
+    """Yield frames (h x w x 3 BGR, or h x w grey) of the clip in display orientation, one at a time.
+
+    With `rate`, frames are resampled to that constant rate (a variable-rate phone clip keeps its timing)."""
     import numpy as np
-    vf = f"scale={w}:{h}:flags=area{',' + extra_vf if extra_vf else ''},format=bgr24"
+    vf = (f"fps={rate:.6f}," if rate else "") + f"scale={w}:{h}:flags=area,format={'gray' if gray else 'bgr24'}"
     proc = subprocess.Popen([nc.ffmpeg_bin(), "-hide_banner", "-nostdin", "-v", "error", "-i", src, "-an", "-sn",
                              "-vf", vf, "-fps_mode", "passthrough", "-f", "rawvideo", "-"],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    size = w * h * 3
+    shape = (h, w) if gray else (h, w, 3)
+    size = w * h * (1 if gray else 3)
     try:
         while True:
             buf = proc.stdout.read(size)
             if len(buf) < size:
                 break
-            yield np.frombuffer(buf, dtype=np.uint8).reshape(h, w, 3)
+            yield np.frombuffer(buf, dtype=np.uint8).reshape(shape)
     finally:
         proc.stdout.close()
         err = proc.stderr.read()
@@ -204,7 +222,7 @@ def _read_frames(src: str, w: int, h: int, extra_vf: str = ""):
                                f"{err.decode('utf-8', 'replace').strip()[-300:]}")
 
 
-def camera_path(src: str, W: int, H: int) -> "Any":
+def camera_path(src: str, W: int, H: int, rate: float | None = None) -> "Any":
     """Frame-to-frame similarity motion (dx, dy in px of W x H, angle in rad) from a 320-wide grey copy."""
     import cv2
     import numpy as np
@@ -213,13 +231,12 @@ def camera_path(src: str, W: int, H: int) -> "Any":
     k = W / sw
     motions = [(0.0, 0.0, 0.0)]
     prev = None
-    for frame in _read_frames(src, sw, sh, "format=gray"):
-        g = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    for g in _read_frames(src, sw, sh, rate, gray=True):
         if prev is not None:
             dx = dy = da = 0.0
             pts = cv2.goodFeaturesToTrack(prev, maxCorners=300, qualityLevel=0.01, minDistance=7, blockSize=7)
             if pts is not None and len(pts) >= 8:
-                nxt, status, _ = cv2.calcOpticalFlowPyrLK(prev, g, pts, None, winSize=(21, 21), maxLevel=3)
+                nxt, status, _ = cv2.calcOpticalFlowPyrLK(prev, g, pts, None, winSize=(31, 31), maxLevel=4)
                 good = status.ravel() == 1
                 if int(good.sum()) >= 8:
                     m, _ = cv2.estimateAffinePartial2D(pts[good], nxt[good], method=cv2.RANSAC,
@@ -232,12 +249,23 @@ def camera_path(src: str, W: int, H: int) -> "Any":
     return np.array(motions, dtype=np.float64)
 
 
+def max_jump(path: str) -> float:
+    """Largest frame-to-frame camera shift of a clip, as a fraction of its width."""
+    import numpy as np
+    info = nc.media_info(path)
+    W, H = int(info["width"]) // 2 * 2, int(info["height"]) // 2 * 2
+    m = camera_path(path, W, H)
+    return float(np.hypot(m[1:, 0], m[1:, 1]).max()) / W if len(m) > 1 else 0.0
+
+
 def smooth_corrections(motions, fps: float, W: int, H: int):
-    """Per-frame corrections (tx, ty, angle) that move the camera path onto its moving average, plus the zoom."""
+    """Per-frame corrections (tx, ty, angle) that move the camera path onto a Gaussian-smoothed copy, plus the zoom."""
     import numpy as np
     traj = np.cumsum(motions, axis=0)
     r = max(1, int(round(SMOOTH_RADIUS_S * (fps or 30.0))))
-    kernel = np.ones(2 * r + 1) / (2 * r + 1)
+    x = np.arange(-r, r + 1, dtype=np.float64)
+    kernel = np.exp(-0.5 * (x / (r / 2.0)) ** 2)
+    kernel /= kernel.sum()
     smooth = np.stack([np.convolve(np.pad(traj[:, i], (r, r), mode="edge"), kernel, mode="valid")
                        for i in range(3)], axis=1)
     corr = smooth - traj
@@ -254,24 +282,25 @@ def smooth_corrections(motions, fps: float, W: int, H: int):
     return corr, round(zoom + 0.004, 4)
 
 
-def stabilize_opencv(src: str, info: dict, dst: Path, post: str | None, scratch: Path) -> None:
+def stabilize_opencv(src: str, info: dict, dst: Path, gamma: float, scratch: Path) -> None:
+    """Feature-tracked stabilization at the output size, at a constant frame rate (the source's average)."""
     import cv2
-    W, H = int(info["width"]), int(info["height"])
-    W2, H2 = W - W % 2, H - H % 2
+    W2, H2 = out_size(info)
     fps = float(info.get("fps") or 30.0)
-    motions = camera_path(src, W2, H2)
+    motions = camera_path(src, W2, H2, fps)
     corr, zoom = smooth_corrections(motions, fps, W2, H2)
-    tmp = scratch / "out.mp4"
+    tmp = scratch / "opencv.mp4"
     cmd = [nc.ffmpeg_bin(), "-hide_banner", "-nostdin", "-v", "error", "-y",
            "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W2}x{H2}", "-framerate", f"{fps:.6f}", "-i", "-",
            "-i", src, "-map", "0:v:0", *audio_args(info, 1)]
-    if post:
-        cmd += ["-vf", post]
-    cmd += _encode_out(tmp)
+    if gamma > 1.0:
+        # the piped RGB frames are converted to limited-range YUV before this filter runs
+        cmd += ["-vf", brighten_filter(gamma, full=False)]
+    cmd += ["-fps_mode", "cfr", *_encode_out(tmp)]
     enc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     cx, cy = W2 / 2.0, H2 / 2.0
     try:
-        for i, frame in enumerate(_read_frames(src, W2, H2)):
+        for i, frame in enumerate(_read_frames(src, W2, H2, fps)):
             tx, ty, a = corr[min(i, len(corr) - 1)]
             m = cv2.getRotationMatrix2D((cx, cy), math.degrees(a), zoom)
             m[0, 2] += tx * zoom
@@ -294,38 +323,52 @@ def stabilize_opencv(src: str, info: dict, dst: Path, post: str | None, scratch:
 
 
 def brighten_clip(src: str, info: dict, dst: Path, gamma: float, scratch: Path) -> None:
-    tmp = scratch / "out.mp4"
+    w, h = out_size(info)
+    tmp = scratch / "bright.mp4"
     nc.run([nc.ffmpeg_bin(), "-hide_banner", "-nostdin", "-v", "error", "-y", "-i", src,
-            "-map", "0:v:0", *audio_args(info, 0), "-vf", brighten_filter(gamma, full_range(info)),
+            "-map", "0:v:0", *audio_args(info, 0),
+            "-vf", f"{_scale(w, h)},{brighten_filter(gamma, full_range(info))}",
             "-fps_mode", "passthrough", *_encode_out(tmp)], what="ffmpeg brighten")
     shutil.move(str(tmp), str(dst))
 
 
 def prepare_clip(entry: dict, stabilize: bool, brighten: bool, dst: Path, method: str | None = None) -> dict:
-    """Write the prepared clip to dst; returns details for the report."""
+    """Write the prepared clip to dst; returns details for the report.
+
+    vid.stab can lose track on a very large jump (it then leaves a jolt in the output); when its
+    result still has a frame-to-frame jump above JUMP_LIMIT of the width, the OpenCV stabilizer
+    runs too and the result with the smaller largest jump is kept."""
     src = str(Path(entry["path"]).resolve())
     info = nc.media_info(src)
     duration = float(info.get("duration") or entry.get("duration") or 0.0)
-    details: dict[str, Any] = {}
-    post = None
+    details: dict[str, Any] = {"size": list(out_size(info))}
+    gamma = 1.0
     if brighten:
-        luma = clip_luma(src, info, duration)
-        gamma = gamma_for(luma)
+        gamma = gamma_for(clip_luma(src, info, duration))
         details["gamma"] = gamma
-        if gamma > 1.0:
-            post = brighten_filter(gamma, full_range(info))
     with tempfile.TemporaryDirectory(prefix="numa_prep_") as td:
         scratch = Path(td)
         part = scratch / "result.mp4"
         if stabilize:
             how = method or ("vidstab" if has_vidstab() else "opencv")
-            details["method"] = how
             if how == "vidstab":
+                post = brighten_filter(gamma, full_range(info)) if gamma > 1.0 else None
                 stabilize_vidstab(src, info, part, post, scratch)
+                jump = max_jump(str(part))
+                if method is None and jump > JUMP_LIMIT:
+                    alt = scratch / "alt.mp4"
+                    stabilize_opencv(src, info, alt, gamma, scratch)
+                    alt_jump = max_jump(str(alt))
+                    if alt_jump < jump:
+                        how, jump = "opencv", alt_jump
+                        shutil.move(str(alt), str(part))
             else:
-                stabilize_opencv(src, info, part, post, scratch)
+                stabilize_opencv(src, info, part, gamma, scratch)
+                jump = max_jump(str(part))
+            details["method"] = how
+            details["max_jump"] = round(jump, 4)
         else:
-            brighten_clip(src, info, part, details.get("gamma", 1.0), scratch)
+            brighten_clip(src, info, part, gamma, scratch)
         shutil.move(str(part), str(dst.with_name(f".{dst.name}.tmp")))
     os.replace(dst.with_name(f".{dst.name}.tmp"), dst)
     return details

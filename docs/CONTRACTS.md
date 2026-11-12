@@ -76,7 +76,7 @@ unseeded randomness; same inputs give byte-identical outputs. Idempotent:
 re-running a stage overwrites its own outputs and never corrupts inputs.
 
 **Environment variables.** `NUMA_BRAND` (another brand.json), `NUMA_CONFIG`
-(another studio.json), `NUMA_FFMPEG` / `NUMA_FFPROBE` (binaries),
+(another studio.json), `NUMA_FFMPEG` / `NUMA_FFPROBE` (binaries), `NUMA_RENDER_CACHE` (engine video-frame cache folder; default a hidden temp folder under the plan's out_dir),
 `NUMA_DEBUG=1` (tracebacks for unexpected errors).
 
 **Shared helper.** `skills/numa-reel-editor/scripts/numa_common.py`: paths
@@ -652,7 +652,10 @@ engine.py PLAN_JSON preview T1 [T2 ...] [--size WxH] [--out FILE]
   determinism tests. Encoding runs in fixed 2 s segments (one GOP each, encoded
   single-threaded, then concatenated and faststarted) so output is identical
   for any worker count. Writes `OUT_DIR/render.json` with keys `sha256`,
-  `timings`, `frames`, `size`, `workers`, `encoder`, `preset`, `crf`, `segment_s`.
+  `timings`, `frames`, `size`, `workers`, `encoder`, `preset`, `crf`, `segment_s`
+  (`--from/--to` renders write `segment_<from>_<to>.json` instead). Each segment
+  gets a rate budget of 0.85 x `render.video.maxrate` with a small VBV buffer so
+  every 2 s window stays under the cap.
 - Preview: renders the listed times into one grid `OUT_DIR/preview.jpg`
   (5 tiles per row).
 - Reads only the plan, bundled assets/fonts and brand.json defaults (R9).

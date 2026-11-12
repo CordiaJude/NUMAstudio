@@ -15,6 +15,9 @@ adds, in place:
             centroid of a saliency + edge-energy map with a mild centre prior
   flags     weak-media signals for the Director's fallbacks: landscape,
             low_res, blurry, shaky (clips), dark
+  orig_faces / orig_focus
+            only when prep_media.py made a `prepared_path`: faces/focus then describe
+            the prepared copy (the shot source) and these keep the original file's
   scores    clips only: one entry per clip second {t, sharpness, motion, faces,
             score} from frames sampled at 2 fps
   windows   clips only: up to 3 best non-overlapping windows [t0, t1, score]
@@ -493,8 +496,11 @@ def motion_score(m: float) -> float:
     return max(0.2, 1.0 - (m - 15.0) / 40.0)
 
 
-def second_score(sharp: float, motion: float, faces: int, bright: float) -> float:
-    s = 0.45 * (sharp / (sharp + SHARP_HALF)) + 0.25 * motion_score(motion) + 0.30 * (1.0 if faces else 0.0)
+def second_score(sharp: float, motion: float, faces: int, bright: float, shaky: bool = False) -> float:
+    """0-1 score of one clip second. In a shaky clip the movement is mostly camera shake, so the
+    motion term counts 40% (shake must not outscore a steady shot)."""
+    motion_term = motion_score(motion) * (0.4 if shaky else 1.0)
+    s = 0.45 * (sharp / (sharp + SHARP_HALF)) + 0.25 * motion_term + 0.30 * (1.0 if faces else 0.0)
     s *= 0.6 + 0.4 * min(1.0, bright / 0.3)
     return round(min(1.0, max(0.0, s)), 3)
 
@@ -567,6 +573,10 @@ def process_clip(entry: dict, det: FaceDetector) -> None:
         motion.append(mag / FLOW_WIDTH * 100.0 * CLIP_FPS)   # % of width per second
     if len(motion) > 1:
         motion[0] = motion[1]
+    if entry.get("brightness") is None:
+        entry["brightness"] = r4(float(np.mean(bright)))
+    entry["flags"] = clip_flags(entry, float(np.median(sharp_norm)), float(np.median(highs)))
+    shaky = "shaky" in entry["flags"]
     # per-second aggregation
     scores = []
     n_sec = max(1, int(math.ceil(duration - 1e-6)))
@@ -579,28 +589,85 @@ def process_clip(entry: dict, det: FaceDetector) -> None:
         fc = max(len(faces[k]) for k in idx)
         br = float(np.mean([bright[k] for k in idx]))
         scores.append({"t": float(t), "sharpness": round(sh, 1), "motion": round(mo, 2), "faces": int(fc),
-                       "score": second_score(sh, mo, fc, br)})
-    windows = best_windows(scores, duration)
+                       "score": second_score(sh, mo, fc, br, shaky)})
     entry["scores"] = scores
-    entry["windows"] = windows
-    # faces and focus from the best window: its frame with the most (then largest) faces
+    entry["windows"] = best_windows(scores, duration)
+    entry["faces"], entry["focus"] = window_faces(times, frames, faces, entry["windows"], duration)
+
+
+def window_faces(times, frames, faces, windows, duration: float) -> tuple[list, list[float]]:
+    """Faces and focus of a clip from its best window: the frame with the most (then largest) faces;
+    without faces, the mean saliency focus of the window's frames."""
     t0, t1 = (windows[0][0], windows[0][1]) if windows else (0.0, duration)
     in_win = [k for k, tk in enumerate(times) if t0 <= tk < t1] or list(range(len(times)))
     best = min(in_win, key=lambda k: (-len(faces[k]), -sum(b[2] * b[3] for b in faces[k]), k))
-    entry["faces"] = faces[best]
     focus = face_focus(faces[best])
     if focus is None:
         pts = [saliency_focus(frames[k]) for k in in_win]
         focus = [r4(sum(p[0] for p in pts) / len(pts)), r4(sum(p[1] for p in pts) / len(pts))]
-    entry["focus"] = focus
-    if entry.get("brightness") is None:
-        entry["brightness"] = r4(float(np.mean(bright)))
-    entry["flags"] = clip_flags(entry, float(np.median(sharp_norm)), float(np.median(highs)))
+    return faces[best], focus
+
+
+def detect_on(entry: dict, kind: str, src: str, det: FaceDetector) -> None:
+    """Set the item's `faces` and `focus` (and each clip second's face count) from the file `src`.
+
+    Used for the shot source a render will actually read: prep_media.py's `prepared_path`
+    (stabilizing shifts and zooms the frame, brightening can reveal faces), or `path` again
+    when a prepared copy is dropped. Windows, sharpness, motion and flags keep describing
+    the original clip."""
+    if kind == "photo":
+        bgr = read_image(src)
+        faces = det.detect(bgr)
+        entry["faces"] = faces
+        entry["focus"] = face_focus(faces) or saliency_focus(bgr)
+        return
+    info = nc.media_info(src)
+    if not info.get("width") or not info.get("height"):
+        raise nc.UserError(f"{entry.get('id')}: no video stream in {src}")
+    duration = float(info.get("duration") or entry.get("duration") or 0.0)
+    times, frames = sample_clip(src, [info["width"], info["height"]], duration)
+    if len(frames) == 0:
+        raise nc.UserError(f"{entry.get('id')}: no decodable frames in {src}")
+    faces = [det.detect(fr) for fr in frames]
+    for s in entry.get("scores") or []:
+        idx = [k for k, tk in enumerate(times) if s["t"] <= tk < s["t"] + 1]
+        if idx:
+            s["faces"] = int(max(len(faces[k]) for k in idx))
+    entry["faces"], entry["focus"] = window_faces(times, frames, faces, entry.get("windows") or [], duration)
+
+
+def use_prepared(entry: dict, kind: str, det: FaceDetector) -> None:
+    """Point faces/focus at `prepared_path`, keeping the original file's as orig_faces/orig_focus."""
+    if "orig_faces" not in entry and "faces" in entry:
+        entry["orig_faces"] = entry["faces"]
+        if "focus" in entry:
+            entry["orig_focus"] = entry["focus"]
+    detect_on(entry, kind, entry["prepared_path"], det)
+
+
+def drop_prepared(entry: dict, kind: str, det: FaceDetector) -> None:
+    """Undo use_prepared() after `prepared_path` was removed: faces/focus describe `path` again."""
+    if "orig_faces" not in entry and "orig_focus" not in entry:
+        return
+    entry.pop("orig_faces", None)
+    entry.pop("orig_focus", None)
+    detect_on(entry, kind, entry["path"], det)
 
 
 # ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
+def _prepared(entry: dict, kind: str, det: FaceDetector) -> None:
+    """After a fresh detection on `path`: if a prepared copy is the shot source, describe that instead."""
+    entry.pop("orig_faces", None)
+    entry.pop("orig_focus", None)
+    prepared = entry.get("prepared_path")
+    if prepared and Path(prepared).is_file():
+        use_prepared(entry, kind, det)
+    elif prepared:
+        nc.warn(f"{entry['id']}: prepared_path is missing ({prepared}); re-run prep_media.py")
+
+
 def run_vision(analysis_path: Path, *, clips: bool = True, backend: str = "auto") -> dict:
     """Amend analysis.json in place; returns the report. `backend`: auto (YuNet, else Haar), yunet or haar."""
     import cv2
@@ -628,10 +695,12 @@ def run_vision(analysis_path: Path, *, clips: bool = True, backend: str = "auto"
                               "photos": [], "clips": []}
     for p in A.get("photos", []):
         process_photo(p, det)
+        _prepared(p, "photo", det)
         report["photos"].append({"id": p["id"], "faces": len(p["faces"]), "focus": p["focus"], "flags": p["flags"]})
     if clips:
         for c in A.get("clips", []):
             process_clip(c, det)
+            _prepared(c, "clip", det)
             report["clips"].append({"id": c["id"], "faces": len(c["faces"]), "focus": c["focus"],
                                     "windows": c["windows"], "flags": c["flags"]})
     if warnings:
