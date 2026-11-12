@@ -619,9 +619,9 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
         raise nc.UserError(f"reel length {D:g} s is too short to build a plan")
     fps = int(_cfg("render.fps", 30))
     grid, period = beat_grid(A, D)
-    media = consent_gate(collect_media(A, library))
-    by_id = {m.id: m for m in collect_media(A, library)}
-    by_id.update({m.id: m for m in media})
+    material = collect_media(A, library)
+    by_id = {m.id: m for m in material}
+    media = consent_gate(material)
     caption_px = _num_pref(prefs, "caption_px")
     max_chars = int(_num_pref(prefs, "max_caption_chars") or 70)
     max_gold = int(_num_pref(prefs, "max_gold_words") if _num_pref(prefs, "max_gold_words") is not None else 2)
@@ -944,9 +944,11 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
     plan["shots"] = shots
     plan["lines"] = lines
     if card_specs:
-        cards = make_cards(card_specs, times, end_t if end_t is not None else D)
+        cards, shown = make_cards(card_specs, times, end_t if end_t is not None else D)
         if cards:
             plan["cards"] = cards
+        if not voice_words and shown:   # music-only: the card is that script line's on-screen text
+            plan["lines"] = [ln for ln in lines if all(ln is not x for x in shown)]
     plan["leaks"] = leaks
     if end_t is not None:
         plan["endcard"] = {
@@ -1016,9 +1018,12 @@ def more_people(assign: list, media: list[Media], want: int, keep: set) -> list:
     return out
 
 
-def make_cards(specs: list, times: list[float], limit: float) -> list[dict]:
-    """Text cards for a kinetic-type template: one per text_cards entry, on its beat, starting on a cut."""
+def make_cards(specs: list, times: list[float], limit: float) -> tuple[list[dict], list[dict]]:
+    """Text cards for a kinetic-type template: one per text_cards entry, on its beat, starting on a cut.
+
+    Returns (cards, the caption lines that statement cards show)."""
     cards: list[dict] = []
+    shown: list[dict] = []
     cuts = [t for t in times if t < limit - 1e-6]
     for j, (spec, (beat, start, end, line)) in enumerate(specs):
         max_words = int(spec.get("max_words") or 8)
@@ -1044,7 +1049,9 @@ def make_cards(specs: list, times: list[float], limit: float) -> list[dict]:
             nc.warn(f"text card for beat {beat!r}: only {max(0.0, t1 - t0):.1f} s free; left out")
             continue
         cards.append({"t0": r3(t0), "t1": r3(t1), "text": text, "style": style})
-    return cards
+        if style == "statement" and spec.get("source") != "label" and line is not None:
+            shown.append(line)
+    return cards, shown
 
 
 def recorded_license(work: Path, path: str) -> str | None:
