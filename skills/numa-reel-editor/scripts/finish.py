@@ -48,8 +48,13 @@ NAT_FADE_S = 0.08
 NAT_DEFAULT_GAIN_DB = -6.0
 STRIP_TILE = (270, 480)
 STRIP_AT = (0.05, 0.25, 0.45, 0.65, 0.85, 0.97)
-TP_RETRIES = 3
-TP_MARGIN_DB = 0.2
+MAX_PASSES = 6              # gain/ceiling refinement passes (each: render, mux, measure)
+TP_HEADROOM_DB = 0.5        # first limiter ceiling sits this far under the limit (AAC overshoot)
+TP_MARGIN_DB = 0.2          # extra step when the encoded true peak is still over
+LUFS_SETTLE = 0.3           # stop refining once within this of the target
+MAX_GAIN_DB = 40.0
+LIMITER_OVERSAMPLE = 4      # limit at 192 kHz so inter-sample (true) peaks are caught
+SILENT_INPUT_LUFS = -60.0   # an audio file quieter than this counts as missing
 # Soft pad used only when there is no audio at all (failure table: "natural sound from the clips plus a soft pad").
 PAD_DEFAULT = {"chord_hz": [110.0, 164.81, 220.0, 277.18], "level_db": -20.0, "swell_hz": 0.08,
                "detune_hz": 0.35, "lowpass_hz": 1400}
@@ -70,29 +75,40 @@ def voice_chain(clean: bool = False) -> str:
             "acompressor=threshold=-20dB:ratio=2:attack=15:release=200")
 
 
-def loudnorm_filter(target: dict, measured: dict | None = None, tp: float | None = None) -> str:
-    """loudnorm for pass 1 (measured None) or pass 2 (linear, with the pass-1 numbers)."""
-    tp = target["tp"] if tp is None else tp
-    base = f"loudnorm=I={target['i']:g}:TP={tp:g}:LRA={target['lra']:g}"
-    if not measured:
-        return base + ":print_format=json"
-    lra = min(50.0, max(target["lra"], float(measured["input_lra"]) + 0.1))  # keep linear mode
-    return (f"loudnorm=I={target['i']:g}:TP={tp:g}:LRA={lra:g}"
-            f":measured_I={measured['input_i']}:measured_TP={measured['input_tp']}"
-            f":measured_LRA={measured['input_lra']}:measured_thresh={measured['input_thresh']}"
-            f":offset={measured['target_offset']}:linear=true:print_format=json")
+def to_float(x: Any) -> float | None:
+    """float(x) for finite numbers, else None ('-inf', 'nan', junk)."""
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) else None
 
 
-def mastering_filters(voice: bool, clean: bool, duration: float, target: dict) -> str:
-    """Human-readable full chain (reported; the stages run in two passes)."""
+def loudnorm_measure_filter(target: dict) -> str:
+    """Pass 1: loudnorm in analysis mode (measures integrated loudness, true peak, LRA)."""
+    return f"loudnorm=I={target['i']:g}:TP={target['tp']:g}:LRA={target['lra']:g}:print_format=json"
+
+
+def gain_limiter_filter(gain_db: float, ceiling_db: float) -> str:
+    """Pass 2: one linear gain to the target, then a true-peak limiter (oversampled) at the ceiling."""
+    limit = max(0.0625, min(1.0, 10 ** (ceiling_db / 20)))
+    return (f"volume={gain_db:.3f}dB,aresample={SR * LIMITER_OVERSAMPLE},"
+            f"alimiter=limit={limit:.6f}:attack=2:release=60:level=false:latency=true,aresample={SR}")
+
+
+def mastering_filters(voice: bool, clean: bool, duration: float, target: dict,
+                      gain_db: float | None = None, ceiling_db: float | None = None) -> str:
+    """Human-readable full chain (reported; normalization runs as measure pass + gain/limiter pass)."""
     stages = ([voice_chain(clean)] if voice else []) + [
         f"afade=t=in:d={FADE_IN_S}", f"afade=t=out:st={max(duration - FADE_OUT_S, 0):.3f}:d={FADE_OUT_S}",
-        loudnorm_filter(target).replace(":print_format=json", ":linear=true (two-pass)"),
-        f"aresample={SR}"]
+        loudnorm_measure_filter(target).replace(":print_format=json", " (pass 1: measure)"),
+        gain_limiter_filter(gain_db if gain_db is not None else 0.0,
+                            ceiling_db if ceiling_db is not None else target["tp"] - TP_HEADROOM_DB)
+        + " (pass 2: linear gain to target + true-peak limiter)"]
     return ",".join(stages)
 
 
-def pad_source(duration: float) -> str:
+def pad_source(duration: float) -> tuple[str, int]:
     """aevalsrc expression for the soft generated pad (deterministic; config render.pad overrides)."""
     cfg = dict(PAD_DEFAULT)
     over = nc.config_value("render.pad")
@@ -127,8 +143,15 @@ def plan_bursts(plan: dict | None, duration: float, warnings: list[str]) -> list
     if not plan:
         return out
     infos: dict[str, dict] = {}
-    for k, b in enumerate(plan.get("nat") or []):
+    nat = plan.get("nat") or []
+    if not isinstance(nat, list):
+        warnings.append(f"plan 'nat' must be a list of bursts, got {type(nat).__name__}; natural sound skipped")
+        return out
+    for k, b in enumerate(nat):
         where = f"nat[{k}]"
+        if not isinstance(b, dict):
+            warnings.append(f"{where}: must be an object; skipped")
+            continue
         try:
             src, start, t, dur = b["src"], float(b["start"]), float(b["t"]), float(b["dur"])
         except (KeyError, TypeError, ValueError):
@@ -158,21 +181,33 @@ def plan_bursts(plan: dict | None, duration: float, warnings: list[str]) -> list
     return out
 
 
+def audible(path: Path) -> bool:
+    """True when the file has audio louder than SILENT_INPUT_LUFS integrated."""
+    try:
+        i = measure_audio(path)["integrated_lufs"]
+    except nc.UserError:
+        return False
+    return i is not None and math.isfinite(i) and i >= SILENT_INPUT_LUFS
+
+
 def pick_bed(work: Path, plan: dict | None, warnings: list[str]) -> tuple[str, list[str]]:
     """(kind, ffmpeg input args) for the audio bed."""
     master = work / "master.wav"
+    why = "no master.wav"
     if master.is_file():
-        return "master", ["-i", str(master)]
+        if audible(master):
+            return "master", ["-i", str(master)]
+        why = "master.wav is silent"
     music = (plan or {}).get("music") or {}
     mpath = music.get("path") if isinstance(music, dict) else None
-    if mpath and Path(mpath).is_file():
-        warnings.append(f"no master.wav: using the plan's music file {Path(mpath).name}")
+    if isinstance(mpath, str) and Path(mpath).is_file() and audible(Path(mpath)):
+        warnings.append(f"{why}: using the plan's music file {Path(mpath).name}")
         return "music", ["-stream_loop", "-1", "-i", str(mpath)]
     pad = work / "pad.wav"
-    if pad.is_file():
-        warnings.append("no master.wav: using the offline pad (work/pad.wav)")
+    if pad.is_file() and audible(pad):
+        warnings.append(f"{why}: using the offline pad (work/pad.wav)")
         return "pad", ["-stream_loop", "-1", "-i", str(pad)]
-    warnings.append("no audio at all: using natural sound from the clips plus a soft generated pad")
+    warnings.append(f"{why} and no usable music: using natural sound from the clips plus a soft generated pad")
     return "generated_pad", []
 
 
@@ -266,25 +301,20 @@ def _loudnorm_json(stderr: bytes) -> dict:
 
 
 def measure_pass(wav: Path, target: dict) -> dict:
-    proc = nc.run([nc.ffmpeg_bin(), "-hide_banner", "-nostdin", "-i", str(wav), "-af", loudnorm_filter(target),
-                   "-f", "null", "-"], what="ffmpeg loudnorm pass 1")
+    """Pass 1: {"input_i", "input_tp", "input_lra", ...} of the pre-mix (strings, as loudnorm prints them)."""
+    proc = nc.run([nc.ffmpeg_bin(), "-hide_banner", "-nostdin", "-i", str(wav), "-af",
+                   loudnorm_measure_filter(target), "-f", "null", "-"], what="ffmpeg loudnorm pass 1")
     return _loudnorm_json(proc.stderr)
 
 
-def normalize_pass(wav: Path, measured: dict | None, target: dict, tp: float, out_wav: Path,
-                   duration: float) -> str:
-    """Pass 2 -> 48 kHz WAV; returns the normalization type ('linear', 'dynamic' or 'none')."""
+def normalize_pass(wav: Path, gain_db: float | None, ceiling_db: float, out_wav: Path, duration: float) -> None:
+    """Pass 2 -> 48 kHz WAV: linear gain + oversampled true-peak limiter (gain None = copy as is)."""
     common = ["-t", f"{duration:.6f}", "-ar", str(SR), "-ac", "2", "-c:a", "pcm_s24le", "-fflags", "+bitexact"]
-    if measured is None:
+    if gain_db is None:
         nc.ffmpeg("-i", str(wav), *common, str(out_wav), what="ffmpeg audio copy")
-        return "none"
-    proc = nc.run([nc.ffmpeg_bin(), "-hide_banner", "-nostdin", "-y", "-i", str(wav),
-                   "-af", f"{loudnorm_filter(target, measured, tp)},aresample={SR}", *common, str(out_wav)],
-                  what="ffmpeg loudnorm pass 2")
-    try:
-        return str(_loudnorm_json(proc.stderr).get("normalization_type", "linear")).lower()
-    except nc.UserError:
-        return "linear"
+        return
+    nc.ffmpeg("-i", str(wav), "-af", gain_limiter_filter(gain_db, ceiling_db), *common, str(out_wav),
+              what="ffmpeg loudness pass 2")
 
 
 def mux(video: Path, aud: Path, out: Path, duration: float, audio_cfg: dict) -> None:
@@ -350,31 +380,45 @@ def finish(work: Path, out: Path, video: Path | None = None, plan_path: Path | N
         pre = Path(tmpd) / "premix.wav"
         build_premix(bed, bed_args, voice, duck_file, bursts, clean, duration, pre)
         measured = measure_pass(pre, target)
-        in_i = nc._to_float(measured.get("input_i"))
+        in_i = to_float(measured.get("input_i"))
+        gain: float | None = None
         if in_i is None or in_i < -70:
             msg = "the audio is silent before normalization; left as is"
             warnings.append(msg)
             nc.warn(msg)
-            measured = None
-        tp_ceiling = target["tp"]
+        else:
+            gain = max(-MAX_GAIN_DB, min(MAX_GAIN_DB, target["i"] - in_i))
+        ceiling = target["tp"] - TP_HEADROOM_DB
         loud: dict[str, Any] = {}
-        mode = "none"
-        for attempt in range(TP_RETRIES + 1):
-            mode = normalize_pass(pre, measured, target, tp_ceiling, aud, duration)
+        passes = 0
+        for passes in range(1, MAX_PASSES + 1):
+            normalize_pass(pre, gain, ceiling, aud, duration)
             mux(video, aud, out, duration, audio_cfg)
             loud = measure_audio(out)
-            tp = loud["true_peak_db"]
-            if measured is None or tp is None or tp <= target["tp"] or attempt == TP_RETRIES:
+            if gain is None:
                 break
-            tp_ceiling = max(-9.0, tp_ceiling - (tp - target["tp"]) - TP_MARGIN_DB)
-            nc.info(f"true peak {tp:.2f} dB after encoding; re-mastering with a {tp_ceiling:.2f} dB ceiling")
+            i_now, tp_now = loud["integrated_lufs"], loud["true_peak_db"]
+            tp_over = tp_now is not None and tp_now > target["tp"]
+            i_off = i_now is not None and math.isfinite(i_now) and abs(i_now - target["i"]) > LUFS_SETTLE
+            if not tp_over and not i_off:
+                break
+            if passes == MAX_PASSES:
+                break
+            if tp_over:
+                ceiling = max(-24.0, ceiling - (tp_now - target["tp"]) - TP_MARGIN_DB)
+            if i_off:
+                gain = max(-MAX_GAIN_DB, min(MAX_GAIN_DB, gain + (target["i"] - i_now)))
+            nc.info(f"pass {passes}: {i_now:.2f} LUFS, true peak {tp_now:.2f} dB; "
+                    f"gain {gain:+.2f} dB, limiter ceiling {ceiling:.2f} dB")
 
     i_lufs, tp, mean = loud["integrated_lufs"], loud["true_peak_db"], loud["mean_db"]
     n_before = len(warnings)
+    errors: list[str] = []
     if tp is not None and tp > target["tp"]:
-        warnings.append(f"true peak {tp:.1f} dB is above {target['tp']:g} dB")
-    if i_lufs is not None and math.isfinite(i_lufs) and abs(i_lufs - target["i"]) > tol:
-        warnings.append(f"integrated loudness {i_lufs:.1f} LUFS is outside {target['i']:g} +/- {tol:g}")
+        errors.append(f"true peak {tp:.1f} dB is above {target['tp']:g} dB")
+    if i_lufs is None or not math.isfinite(i_lufs) or abs(i_lufs - target["i"]) > tol:
+        shown = "silent" if i_lufs is None or not math.isfinite(i_lufs) else f"{i_lufs:.1f} LUFS"
+        errors.append(f"integrated loudness {shown} is outside {target['i']:g} +/- {tol:g} LUFS")
     if mean is None or mean < warn_db:
         warnings.append(f"audio is very quiet: mean level {mean if mean is None else round(mean, 1)} dB "
                         f"is below {warn_db:g} dB")
@@ -392,13 +436,17 @@ def finish(work: Path, out: Path, video: Path | None = None, plan_path: Path | N
         "audio_bed": bed,
         "voice_chain": voice,
         "clean_voice": clean,
-        "chain": mastering_filters(voice, clean, duration, target),
-        "normalization": mode,
-        "true_peak_ceiling_db": round(tp_ceiling, 2),
+        "chain": mastering_filters(voice, clean, duration, target, gain, ceiling),
+        "normalization": "none" if gain is None else "linear gain + true-peak limiter",
+        "gain_db": None if gain is None else round(gain, 2),
+        "true_peak_ceiling_db": round(ceiling, 2),
+        "passes": passes,
         "loudness": json_safe({k: loud[k] for k in ("integrated_lufs", "true_peak_db", "lra", "mean_db")}),
         "nat_bursts": len(bursts),
         "qa_strip": str(strip) if strip else None,
         "warnings": warnings,
+        "errors": errors,
+        "ok": not errors,
     }
     nc.update_report(out.parent, "finish", section)
     return section
@@ -423,14 +471,20 @@ def main(argv: list[str] | None = None) -> int:
                      Path(args.plan).expanduser().resolve() if args.plan else None,
                      clean=args.clean_voice, qa=not args.no_qa)
     lo = section["loudness"]
+
+    def show(v, unit):
+        return "n/a" if v is None else f"{v} {unit}"
+
+    for e in section["errors"]:
+        nc.error_line(f"{out.name}: {e}")
     if args.json:
         nc.print_json(section)
     else:
-        print(f"OK {out}  duration {section['duration']:.1f}s  size {section['size_mb']} MB  "
-              f"loudness {lo['integrated_lufs']} LUFS  true peak {lo['true_peak_db']} dB  "
-              f"LRA {lo['lra']} LU  mean {lo['mean_db']} dB  nat bursts {section['nat_bursts']}")
-    return 0
-
+        print(f"{'OK' if section['ok'] else 'FAIL'} {out}  duration {section['duration']:.1f}s  "
+              f"size {section['size_mb']} MB  loudness {show(lo['integrated_lufs'], 'LUFS')}  "
+              f"true peak {show(lo['true_peak_db'], 'dB')}  LRA {show(lo['lra'], 'LU')}  "
+              f"mean {show(lo['mean_db'], 'dB')}  nat bursts {section['nat_bursts']}")
+    return 0 if section["ok"] else 1
 
 if __name__ == "__main__":
     nc.run_cli(main)
