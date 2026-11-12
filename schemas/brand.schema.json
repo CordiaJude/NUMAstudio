@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://numa-studio.local/schemas/brand.schema.json",
+  "title": "NUMA Studio brand.json (schema_version 2)",
+  "description": "Brand kit and business facts. Uncertain values are facts {value, status}. Structure that scripts depend on (assets, palette, fonts, endcard, claims, transcript_fixes, hashtags) is required; other sections may grow. See docs/CONTRACTS.md.",
+  "type": "object",
+  "required": ["schema_version", "business", "socials", "voice", "offerings", "team", "positioning", "assets", "palette", "fonts", "endcard", "captions", "transcript_fixes", "claims", "consent", "closures", "drive", "posting", "escalation"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "business": {
+      "type": "object",
+      "required": ["name", "founders", "location", "facility", "hours", "phone", "booking", "website"],
+      "properties": {
+        "name": {
+          "allOf": [
+            { "$ref": "#/$defs/fact" },
+            { "properties": { "value": { "type": "object", "required": ["full", "short"], "properties": { "full": { "$ref": "#/$defs/nonempty" }, "short": { "$ref": "#/$defs/nonempty" } } } } }
+          ]
+        },
+        "founders": { "$ref": "#/$defs/fact" },
+        "location": { "$ref": "#/$defs/fact" },
+        "facility": { "$ref": "#/$defs/fact" },
+        "hours": { "$ref": "#/$defs/fact" },
+        "phone": { "$ref": "#/$defs/fact" },
+        "booking": { "$ref": "#/$defs/fact" },
+        "website": { "$ref": "#/$defs/fact" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/fact" }
+    },
+    "socials": {
+      "type": "object",
+      "required": ["instagram", "facebook", "ios_app"],
+      "additionalProperties": { "$ref": "#/$defs/fact" }
+    },
+    "voice": {
+      "type": "object",
+      "required": ["description", "reference_lines", "site_lines"],
+      "additionalProperties": { "$ref": "#/$defs/fact" }
+    },
+    "offerings": {
+      "type": "object",
+      "required": ["modalities", "sessions", "offers", "events", "not_offered"],
+      "properties": {
+        "not_offered": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "$ref": "#/$defs/string_list" } } }] }
+      },
+      "additionalProperties": { "$ref": "#/$defs/fact" }
+    },
+    "team": {
+      "type": "object",
+      "required": ["collective"],
+      "additionalProperties": { "$ref": "#/$defs/fact" }
+    },
+    "positioning": {
+      "type": "object",
+      "required": ["series", "collab_partners", "target_audiences", "content_mix"],
+      "properties": {
+        "series": {
+          "allOf": [
+            { "$ref": "#/$defs/fact" },
+            { "properties": { "value": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["id", "name", "what", "built_for"] } } } }
+          ]
+        },
+        "content_mix": {
+          "allOf": [
+            { "$ref": "#/$defs/fact" },
+            { "properties": { "value": { "type": "object", "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 } } } }
+          ]
+        }
+      },
+      "additionalProperties": { "$ref": "#/$defs/fact" }
+    },
+    "assets": {
+      "type": "object",
+      "required": ["wordmark", "secondary_mark", "endcard_background", "brand_photos_dir"],
+      "properties": {
+        "wordmark": { "$ref": "#/$defs/path_fact" },
+        "secondary_mark": { "$ref": "#/$defs/path_fact" },
+        "endcard_background": { "$ref": "#/$defs/path_fact" },
+        "brand_photos_dir": { "$ref": "#/$defs/path_fact" },
+        "ownership": { "type": "string" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/fact" }
+    },
+    "palette": {
+      "allOf": [
+        { "$ref": "#/$defs/fact" },
+        {
+          "properties": {
+            "value": {
+              "type": "object",
+              "required": ["caption_gold", "caption_text"],
+              "additionalProperties": { "$ref": "#/$defs/hex" }
+            },
+            "roles": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
+        }
+      ]
+    },
+    "fonts": {
+      "allOf": [
+        { "$ref": "#/$defs/fact" },
+        {
+          "properties": {
+            "value": {
+              "type": "object",
+              "required": ["caption_regular", "caption_italic"],
+              "properties": { "caption_regular": { "$ref": "#/$defs/nonempty" }, "caption_italic": { "$ref": "#/$defs/nonempty" } }
+            }
+          }
+        }
+      ]
+    },
+    "endcard": {
+      "type": "object",
+      "required": ["tagline", "default_subtitle", "signoff_examples"],
+      "additionalProperties": { "$ref": "#/$defs/fact" }
+    },
+    "captions": {
+      "type": "object",
+      "required": ["opening_rule", "hashtags"],
+      "properties": {
+        "hashtags": {
+          "type": "object",
+          "required": ["count", "base", "community_tag", "never"],
+          "properties": {
+            "count": { "$ref": "#/$defs/range" },
+            "base": { "type": "array", "items": { "$ref": "#/$defs/hashtag" } },
+            "never": { "type": "array", "items": { "$ref": "#/$defs/hashtag" } },
+            "community_tag": { "$ref": "#/$defs/fact" }
+          }
+        }
+      }
+    },
+    "transcript_fixes": {
+      "type": "object",
+      "required": ["fixes"],
+      "properties": {
+        "protect": { "$ref": "#/$defs/string_list" },
+        "fixes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["to", "variants"],
+            "properties": {
+              "to": { "$ref": "#/$defs/nonempty" },
+              "variants": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } },
+              "case_sensitive": { "type": "boolean" },
+              "next_words": { "$ref": "#/$defs/string_list" }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    "claims": {
+      "type": "object",
+      "required": ["banned", "allow_exact", "modalities", "rules", "safety_line", "dosing_line"],
+      "properties": {
+        "banned": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/claim_rule" } },
+        "warn": { "type": "array", "items": { "$ref": "#/$defs/claim_rule" } },
+        "allow_exact": { "$ref": "#/$defs/string_list" },
+        "modalities": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["say", "never_say"],
+            "properties": { "say": { "$ref": "#/$defs/string_list" }, "never_say": { "$ref": "#/$defs/string_list" } }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": { "type": "object", "required": ["id", "text"], "properties": { "id": { "type": "string" }, "text": { "type": "string" } } }
+        },
+        "safety_line": {
+          "type": "object",
+          "required": ["text", "applies_to"],
+          "properties": { "text": { "$ref": "#/$defs/nonempty" }, "applies_to": { "$ref": "#/$defs/string_list" } }
+        },
+        "dosing_line": {
+          "type": "object",
+          "required": ["text", "blocked", "patterns"],
+          "properties": {
+            "text": { "$ref": "#/$defs/nonempty" },
+            "blocked": { "type": "boolean" },
+            "patterns": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } }
+          }
+        }
+      }
+    },
+    "consent": {
+      "type": "object",
+      "required": ["list", "default", "ai_processing_covered", "children"],
+      "properties": {
+        "list": { "type": "object", "required": ["location"] },
+        "default": { "$ref": "#/$defs/nonempty" },
+        "ai_processing_covered": { "$ref": "#/$defs/fact" },
+        "children": { "$ref": "#/$defs/fact" }
+      }
+    },
+    "closures": { "type": "object", "required": ["location", "rule"] },
+    "drive": {
+      "type": "object",
+      "required": ["root", "plan_dir", "plan_sheet", "music_library", "digests", "consent_list", "closures", "month_folder", "day_folder", "shoot_card", "photos", "clips", "voiceover", "music", "finished"],
+      "additionalProperties": { "type": "string" }
+    },
+    "posting": {
+      "type": "object",
+      "required": ["auto_post", "require_approval", "legal_review_done"],
+      "properties": {
+        "auto_post": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": "boolean" } } }] },
+        "require_approval": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": "boolean" } } }] },
+        "legal_review_done": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": "boolean" } } }] }
+      }
+    },
+    "escalation": {
+      "type": "object",
+      "required": ["contact", "for", "rule"],
+      "properties": { "contact": { "$ref": "#/$defs/nonempty" }, "for": { "$ref": "#/$defs/string_list" }, "rule": { "type": "string" } }
+    }
+  },
+  "$defs": {
+    "status": { "enum": ["confirmed", "from_website", "research", "needs_katie", "bundled", "generated"] },
+    "fact": {
+      "type": "object",
+      "required": ["value", "status"],
+      "properties": {
+        "status": { "$ref": "#/$defs/status" },
+        "source": { "type": "string" },
+        "note": { "type": "string" }
+      }
+    },
+    "path_fact": {
+      "allOf": [
+        { "$ref": "#/$defs/fact" },
+        { "properties": { "value": { "$ref": "#/$defs/nonempty" } } }
+      ]
+    },
+    "nonempty": { "type": "string", "minLength": 1 },
+    "string_list": { "type": "array", "items": { "type": "string" } },
+    "hex": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "hashtag": { "type": "string", "pattern": "^#[A-Za-z0-9_]+$" },
+    "range": { "type": "array", "prefixItems": [{ "type": "number" }, { "type": "number" }], "minItems": 2, "maxItems": 2 },
+    "claim_rule": {
+      "type": "object",
+      "required": ["id", "label", "patterns"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "label": { "$ref": "#/$defs/nonempty" },
+        "patterns": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } },
+        "applies_to": { "const": "all" },
+        "visual_rule": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

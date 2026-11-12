@@ -1,0 +1,2 @@
+# Test dependencies. Install: pip install -r requirements.txt -r requirements-dev.txt
+pytest>=7.4

@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://numa-studio.local/schemas/analysis.schema.json",
+  "title": "NUMA Studio analysis.json (schema_version 2)",
+  "description": "What analyze.py found in a reel's raw material. Written by analyze.py; amended in place by fix_transcript.py (words, transcript, corrections), vision.py (faces, focus, windows, scores) and prep_media.py (prepared_path); read by Claude, baseline_plan.py and validate_plan.py. Paths are absolute. Normalized coordinates are 0-1 of the source (x right, y down). Producers may add fields; consumers ignore unknown fields. See docs/CONTRACTS.md.",
+  "type": "object",
+  "required": ["schema_version", "duration", "bpm", "beats", "words", "transcript", "voice_present", "audio", "photos", "clips"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "duration": { "type": "number", "minimum": 0, "description": "Length of work/master.wav in seconds (0 when there is no audio at all)." },
+    "bpm": { "type": ["number", "null"], "minimum": 0, "description": "Tempo of the music (or master); null when there is no audio." },
+    "beats": { "type": "array", "items": { "type": "number", "minimum": 0 }, "description": "Beat times in seconds, ascending." },
+    "words": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["w", "appear", "end"],
+        "properties": {
+          "w": { "type": "string", "minLength": 1 },
+          "appear": { "type": "number", "minimum": 0, "description": "Caption appear time = max(start, end - 0.4)." },
+          "end": { "type": "number", "minimum": 0 },
+          "start": { "type": "number", "minimum": 0 },
+          "p": { "type": "number", "minimum": 0, "maximum": 1, "description": "Recognizer word probability." }
+        }
+      }
+    },
+    "transcript": { "type": "string" },
+    "voice_present": { "type": "boolean", "description": "true when speech was found (a voiceover or a combined track with voice); false for music-only or silent material." },
+    "audio": {
+      "type": "object",
+      "required": ["voice", "music", "master"],
+      "properties": {
+        "voice": { "type": ["string", "null"] },
+        "music": { "type": ["string", "null"] },
+        "master": { "type": ["string", "null"], "description": "work/master.wav, or null when there is no audio at all." },
+        "combined": { "type": "boolean", "description": "true when one file held voice and music together." },
+        "clip_audio": {
+          "type": "array",
+          "description": "Clips whose own sound is usable for natural-sound bursts.",
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^C[0-9]+$" },
+              "peaks": { "type": "array", "items": { "type": "number", "minimum": 0 }, "description": "Times (s, clip time) of loud moments." },
+              "mean_db": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "photos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "path", "size"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^P[0-9]+$" },
+          "path": { "type": "string", "minLength": 1 },
+          "orig_path": { "type": "string", "description": "Original file when converted (e.g. HEIC to JPG)." },
+          "size": { "$ref": "#/$defs/wh" },
+          "sharpness": { "type": "number", "minimum": 0 },
+          "brightness": { "type": "number", "minimum": 0, "maximum": 1 },
+          "faces": { "$ref": "#/$defs/boxes" },
+          "focus": { "$ref": "#/$defs/point" },
+          "prepared_path": { "type": "string", "description": "Brightened copy written by prep_media.py; use it as the shot src." }
+        }
+      }
+    },
+    "clips": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "path", "duration", "has_audio", "fps", "size"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^C[0-9]+$" },
+          "path": { "type": "string", "minLength": 1 },
+          "duration": { "type": "number", "minimum": 0 },
+          "has_audio": { "type": "boolean" },
+          "fps": { "type": "number", "minimum": 0 },
+          "size": { "$ref": "#/$defs/wh", "description": "Display size [w, h] after rotation metadata." },
+          "rotation": { "type": "number" },
+          "sharpness": { "type": "number", "minimum": 0 },
+          "brightness": { "type": "number", "minimum": 0, "maximum": 1 },
+          "shake": { "type": "number", "minimum": 0 },
+          "faces": { "$ref": "#/$defs/boxes" },
+          "focus": { "$ref": "#/$defs/point" },
+          "windows": {
+            "type": "array",
+            "description": "Best windows [t0, t1, score] in clip time, best first; score 0-1.",
+            "items": {
+              "type": "array",
+              "prefixItems": [
+                { "type": "number", "minimum": 0 },
+                { "type": "number", "minimum": 0 },
+                { "type": "number", "minimum": 0, "maximum": 1 }
+              ],
+              "minItems": 3,
+              "maxItems": 3
+            }
+          },
+          "scores": {
+            "type": "array",
+            "description": "Per-second scores in clip time.",
+            "items": {
+              "type": "object",
+              "required": ["t"],
+              "properties": {
+                "t": { "type": "number", "minimum": 0 },
+                "sharpness": { "type": "number", "minimum": 0 },
+                "motion": { "type": "number", "minimum": 0 },
+                "faces": { "type": "integer", "minimum": 0 },
+                "score": { "type": "number", "minimum": 0, "maximum": 1 }
+              }
+            }
+          },
+          "prepared_path": { "type": "string", "description": "Stabilized/brightened copy written by prep_media.py; use it as the shot src." }
+        }
+      }
+    },
+    "corrections": {
+      "type": "array",
+      "description": "Transcript corrections applied (fix_transcript.py).",
+      "items": {
+        "type": "object",
+        "required": ["index", "from", "to"],
+        "properties": {
+          "index": { "type": "integer", "minimum": 0, "description": "Index into words." },
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "reason": { "enum": ["brand_fix", "script"] }
+        }
+      }
+    },
+    "contact_sheets": {
+      "type": "object",
+      "properties": {
+        "photos": { "type": ["string", "null"] },
+        "clips": { "type": ["string", "null"] }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "wh": {
+      "type": "array",
+      "prefixItems": [{ "type": "integer", "minimum": 1 }, { "type": "integer", "minimum": 1 }],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 },
+    "point": { "type": "array", "items": { "$ref": "#/$defs/unit" }, "minItems": 2, "maxItems": 2 },
+    "boxes": {
+      "type": "array",
+      "description": "[x, y, w, h] boxes normalized 0-1.",
+      "items": { "type": "array", "items": { "$ref": "#/$defs/unit" }, "minItems": 4, "maxItems": 4 }
+    }
+  }
+}
