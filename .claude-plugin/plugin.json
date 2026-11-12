@@ -1,0 +1,7 @@
+{
+  "name": "numa-studio",
+  "version": "1.0.0",
+  "description": "NUMA Wellness Collective's in-house video studio: hands-off branded reels from a Google Drive folder, with Higgsfield motion, beat-synced edits, animated captions and NUMA's look built in.",
+  "author": { "name": "Jude Moore" },
+  "keywords": ["video", "reels", "numa", "higgsfield", "editing", "instagram"]
+}

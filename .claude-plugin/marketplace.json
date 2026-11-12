@@ -1,0 +1,13 @@
+{
+  "name": "numa-studio",
+  "owner": { "name": "Jude Moore" },
+  "metadata": { "description": "NUMA Wellness Collective's video studio plugin." },
+  "plugins": [
+    {
+      "name": "numa-studio",
+      "source": "./",
+      "description": "Hands-off branded NUMA reels from a Google Drive folder: script, edit, Higgsfield motion, captions and delivery.",
+      "version": "1.0.0"
+    }
+  ]
+}
