@@ -16,8 +16,9 @@ width/height after rotation, orientation, duration (clips), sharpness
 (variance of the Laplacian on a 1080-wide grey copy, the same measure as
 analyze.py; clips use a frame from the middle) and a face count from OpenCV's
 frontal-face detector (people = yes when any face is found, unless --people is
-given). Re-adding a path refreshes the probe and keeps its tags. Consent
-defaults to "unknown" for items with people and "n/a" without.
+given; when the installed OpenCV has no Haar cascade, people stays unknown).
+Re-adding a path refreshes the probe and keeps its tags. Consent defaults to
+"unknown" for items with (or possibly with) people and "n/a" without.
 
 `ITEM` is an item id (M + 10 hex digits) or its path. Tags are lower-case
 phrases separated by commas ("cold plunge, morning, smiling, group"); room
@@ -26,8 +27,9 @@ names (plunge room, sauna, class studio, front of house, outside) are tags too.
 `query` keeps items carrying every requested tag (a tag matches whole words
 of an item tag, so "plunge" finds "cold plunge"), filters by kind,
 orientation, people, consent and minimum duration, and ranks by sharpness
-(sharpest first, then path). `--usable` drops people shots without consent
-"yes" (B-roll fallback and batched-shoot reuse may only use those).
+(sharpest first, then path). `--usable` keeps only people-free items and
+people shots with consent "yes" (all B-roll fallback and batched-shoot reuse
+may use).
 
 Index shape: {"schema_version": 1, "items": [{"id", "path", "name", "kind",
 "width", "height", "orientation", "duration", "sharpness", "faces", "people",
@@ -114,12 +116,23 @@ def sharpness(im) -> float:
     return round(float(cv2.Laplacian(np.asarray(g, dtype=np.uint8), cv2.CV_64F).var()), 2)
 
 
-def face_count(im) -> int:
+_FACE_WARNED = False
+
+
+def face_count(im) -> int | None:
+    """Frontal faces found by OpenCV's Haar cascade; None when this OpenCV build has no cascade detector."""
+    global _FACE_WARNED
     import cv2
     import numpy as np
-    cascade = cv2.CascadeClassifier(str(Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"))
+    data = getattr(cv2, "data", None)
+    if not hasattr(cv2, "CascadeClassifier") or data is None or not getattr(data, "haarcascades", None):
+        if not _FACE_WARNED:
+            nc.warn("face detection is not available in this OpenCV build; people = unknown unless --people is given")
+            _FACE_WARNED = True
+        return None
+    cascade = cv2.CascadeClassifier(str(Path(data.haarcascades) / "haarcascade_frontalface_default.xml"))
     if cascade.empty():
-        return 0
+        return None
     g = im.convert("L")
     if g.width > 720:
         g = g.resize((720, max(1, round(g.height * 720 / g.width))), resample=3)
@@ -216,14 +229,14 @@ def query(data: dict, tags: list[str], kind: str | None = None, orient: str | No
             continue
         if orient and it.get("orientation") != orient:
             continue
-        if people is not None and bool(it.get("people")) != people:
+        if people is not None and it.get("people") is not people:
             continue
         if consent and it.get("consent") != consent:
             continue
         if min_duration is not None and (it["kind"] != "clip" or (it.get("duration") or 0) < min_duration):
             continue
-        if usable and it.get("people") and it.get("consent") != "yes":
-            continue
+        if usable and it.get("people") is not False and it.get("consent") != "yes":
+            continue  # people (or unknown) without consent
         if not all(tag_matches(t, it.get("tags", [])) for t in tags):
             continue
         out.append(it)
@@ -233,7 +246,8 @@ def query(data: dict, tags: list[str], kind: str | None = None, orient: str | No
 
 def line(it: dict) -> str:
     dur = f" {it['duration']:.1f}s" if it.get("duration") else ""
-    ppl = " people" + (f"(consent {it.get('consent')})" if it.get("people") else "") if it.get("people") else ""
+    ppl = {True: f" people (consent {it.get('consent')})", None: f" people unknown (consent {it.get('consent')})"}.get(
+        it.get("people"), "")
     return (f"{it['id']}  {it['kind']:<5} {it['width']}x{it['height']} {it['orientation']:<10}{dur}  sharp {it.get('sharpness', 0):g}"
             f"{ppl}  [{', '.join(it.get('tags', []))}]  {it['path']}")
 
@@ -291,15 +305,15 @@ def main(argv: list[str] | None = None) -> int:
             it = by_path.get(str(f)) or {"id": item_id(f), "path": str(f), "tags": [], "link": None, "consent": None}
             people = yes_no(args.people)
             if people is None:
-                people = bool(info["faces"]) if info["faces"] is not None else bool(it.get("people"))
+                people = bool(info["faces"]) if info["faces"] is not None else it.get("people")
             it.update({"name": f.name, **info, "people": people, "size_bytes": f.stat().st_size})
             it["tags"] = it.get("tags", []) + [t for t in new_tags if t not in it.get("tags", [])]
             if args.link:
                 it["link"] = args.link
             if args.consent:
                 it["consent"] = args.consent
-            elif it.get("consent") in (None, "n/a") or (not people and it.get("consent") == "unknown"):
-                it["consent"] = "unknown" if people else "n/a"
+            elif it.get("consent") in (None, "n/a") or (people is False and it.get("consent") == "unknown"):
+                it["consent"] = "n/a" if people is False else "unknown"
             if str(f) not in by_path:
                 data["items"].append(it)
                 by_path[str(f)] = it

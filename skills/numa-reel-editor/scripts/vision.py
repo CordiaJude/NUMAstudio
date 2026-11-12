@@ -48,10 +48,11 @@ DEFAULTS: dict[str, float] = {
     "dark_highlights": 0.6,        # ... when its 95th-percentile luma is also below this (low-key shots with
                                    # lit highlights, e.g. a glowing sauna, are moody, not underexposed)
     "blurry_photo_peak": 60.0,     # 90th-percentile tile Laplacian variance (<= 1080 px wide) below this is blurry
-    "blurry_clip_sharpness": 25.0,  # median Laplacian variance of 540-wide clip frames below this is blurry
-    "shaky_clip_shake": 0.45,      # analyze.py shake (% of width) above this is shaky
-    "face_score": 0.72,            # YuNet confidence to accept a face found at one scale
-    "face_score_multi": 0.6,       # ... or this when two scales agree
+    "blurry_clip_sharpness": 25.0,  # median contrast-normalized Laplacian variance of 540-wide clip frames
+                                    # below this is blurry
+    "shaky_clip_shake": 0.6,       # analyze.py shake (% of width) above this is shaky
+    "face_score": 0.75,            # YuNet confidence to accept a face found at one scale only
+    "face_score_multi": 0.64,      # mean confidence to accept a face both scales found
     "face_min_frac": 0.022,        # smallest face side as a fraction of the image's shorter side
 }
 
@@ -83,8 +84,8 @@ def r4(x: float) -> float:
 class FaceDetector:
     """YuNet (cv2.FaceDetectorYN) at two scales with false-positive filters.
 
-    Filters: minimum face size relative to the image, confidence (lower when both
-    scales agree), plausible box aspect, landmark geometry (both eyes above the
+    Filters: minimum face size relative to the image, confidence (the mean of
+    both scales when both found the face), plausible box aspect, landmark geometry (both eyes above the
     nose, nose above the mouth, eye distance a sensible fraction of the box) and
     NMS / containment suppression across scales."""
 
@@ -146,12 +147,13 @@ class FaceDetector:
                 cands.append((x / scale, y / scale, bw / scale, bh / scale, s, k))
         min_side = self.min_frac * min(H, W)
         cands = [c for c in cands if min(c[2], c[3]) >= min_side]
-        # cross-scale agreement: a candidate is "confirmed" when the other scale saw an overlapping face
-        multi = len(sizes) > 1
+        # cross-scale agreement: a face both passes found is judged on its mean confidence (a hand or
+        # a pattern that looks like a face at one scale rarely does at the other); a face only one
+        # pass found (too small for the coarse pass, or too large for the fine one) needs a higher score
         kept = []
         for c in cands:
-            agree = multi and any(o[5] != c[5] and _iou(c, o) >= 0.4 for o in cands)
-            if c[4] >= self.score1 or (agree and c[4] >= self.score2):
+            other = [o[4] for o in cands if o[5] != c[5] and _iou(c, o) >= 0.4]
+            if (other and (c[4] + max(other)) / 2 >= self.score2) or (not other and c[4] >= self.score1):
                 kept.append(c)
         kept.sort(key=lambda c: (-c[4], -c[2] * c[3], c[0], c[1]))
         chosen: list[tuple] = []
@@ -265,6 +267,16 @@ def saliency_focus(bgr) -> list[float]:
 # ---------------------------------------------------------------------------
 # Image metrics and flags
 # ---------------------------------------------------------------------------
+def stretch(gray):
+    """Contrast-normalized copy (1st..99th percentile -> 0..255) so a dark or flat exposure is not
+    mistaken for blur: the Laplacian variance scales with the square of the contrast."""
+    import numpy as np
+    lo, hi = np.percentile(gray, (1, 99))
+    if hi - lo < 1:
+        return gray.astype(np.float32)
+    return np.clip((gray.astype(np.float32) - lo) * (255.0 / (hi - lo)), 0, 255)
+
+
 def peak_sharpness(gray) -> float:
     """90th percentile of the Laplacian variance over a 4x4 tile grid, on a copy at most 1080 px wide.
 
@@ -276,7 +288,7 @@ def peak_sharpness(gray) -> float:
     if W > 1080:
         gray = cv2.resize(gray, (1080, max(1, round(H * 1080 / W))), interpolation=cv2.INTER_AREA)
         H, W = gray.shape[:2]
-    lap = cv2.Laplacian(gray, cv2.CV_64F)
+    lap = cv2.Laplacian(stretch(gray), cv2.CV_64F)
     vals = []
     for i in range(4):
         for j in range(4):
@@ -462,10 +474,11 @@ def process_clip(entry: dict, det: FaceDetector) -> None:
         raise nc.UserError(f"{entry.get('id')}: no decodable frames in {path}")
     h, w = frames.shape[1:3]
     fh = max(2, round(h * FLOW_WIDTH / w))
-    sharp, bright, highs, faces, motion, small = [], [], [], [], [], []
+    sharp, sharp_norm, bright, highs, faces, motion, small = [], [], [], [], [], [], []
     for fr in frames:
         g = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
         sharp.append(float(cv2.Laplacian(g, cv2.CV_64F).var()))
+        sharp_norm.append(float(cv2.Laplacian(stretch(g), cv2.CV_64F).var()))
         bright.append(float(g.mean()) / 255.0)
         highs.append(luma_p95(g))
         faces.append(det.detect(fr))
@@ -507,7 +520,7 @@ def process_clip(entry: dict, det: FaceDetector) -> None:
     entry["focus"] = focus
     if entry.get("brightness") is None:
         entry["brightness"] = r4(float(np.mean(bright)))
-    entry["flags"] = clip_flags(entry, float(np.median(sharp)), float(np.median(highs)))
+    entry["flags"] = clip_flags(entry, float(np.median(sharp_norm)), float(np.median(highs)))
 
 
 # ---------------------------------------------------------------------------

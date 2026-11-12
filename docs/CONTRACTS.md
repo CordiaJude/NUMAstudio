@@ -779,6 +779,26 @@ sources.py check JOB --plan PLAN_JSON
 Maintains `JOB/work/sources.json` and regenerates `JOB/out/sources.txt`.
 `check` exits 1 when the plan's music or any outside file has no license.
 
+### critic_score.py [T7]
+```
+critic_score.py score SCORES_JSON [--gate-failed TEXT ...] [--json]
+critic_score.py round --rounds FILE --version ID SCORES_JSON [--gate-failed TEXT ...] [--json]
+critic_score.py best --rounds FILE [--json]
+```
+Weighted total (config `critic` weights, out of 100); PASS = total >= 80, no
+category < 3, hook >= 4, and no hard gate failed. `round` records a Critic
+round (max 3) and returns ship / revise / ship_best / hold; `best` returns the
+best-scoring version. Exit 1 on FAIL for `score`.
+
+### digest_data.py [T7]
+```
+digest_data.py --metrics F --plan-rows ROWS.json|.csv [--ledger PATH] [--notes F]
+               [--today YYYY-MM-DD] [--out F] [--text F] [--json]
+```
+Deterministic numbers for the Monday digest (last week's reels, best reel,
+credits used/left, this week's schedule, batched shoot list by room) as JSON,
+plus a plain-text phone-readable draft.
+
 ### setup_check.py [T10]
 ```
 setup_check.py [--skip-render] [--download-model] [--json]

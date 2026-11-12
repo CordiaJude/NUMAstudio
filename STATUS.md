@@ -5,11 +5,11 @@
 | T0 Foundation | ACCEPTED (review PASS x2, 223 unit tests green) | 2 | 2 minor logged below |
 | T1 Engine | IN PROGRESS | 1 | |
 | T2 Analyze | ACCEPTED (re-review PASS 7/7; orchestrator fixed minor: no script alignment on mismatch) | 2 | |
-| T3 Finish | REVISING (review: 0 blocking) | 2 | M: TP limiter, silent master, black-bar detection |
+| T3 Finish | REVISING | 3 | M: one-sided bar regression; minors: quiet master, limiter headroom, qa dup |
 | T4 Validator/baseline/claims | ACCEPTED (re-review 10/10 PASS) | 2 | cosmetic: duplicate hits per rule |
 | T5 Vision/prep | IN PROGRESS | 1 | |
 | T6 Formats | PENDING | 0 | |
-| T7 Ops scripts | IN PROGRESS | 1 | |
+| T7 Ops scripts | IN REVIEW | 1 | |
 | T8 Instructions A | PENDING | 0 | |
 | T9 Instructions B | PENDING | 0 | |
 | T10 Setup/posting | PENDING | 0 | |

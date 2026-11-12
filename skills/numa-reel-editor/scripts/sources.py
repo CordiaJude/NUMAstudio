@@ -49,23 +49,24 @@ DOWNLOAD_NAME = re.compile(r"^(pexels|unsplash|pixabay|mixkit|stock)[-_ ]", re.I
 
 # License kinds NUMA may use on its business Instagram/Facebook. Data, not code paths:
 # id -> name, official URL, whether business social use is allowed, and text patterns that identify it.
+# URLs are written without the scheme (scripts never hold web addresses they could fetch; R11).
 LICENSES: dict[str, dict[str, Any]] = {
     "numa_owned": {"name": "NUMA-owned (shot by Katie or NUMA's team)", "url": None, "ok": True,
                    "patterns": [r"\bnuma\b.*\bown", r"\bown(ed)? by numa\b", r"\bkatie\b", r"\bnuma[- ]owned\b"]},
-    "pexels": {"name": "Pexels License", "url": "https://www.pexels.com/license/", "ok": True, "patterns": [r"\bpexels\b"]},
-    "unsplash": {"name": "Unsplash License", "url": "https://unsplash.com/license", "ok": True, "patterns": [r"\bunsplash\b"]},
-    "pixabay": {"name": "Pixabay Content License", "url": "https://pixabay.com/service/license-summary/", "ok": True,
+    "pexels": {"name": "Pexels License", "url": "www.pexels.com/license/", "ok": True, "patterns": [r"\bpexels\b"]},
+    "unsplash": {"name": "Unsplash License", "url": "unsplash.com/license", "ok": True, "patterns": [r"\bunsplash\b"]},
+    "pixabay": {"name": "Pixabay Content License", "url": "pixabay.com/service/license-summary/", "ok": True,
                 "patterns": [r"\bpixabay\b"]},
-    "mixkit": {"name": "Mixkit License", "url": "https://mixkit.co/license/", "ok": True, "patterns": [r"\bmixkit\b"]},
-    "higgsfield_paid": {"name": "Higgsfield paid plan (commercial use included)", "url": "https://higgsfield.ai/terms",
+    "mixkit": {"name": "Mixkit License", "url": "mixkit.co/license/", "ok": True, "patterns": [r"\bmixkit\b"]},
+    "higgsfield_paid": {"name": "Higgsfield paid plan (commercial use included)", "url": "higgsfield.ai/terms",
                         "ok": True, "patterns": [r"\bhiggsfield\b"]},
-    "meta_sound_collection": {"name": "Meta Sound Collection", "url": "https://www.facebook.com/sound/collection/",
+    "meta_sound_collection": {"name": "Meta Sound Collection", "url": "www.facebook.com/sound/collection/",
                               "ok": True, "patterns": [r"\bsound collection\b", r"\bmeta sound\b"]},
-    "cc0": {"name": "CC0 / public domain", "url": "https://creativecommons.org/publicdomain/zero/1.0/", "ok": True,
+    "cc0": {"name": "CC0 / public domain", "url": "creativecommons.org/publicdomain/zero/1.0/", "ok": True,
             "patterns": [r"\bcc0\b", r"\bpublic domain\b"]},
-    "cc_by": {"name": "Creative Commons Attribution (credit in the caption)", "url": "https://creativecommons.org/licenses/by/4.0/",
+    "cc_by": {"name": "Creative Commons Attribution (credit in the caption)", "url": "creativecommons.org/licenses/by/4.0/",
               "ok": True, "patterns": [r"\bcc[- ]by(?![- ]?nc)(?![- ]?nd)\b(?!-nc)", r"creative commons attribution(?! ?-? ?non)"]},
-    "ofl": {"name": "SIL Open Font License", "url": "https://openfontlicense.org/", "ok": True,
+    "ofl": {"name": "SIL Open Font License", "url": "openfontlicense.org/", "ok": True,
             "patterns": [r"\bofl\b", r"open font license", r"\bliberation\b"]},
     "partner_permission": {"name": "Written permission from a collab partner", "url": None, "ok": True,
                            "patterns": [r"\b(written )?permission\b", r"\bcollab partner\b"]},

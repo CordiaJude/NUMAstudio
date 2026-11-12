@@ -140,7 +140,7 @@ def brighten_photo(src: str, dst: Path) -> dict:
     from PIL import Image
     bgr = vision.read_image(src)
     ycc = cv2.cvtColor(bgr, cv2.COLOR_BGR2YCrCb)
-    y = ycc[:, :, 0]
+    y = ycc[:, :, 0].copy()
     small = cv2.resize(y, (min(512, y.shape[1]), max(1, round(y.shape[0] * min(512, y.shape[1]) / y.shape[1]))),
                        interpolation=cv2.INTER_AREA)
     g = gamma_for(small.astype(np.float64) / 255.0)
@@ -303,7 +303,7 @@ def brighten_clip(src: str, info: dict, dst: Path, gamma: float, scratch: Path) 
 
 def prepare_clip(entry: dict, stabilize: bool, brighten: bool, dst: Path, method: str | None = None) -> dict:
     """Write the prepared clip to dst; returns details for the report."""
-    src = entry["path"]
+    src = str(Path(entry["path"]).resolve())
     info = nc.media_info(src)
     duration = float(info.get("duration") or entry.get("duration") or 0.0)
     details: dict[str, Any] = {}
