@@ -48,7 +48,7 @@ NAT_FADE_S = 0.08
 NAT_DEFAULT_GAIN_DB = -6.0
 STRIP_TILE = (270, 480)
 STRIP_AT = (0.05, 0.25, 0.45, 0.65, 0.85, 0.97)
-MAX_PASSES = 6              # gain/ceiling refinement passes (each: render, mux, measure)
+MAX_PASSES = 8              # gain/ceiling refinement passes (each: gain+limit, AAC encode, measure)
 TP_HEADROOM_DB = 0.5        # first limiter ceiling sits this far under the limit (AAC overshoot)
 TP_MARGIN_DB = 0.2          # extra step when the encoded true peak is still over
 LUFS_SETTLE = 0.3           # stop refining once within this of the target
@@ -317,15 +317,21 @@ def normalize_pass(wav: Path, gain_db: float | None, ceiling_db: float, out_wav:
               what="ffmpeg loudness pass 2")
 
 
-def mux(video: Path, aud: Path, out: Path, duration: float, audio_cfg: dict) -> None:
+def encode_audio(aud: Path, out_m4a: Path, duration: float, audio_cfg: dict) -> None:
+    """AAC 192k 48 kHz stereo, bitexact (measured as is, then stream-copied into the final MP4)."""
+    nc.ffmpeg("-i", str(aud), "-map", "0:a:0", "-c:a", "aac", "-b:a", str(audio_cfg.get("bitrate", "192k")),
+              "-ar", str(audio_cfg.get("sample_rate", SR)), "-ac", str(audio_cfg.get("channels", 2)),
+              "-t", f"{duration:.6f}", "-map_metadata", "-1", "-fflags", "+bitexact", "-flags:a", "+bitexact",
+              "-f", "mp4", str(out_m4a), what="ffmpeg AAC encode")
+
+
+def mux(video: Path, m4a: Path, out: Path, duration: float) -> None:
+    """H.264 copy + the encoded AAC copy, +faststart, bitexact; written atomically."""
     tmp = out.with_name(f".{out.stem}.partial.mp4")
     try:
-        nc.ffmpeg("-i", str(video), "-i", str(aud), "-map", "0:v:0", "-map", "1:a:0",
-                  "-c:v", "copy", "-c:a", "aac", "-b:a", str(audio_cfg.get("bitrate", "192k")),
-                  "-ar", str(audio_cfg.get("sample_rate", SR)), "-ac", str(audio_cfg.get("channels", 2)),
+        nc.ffmpeg("-i", str(video), "-i", str(m4a), "-map", "0:v:0", "-map", "1:a:0", "-c", "copy",
                   "-t", f"{duration:.6f}", "-map_metadata", "-1", "-map_chapters", "-1",
-                  "-fflags", "+bitexact", "-flags:a", "+bitexact", "-movflags", "+faststart",
-                  "-f", "mp4", str(tmp), what="ffmpeg mux")
+                  "-fflags", "+bitexact", "-movflags", "+faststart", "-f", "mp4", str(tmp), what="ffmpeg mux")
         os.replace(tmp, out)
     finally:
         if tmp.exists():
@@ -391,10 +397,12 @@ def finish(work: Path, out: Path, video: Path | None = None, plan_path: Path | N
         ceiling = target["tp"] - TP_HEADROOM_DB
         loud: dict[str, Any] = {}
         passes = 0
+        prev: tuple[float, float, float] | None = None
+        m4a = Path(tmpd) / "audio.m4a"
         for passes in range(1, MAX_PASSES + 1):
             normalize_pass(pre, gain, ceiling, aud, duration)
-            mux(video, aud, out, duration, audio_cfg)
-            loud = measure_audio(out)
+            encode_audio(aud, m4a, duration, audio_cfg)
+            loud = measure_audio(m4a)
             if gain is None:
                 break
             i_now, tp_now = loud["integrated_lufs"], loud["true_peak_db"]
@@ -406,10 +414,22 @@ def finish(work: Path, out: Path, video: Path | None = None, plan_path: Path | N
                 break
             if tp_over:
                 ceiling = max(-24.0, ceiling - (tp_now - target["tp"]) - TP_MARGIN_DB)
+            elif i_off and i_now < target["i"] and tp_now is not None and tp_now < target["tp"] - 1.5:
+                # quiet and with peak headroom left: give some of it back to the limiter
+                ceiling = min(target["tp"] - TP_MARGIN_DB, ceiling + (target["tp"] - tp_now) / 2)
             if i_off:
-                gain = max(-MAX_GAIN_DB, min(MAX_GAIN_DB, gain + (target["i"] - i_now)))
-            nc.info(f"pass {passes}: {i_now:.2f} LUFS, true peak {tp_now:.2f} dB; "
+                # secant step: under heavy limiting 1 dB of gain buys less than 1 LU
+                slope = 1.0
+                if prev is not None and prev[2] == ceiling and abs(gain - prev[0]) > 0.05:
+                    slope = min(1.0, max(0.25, (i_now - prev[1]) / (gain - prev[0])))
+                prev = (gain, i_now, ceiling)
+                gain = max(-MAX_GAIN_DB, min(MAX_GAIN_DB, gain + (target["i"] - i_now) / slope))
+            else:
+                prev = None
+            nc.info(f"loudness pass {passes}: {i_now:.2f} LUFS, true peak {tp_now:.2f} dB; "
                     f"gain {gain:+.2f} dB, limiter ceiling {ceiling:.2f} dB")
+        mux(video, m4a, out, duration)
+    loud = measure_audio(out)  # the delivered file, measured independently of the passes
 
     i_lufs, tp, mean = loud["integrated_lufs"], loud["true_peak_db"], loud["mean_db"]
     n_before = len(warnings)

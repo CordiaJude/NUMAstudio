@@ -6,8 +6,8 @@
 | T1 Engine | IN PROGRESS | 1 | |
 | T2 Analyze | ACCEPTED (re-review PASS 7/7; orchestrator fixed minor: no script alignment on mismatch) | 2 | |
 | T3 Finish | REVISING (review: 0 blocking) | 2 | M: TP limiter, silent master, black-bar detection |
-| T4 Validator/baseline/claims | REVISING (review: 0 blocking) | 2 | M: hashtag stems, NaN; 8 minors |
-| T5 Vision/prep | PENDING | 0 | |
+| T4 Validator/baseline/claims | ACCEPTED (re-review 10/10 PASS) | 2 | cosmetic: duplicate hits per rule |
+| T5 Vision/prep | IN PROGRESS | 1 | |
 | T6 Formats | PENDING | 0 | |
 | T7 Ops scripts | IN PROGRESS | 1 | |
 | T8 Instructions A | PENDING | 0 | |
