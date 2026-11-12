@@ -667,12 +667,14 @@ writes `qa_strip.jpg` (6 frames, 1620x480) next to `OUTPUT_MP4` and the
 
 ### check_output.py [T3]
 ```
-check_output.py FILE.mp4 [--kind reel|reach|story|hook] [--report OUT_DIR] [--json]
+check_output.py FILE.mp4 [--kind reel|reach|story|hook] [--size WxH] [--plan PLAN_JSON] [--report OUT_DIR] [--json]
 ```
 Checks the output spec (spec p.48, config `render`): MP4, H.264 High,
 1080x1920, 30 fps, yuv420p, video bitrate <= ~14 Mbps, AAC 192 kbps 48 kHz
 stereo, moov before mdat, < 100 MB, length for the kind (reel 15-60 s, reach
-8-12 s, story/hook <= 15 s), loudness -15 +/- 1 LUFS and true peak <= -1.5 dB.
+8-12 s, story/hook <= 15 s), loudness -15 +/- 1 LUFS and true peak <= -1.5 dB, not silent, not clipped, no black bars
+(near-black uniform borders > 2%), no frozen frames >= 1 s (end-card window from
+`--plan` exempt).
 One `ERROR:` per violation, exit 1; `--report` writes the `check_output`
 section of `OUT_DIR/report.json`.
 
