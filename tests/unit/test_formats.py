@@ -240,10 +240,79 @@ def test_plan_supplied_story_text_too_long_is_still_an_error(job, make_image, nc
 def test_fit_text_keeps_the_longest_whole_clause_run_that_fits():
     t = "Heat first, then the cold plunge, breathe slow and stay with it."
     assert formats.fit_text(t, 64) == t                                  # characters alone allow it
-    fits = formats.caption_fit({"size": [1080, 1920]})
-    assert formats.fit_text(t, 64, fits) == "Heat first, then the cold plunge."
-    assert formats.fit_text(t, 20, fits) == "Heat first."
-    assert formats.fit_text("Heat first then the cold plunge breathe slow and stay with it.", 64, fits) is None
+    plan = {"size": [1080, 1920]}
+
+    def full_size(x):                                                    # rows at the plan's own caption size
+        return formats._rows_fit(plan, x, None)
+    assert formats.fit_text(t, 64, full_size) == "Heat first, then the cold plunge."
+    assert formats.fit_text(t, 20, full_size) == "Heat first."
+    assert formats.fit_text("Heat first then the cold plunge breathe slow and stay with it.", 64, full_size) is None
+    # a still may shrink its caption to the floor size instead: the whole sentence fits then
+    assert formats.fit_text(t, 64, formats.caption_fit(plan)) == t
+
+
+CI_SENTENCE = "He first then the cold plunge breathe solo and stay with it."   # CI's voice_and_music transcript
+
+
+def full_size_plan(job, make_image, lines) -> dict:
+    """year_one_like at the real 1080x1920 plan size with the given (text, first, end) caption lines."""
+    plan = year_one_like(job, make_image)
+    plan.update(size=[1080, 1920], caption_y=1420)
+
+    def line(text, t0, end):
+        ws = text.split()
+        step = min(0.3, (end - t0 - 0.2) / len(ws))
+        return {"words": [[w, round(t0 + step * k, 3)] for k, w in enumerate(ws)], "end": end}
+    plan["lines"] = [line(*x) for x in lines]
+    return engine.prepare_plan(plan, job.work)
+
+
+def test_still_text_shrinks_to_fit_before_it_is_dropped(job, make_image, nc):
+    # CI's three voice sentences: the 12-word one wraps to 3 rows at 92 px; at 76 px it fits in 2
+    plan = full_size_plan(job, make_image, [("Welcome to moon mobile.", 0.68, 2.6), (CI_SENTENCE, 3.24, 8.5),
+                                            ("This is how you reset.", 10.76, 13.5)])
+    assert not formats._rows_fit(plan, CI_SENTENCE, None)
+    assert formats.still_caption_px(plan, CI_SENTENCE) == (True, 76.0)
+    assert formats.still_caption_px(plan, "This is how you reset.") == (True, None)    # fits as it is
+    too_long = " ".join(["Breathe in slowly and let the cold settle"] * 3) + "."
+    assert formats.still_caption_px(plan, too_long) == (False, None)                    # not even at 64 px
+    warnings = []
+    fm, _, skipped = formats.resolve_formats(plan, {"story", "carousel"}, warnings)
+    # story: all three sentences, the long one with a smaller caption; never left out
+    assert "story" not in skipped and [x["text"] for x in fm["story"]] == \
+        ["Welcome to moon mobile.", CI_SENTENCE, "This is how you reset."]
+    assert all(x[formats.FIT_KEY] for x in fm["story"])
+    assert not any("left out" in w for w in warnings), warnings
+    for n, st in enumerate(fm["story"], 1):
+        t = formats.still_time(plan, st["t"])
+        d = formats.still_plan(plan, t, st["text"], fit=True)
+        assert d.get("caption_px") == (76.0 if st["text"] == CI_SENTENCE else None)
+        formats.check_derived(d, f"story {n}", [], still=True)                       # no rule 22 ERROR
+    # carousel: the same sentence fits its rows too (it is only longer than a short carousel caption);
+    # three sentences, one of them the hook, cannot make five slides: skipped with the reason
+    t = formats.still_time(plan, 5.0)
+    formats.check_derived(formats.still_plan(plan, t, CI_SENTENCE, fit=True), "carousel 1", [], still=True)
+    assert "carousel" in skipped and any(w.startswith("carousel: skipped: only") for w in warnings)
+    # plan-supplied text keeps the plan's caption size, so it stays a rule 22 ERROR
+    with pytest.raises(numa_common.UserError, match="rule 22"):
+        formats.check_derived(formats.still_plan(plan, t, CI_SENTENCE), "story 1", [], still=True)
+
+
+def test_story_set_and_carousel_made_when_there_are_enough_sentences(job, make_image, nc):
+    lines = [("Welcome to moon mobile.", 0.68, 2.6), (CI_SENTENCE, 3.24, 6.9), ("We took a chance.", 7.38, 9.5),
+             ("Rest between rounds.", 10.76, 13.5), ("Leave lighter than you came.", 15.11, 18.01),
+             ("This is how you reset.", 19.3, 21.9), ("Come try it in Mobile.", 22.6, 26.22)]
+    plan = full_size_plan(job, make_image, lines)
+    plan_path = job.work / "plan.json"
+    numa_common.write_json(plan_path, plan)
+    sec = formats.run(plan_path, job.out / "year-one_reel.mp4", only=["story", "carousel"], progress=False)
+    assert sec["ok"] and not sec["skipped"], sec
+    assert 3 <= len(sec["outputs"]["story"]["files"]) <= 5
+    assert 5 <= len(sec["outputs"]["carousel"]["files"]) <= 8
+    # the long sentence is a candidate (at a smaller caption), not left out
+    cands = formats.sentence_texts(plan, formats.STORY_TEXT_CHARS, fits=formats.caption_fit(plan))
+    assert CI_SENTENCE in [t for _, t in cands]
+
 
 def test_reach_window_never_cuts_a_caption_and_avoids_a_tiny_last_segment(job, make_image, nc):
     plan = engine.prepare_plan(year_one_like(job, make_image), job.work)

@@ -491,26 +491,31 @@ def test_formats_text_is_whole_sentences(make_job):
 
 
 def test_formats_story_and_carousel_text_fits_the_caption_rows(make_job, capsys):
-    # the voice_and_music case as CI's speech model heard it: a sentence with no clause break that still
-    # wraps to 3 caption rows whole, and one with commas that does too (both under 64 characters)
-    text = ("Welcome to NUMA in Mobile. Heat first then the cold plunge breathe slow and stay with it. "
-            "Heat first, then the cold plunge, breathe slow and stay with it. This is how you reset. "
-            "Rest between rounds. Leave lighter than you came. Come try it in Mobile.")
+    # the voice_and_music case as CI's speech model heard it: a 12-word sentence with no clause break
+    # that wraps to 3 caption rows at the full caption size, plus a 38-word one that fits at no size
+    ci = "He first then the cold plunge breathe solo and stay with it."
+    text = ("Welcome to moon mobile. " + ci + " This is how you reset. Rest between rounds. "
+            "Every single morning we open the doors early so that the people of this town can come in out of "
+            "the heat and sit in the quiet room for as long as they would like before work begins. "
+            "Leave lighter than you came. Come try it in Mobile.")
     work, A = _vo_job(make_job, text=text)
     plan = build(work, A)
     import formats
     fits = formats.caption_fit(plan)
+    assert plan["size"] == [1080, 1920] and not formats._rows_fit(plan, ci, None) and fits(ci)
     fm = plan["formats"]
-    assert len(fm["story"]) >= 3 and len(fm["carousel"]) >= 5
+    assert 3 <= len(fm["story"]) <= 5 and len(fm["carousel"]) >= 5
     for kind in ("story", "carousel"):
         for n, item in enumerate(fm[kind], 1):
-            assert fits(item["text"]), item
-            t = formats.still_time(plan, item["t"])     # renders without a rule 22 ERROR
-            formats.check_derived(formats.still_plan(plan, t, item["text"]), f"{kind} {n}", [], still=True)
-    texts = {x["text"] for x in fm["story"] + fm["carousel"]}
-    assert "Heat first then the cold plunge breathe slow and stay with it." not in texts
-    assert "Heat first, then the cold plunge, breathe slow and stay with it." not in texts
-    assert "WARN: formats story: left out 'Heat first then the cold plunge" in capsys.readouterr().err
+            assert item[formats.FIT_KEY] is True and fits(item["text"]), item
+            t = formats.still_time(plan, item["t"])     # renders as formats.py renders it: no rule 22 ERROR
+            d = formats.still_plan(plan, t, item["text"], fit=True)
+            formats.check_derived(d, f"{kind} {n}", [], still=True)
+    assert not [i for i in vp.validate(plan, A) if i.level == "ERROR" and i.rule == 22]
+    err = capsys.readouterr().err
+    assert "left out 'He first" not in err                     # shrunk to fit, never dropped
+    assert "WARN: formats story: left out 'Every single morning" in err
+
 
 def test_statement_card_replaces_its_caption(make_job):
     work, A = _vo_job(make_job, duration=60.0)
