@@ -120,7 +120,7 @@ def test_due_schedule(nc, store, tmp_path, capsys):
     ingest(store, tmp_path, "a", "48h", views=1)
     data = json.loads(store.read_text())
     now = datetime(2026, 11, 5, 0, 0, tzinfo=timezone.utc)  # a: 74 h after posting, b: 1 h
-    assert mx.due(data, now) == [{"reel": "a", "pulls": ["72h"], "pull_now": "72h", "hours_since_post": 74.0,
+    assert mx.due(data, now) == [{"reel": "a", "post_type": "reel", "pulls": ["72h"], "pull_now": "72h", "hours_since_post": 74.0,
                                   "posting_time": "2026-11-01T17:00:00-05:00", "media_id": None}]
     later = mx.due(data, datetime(2026, 11, 12, 0, 0, tzinfo=timezone.utc))
     assert [(d["reel"], d["pull_now"]) for d in later] == [("a", "7d"), ("b", "7d")]
@@ -154,3 +154,69 @@ def test_graph_error_body_reported(nc, store, tmp_path, capsys):
     f.write_text(json.dumps({"error": {"message": "Unsupported get request"}}))
     assert run(["account", "--store", str(store), "--data", str(f), "--date", "2026-01-01"]) == 1
     assert "Unsupported get request" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# post types (R337)
+# ---------------------------------------------------------------------------
+def test_post_type_tag_validation(nc, store, capsys):
+    assert run(["tag", "--store", str(store), "--post", "c1", "--tags", json.dumps({"post_type": "Carousel"})]) == 0
+    data = json.loads(store.read_text())
+    assert data["reels"]["c1"]["tags"]["post_type"] == "carousel"
+    assert run(["tag", "--store", str(store), "--post", "x", "--tags", json.dumps({"post_type": "video"})]) == 1
+    assert "post_type must be one of reel, carousel, image, story, trial_reel" in capsys.readouterr().err
+    # a Trial Reel is a reel: trial_reel true never goes with a carousel, here or merged with earlier tags
+    assert run(["tag", "--store", str(store), "--post", "x", "--tags",
+                json.dumps({"post_type": "image", "trial_reel": True})]) == 1
+    assert run(["tag", "--store", str(store), "--post", "c1", "--tags", json.dumps({"trial_reel": True})]) == 1
+    assert run(["tag", "--store", str(store), "--post", "t1", "--tags", json.dumps({"post_type": "trial_reel"})]) == 0
+    data = json.loads(store.read_text())
+    assert data["reels"]["t1"]["tags"]["trial_reel"] is True
+    assert mx.post_type_of({"tags": {}}) == "reel" and mx.post_type_of({"tags": {"trial_reel": True}}) == "trial_reel"
+
+
+def test_carousel_and_image_metrics(nc, store, tmp_path, capsys):
+    """No watch time or skip rate for carousels and images: dropped with a WARN, computed as null, no error."""
+    assert ingest(store, tmp_path, "c1", "48h", tags={"post_type": "carousel"}, views=900, reach=600, shares=12,
+                  saved=30, ig_reels_avg_watch_time=5000, reels_skip_rate=10) == 0
+    err = capsys.readouterr().err
+    assert "avg_watch_time_ms does not apply to a carousel post" in err and "skip_rate" in err
+    assert ingest(store, tmp_path, "i1", "7d", tags={"post_type": "image"}, views=400, reach=300, saved=3) == 0
+    assert ingest(store, tmp_path, "r1", "48h", tags={"length": 30}, views=2000, reach=1500, shares=10,
+                  ig_reels_avg_watch_time=12000, reels_skip_rate=40) == 0
+    assert ingest(store, tmp_path, "r2", "48h", tags={"length": 20, "post_type": "trial_reel"}, views=500, reach=400,
+                  ig_reels_avg_watch_time=6000, reels_skip_rate=60) == 0
+    data = json.loads(store.read_text())
+    c = data["reels"]["c1"]
+    assert "avg_watch_time_ms" not in c["pulls"]["48h"]["metrics"] and "skip_rate" not in c["pulls"]["48h"]["metrics"]
+    assert c["computed"]["post_type"] == "carousel"
+    assert c["computed"]["retention"] is None and c["computed"]["avg_watch_time_s"] is None
+    assert c["computed"]["skip_rate_vs_median"] is None and c["computed"]["sends_per_1k_reach"] == 20.0
+    assert c["computed"]["saves_per_1k_reach"] == 50.0
+    i = data["reels"]["i1"]["computed"]
+    assert i["post_type"] == "image" and i["sends_per_1k_reach"] is None and i["retention"] is None
+    # the skip-rate median is over reels and trial reels only
+    assert data["reels"]["r1"]["computed"]["skip_rate_median"] == 50.0
+    assert data["reels"]["r1"]["computed"]["skip_rate_vs_median"] == -10.0
+    assert data["reels"]["r1"]["computed"]["retention"] == 0.4
+    capsys.readouterr()
+    assert run(["compute", "--store", str(store)]) == 0
+    out = capsys.readouterr().out
+    assert "c1 (carousel, 48h): sends_per_1k_reach=20, saves_per_1k_reach=50" in out
+    assert run(["validate", "--store", str(store)]) == 0
+    # a hand-edited store with a carousel's watch time fails validation
+    data["reels"]["c1"]["pulls"]["48h"]["metrics"]["skip_rate"] = 12
+    store.write_text(json.dumps(data))
+    assert run(["validate", "--store", str(store)]) == 1
+    assert "a carousel post has no skip_rate" in capsys.readouterr().err
+
+
+def test_retagging_drops_video_metrics_and_stories_skip_due(nc, store, tmp_path, capsys):
+    assert ingest(store, tmp_path, "p", "48h", views=10, reach=8, ig_reels_avg_watch_time=3000) == 0
+    assert run(["tag", "--store", str(store), "--post", "p", "--tags", json.dumps({"post_type": "image"})]) == 0
+    data = json.loads(store.read_text())
+    assert data["reels"]["p"]["pulls"]["48h"]["metrics"] == {"views": 10, "reach": 8}
+    assert run(["tag", "--store", str(store), "--post", "s", "--tags",
+                json.dumps({"post_type": "story", "posting_time": "2026-11-01T17:00:00-05:00"})]) == 0
+    data = json.loads(store.read_text())
+    assert mx.due(data, datetime(2026, 11, 12, tzinfo=timezone.utc)) == []
