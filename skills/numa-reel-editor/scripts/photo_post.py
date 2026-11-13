@@ -41,10 +41,11 @@ bloom, vignette and bottom gradient, and the seeded film grain.
   Without one the run is an ERROR. ``--blur-faces`` alone never passes a photo
   with no detected face (there is nothing to blur, the people may still be
   there). Faces found on a photo marked people-free (tag or flag) need
-  ``--blur-faces`` or consent. A photo marked people-free with no detected face
+  ``--blur-faces`` or consent. A library entry with consent ``no`` means the
+  photo is never used: exit 1 ("consent recorded as no: use a different
+  photo"), whatever else is passed, ``--blur-faces`` included. A photo marked people-free with no detected face
   keeps that basis even with ``--consent`` (so it never counts as showing
-  members). A library entry with consent ``no`` is never
-  overridden by ``--consent`` or ``--people-free``. Detection misses faces:
+  members). Detection misses faces:
   LOOK at the output.
 
 single: OUT is the JPG to write (a folder gets ``<slug>_photo.jpg``).
@@ -210,8 +211,9 @@ class Photo:
         n = len(self.faces)
         marked_free = "library_tag_no" if lib.get("people_no") else "people_free_flag" if people_free else None
         if lib.get("consent") is False:
-            self.consent = False           # the library says no: never overridden by --consent / --people-free
-        elif marked_free and not n:
+            # owners' policy: consent recorded as no means the photo is never used (not even blurred)
+            raise nc.UserError(f"{path.name}: consent recorded as no: use a different photo")
+        if marked_free and not n:
             self.consent = True if lib.get("consent") is True else None
             self.people_basis = marked_free  # looked at and no people: no member hold, whatever --consent says
         elif lib.get("consent") is True or consent_flag:
@@ -223,10 +225,6 @@ class Photo:
             if n and blur_faces:
                 self.people_basis = "blurred"
                 self.blur = [blur_box(b) for b in self.faces]
-            elif self.consent is False:
-                raise nc.UserError(
-                    f"{path.name}: the library records consent no" + (f" and {n} face(s) were found" if n else "")
-                    + ". Fix: use a different photo" + (", or pass --blur-faces" if n else ""))
             elif marked_free and not n:
                 self.people_basis = marked_free
             elif n:

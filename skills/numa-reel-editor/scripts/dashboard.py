@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build NUMA's performance dashboard: one self-contained HTML file (spec p.47, DECISIONS D7).
+"""Build Numa's performance dashboard: one self-contained HTML file (spec p.47, DECISIONS D7).
 
 Usage:
     dashboard.py METRICS_JSON OUT_HTML [--notes NOTES_JSON] [--competitors FILE] [--today YYYY-MM-DD]
@@ -350,7 +350,7 @@ def leaderboard(rows: list[dict], names: dict[str, str]) -> str:
         body.append([name, esc(TYPE_LABELS[r["type"]]), fmt_num(r["views"]), fmt_num(r["reach"]),
                      fmt_pct(r["retention"]), fmt_num(r["sends_1k"], 1), fmt_num(r["saves_1k"], 1), skip])
     cols = ["Post", "Type", "Views", "Reach", "Retention", "Sends/1k", "Saves/1k", "Skip vs median"]
-    out = head + table(f"Top {min(len(body), LEADERBOARD_TOP)} posts by views; skip rate is in points against NUMA's "
+    out = head + table(f"Top {min(len(body), LEADERBOARD_TOP)} posts by views; skip rate is in points against Numa's "
                        "reel median (lower is better).", cols, body[:LEADERBOARD_TOP], left=(1,))
     if len(body) > LEADERBOARD_TOP:
         out += (f"<details><summary>Show the other {len(body) - LEADERBOARD_TOP} posts</summary>"
@@ -592,7 +592,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--notes", metavar="NOTES_JSON", help="the Director's Do more / Do less notes")
     ap.add_argument("--competitors", metavar="FILE", help="the Scout's monthly competitor log")
     ap.add_argument("--today", metavar="YYYY-MM-DD", help="end of the 90-day window (default: latest date in the data)")
-    ap.add_argument("--title", default="NUMA Reel Dashboard")
+    ap.add_argument("--title", default="Numa Reel Dashboard")
     args = ap.parse_args(argv)
     today = None
     if args.today:

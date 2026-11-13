@@ -99,7 +99,7 @@ def test_consent_gate(nc, people, tmp_path, capsys):
     lib = tmp_path / "lib.json"
     lib.write_text(json.dumps({"items": [{"path": str(people), "consent": "no"}]}))
     assert run(["single", str(people), "--out", str(out), "--consent", "--library", str(lib)]) == 1
-    assert "consent no" in capsys.readouterr().err
+    assert "consent recorded as no: use a different photo" in capsys.readouterr().err
     lib.write_text(json.dumps({"items": [{"path": str(people), "consent": "yes"}]}))
     assert run(["single", str(people), "--out", str(out), "--library", str(lib)]) == 0
 
@@ -211,3 +211,18 @@ def test_library_people_tag(nc, assets_dir, tmp_path, capsys):
 def test_faces_on_a_people_free_photo(nc, people, tmp_path):
     assert run(["single", str(people), "--out", str(tmp_path / "p.jpg"), "--people-free"]) == 1
     assert run(["single", str(people), "--out", str(tmp_path / "p.jpg"), "--people-free", "--blur-faces"]) == 0
+
+
+def test_library_consent_no_is_never_used(nc, people, tmp_path, capsys):
+    """Owners' policy: consent recorded as no -> the photo is never used, not even blurred (single and carousel)."""
+    lib = tmp_path / "lib.json"
+    lib.write_text(json.dumps({"items": [{"path": str(people), "consent": "no"}]}))
+    out = tmp_path / "p.jpg"
+    assert run(["single", str(people), "--out", str(out), "--library", str(lib), "--blur-faces"]) == 1
+    err = capsys.readouterr().err
+    assert "sauna-people.jpg: consent recorded as no: use a different photo" in err and not out.exists()
+    other = synthetic(tmp_path / "room.jpg", size=(800, 1000))
+    folder = tmp_path / "c"
+    assert run(["carousel", str(other), str(people), "--out", str(folder), "--library", str(lib), "--blur-faces",
+                "--consent", "--people-free", "room.jpg"]) == 1
+    assert "consent recorded as no: use a different photo" in capsys.readouterr().err and not folder.exists()
