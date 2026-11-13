@@ -1,0 +1,648 @@
+{
+  "_readme": "Operational settings for NUMA Studio, in one place. Brand facts live in brand/brand.json; this file holds the numbers the crew and scripts run on: model tiers, Higgsfield prices and budget, the Critic's rubric, render and loudness targets, the scheduled-task table, Instagram/Composio settings and the output formats. Each section's '_source' names the spec page (spec/SPEC.pdf, 'NUMA Studio - Product & Engineering Brief', Nov 12 2026) or says 'engineering default' when the spec gives no number. Scripts read it with numa_common.load_config(); agents and commands refer to these keys instead of hard-coding values.",
+  "schema_version": 1,
+  "models": {
+    "_source": "spec p.38-39 (agent tiers: Director and Critic top tier, crews mid or small), p.39 and p.52 (keep model names in one config line). Values are the Claude Code model aliases.",
+    "tiers": {
+      "top": "opus",
+      "mid": "sonnet",
+      "small": "haiku"
+    },
+    "agents": {
+      "director": "opus",
+      "critic": "opus",
+      "motion": "sonnet",
+      "editor": "sonnet",
+      "analyst": "sonnet",
+      "scriptwriter": "sonnet",
+      "scout": "sonnet",
+      "librarian": "haiku",
+      "copywriter": "haiku"
+    },
+    "effort": {
+      "director": "high",
+      "critic": "fresh context (never sees the Director's or Editor's reasoning)"
+    }
+  },
+  "higgsfield": {
+    "_source": "spec p.41-42 (plan, verified prices via get_cost on 2026-11-12, ranked uses), p.42 (Kling for people, Seedance people-free only, avoid Reframe), p.3 (cost per reel), p.17 and p.42 and p.48 (2-4 hero clips; REQUIREMENTS interpretation 14: 2-3 typical, 4 max)",
+    "plan": "Plus",
+    "credits_per_month": 1200,
+    "price_usd_per_month": {
+      "billed_annually": 47,
+      "billed_monthly": 59
+    },
+    "prices_verified_on": "2026-11-12",
+    "recheck_rule": "Re-check every price with get_cost before each job; prices change often.",
+    "prices": [
+      {
+        "id": "kling_std_5s",
+        "job": "5 s motion clip from a photo",
+        "model": "Kling 3.0",
+        "tool": "image-to-video",
+        "options": "standard, no sound",
+        "seconds": 5,
+        "credits": 7.5
+      },
+      {
+        "id": "kling_pro_5s",
+        "job": "5 s motion clip, higher quality",
+        "model": "Kling 3.0",
+        "tool": "image-to-video",
+        "options": "pro, no sound",
+        "seconds": 5,
+        "credits": 8.75
+      },
+      {
+        "id": "kling_pro_10s",
+        "job": "10 s motion clip, higher quality",
+        "model": "Kling 3.0",
+        "tool": "image-to-video",
+        "options": "pro, no sound",
+        "seconds": 10,
+        "credits": 17.5
+      },
+      {
+        "id": "seedance_720p_5s",
+        "job": "5 s signature shot",
+        "model": "Seedance 2.5",
+        "tool": "image-to-video",
+        "options": "720p, no audio",
+        "seconds": 5,
+        "credits": 35
+      },
+      {
+        "id": "seedance_1080p_5s",
+        "job": "5 s signature shot, 1080p",
+        "model": "Seedance 2.5",
+        "tool": "image-to-video",
+        "options": "1080p, no audio",
+        "seconds": 5,
+        "credits": 80
+      },
+      {
+        "id": "outpaint_9x16",
+        "job": "Extend a photo to vertical",
+        "model": null,
+        "tool": "Outpaint",
+        "options": "to 9:16",
+        "seconds": null,
+        "credits": 2
+      },
+      {
+        "id": "upscale_2k",
+        "job": "Sharpen a weak photo",
+        "model": null,
+        "tool": "Upscale",
+        "options": "to 2K",
+        "seconds": null,
+        "credits": 2
+      },
+      {
+        "id": "music_40s",
+        "job": "40 s instrumental music bed",
+        "model": "ElevenLabs Music v2.5",
+        "tool": "generate_audio",
+        "options": "instrumental",
+        "seconds": 40,
+        "credits": 5.82
+      },
+      {
+        "id": "voice_line",
+        "job": "A line of voiceover",
+        "model": "Seed Audio",
+        "tool": "generate_audio",
+        "options": "preset or consented cloned voice",
+        "seconds": null,
+        "credits": 0.5
+      },
+      {
+        "id": "reframe_20s_1080p",
+        "job": "Reframe a 20 s video to vertical",
+        "model": null,
+        "tool": "Reframe",
+        "options": "1080p",
+        "seconds": 20,
+        "credits": 245,
+        "avoid": true,
+        "note": "Never use: the engine crops for free."
+      }
+    ],
+    "defaults": {
+      "motion": {
+        "model": "Kling 3.0",
+        "quality": "pro",
+        "price_id": "kling_pro_5s",
+        "note": "Default for hero stills and anything with a person (bound as an Element, consent list only)."
+      },
+      "motion_draft": {
+        "model": "Kling 3.0",
+        "quality": "standard",
+        "price_id": "kling_std_5s",
+        "note": "Draft at standard 720p; re-render only the keeper at pro."
+      },
+      "signature_people_free": {
+        "model": "Seedance 2.5",
+        "quality": "720p",
+        "price_id": "seedance_720p_5s",
+        "note": "People-free spaces only: Seedance rejects photos with real faces; holds empty rooms steady for up to 30 s."
+      },
+      "photo_extend": {
+        "tool": "Outpaint",
+        "price_id": "outpaint_9x16",
+        "note": "Only extend walls, floor, sky or background; never invent equipment or people."
+      },
+      "photo_sharpen": {
+        "tool": "Upscale",
+        "price_id": "upscale_2k"
+      },
+      "music": {
+        "model": "ElevenLabs Music v2.5",
+        "price_id": "music_40s",
+        "note": "Made to the reel's exact length and tempo."
+      },
+      "voice": {
+        "model": "Seed Audio",
+        "price_id": "voice_line"
+      }
+    },
+    "clips_per_reel": {
+      "typical": [
+        2,
+        3
+      ],
+      "max": 4
+    },
+    "max_credits_per_reel": 150
+  },
+  "budget": {
+    "_source": "spec p.43 (monthly budget table and pacing rule), p.3 (150 credits per reel), p.48 (never exceed)",
+    "monthly_credits": 1200,
+    "reels_per_month": 20,
+    "split": {
+      "kling_motion": {
+        "credits": 600,
+        "label": "Kling 3.0 motion clips (drafts + pro keepers)",
+        "buys": "About 30 usable clips"
+      },
+      "seedance_people_free": {
+        "credits": 140,
+        "label": "Seedance 2.5 people-free walkthroughs",
+        "buys": "2 usable long takes a month"
+      },
+      "photo_prep": {
+        "credits": 160,
+        "label": "Photo prep (outpaint + upscale)",
+        "buys": "About 80 photos"
+      },
+      "music": {
+        "credits": 120,
+        "label": "Music beds",
+        "buys": "About 20 custom tracks"
+      },
+      "voice": {
+        "credits": 10,
+        "label": "Voice fallbacks",
+        "buys": "About 20 lines"
+      },
+      "reserve": {
+        "credits": 170,
+        "label": "Reserve",
+        "buys": "Virality checks, a surprise event, a bad week of re-rolls"
+      }
+    },
+    "pacing": {
+      "by_day": 15,
+      "max_fraction_spent": 0.55,
+      "rule": "By day 15 of the month, no more than 55% of the monthly credits spent."
+    },
+    "max_credits_per_reel": 150,
+    "rollover": false,
+    "note": "Subscription credits reset monthly. Failed generations are usually refunded; finished-but-unwanted ones are not, so draft cheap and finalize keepers only."
+  },
+  "critic": {
+    "_source": "spec p.40-41 (scoring sheet, hard gates, pass rule), p.38-39 (loop capped at three rounds)",
+    "scale": [
+      1,
+      5
+    ],
+    "score_formula": "total = sum(weight * score / 5) over categories; maximum 100",
+    "rubric": [
+      {
+        "id": "hook",
+        "label": "Hook (first 1.5 s)",
+        "weight": 20,
+        "five_looks_like": "Movement, a contrast visual and full-opacity hook text in frame zero; works muted; built to beat NUMA's median skip rate"
+      },
+      {
+        "id": "retention_pacing",
+        "label": "Retention and pacing",
+        "weight": 15,
+        "five_looks_like": "Every shot earns its time; no shot over 4 beats unless it's the emotional peak"
+      },
+      {
+        "id": "story_clarity",
+        "label": "Story clarity",
+        "weight": 15,
+        "five_looks_like": "A stranger can say what the reel is about after one watch"
+      },
+      {
+        "id": "shareability",
+        "label": "Shareability",
+        "weight": 10,
+        "five_looks_like": "A clear reason to send it to someone; a share line or a moment worth sending"
+      },
+      {
+        "id": "beat_sync_transitions",
+        "label": "Beat sync and transitions",
+        "weight": 10,
+        "five_looks_like": "Every cut on a beat; one signature moment; transitions varied, not random"
+      },
+      {
+        "id": "captions",
+        "label": "Captions",
+        "weight": 10,
+        "five_looks_like": "Match the audio word for word, readable on a phone, clear of faces and the app's interface"
+      },
+      {
+        "id": "brand_look",
+        "label": "Brand look",
+        "weight": 10,
+        "five_looks_like": "NUMA's warm grade, type, logo end card; feels like the same studio every time"
+      },
+      {
+        "id": "audio_mix",
+        "label": "Audio mix",
+        "weight": 10,
+        "five_looks_like": "Voice clear and natural, music under it, no harshness, consistent loudness"
+      }
+    ],
+    "pass": {
+      "min_total": 80,
+      "min_category_score": 3,
+      "min_hook_score": 4
+    },
+    "hard_gates": [
+      "Anything on the claims policy's banned list, in the voiceover, on-screen text, visuals, caption or hashtags.",
+      "A recognizable person who isn't on the consent list.",
+      "Music with no recorded license source, or any trending song.",
+      "Audio silent, clipped, or not 48 kHz; video not 1080x1920.",
+      "NUMA misspelled, a wrong price, date or offer.",
+      "An AI shot with a warped face, hand, logo or text, or an AI shot that shows equipment or rooms NUMA doesn't have.",
+      "Black bars, mirrored edges or a frozen frame; content NUMA didn't make (collabs excepted); an AI-animated person without Instagram's AI label."
+    ],
+    "frames": {
+      "count": 12,
+      "rule": "Every cut plus the first and last second",
+      "_source": "spec p.40; REQUIREMENTS interpretation 13 (6-frame QA strip kept, separate 12-frame set)"
+    },
+    "max_rounds": 3,
+    "virality_predictor": "Attached as a second opinion; never overrides the sheet."
+  },
+  "render": {
+    "_source": "spec p.18-19 (edit grammar, captions, first second, end card), p.46 (output sizes), p.48 (output spec, loudness, determinism); 'engineering default' where noted",
+    "fps": 30,
+    "size": [
+      1080,
+      1920
+    ],
+    "captions": {
+      "font_px": 92,
+      "rise_px": 22,
+      "fade_in_s": 0.28,
+      "gold_words_per_line": [
+        1,
+        2
+      ],
+      "max_rows": 2,
+      "default_y": 1420,
+      "_default_y_source": "v1 engine default"
+    },
+    "safe_area": {
+      "top_fraction": 0.12,
+      "bottom_fraction": 0.1,
+      "rule": "Keep captions and text out of the top 12% and bottom 10% (Instagram's interface) and off faces."
+    },
+    "hook": {
+      "min_visible_s": 1.5,
+      "full_opacity_from_frame": 0,
+      "max_black_fade_in_s": 0.2,
+      "_source": "spec p.19, p.40; REQUIREMENTS interpretation 2 and 6"
+    },
+    "endcard": {
+      "min_hold_s": 3.5,
+      "max_hold_s": 5.0,
+      "_source": "spec p.19; REQUIREMENTS interpretation 5"
+    },
+    "outro_music_only_s": {
+      "min": 6,
+      "max": 8,
+      "default": 7.5,
+      "_source": "spec p.17, p.35; REQUIREMENTS interpretation 5"
+    },
+    "beat_tolerance_frames": 1,
+    "max_shot_beats": 4,
+    "words_per_second": 2.3,
+    "length_s": {
+      "main_reel": [
+        15,
+        60
+      ],
+      "growth": [
+        45,
+        60
+      ],
+      "atmosphere": [
+        15,
+        30
+      ],
+      "reach_cut": [
+        8,
+        12
+      ],
+      "hard_max": 180,
+      "_source": "spec p.19, p.34, p.46, p.48; REQUIREMENTS interpretation 1"
+    },
+    "video": {
+      "container": "mp4",
+      "codec": "libx264",
+      "profile": "high",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "_crf_source": "v1 engine",
+      "preset": "medium",
+      "maxrate": "14M",
+      "bufsize": "28M",
+      "faststart": true,
+      "max_file_mb": 100
+    },
+    "audio": {
+      "codec": "aac",
+      "bitrate": "192k",
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    "loudness": {
+      "integrated_lufs": -15,
+      "tolerance_lu": 1,
+      "true_peak_db": -1.5,
+      "lra": 9,
+      "mean_level_warn_db": -28
+    },
+    "draft": {
+      "scale": 0.5,
+      "preset": "veryfast",
+      "crf": 26,
+      "_source": "engineering default (spec p.30, p.48: quick low-res draft mode for revisions)"
+    },
+    "determinism": "Same inputs + same plan = byte-identical render: seeded grain, no other randomness (spec p.48).",
+    "pad": {
+      "chord_hz": [
+        110,
+        164.81,
+        220,
+        277.18
+      ],
+      "level_db": -20,
+      "swell_hz": 0.08,
+      "detune_hz": 0.35,
+      "lowpass_hz": 1400,
+      "_source": "engineering default (spec p.5 failure table: natural sound plus a soft pad)"
+    }
+  },
+  "schedule": {
+    "_source": "spec p.50 (scheduled tasks, Central time); command names from PLAN.md task T9",
+    "timezone": "America/Chicago",
+    "tasks": [
+      {
+        "id": "plan_month",
+        "name": "Plan next month",
+        "when": "The 24th of each month, 9 pm",
+        "cron": "0 21 24 * *",
+        "command": "/plan-month"
+      },
+      {
+        "id": "night_check",
+        "name": "Tomorrow's material check + Scout",
+        "when": "Daily, 8 pm",
+        "cron": "0 20 * * *",
+        "command": "/night-check"
+      },
+      {
+        "id": "build_today",
+        "name": "Build today's reel and outputs",
+        "when": "Daily, 5 am",
+        "cron": "0 5 * * *",
+        "command": "/build-today"
+      },
+      {
+        "id": "dashboard_refresh",
+        "name": "Dashboard refresh",
+        "when": "Daily, 10 pm",
+        "cron": "0 22 * * *",
+        "command": "/dashboard-refresh"
+      },
+      {
+        "id": "trend_check",
+        "name": "Weekly trend check",
+        "when": "Fridays, 7 pm",
+        "cron": "0 19 * * 5",
+        "command": "/trend-check"
+      },
+      {
+        "id": "digest",
+        "name": "Monday digest",
+        "when": "Sundays, 6 pm",
+        "cron": "0 18 * * 0",
+        "command": "/digest"
+      }
+    ]
+  },
+  "instagram": {
+    "_source": "spec p.11 (publishing limits, container expiry), p.47-48 (Composio toolkit, scopes, API version, insights, metrics, posting), REQUIREMENTS interpretation 9 (72 h pull)",
+    "connector": "Composio Instagram toolkit (managed app)",
+    "login": "Instagram Login (no Facebook Page, no Meta app review for NUMA's own account)",
+    "account_type": "Business or Creator",
+    "scopes": [
+      "instagram_business_basic",
+      "instagram_business_manage_insights",
+      "instagram_business_content_publish"
+    ],
+    "graph_api_version": "v26.0",
+    "graph_api_version_rule": "Every Composio call sets graph_api_version to this value. Composio defaults to v21.0, which Meta retires on 2027-01-21.",
+    "composio_default_version": "v21.0",
+    "composio_default_retired_on": "2027-01-21",
+    "tools": {
+      "media_insights": "INSTAGRAM_GET_IG_MEDIA_INSIGHTS",
+      "user_insights": "INSTAGRAM_GET_USER_INSIGHTS",
+      "create_media": "INSTAGRAM_POST_IG_USER_MEDIA",
+      "publish_media": "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH"
+    },
+    "media_type": "REELS",
+    "publish_wait_minutes": [
+      3,
+      5
+    ],
+    "publishing_limit_per_24h": 100,
+    "container_max_age_hours": 24,
+    "not_in_composio": [
+      "Trial Reels",
+      "collaborator invites"
+    ],
+    "not_in_composio_fallback": "Graph API directly or Claude in Chrome",
+    "insight_pulls_hours": [
+      48,
+      72,
+      168
+    ],
+    "data_lag_hours": 48,
+    "account_metrics_retention_days": 90,
+    "metrics": [
+      "views",
+      "reach",
+      "likes",
+      "comments",
+      "saves",
+      "shares",
+      "reposts",
+      "total_interactions",
+      "avg_watch_time_ms",
+      "skip_rate"
+    ],
+    "never_request": [
+      "plays",
+      "impressions"
+    ],
+    "tags": [
+      "length",
+      "series",
+      "pillar",
+      "hook_type",
+      "transitions",
+      "music_source",
+      "posting_time",
+      "trial_reel",
+      "collab"
+    ],
+    "computed": {
+      "retention": "avg_watch_time_ms / 1000 / length_s",
+      "sends_per_1k_reach": "shares / reach * 1000",
+      "saves_per_1k_reach": "saves / reach * 1000",
+      "skip_rate_vs_median": "skip_rate - median(skip_rate over NUMA's reels)"
+    },
+    "judge_at_hours": 72,
+    "competitors_tracked_posts": 12
+  },
+  "formats": {
+    "_source": "spec p.46 (one reel, many outputs); REQUIREMENTS interpretation 1 (main reel 15-60 s); file names from docs/CONTRACTS.md",
+    "outputs": [
+      {
+        "id": "reel",
+        "label": "Main reel",
+        "size": [
+          1080,
+          1920
+        ],
+        "length_s": [
+          15,
+          60
+        ],
+        "kind": "video",
+        "file": "<slug>_reel.mp4",
+        "used_on": "Instagram and Facebook Reels"
+      },
+      {
+        "id": "reach",
+        "label": "Reach cut-down",
+        "size": [
+          1080,
+          1920
+        ],
+        "length_s": [
+          8,
+          12
+        ],
+        "kind": "video",
+        "file": "<slug>_reach.mp4",
+        "rule": "The best 8-12 s of the same reel, new hook text",
+        "used_on": "A second post later in the month, or a test variant"
+      },
+      {
+        "id": "story",
+        "label": "Story set",
+        "size": [
+          1080,
+          1920
+        ],
+        "count": [
+          3,
+          5
+        ],
+        "clip_s": 5,
+        "kind": "still or clip",
+        "file": "<slug>_story_<N>.jpg | <slug>_story_<N>.mp4",
+        "rule": "One line of text each",
+        "used_on": "Stories the day after the reel"
+      },
+      {
+        "id": "carousel",
+        "label": "Carousel",
+        "size": [
+          1080,
+          1350
+        ],
+        "count": [
+          5,
+          8
+        ],
+        "kind": "still",
+        "file": "<slug>_carousel_<N>.jpg",
+        "rule": "Short captions",
+        "used_on": "Feed post on a non-reel day"
+      },
+      {
+        "id": "cover",
+        "label": "Cover image",
+        "size": [
+          1080,
+          1920
+        ],
+        "kind": "still",
+        "file": "<slug>_cover.jpg",
+        "rule": "Title kept inside the center 1080x1080 square so it reads in the profile grid",
+        "title_box": [
+          0,
+          420,
+          1080,
+          1500
+        ],
+        "used_on": "Reel cover"
+      },
+      {
+        "id": "srt",
+        "label": "Caption file",
+        "kind": "text",
+        "file": "<slug>.srt",
+        "rule": "SRT of the voiceover",
+        "used_on": "Accessibility and Facebook"
+      },
+      {
+        "id": "copy",
+        "label": "Copy",
+        "kind": "text",
+        "file": "<slug>_copy.txt",
+        "rule": "Instagram caption, a one-line Story text, and a short paragraph for NUMA's email",
+        "used_on": "Posting and newsletter"
+      }
+    ],
+    "hook_variants": {
+      "count": [
+        2,
+        3
+      ],
+      "file": "<slug>_hook_<N>.mp4",
+      "_source": "spec p.30 (render 2-3 alternate openings)"
+    },
+    "crop_rule": "Crops for other formats are done in the engine, never with Higgsfield Reframe."
+  }
+}

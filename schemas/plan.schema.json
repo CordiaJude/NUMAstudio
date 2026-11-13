@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://numa-studio.local/schemas/plan.schema.json",
+  "title": "NUMA Studio plan.json (schema_version 2; v1 plans also validate)",
+  "description": "The edit decision list: the only creative input the renderer reads. Written by the Editor (Claude) or baseline_plan.py; read by validate_plan.py, engine.py, finish.py, formats.py. Times are seconds (float) on the reel timeline, paths are absolute, colours are [r,g,b], normalized coordinates are 0-1 of the source image (x right, y down). Keys starting with '_' are free-form notes and are ignored. Cross-field rules (tiling, beats, file existence, caption timing) are checked by validate_plan.py; see docs/CONTRACTS.md.",
+  "type": "object",
+  "required": ["duration", "shots"],
+  "properties": {
+    "schema_version": { "enum": [1, 2], "description": "Absent means 1. Writers of new plans write 2." },
+    "duration": { "type": "number", "exclusiveMinimum": 0, "description": "Reel length in seconds; shots must end exactly here." },
+    "out_dir": { "type": "string", "minLength": 1, "description": "Absolute folder for renders (video_noaudio.mp4, preview.jpg). Default: the plan's folder." },
+    "fps": { "type": "number", "exclusiveMinimum": 0, "maximum": 120, "default": 30 },
+    "size": { "$ref": "#/$defs/size", "default": [1080, 1920] },
+    "quality": { "enum": ["final", "draft"], "default": "final" },
+    "seed": { "type": "integer", "minimum": 0, "default": 0, "description": "Seeds film grain and light-leak motion; same plan + seed = byte-identical render." },
+    "accent_rgb": { "$ref": "#/$defs/rgb", "description": "Gold-italic caption colour. Default: brand.json palette caption_gold." },
+    "caption_y": { "type": "number", "minimum": 0, "description": "Vertical centre of the caption block in output pixels. Default 1420 (at 1920 high)." },
+    "font_regular": { "type": "string", "minLength": 1, "description": "Absolute path. Default: brand.json fonts caption_regular." },
+    "font_italic": { "type": "string", "minLength": 1, "description": "Absolute path. Default: brand.json fonts caption_italic." },
+    "caption_px": { "type": "number", "minimum": 40, "maximum": 200, "description": "Caption font size in plan pixels (feedback preference caption_px). Default: config render.captions.font_px (92 at 1080 wide)." },
+    "hook": {
+      "type": "object",
+      "description": "Frame-zero hook text, drawn at full opacity from frame 0 until t1.",
+      "required": ["text"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1 },
+        "t1": { "type": "number", "minimum": 1.5, "default": 2.0, "description": "When the hook text fades out (seconds); at least 1.5." },
+        "y": { "type": "number", "minimum": 0, "description": "Vertical centre in output pixels. Default: just below the top safe area." }
+      },
+      "patternProperties": { "^_": {} },
+      "additionalProperties": false
+    },
+    "shots": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/shot" } },
+    "lines": { "type": "array", "items": { "$ref": "#/$defs/line" }, "default": [] },
+    "leaks": { "type": "array", "items": { "$ref": "#/$defs/leak" }, "default": [] },
+    "endcard": { "$ref": "#/$defs/endcard" },
+    "cards": {
+      "type": "array",
+      "description": "Kinetic type: large animated text cards drawn over the picture (education templates). Cards never overlap each other or the end card (validate_plan.py rule 42).",
+      "items": { "$ref": "#/$defs/card" },
+      "default": []
+    },
+    "signature": {
+      "type": "object",
+      "description": "The reel's one signature moment: a before/after wipe or a flash reveal.",
+      "required": ["type", "t"],
+      "properties": {
+        "type": { "enum": ["wipe", "flash"] },
+        "t": { "type": "number", "minimum": 0 }
+      },
+      "patternProperties": { "^_": {} },
+      "additionalProperties": false
+    },
+    "nat": {
+      "type": "array",
+      "description": "Natural-sound bursts: play src's own audio from 'start' at reel time 't' for 'dur' seconds, mixed under the music and ducked under the voice.",
+      "items": {
+        "type": "object",
+        "required": ["src", "start", "t", "dur"],
+        "properties": {
+          "src": { "type": "string", "minLength": 1 },
+          "start": { "type": "number", "minimum": 0 },
+          "t": { "type": "number", "minimum": 0 },
+          "dur": { "type": "number", "exclusiveMinimum": 0 },
+          "gain_db": { "type": "number", "minimum": -60, "maximum": 12, "default": -6 }
+        },
+        "patternProperties": { "^_": {} },
+      "additionalProperties": false
+      }
+    },
+    "music": {
+      "type": "object",
+      "description": "Where the music came from and its license (recorded in sources.txt). 'natural' = no music bed, clip sound only; 'pad' = analyze.py's offline generated pad (last resort).",
+      "required": ["source"],
+      "properties": {
+        "source": { "enum": ["folder", "shoot_card", "higgsfield", "library", "sound_collection", "natural", "pad"] },
+        "path": { "type": ["string", "null"] },
+        "license": { "type": ["string", "null"] },
+        "title": { "type": ["string", "null"] }
+      },
+      "patternProperties": { "^_": {} },
+      "additionalProperties": false
+    },
+    "ai": {
+      "type": "object",
+      "description": "AI content flags. label_required = Instagram's AI label must be switched on when posting.",
+      "properties": {
+        "people": { "type": "boolean", "default": false },
+        "scenes": { "type": "boolean", "default": false },
+        "label_required": { "type": "boolean", "default": false }
+      },
+      "patternProperties": { "^_": {} },
+      "additionalProperties": false
+    },
+    "template": { "type": "string", "minLength": 1, "description": "Reel template id from the scriptwriter's template library." },
+    "meta": {
+      "type": "object",
+      "description": "Free-form reel tags used for file names and metrics (slug, title, series, pillar, hook_type, goal, day).",
+      "properties": {
+        "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "title": { "type": "string" },
+        "series": { "type": "string" },
+        "pillar": { "type": "string" },
+        "hook_type": { "type": "string" },
+        "goal": { "type": "string" },
+        "day": { "type": "string" }
+      }
+    },
+    "formats": { "$ref": "#/$defs/formats" }
+  },
+  "patternProperties": { "^_": {} },
+  "additionalProperties": false,
+  "$defs": {
+    "size": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "integer", "minimum": 16, "maximum": 8192, "multipleOf": 2 },
+        { "type": "integer", "minimum": 16, "maximum": 8192, "multipleOf": 2 }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "rgb": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "pair": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 },
+    "point": { "type": "array", "items": { "$ref": "#/$defs/unit" }, "minItems": 2, "maxItems": 2 },
+    "box": { "type": "array", "items": { "$ref": "#/$defs/unit" }, "minItems": 4, "maxItems": 4, "description": "[x, y, w, h] normalized 0-1." },
+    "shot": {
+      "type": "object",
+      "required": ["src", "t0", "t1"],
+      "properties": {
+        "kind": { "enum": ["image", "video"], "default": "image" },
+        "src": { "type": "string", "minLength": 1 },
+        "start": { "type": "number", "minimum": 0, "default": 0, "description": "Video only: source time (s) shown at t0." },
+        "speed": { "type": "number", "exclusiveMinimum": 0, "maximum": 8, "default": 1.0, "description": "Video only: playback speed." },
+        "look": { "enum": ["before", "warm", "none"], "default": "warm" },
+        "t0": { "type": "number", "minimum": 0 },
+        "t1": { "type": "number", "exclusiveMinimum": 0 },
+        "z": {
+          "type": "array",
+          "items": { "type": "number", "exclusiveMinimum": 0 },
+          "minItems": 2,
+          "maxItems": 2,
+          "default": [1.02, 1.14],
+          "description": "[start zoom, end zoom]; 1.0 = full frame."
+        },
+        "pan": { "$ref": "#/$defs/pair", "default": [0, 0], "description": "Drift [x, y] as a fraction of frame size over the shot." },
+        "tr": { "enum": ["cut", "punch", "whip", "leakfade", "fade", "flash", "wipe"], "default": "cut", "description": "Transition INTO this shot." },
+        "crop": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "Image only: [left, top, right, bottom] in source pixels, applied before framing."
+        },
+        "focus": { "$ref": "#/$defs/point", "description": "Point the zoom/pan centres on, normalized [x, y] of the source." },
+        "faces": { "type": "array", "items": { "$ref": "#/$defs/box" }, "description": "Face boxes [x, y, w, h] normalized; captions avoid them." },
+        "blur": { "type": "array", "items": { "$ref": "#/$defs/box" }, "description": "Regions [x, y, w, h] normalized to the source to blur heavily (people not on the consent list); applies to stills and video for the whole shot." },
+        "peak": { "type": "boolean", "default": false, "description": "Emotional peak: may hold longer than 4 beats." },
+        "people": { "type": "boolean", "description": "A recognizable person is in the shot." },
+        "consent": { "type": "boolean", "description": "Every recognizable person in the shot is on the consent list." },
+        "ai_generated": { "type": "boolean", "default": false, "description": "The source was made or animated by AI (Higgsfield)." }
+      },
+      "patternProperties": { "^_": {} },
+      "additionalProperties": false
+    },
+    "word": {
+      "type": "array",
+      "description": "[text, appear_time] or [text, appear_time, 1] for gold italic.",
+      "prefixItems": [
+        { "type": "string", "minLength": 1 },
+        { "type": "number", "minimum": 0 },
+        { "enum": [0, 1] }
+      ],
+      "minItems": 2,
+      "maxItems": 3
+    },
+    "line": {
+      "type": "object",
+      "required": ["words", "end"],
+      "properties": {
+        "words": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/word" } },
+        "end": { "type": "number", "minimum": 0, "description": "When the line fades out." }
+      },
+      "patternProperties": { "^_": {} },
+      "additionalProperties": false
+    },
+    "leak": {
+      "type": "array",
+      "description": "[time, duration, strength 0-1].",
+      "prefixItems": [
+        { "type": "number", "minimum": 0 },
+        { "type": "number", "exclusiveMinimum": 0 },
+        { "type": "number", "minimum": 0, "maximum": 1 }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "card": {
+      "type": "object",
+      "required": ["t0", "t1", "text"],
+      "properties": {
+        "t0": { "type": "number", "minimum": 0, "description": "When the card starts revealing (s); a card at 0 is fully shown from frame 0." },
+        "t1": { "type": "number", "exclusiveMinimum": 0, "description": "When the card has faded out (s)." },
+        "text": { "type": "string", "minLength": 1, "description": "Main text. 'number': a numeral or short label (\"1\", \"MYTH\") in large gold italic. 'statement': a short line; wrap words in *asterisks* for gold italic, with no markup the last word is gold." },
+        "style": { "enum": ["number", "statement"], "default": "statement" },
+        "sub": { "type": "string", "minLength": 1, "description": "Smaller white line under the main text (e.g. the point a number card introduces)." },
+        "align": { "enum": ["center", "left"], "default": "center" },
+        "bg": { "enum": ["blur", "teal"], "default": "blur", "description": "blur = the picture blurred and darkened under the card; teal = brand water_teal with cream text." },
+        "y": { "type": "number", "minimum": 0, "description": "Vertical centre of the card block in plan pixels. Default 0.40 x height (always kept inside the safe area, above the captions)." }
+      },
+      "patternProperties": { "^_": {} },
+      "additionalProperties": false
+    },
+    "endcard": {
+      "type": "object",
+      "required": ["t"],
+      "properties": {
+        "t": { "type": "number", "minimum": 0, "description": "When the end card starts." },
+        "logo": { "type": "string", "minLength": 1, "description": "Absolute path. Default: brand.json assets wordmark." },
+        "logo_width": { "type": "number", "exclusiveMinimum": 0, "default": 820 },
+        "tagline": { "type": "string" },
+        "subtitle": { "type": "string", "description": "Gold italic per-reel sign-off." }
+      },
+      "patternProperties": { "^_": {} },
+      "additionalProperties": false
+    },
+    "formats": {
+      "type": "object",
+      "description": "Extra outputs rendered from this same plan by formats.py.",
+      "properties": {
+        "reach_cut": {
+          "type": "object",
+          "required": ["t0", "t1", "hook"],
+          "properties": {
+            "t0": { "type": "number", "minimum": 0 },
+            "t1": { "type": "number", "exclusiveMinimum": 0 },
+            "hook": { "type": "string", "minLength": 1 }
+          },
+          "patternProperties": { "^_": {} },
+      "additionalProperties": false
+        },
+        "story": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["t", "text"],
+            "properties": {
+              "t": { "type": "number", "minimum": 0 },
+              "text": { "type": "string", "minLength": 1 },
+              "clip": { "type": "boolean", "default": false, "description": "true = 5 s clip from t, false = still at t." }
+            },
+            "patternProperties": { "^_": {} },
+      "additionalProperties": false
+          }
+        },
+        "carousel": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": ["text"],
+            "properties": {
+              "t": { "type": "number", "minimum": 0, "description": "Frame of the reel at this time." },
+              "src": { "type": "string", "minLength": 1, "description": "Or an absolute path to a source photo." },
+              "text": { "type": "string", "minLength": 1 }
+            },
+            "oneOf": [
+              { "required": ["t"], "not": { "required": ["src"] } },
+              { "required": ["src"], "not": { "required": ["t"] } }
+            ],
+            "patternProperties": { "^_": {} },
+      "additionalProperties": false
+          }
+        },
+        "cover": {
+          "type": "object",
+          "required": ["t", "title"],
+          "properties": {
+            "t": { "type": "number", "minimum": 0 },
+            "title": { "type": "string", "minLength": 1 }
+          },
+          "patternProperties": { "^_": {} },
+      "additionalProperties": false
+        },
+        "hook_variants": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "description": "Alternate openings: a new hook text and optionally a new first-shot source.",
+          "items": {
+            "type": "object",
+            "required": ["text"],
+            "properties": {
+              "text": { "type": "string", "minLength": 1 },
+              "src": { "type": "string", "minLength": 1 },
+              "start": { "type": "number", "minimum": 0 }
+            },
+            "patternProperties": { "^_": {} },
+      "additionalProperties": false
+          }
+        }
+      },
+      "patternProperties": { "^_": {} },
+      "additionalProperties": false
+    }
+  }
+}

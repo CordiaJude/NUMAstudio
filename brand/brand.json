@@ -1,42 +1,1441 @@
 {
-  "_readme": "Single source of truth for NUMA's brand. Every skill and script reads this. 'status' is confirmed (Katie said so), research (found in public sources, Katie must confirm) or placeholder (a guess). After Katie answers the setup questions, update values and set status to confirmed.",
-  "name": {"value": "NUMA Wellness Collective", "short": "NUMA", "status": "research"},
-  "founders": {"value": [{"name": "Scott Moore", "role": "founder and owner"}, {"name": "Katie Moore, DPT", "role": "co-founder; on-camera expert"}], "status": "research"},
-  "location": {"value": "1719 Dauphin St, Mobile, AL 36604 (Midtown, Old Dauphin Way)", "status": "research"},
-  "phone": {"value": null, "status": "placeholder", "note": "Listings show three numbers; Katie picks one"},
-  "hours_note": {"value": "Opens 5:30 AM Monday to Thursday", "status": "research"},
-  "facility": {"value": ["14-person Finnish sauna", "4 cold-plunge tubs", "red light", "breathwork", "yoga"], "status": "research"},
-  "not_offered": {"value": ["IV drips", "cryotherapy", "compression boots", "float tanks", "reformer Pilates"], "status": "research", "note": "Never show or imply these"},
-  "sessions": {"value": ["NUMA Experience (60 min, fully guided)", "Free Flow (45 min, $30 drop-in)", "Contrast Flow (30-60 min, self-guided)", "60-minute audio-guided circuit", "Sauna-only", "Plunge-only", "Embodiment Flow Yoga"], "status": "research"},
-  "offers": {"value": [{"name": "Discover NUMA", "price": "$49", "what": "one month", "link": "https://discover.numawellness.org"}], "status": "research"},
-  "events": {"value": ["Numa Nights", "Clinical Conversations"], "status": "research"},
-  "collective": {"value": [
-    {"name": "Scott Moore (Kolibri)", "role": "counselor"}, {"name": "LaJuan Humbert, LPC", "role": "counselor"}, {"name": "Matt Henson, ALC", "role": "counselor"},
-    {"name": "Kandi Roemhildt", "role": "sports massage"}, {"name": "Natalia Lichtenberger", "role": "European facials"},
-    {"name": "Fallon Gleason", "role": "breathwork guide"}, {"name": "Joseph Irby", "role": "breathwork guide"}], "status": "research"},
-  "handles": {"instagram": "@numawellnessmobile", "status": "research"},
-  "voice": {"value": "Honest, grounded, warm, communal. Invites people to participate, never to perform. Calm confidence, no hype.", "reference_lines": ["Find a collective rhythm in the chaos of life.", "Less Noise. More Presence.", "Everyone hates the cold.", "Your reset starts here.", "Take your first deep breath.", "We started Numa because we needed it."], "status": "research"},
-  "community_word": {"value": "members", "status": "placeholder"},
-  "emoji": {"value": "0-2 per caption, earthy only", "status": "placeholder"},
-  "palette": {"cedar": "#C8643C", "teal": "#5E8C8F", "cream": "#FAF6EE", "caption_gold": "#F7D6A0", "status": "placeholder", "note": "Sampled from photos; replace with official codes"},
-  "fonts": {"caption_regular": "assets/fonts/LiberationSerif-Regular.ttf", "caption_italic": "assets/fonts/LiberationSerif-Italic.ttf", "status": "placeholder", "note": "Replace with NUMA's real brand fonts if they exist"},
-  "assets": {"wordmark": "skills/numa-reel-editor/assets/Numa_Workmark_Dark.png", "secondary_mark": "skills/numa-reel-editor/assets/Numa-Phoenix-transparent.png", "endcard_background": "skills/numa-reel-editor/assets/heroimage.jpg", "brand_photos_dir": "skills/numa-reel-editor/assets/brand-photos"},
-  "endcard": {"tagline": "Wellness Collective", "default_subtitle": "Less noise. More presence.", "status": "research"},
-  "series": ["Ask the DPT", "First Plunge", "Too Hot for a DIY Plunge", "Regulate", "Meet the Collective"],
-  "content_mix": {"education": 0.30, "community": 0.25, "local_seasonal": 0.15, "collective_collabs": 0.15, "offers_events": 0.15},
-  "collab_partners": {"value": ["Mission Fitness (@missionfitnessmobile)", "barre3 Mobile (@barre3mobile)", "Pure Barre Mobile (@purebarremobile)"], "status": "placeholder", "note": "Katie confirms before any outreach"},
-  "competitors_to_track": ["@beyondtheplunge", "@mobile_cryotherapy", "@missionfitnessmobile", "@barre3mobile", "@purebarremobile"],
-  "hashtags": {"base": ["#MobileAL", "#MidtownMobile", "#GulfCoastWellness"], "community_tag": null, "never": ["#detox", "#immunityboost", "#anxietyrelief", "#weightloss", "#antiaging", "#painrelief"]},
-  "transcript_fixes": {"Moby": "Mobile", "Numa": "NUMA", "numa": "NUMA", "Kate": "Katie"},
-  "claims": {
-    "banned_patterns": ["inflammat", "immun", "detox", "toxin", "burns fat", "burn calories", "weight loss", "heal", "cure", "treat", "prevent", "anxiety", "depression", "ptsd", "trauma", "arthritis", "pain relief", "blood pressure", "heart health", "anti-aging", "collagen", "wrinkle", "covid", "science-backed", "clinically proven", "studies show", "fda-approved", "fda approved", "dopamine"],
-    "hold_until_counsel": ["57 minutes of sauna and 11 minutes of cold per week (website dosing line)"],
-    "safety_line": "Talk to your doctor first if you have a heart, blood pressure or breathing condition."
+  "_readme": "Single source of truth for the brand. Every skill, agent and script reads this file (scripts via numa_common.load_brand()). Most entries are facts: {\"value\": ..., \"status\": ..., \"source\": ..., \"note\": ...}. Prefer values whose status is 'confirmed'; never present a 'needs_katie' value as fact in public copy. When Katie answers the setup questions (/brand-setup), update the value and set status to 'confirmed'. Asset and font paths are relative to the plugin root. Operational numbers (model tiers, Higgsfield prices and budget, Instagram API version, render targets, schedule) live in config/studio.json, not here.",
+  "_status_legend": {
+    "confirmed": "Katie (or the brief) confirmed it; use freely.",
+    "from_website": "Taken from numawellness.org or NUMA's own channels; use, Katie confirms at setup.",
+    "research": "Found by the Mobile audit or public research; use carefully, Katie confirms at setup.",
+    "needs_katie": "Unknown or a stand-in default; the value may be null. Asked once at setup; never state it as fact.",
+    "bundled": "A file shipped in the plugin; NUMA owns brand files.",
+    "generated": "Written fresh for each reel; the value is an example."
   },
-  "budgets": {"higgsfield_credits_per_month": 1200, "higgsfield_split": {"kling_motion": 600, "seedance_people_free": 140, "photo_prep": 160, "music": 120, "voice": 10, "reserve": 170}},
-  "instagram_api": {"graph_api_version": "v26.0", "note": "Composio defaults to v21.0, retired Jan 21, 2027"},
-  "posting": {"auto_post": {"value": true, "status": "placeholder"}, "default_slots_central": "late afternoon", "cta_link": {"value": "https://discover.numawellness.org", "status": "research"}},
-  "admin_contact": {"name": "Jude Moore", "for": ["Instagram reconnect (Meta error 190)", "billing", "legal review"]},
-  "consent": {"list": "Drive: NUMA Reels/_Plan/Consent List", "ai_processing_covered": {"value": null, "status": "placeholder"}},
-  "closures": {"source": "Drive: NUMA Reels/_Plan/Closures"}
+  "schema_version": 2,
+  "business": {
+    "name": {
+      "value": {
+        "full": "NUMA Wellness Collective",
+        "short": "NUMA",
+        "with_city": "NUMA Wellness Collective, Mobile, Alabama"
+      },
+      "status": "confirmed",
+      "source": "spec p.22",
+      "note": "Always spell the short name NUMA in captions and on-screen text (a misspelling fails the Critic's hard gate). Event and app names keep their own spelling (Numa Nights, the 'Numa Wellness Collective' iOS app)."
+    },
+    "name_usage": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54 Q1",
+      "note": "When to write NUMA, Numa, or NUMA Wellness Collective."
+    },
+    "website": {
+      "value": "https://numawellness.org",
+      "status": "from_website",
+      "source": "spec p.23"
+    },
+    "founders": {
+      "value": [
+        {
+          "name": "Scott Moore",
+          "role": "founder and owner"
+        },
+        {
+          "name": "Katie Moore",
+          "credentials": "DPT",
+          "role": "co-founder; physical therapist, 15+ years; certified in red light therapy for healthcare professionals and mindfulness-based pain relief; on-camera expert for Ask the DPT"
+        }
+      ],
+      "status": "research",
+      "source": "spec p.23",
+      "note": "Never turn Katie's credential into a promise of results (claims rule 3)."
+    },
+    "founding_story": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54 Q8"
+    },
+    "location": {
+      "value": {
+        "address": "1719 Dauphin St, Mobile, AL 36604",
+        "street": "1719 Dauphin St",
+        "city": "Mobile",
+        "state": "AL",
+        "zip": "36604",
+        "area": "Midtown",
+        "district": "Old Dauphin Way Historic District"
+      },
+      "status": "research",
+      "source": "spec p.23, p.56 Q42"
+    },
+    "facility": {
+      "value": {
+        "sauna": "Custom 14-person Finnish sauna",
+        "cold_plunge_tubs": 4,
+        "also": [
+          "red light",
+          "breathwork",
+          "yoga"
+        ]
+      },
+      "status": "research",
+      "source": "spec p.23, p.56 Q42"
+    },
+    "temperatures": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.56 Q42",
+      "note": "Plunge and sauna temperatures."
+    },
+    "hours": {
+      "value": {
+        "summary": "Opens 5:30 AM Monday to Thursday",
+        "regular": null
+      },
+      "status": "research",
+      "source": "spec p.24 (per a directory listing), p.54 Q3",
+      "note": "Full regular hours unknown until Katie answers."
+    },
+    "phone": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "research/4-mobile-competitor-audit.md (developer kit; directory listings); spec p.24, p.50, p.56 Q43",
+      "candidates": [
+        "251-289-1758",
+        "251-310-3656",
+        "251-423-8238"
+      ],
+      "note": "Directory listings show three numbers. Katie picks one; then use it everywhere (Instagram, Google Business Profile, Facebook, Mindbody, website). Never print a candidate."
+    },
+    "booking": {
+      "value": {
+        "platforms": [
+          "Mindbody",
+          "the NUMA app"
+        ],
+        "trial_page": "https://discover.numawellness.org",
+        "trial_page_title": "Discover NUMA: One Month for $49"
+      },
+      "status": "research",
+      "source": "spec p.24"
+    },
+    "cta_link": {
+      "value": "https://discover.numawellness.org",
+      "status": "research",
+      "source": "spec p.24, p.56 Q36",
+      "note": "Q36: Discover NUMA page, the app, or the link in bio."
+    },
+    "instagram_name_field": {
+      "value": "NUMA | Sauna + Cold Plunge Mobile AL",
+      "status": "research",
+      "source": "spec p.50 (account fixes; Instagram search reads the name field)"
+    },
+    "bio_draft": {
+      "value": "Guided contrast therapy + breathwork in Midtown Mobile · 14-person Finnish sauna · 4 cold plunges · red light · yoga · $49 first month",
+      "status": "research",
+      "source": "spec p.50",
+      "note": "Along these lines, with the Dauphin St address, a Book button and a link to discover.numawellness.org."
+    },
+    "account_owners": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q33"
+    }
+  },
+  "socials": {
+    "instagram": {
+      "value": "@numawellnessmobile",
+      "status": "from_website",
+      "source": "spec p.22"
+    },
+    "facebook": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.22",
+      "note": "The website links a Facebook page; its URL is not recorded yet."
+    },
+    "ios_app": {
+      "value": "Numa Wellness Collective",
+      "status": "from_website",
+      "source": "spec p.22"
+    },
+    "google_business_profile": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.50, p.56 Q33",
+      "note": "Categories and wording should match (sauna, cold plunge, breathwork); the weekly best reel is posted there too."
+    },
+    "instagram_account": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q32"
+    }
+  },
+  "voice": {
+    "description": {
+      "value": "Honest, grounded, warm, communal; invites people to participate, never to perform; no hype.",
+      "status": "from_website",
+      "source": "spec p.22"
+    },
+    "reference_lines": {
+      "value": [
+        "Find a collective rhythm in the chaos of life.",
+        "Your reset starts here.",
+        "Take your first deep breath."
+      ],
+      "status": "from_website",
+      "source": "spec p.22"
+    },
+    "site_lines": {
+      "value": [
+        "Less Noise. More Presence.",
+        "Everyone hates the cold.",
+        "We started Numa because we needed it."
+      ],
+      "status": "from_website",
+      "source": "spec p.24"
+    },
+    "site_themes": {
+      "value": [
+        "The site describes NUMA as a screen-free space (a description, not a quoted line)."
+      ],
+      "status": "from_website",
+      "source": "spec p.24"
+    },
+    "share_line_example": {
+      "value": "Send this to the friend who needs a reset.",
+      "status": "generated",
+      "source": "spec p.19"
+    },
+    "community_word": {
+      "value": "members",
+      "status": "needs_katie",
+      "source": "spec p.55 Q21",
+      "note": "Default until Katie answers (members, community, the collective)."
+    },
+    "emoji": {
+      "value": "0-2 per caption, earthy only",
+      "status": "needs_katie",
+      "source": "spec p.55 Q22",
+      "note": "Default until Katie answers (yes, a few, or none)."
+    },
+    "words_always": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.55 Q20"
+    },
+    "words_never": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.55 Q20"
+    },
+    "dislikes": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.55 Q19"
+    },
+    "music_taste": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.55 Q23"
+    },
+    "inspiration_accounts": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q18"
+    },
+    "off_limits_topics": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q24"
+    }
+  },
+  "offerings": {
+    "modalities": {
+      "value": [
+        "cold plunge",
+        "sauna",
+        "breathwork",
+        "red light",
+        "yoga"
+      ],
+      "status": "from_website",
+      "source": "spec p.22"
+    },
+    "formats": {
+      "value": [
+        "classes",
+        "Flow Space",
+        "1-on-1s",
+        "memberships"
+      ],
+      "status": "from_website",
+      "source": "spec p.22"
+    },
+    "sessions": {
+      "value": [
+        {
+          "name": "NUMA Experience",
+          "minutes": 60,
+          "guidance": "fully guided",
+          "what": "breathwork, hot/cold and mindfulness",
+          "price": {
+            "value": null,
+            "status": "needs_katie"
+          }
+        },
+        {
+          "name": "Free Flow",
+          "minutes": 45,
+          "guidance": "lightly guided",
+          "what": null,
+          "price": {
+            "value": 30,
+            "currency": "USD",
+            "unit": "drop-in",
+            "status": "research"
+          }
+        },
+        {
+          "name": "Contrast Flow",
+          "minutes": [
+            30,
+            60
+          ],
+          "guidance": "self-guided",
+          "what": null,
+          "price": {
+            "value": null,
+            "status": "needs_katie"
+          }
+        },
+        {
+          "name": "Audio-guided circuit",
+          "minutes": 60,
+          "guidance": "audio-guided",
+          "what": "a 60-minute audio-guided circuit",
+          "price": {
+            "value": null,
+            "status": "needs_katie"
+          }
+        },
+        {
+          "name": "Sauna-only session",
+          "minutes": null,
+          "guidance": null,
+          "what": null,
+          "price": {
+            "value": null,
+            "status": "needs_katie"
+          }
+        },
+        {
+          "name": "Plunge-only session",
+          "minutes": null,
+          "guidance": null,
+          "what": null,
+          "price": {
+            "value": null,
+            "status": "needs_katie"
+          }
+        },
+        {
+          "name": "Embodiment Flow Yoga",
+          "minutes": null,
+          "guidance": null,
+          "what": "yoga class",
+          "price": {
+            "value": null,
+            "status": "needs_katie"
+          }
+        }
+      ],
+      "status": "research",
+      "source": "spec p.24 (Mobile audit), p.54 Q4"
+    },
+    "offers": {
+      "value": [
+        {
+          "name": "Discover NUMA",
+          "what": "one month",
+          "price": {
+            "value": 49,
+            "currency": "USD",
+            "display": "$49",
+            "status": "from_website"
+          },
+          "link": "https://discover.numawellness.org",
+          "details": {
+            "value": null,
+            "status": "needs_katie",
+            "note": "Q5: exactly what's included and how long it lasts."
+          }
+        }
+      ],
+      "status": "from_website",
+      "source": "spec p.22, p.24, p.54 Q5"
+    },
+    "memberships": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54 Q4",
+      "note": "Memberships, class packs, 1-on-1s and what each includes."
+    },
+    "events": {
+      "value": [
+        {
+          "name": "Numa Nights",
+          "details": {
+            "value": null,
+            "status": "needs_katie",
+            "note": "Q6: how often, who leads, what happens, next dates."
+          }
+        },
+        {
+          "name": "Clinical Conversations",
+          "details": {
+            "value": null,
+            "status": "needs_katie",
+            "note": "Q6: how often, who leads, what happens, next dates."
+          }
+        }
+      ],
+      "status": "from_website",
+      "source": "spec p.22, p.54 Q6"
+    },
+    "do_not_promote": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.55 Q15",
+      "note": "Anything full (classes at capacity)."
+    },
+    "not_offered": {
+      "value": [
+        "IV drips",
+        "cryotherapy",
+        "compression boots",
+        "float tanks",
+        "reformer Pilates"
+      ],
+      "status": "research",
+      "source": "spec p.24",
+      "note": "Never shown or implied, including in AI shots and outpainted backgrounds."
+    },
+    "priority_offer": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q14"
+    },
+    "upcoming": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q16"
+    },
+    "rates_considered": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q50"
+    }
+  },
+  "team": {
+    "collective": {
+      "value": [
+        {
+          "name": "Scott Moore",
+          "org": "Kolibri",
+          "role": "counseling"
+        },
+        {
+          "name": "LaJuan Humbert",
+          "credentials": "LPC",
+          "role": "counseling"
+        },
+        {
+          "name": "Matt Henson",
+          "credentials": "ALC",
+          "role": "counseling"
+        },
+        {
+          "name": "Kandi Roemhildt",
+          "role": "sports massage"
+        },
+        {
+          "name": "Natalia Lichtenberger",
+          "role": "European facials"
+        },
+        {
+          "name": "Fallon Gleason",
+          "role": "breathwork guide"
+        },
+        {
+          "name": "Joseph Irby",
+          "role": "breathwork guide"
+        },
+        {
+          "name": "Katie Moore",
+          "role": "coaching and spiritual direction"
+        }
+      ],
+      "status": "research",
+      "source": "spec p.24, p.56 Q44"
+    },
+    "on_camera": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54 Q7, p.55 Q26",
+      "note": "Who is comfortable being on camera and who may not appear."
+    },
+    "filming": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.55 Q29-Q31",
+      "note": "Who films, best batch-shoot times, rooms or moments never to film."
+    },
+    "voiceover": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q28"
+    }
+  },
+  "positioning": {
+    "own_in_mobile": {
+      "value": [
+        "A clinician on camera: Katie as the trusted expert (Ask the DPT), within the claims policy.",
+        "The whole-person collective: counselors, massage, facials and guides under one roof; each provider is a recurring feature and a collab partner.",
+        "Gulf Coast life: Mobile's tap water rarely gets below 70°F, so a home cold plunge is hard; plus Mardi Gras, hurricane season, summer heat and Midtown.",
+        "Audiences nobody targets: healthcare and shift workers, University of South Alabama students and athletes, men, and older adults.",
+        "Consistency: 4-5 good posts a week would make NUMA the most active local recovery account."
+      ],
+      "status": "research",
+      "source": "spec p.24-25"
+    },
+    "target_audiences": {
+      "value": [
+        "Healthcare and shift workers (5:30 AM opening)",
+        "University of South Alabama students and athletes",
+        "Men",
+        "Older adults"
+      ],
+      "status": "research",
+      "source": "spec p.25"
+    },
+    "series": {
+      "value": [
+        {
+          "id": "ask_the_dpt",
+          "name": "Ask the DPT",
+          "what": "Katie answers one real question (e.g. \"Sauna vs infrared vs red light: what's different?\"), education only, no sales ask in the same reel",
+          "length_s": [
+            45,
+            60
+          ],
+          "built_for": "Watch time, saves, authority"
+        },
+        {
+          "id": "first_plunge",
+          "name": "First Plunge",
+          "what": "A guide coaches a first-timer through their first seconds in the cold (consent required); \"Send this to the friend who 'could never'\"",
+          "length_s": null,
+          "built_for": "Sends"
+        },
+        {
+          "id": "too_hot_for_a_diy_plunge",
+          "name": "Too Hot for a DIY Plunge",
+          "what": "Gulf Coast hooks: a thermometer in Mobile tap water in August, hurricane-season calm, Mardi Gras recovery week",
+          "length_s": null,
+          "built_for": "Local reach, sends"
+        },
+        {
+          "id": "regulate",
+          "name": "Regulate",
+          "what": "A guided breath practice viewers can do at their desk, led by Fallon or Joseph",
+          "length_s": [
+            45,
+            60
+          ],
+          "built_for": "Saves, sends"
+        },
+        {
+          "id": "meet_the_collective",
+          "name": "Meet the Collective",
+          "what": "A monthly feature on one provider, posted as a collab with them",
+          "length_s": null,
+          "built_for": "Partner audiences"
+        }
+      ],
+      "status": "research",
+      "source": "spec p.25",
+      "note": "The Director rotates all five through every month."
+    },
+    "collab_partners": {
+      "value": [
+        {
+          "name": "Mission Fitness",
+          "handle": "@missionfitnessmobile",
+          "order": 1
+        },
+        {
+          "name": "barre3 Mobile",
+          "handle": "@barre3mobile",
+          "order": 2
+        },
+        {
+          "name": "Pure Barre Mobile",
+          "handle": "@purebarremobile",
+          "order": 3
+        },
+        {
+          "name": "Run clubs",
+          "handle": null,
+          "order": 4
+        },
+        {
+          "name": "University of South Alabama teams",
+          "handle": null,
+          "order": 5
+        }
+      ],
+      "status": "research",
+      "source": "research/4-mobile-competitor-audit.md (developer kit; handles); spec p.25, p.56 Q49",
+      "concept": "Sweat there, recover here",
+      "note": "Collab posts, never reposts. Katie confirms partners before any outreach."
+    },
+    "competitors": {
+      "value": [
+        {
+          "name": "Beyond The Plunge",
+          "handle": "@beyondtheplunge",
+          "where": "Daphne",
+          "followers_approx": 913
+        },
+        {
+          "name": "Mission Fitness",
+          "handle": "@missionfitnessmobile"
+        },
+        {
+          "name": "barre3 Mobile",
+          "handle": "@barre3mobile"
+        },
+        {
+          "name": "Pure Barre Mobile",
+          "handle": "@purebarremobile"
+        },
+        {
+          "name": "Mobile Cryotherapy",
+          "handle": "@mobile_cryotherapy"
+        }
+      ],
+      "status": "research",
+      "source": "research/4-mobile-competitor-audit.md (developer kit; handles, ~913 followers); spec p.11, p.24, p.47",
+      "note": "The Scout logs the last 12 posts of each, monthly."
+    },
+    "content_mix": {
+      "value": {
+        "education": 0.3,
+        "community": 0.25,
+        "local_seasonal": 0.15,
+        "collective_collabs": 0.15,
+        "offers_events": 0.15
+      },
+      "status": "research",
+      "source": "spec p.33",
+      "note": "Starting mix; re-weighted every month from performance data."
+    },
+    "differentiator": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q9"
+    },
+    "join_reasons": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q11"
+    },
+    "hesitations": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q11"
+    },
+    "member_stories": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q12"
+    },
+    "goals_90d": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q13"
+    },
+    "paid_ads": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q37"
+    },
+    "past_best_posts": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q39"
+    },
+    "past_flops": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q40"
+    },
+    "audience_size": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q41"
+    },
+    "ask_the_dpt": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q45"
+    }
+  },
+  "assets": {
+    "wordmark": {
+      "value": "skills/numa-reel-editor/assets/Numa_Workmark_Dark.png",
+      "status": "bundled",
+      "source": "spec p.22",
+      "note": "Dark on transparent; rendered white on the end card."
+    },
+    "wordmark_light": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.55 Q17",
+      "note": "Light/dark logo versions, if they exist."
+    },
+    "secondary_mark": {
+      "value": "skills/numa-reel-editor/assets/Numa-Phoenix-transparent.png",
+      "status": "bundled",
+      "source": "spec p.23",
+      "note": "The phoenix mark."
+    },
+    "endcard_background": {
+      "value": "skills/numa-reel-editor/assets/heroimage.jpg",
+      "status": "bundled",
+      "source": "spec p.23",
+      "note": "Water ripple."
+    },
+    "brand_photos_dir": {
+      "value": "skills/numa-reel-editor/assets/brand-photos",
+      "status": "bundled",
+      "source": "spec p.23",
+      "note": "6 professional photos: cold plunge, sauna with logo, breathwork class, red light, mats, people in sauna."
+    },
+    "ownership": "Brand files were downloaded from numawellness.org's image CDN; they belong to NUMA (spec p.23).",
+    "logo_credit": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q17"
+    }
+  },
+  "palette": {
+    "value": {
+      "cedar_ember": "#C8643C",
+      "water_teal": "#5E8C8F",
+      "cream": "#FAF6EE",
+      "caption_gold": "#F7D6A0",
+      "caption_text": "#FFFFFF"
+    },
+    "roles": {
+      "caption_text": "caption_text",
+      "caption_accent": "caption_gold",
+      "endcard_subtitle": "caption_gold",
+      "endcard_logo": "caption_text"
+    },
+    "status": "research",
+    "source": "spec p.19 (white captions, gold #F7D6A0), p.23 (palette)",
+    "note": "Approximate, sampled from photos; confirm official codes with NUMA (Q17)."
+  },
+  "fonts": {
+    "value": {
+      "family": "Liberation Serif",
+      "caption_regular": "skills/numa-reel-editor/assets/fonts/LiberationSerif-Regular.ttf",
+      "caption_italic": "skills/numa-reel-editor/assets/fonts/LiberationSerif-Italic.ttf",
+      "license": "skills/numa-reel-editor/assets/fonts/LICENSE"
+    },
+    "status": "needs_katie",
+    "source": "spec p.23, p.55 Q17",
+    "note": "Open-licensed stand-in; replace with NUMA's real brand fonts if they have them."
+  },
+  "endcard": {
+    "tagline": {
+      "value": "Wellness Collective",
+      "status": "research",
+      "source": "v1 brand.json (wordmark lockup)"
+    },
+    "default_subtitle": {
+      "value": "Less noise. More presence.",
+      "status": "from_website",
+      "source": "spec p.24 (site line)"
+    },
+    "signoff_examples": {
+      "value": [
+        "Year one. Thank you, Mobile."
+      ],
+      "status": "generated",
+      "source": "spec p.23",
+      "note": "Gold italic line written per reel."
+    }
+  },
+  "captions": {
+    "opening_rule": {
+      "value": "Open with a plain searchable phrase, e.g. \"cold plunge in Mobile, AL\".",
+      "status": "research",
+      "source": "spec p.50"
+    },
+    "hashtags": {
+      "count": [
+        3,
+        5
+      ],
+      "base": [
+        "#MobileAL",
+        "#MidtownMobile",
+        "#GulfCoastWellness"
+      ],
+      "community_tag": {
+        "value": null,
+        "status": "needs_katie",
+        "source": "spec p.50",
+        "note": "One NUMA community tag."
+      },
+      "never": [
+        "#detox",
+        "#immunityboost",
+        "#anxietyrelief",
+        "#weightloss",
+        "#antiaging",
+        "#painrelief"
+      ],
+      "source": "spec p.20, p.50",
+      "note": "3-5 hashtags: the base tags plus one NUMA community tag. Every hashtag is also scanned against claims.banned."
+    },
+    "disclosure": {
+      "value": "Paid or comped creators disclose it in the video and the first line (\"#ad\" or \"I get free sessions\").",
+      "status": "research",
+      "source": "spec p.22"
+    }
+  },
+  "transcript_fixes": {
+    "_readme": "Speech-to-text corrections applied by fix_transcript.py. Each fix replaces any variant (whole word, case-insensitive unless case_sensitive is true, surrounding punctuation kept) with 'to'. When 'next_words' is set, the fix applies only if the following word is one of them. Phrases in 'protect' are never changed. The shoot-card script, when present, is the truth for spelling and wins over this list.",
+    "source": "spec p.8, p.53 (correction list: NUMA, Katie, Scott, Mobile)",
+    "protect": [
+      "Numa Nights"
+    ],
+    "fixes": [
+      {
+        "to": "Mobile",
+        "variants": [
+          "Moby",
+          "Mobil"
+        ],
+        "case_sensitive": false
+      },
+      {
+        "to": "NUMA",
+        "variants": [
+          "Numa",
+          "Nuuma",
+          "Nooma",
+          "Neuma"
+        ],
+        "case_sensitive": true
+      },
+      {
+        "to": "Katie",
+        "variants": [
+          "Kate",
+          "Katy",
+          "Katey",
+          "Kadie"
+        ],
+        "case_sensitive": false
+      },
+      {
+        "to": "Scott",
+        "variants": [
+          "Scot",
+          "Skot",
+          "Skott"
+        ],
+        "case_sensitive": false
+      },
+      {
+        "to": "Dauphin",
+        "variants": [
+          "Dolphin",
+          "Dauphine",
+          "Doffin"
+        ],
+        "case_sensitive": false,
+        "next_words": [
+          "St",
+          "St.",
+          "Street"
+        ]
+      }
+    ]
+  },
+  "claims": {
+    "_readme": "The claims policy as data. claims_scan.py, validate_plan.py and the Critic use it on ALL text: voiceover, on-screen text, captions, hashtags and pinned comments. Patterns are Python regular expressions matched case-insensitively. Before scanning, phrases in 'allow_exact' and matches of 'allow_patterns' are removed (the safety line names 'blood pressure' on purpose; 'treat yourself' and 'a treat' are not medical). Each banned entry has a severity: 'fail' (a banned claim: exit 1, Critic hard gate) or 'warn' (ambiguous or outcome language: a WARN line for review). This policy is general information from research, not legal advice; an advertising lawyer reviews it once before launch.",
+    "source": "spec p.20-22",
+    "principle": "Sell the experience, never the outcome.",
+    "banned": [
+      {
+        "id": "inflammation",
+        "label": "inflammation",
+        "severity": "fail",
+        "patterns": [
+          "\\binflamm\\w*"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "immunity",
+        "label": "immunity or immune",
+        "severity": "fail",
+        "patterns": [
+          "\\bimmun(e|ity|ities)"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "detox",
+        "label": "detox or toxins",
+        "severity": "fail",
+        "patterns": [
+          "\\bdetox\\w*",
+          "\\btoxin(s)?\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "fat_weight",
+        "label": "burns fat, calories or weight loss",
+        "severity": "fail",
+        "patterns": [
+          "\\bburn(s|ing|ed)?[ -]?(fat|calories)",
+          "\\bfat[ -]?burn\\w*",
+          "\\bcalorie(s)?\\b",
+          "\\bweight[ -]?loss",
+          "\\blos(e|es|ing)[ -]?weight\\b",
+          "\\bmelt(s|ing|ed)?\\s+(away\\s+)?(the\\s+|your\\s+)?(belly\\s+)?fat\\b",
+          "\\bweight[ -]?loss\\b",
+          "\\blose\\s+weight\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "heals",
+        "label": "heals (a body, injury or condition)",
+        "severity": "fail",
+        "patterns": [
+          "\\bheal(s|ed)\\b",
+          "\\bheal\\s+(your|the|my|our|their)\\b",
+          "\\bheal(ing)?\\s+(\\w+\\s+){0,2}?(pain|aches?|injur\\w*|depression|anxiety|stress|insomnia|sleep|conditions?|symptoms?|diseases?|illness\\w*|inflamm\\w*|arthritis|ptsd|trauma|muscles?|soreness|joints?|headaches?|migraines?|fatigue|burnout|wounds?)\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "healing_ambiguous",
+        "label": "\"healing\" can read as a health claim; keep it only in proper names (e.g. a business called Healing Arts)",
+        "severity": "warn",
+        "patterns": [
+          "\\bhealing"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "cures",
+        "label": "cures",
+        "severity": "fail",
+        "patterns": [
+          "\\bcur(es|ed|ing)\\b",
+          "\\b(to|will|can|may|might|that|which|it|they|we|could|helps?|helps? to)\\s+cure\\b",
+          "#cure\\w*"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "cure_ambiguous",
+        "label": "\"cure\" as a noun (\"the cure for Monday\") still suggests an outcome; reword",
+        "severity": "warn",
+        "patterns": [
+          "\\bcure\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "treats",
+        "label": "treats (a condition)",
+        "severity": "fail",
+        "patterns": [
+          "\\btreat(s|ed|ing)?\\s+(\\w+\\s+){0,2}?(pain|aches?|injur\\w*|depression|anxiety|stress|insomnia|sleep|conditions?|symptoms?|diseases?|illness\\w*|inflamm\\w*|arthritis|ptsd|trauma|muscles?|soreness|joints?|headaches?|migraines?|fatigue|burnout|wounds?)\\b",
+          "#treat(ment)?s?\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "treat_ambiguous",
+        "label": "\"treat\"/\"treatment\" outside \"treat yourself\" or \"a treat\" can read as medical; check the context",
+        "severity": "warn",
+        "patterns": [
+          "\\btreat(s|ed|ing|ment|ments)?\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "prevents",
+        "label": "prevents (an illness or condition)",
+        "severity": "fail",
+        "patterns": [
+          "\\bprevent(s|ed|ing|ion|ive|ative)?\\s+(\\w+\\s+){0,2}?(illness\\w*|diseases?|sickness|sick|flu|colds?|dementia|aging|heart|injur\\w*|inflamm\\w*|depression|anxiety|burnout|cancer|infections?)\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "prevent_ambiguous",
+        "label": "\"prevent\" near health topics is a claim; fine for safety (\"prevent slipping\")",
+        "severity": "warn",
+        "patterns": [
+          "\\bprevent(s|ed|ing|ion|ive|ative)?\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "mental_health_conditions",
+        "label": "anxiety, depression, PTSD, trauma (as something a session fixes)",
+        "severity": "fail",
+        "patterns": [
+          "\\banxiety",
+          "\\bdepression",
+          "\\bdepressive\\b",
+          "\\bptsd",
+          "\\btrauma(s|tic)?\\b(?![- ]informed)"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "depressed_ambiguous",
+        "label": "\"depressed\" reads as a mental-health condition",
+        "severity": "warn",
+        "patterns": [
+          "\\bdepressed\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "arthritis",
+        "label": "arthritis",
+        "severity": "fail",
+        "patterns": [
+          "\\barthrit\\w*"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "pain_relief",
+        "label": "pain relief",
+        "severity": "fail",
+        "patterns": [
+          "\\bpain[ -]?relie(f|ve|ves|ving)",
+          "\\brelie(f|ve|ves|ving)( of| from)?[ -]?pain\\b",
+          "\\b(ease|eases|easing|eased|soothe|soothes|soothing)\\s+(\\w+\\s+){0,2}?(joint\\s+)?pain\\b",
+          "\\bjoint[ -]?pain\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "blood_pressure",
+        "label": "blood pressure",
+        "severity": "fail",
+        "patterns": [
+          "\\bblood[ -]?pressure"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "heart_health",
+        "label": "heart health",
+        "severity": "fail",
+        "patterns": [
+          "\\bheart[ -]?health(y)?",
+          "\\bheart[ -]?disease"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "anti_aging",
+        "label": "anti-aging, collagen, wrinkles",
+        "severity": "fail",
+        "patterns": [
+          "\\banti[ -]?ag(e|ing)",
+          "\\bcollagen",
+          "\\bwrinkl\\w*"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "illness",
+        "label": "COVID, illness, disease, sickness or flu as something a session helps with",
+        "severity": "fail",
+        "patterns": [
+          "\\bcovid",
+          "\\billness(es)?\\b",
+          "\\bdementia\\b",
+          "\\bdisease(s)?\\b",
+          "\\bsickness\\b",
+          "\\b(get|gets|getting|got)\\s+sick\\b",
+          "\\b(flu|cold|sick)[ -]?season\\b",
+          "\\b(fight|fights|fighting|beat|beats|ward(s|ing)?\\s+off|keep(s|ing)?\\s+away|avoid|recover(s|y|ing)?\\s+from|get(ting)?\\s+over|less|fewer|no\\s+more|never)\\s+(\\w+\\s+){0,2}?(sick|sickness|ill|flu|colds?(?![\\s-]*(plunges?|water|tubs?|showers?|exposure|immersion|therapy|dips?|soaks?|baths?)\\b)|bugs?|viruse?s?|infections?)\\b",
+          "#(flu|sick)\\w*"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "sick_flu_ambiguous",
+        "label": "\"sick\"/\"flu\" in a wellness post can imply a health claim; check the context",
+        "severity": "warn",
+        "patterns": [
+          "\\bsick\\b",
+          "\\bflu\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "proof_language",
+        "label": "\"science-backed\", \"clinically proven\", \"studies show\"",
+        "severity": "fail",
+        "patterns": [
+          "\\bscience[ -]?backed",
+          "\\bclinically[ -]?proven",
+          "\\bstudies[ -]?(show|prove)\\w*",
+          "\\bresearch[ -]?(shows|proves)\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "fda",
+        "label": "\"FDA-approved\" or the FDA logo (\"FDA-cleared\" only when naming the exact device and its exact cleared use)",
+        "severity": "fail",
+        "patterns": [
+          "\\bfda[ -]?(approved|cleared)"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "hormones",
+        "label": "dopamine or hormone numbers",
+        "severity": "fail",
+        "patterns": [
+          "\\bdopamine",
+          "\\bnorepinephrine",
+          "\\bnoradrenaline",
+          "\\bcortisol",
+          "\\bgrowth[ -]?hormone",
+          "\\bhormone(s)?\\b(?![- ]free)",
+          "\\bserotonin",
+          "\\btestosterone"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "breathwork_therapy",
+        "label": "\"breathwork therapy\" from anyone who isn't licensed for it",
+        "severity": "fail",
+        "patterns": [
+          "\\bbreathwork[ -]?therap(y|ies|ist|ists)\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "hedges",
+        "label": "\"May help\", \"studies suggest\" and disclaimers don't fix a claim; reword the claim itself.",
+        "severity": "warn",
+        "patterns": [
+          "\\bmay help\\b",
+          "\\bstudies suggest\\b",
+          "#?not ?medical ?advice"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "outcome_verbs",
+        "label": "Outcome promises (sleep, metabolism, soreness, recovery speed, stress levels) sell the outcome, not the experience; reword",
+        "severity": "warn",
+        "patterns": [
+          "\\b(improve[sd]?|improving|better|deeper)\\s+(your\\s+)?sleep\\b",
+          "\\bboost(s|ed|ing)?\\s+(your\\s+)?(metabolism|energy|mood|circulation|focus|recovery|performance)\\b",
+          "\\b(reduce[sd]?|reducing|less|lower(s|ed|ing)?|ease[sd]?|easing)\\s+(your\\s+)?(muscle\\s+)?soreness\\b",
+          "\\brecover(s|ing)?\\s+faster\\b",
+          "\\bfaster\\s+recovery\\b",
+          "\\bspeed(s|ing)?\\s+(up\\s+)?(your\\s+)?recovery\\b",
+          "\\b(lower(s|ed|ing)?|reduce[sd]?|reducing|cut(s|ting)?)\\s+(your\\s+)?stress(\\s+levels?)?\\b",
+          "\\bimprove[sd]?\\s+(your\\s+)?(circulation|recovery|focus|mood|performance|metabolism)\\b",
+          "\\b(soothe|soothes|soothing|ease|eases|easing)\\s+(your\\s+)?(sore|tired|achy)\\s+muscles\\b",
+          "\\bgood\\s+for\\s+(your\\s+)?(joints|heart|muscles|immune|skin|brain)\\b",
+          "\\bendorphins?\\b"
+        ],
+        "applies_to": "all"
+      }
+    ],
+    "allow_patterns": [
+      "\\btreat(ing)?\\s+(yourself|yourselves|myself|ourselves|themselves)\\b",
+      "\\ba\\s+(\\w+\\s+)?treat\\b(?!\\s+(for|of)\\b)"
+    ],
+    "allow_exact": [
+      "Talk to your doctor first if you have a heart, blood pressure or breathing condition."
+    ],
+    "modalities": {
+      "cold_plunge": {
+        "say": [
+          "Three minutes of cold. Walk out wide awake.",
+          "A challenge that leaves many people feeling energized.",
+          "Pairs well with the sauna for contrast."
+        ],
+        "never_say": [
+          "Reduces inflammation (a 2025 meta-analysis found it rises right after a plunge)",
+          "Boosts immunity",
+          "Burns fat",
+          "Heals injuries",
+          "Treats depression"
+        ]
+      },
+      "sauna": {
+        "say": [
+          "Deep, quiet heat to unwind.",
+          "A centuries-old Finnish ritual.",
+          "Relax, breathe, disconnect."
+        ],
+        "never_say": [
+          "Detox or sweat out toxins",
+          "Burns calories",
+          "Lowers blood pressure",
+          "Prevents heart disease or dementia"
+        ]
+      },
+      "red_light": {
+        "say": [
+          "Accurate device facts (\"our panels use 660 nm and 850 nm light\"), only if true",
+          "A warm, calming session"
+        ],
+        "never_say": [
+          "Anti-aging, wrinkles, collagen",
+          "Heals or reduces inflammation",
+          "\"FDA-approved\"",
+          "\"FDA-cleared\" unless it names the exact device and its exact cleared use"
+        ],
+        "device_facts": {
+          "value": null,
+          "status": "needs_katie",
+          "source": "spec p.57 Q46",
+          "note": "Panel make and model, wavelengths, and any FDA clearance (for what exactly)."
+        }
+      },
+      "breathwork": {
+        "say": [
+          "Guided breathing to help you slow down.",
+          "Feel more centered.",
+          "Learn techniques people use to relax."
+        ],
+        "never_say": [
+          "Cures anxiety",
+          "Treats depression",
+          "Heals trauma",
+          "Boosts immunity",
+          "\"Breathwork therapy\" from anyone who isn't licensed for it"
+        ]
+      }
+    },
+    "rules": [
+      {
+        "id": "visuals",
+        "text": "Visuals count. No limping-in, jogging-out stories, no before/after of bodies, skin or bloodwork."
+      },
+      {
+        "id": "testimonials",
+        "text": "Testimonials are NUMA's claims. Feature experience (\"my favorite hour of the week\"), never outcomes (\"cured my back pain\"). Never repost or pin a member's health claim."
+      },
+      {
+        "id": "education",
+        "text": "Education stays education. Ask the DPT reels can explain what research does and doesn't show, but carry no booking pitch in the same reel, and never turn Katie's credential into a promise of results."
+      },
+      {
+        "id": "titles",
+        "text": "Titles matter. Breathwork staff are \"guides\" or \"facilitators\"; only licensed counselors talk about mental health, and only within their scope."
+      },
+      {
+        "id": "safety",
+        "text": "Safety is good content. Add the safety line on cold and heat reels; never show breath-holding in or near water."
+      },
+      {
+        "id": "disclosure",
+        "text": "Paid or comped creators disclose it in the video and the first line (\"#ad\" or \"I get free sessions\"). Reviews are never bought or conditioned on being positive."
+      },
+      {
+        "id": "dosing",
+        "text": "The website's dosing line (\"57 minutes of sauna and 11 of cold a week\") is a health-dosing claim; the Director doesn't use it until counsel clears it."
+      },
+      {
+        "id": "ai_disclosure",
+        "text": "Any reel with AI-animated people or AI-generated scenes gets Instagram's AI label."
+      }
+    ],
+    "safety_line": {
+      "text": "Talk to your doctor first if you have a heart, blood pressure or breathing condition.",
+      "applies_to": [
+        "cold_plunge",
+        "sauna"
+      ],
+      "also": "Never show breath-holding in or near water.",
+      "source": "spec p.22"
+    },
+    "dosing_line": {
+      "text": "57 minutes of sauna and 11 of cold a week",
+      "status": "blocked_until_counsel",
+      "blocked": true,
+      "patterns": [
+        "\\b57\\s*(min|mins|minutes)\\b[^.!?\\n]{0,40}\\b(sauna|heat|hot)\\b",
+        "\\b(sauna|heat|hot)\\b[^.!?\\n]{0,40}\\b57\\s*(min|mins|minutes)\\b",
+        "\\b11\\s*(min|mins|minutes)?\\b[^.!?\\n]{0,30}\\b(cold|plunge|ice)\\b[^.!?\\n]{0,20}\\b(a|per|each)\\s+week\\b"
+      ],
+      "source": "spec p.22, p.57 Q47",
+      "note": "While 'blocked' is true, scanners treat these patterns as banned. Only an advertising lawyer's OK flips it."
+    }
+  },
+  "consent": {
+    "list": {
+      "location": "NUMA Reels/_Plan/Consent List",
+      "kind": "Google Sheet",
+      "columns": [
+        "name",
+        "photo",
+        "date consented",
+        "scope"
+      ],
+      "source": "spec p.49"
+    },
+    "default": "No recognizable person appears in a reel, or is sent to AI motion, without an entry on the consent list.",
+    "ai_processing_covered": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.57 Q48",
+      "note": "Until the consent form covers AI processing, no member face goes to Higgsfield."
+    },
+    "social_posts_covered": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.57 Q48"
+    },
+    "children": {
+      "value": "never",
+      "status": "needs_katie",
+      "source": "spec p.55 Q27",
+      "note": "Default: never."
+    },
+    "voice_clone": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.49 step 7, p.55 Q28",
+      "note": "Katie's cloned voice only after a recorded sample and written consent noted in the Consent List."
+    },
+    "release_form": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.55 Q25"
+    }
+  },
+  "closures": {
+    "location": "NUMA Reels/_Plan/Closures",
+    "kind": "Google Sheet or calendar",
+    "rule": "Nothing that invites people in is scheduled on a closure day.",
+    "known": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54 Q3"
+    },
+    "source": "spec p.34, p.49"
+  },
+  "drive": {
+    "_source": "spec p.32 (Drive structure), p.45 and p.49 (Digests, Consent List, Closures), DECISIONS D7 (metrics sheet)",
+    "root": "NUMA Reels",
+    "plan_dir": "_Plan",
+    "plan_sheet": "NUMA 30-Day Reel Plan",
+    "music_library": "_Plan/Music Library",
+    "music_naming": "mood_bpm_title.mp3",
+    "digests": "_Plan/Digests",
+    "consent_list": "_Plan/Consent List",
+    "closures": "_Plan/Closures",
+    "metrics_sheet": "_Plan/NUMA Reel Metrics",
+    "month_folder": "YYYY-MM Month",
+    "month_folder_example": "2026-12 December",
+    "day_folder": "Day NN - YYYY-MM-DD - Title",
+    "day_folder_example": "Day 01 - 2026-12-01 - Why we plunge",
+    "shoot_card": "SHOOT CARD",
+    "photos": "photos",
+    "clips": "clips",
+    "voiceover": "voiceover",
+    "music": "music",
+    "finished": "Finished",
+    "root_link": ""
+  },
+  "posting": {
+    "auto_post": {
+      "value": true,
+      "status": "needs_katie",
+      "source": "spec p.56 Q34",
+      "note": "Default: post automatically. Gated by legal_review_done."
+    },
+    "require_approval": {
+      "value": false,
+      "status": "needs_katie",
+      "source": "spec p.30, p.56 Q34-Q35",
+      "note": "Off-by-default approval switch."
+    },
+    "see_first": {
+      "value": [],
+      "status": "needs_katie",
+      "source": "spec p.56 Q35",
+      "note": "Default: none."
+    },
+    "legal_review_done": {
+      "value": false,
+      "status": "needs_katie",
+      "source": "spec p.2, p.20, p.57 Q51",
+      "note": "An advertising lawyer reviews the claims policy once before auto-posting is switched on."
+    },
+    "platforms": [
+      "Instagram",
+      "Facebook"
+    ],
+    "google_business_profile": "Post the week's best reel there too (spec p.50).",
+    "posting_time": {
+      "value": "late afternoon (Central)",
+      "status": "research",
+      "source": "spec p.34",
+      "note": "Re-tuned to NUMA's own data after the first 30 reels."
+    },
+    "ai_label_rule": "Switch on Instagram's AI label for any reel with AI-animated people or AI-generated scenes (spec p.22, p.50).",
+    "music_rule": "NUMA posts as a business: never trending or popular songs. Music is Katie's own or licensed, and each reel's sources.txt records the source (spec p.19).",
+    "digest_destination": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.56 Q38"
+    },
+    "legal_counsel": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "spec p.54-57 Q51"
+    }
+  },
+  "escalation": {
+    "contact": "Jude Moore",
+    "never_ask": "Katie",
+    "for": [
+      "Reconnecting Instagram after a password change (Meta error 190)",
+      "Renewing a card on Claude or Higgsfield",
+      "Approving a legal review"
+    ],
+    "rule": "Send Jude a one-line message with the exact fix and keep working around the problem (queue posts, save reels to Drive).",
+    "source": "spec p.4"
+  }
 }

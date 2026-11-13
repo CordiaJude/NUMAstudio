@@ -1,0 +1,849 @@
+{
+  "_note": "Example: the Year One reel as a schema_version 2 plan. Paths are placeholders: /YEAR_ONE_PACK/ stands for the Year One test-pack folder and /NUMA_PLUGIN/ for the plugin root; the golden harness (tests/golden_year_one.py) rewrites both prefixes before validating file existence or rendering. The v1 file example-plan-year-one.json stays as the compatibility fixture. Caption words are timed to the Year One transcript's appear times (faster-whisper small.en, after fix_transcript).",
+  "schema_version": 2,
+  "duration": 39.0,
+  "out_dir": "/YEAR_ONE_PACK/work",
+  "fps": 30,
+  "size": [
+    1080,
+    1920
+  ],
+  "quality": "final",
+  "seed": 0,
+  "accent_rgb": [
+    247,
+    214,
+    160
+  ],
+  "caption_y": 1420,
+  "font_regular": "/NUMA_PLUGIN/skills/numa-reel-editor/assets/fonts/LiberationSerif-Regular.ttf",
+  "font_italic": "/NUMA_PLUGIN/skills/numa-reel-editor/assets/fonts/LiberationSerif-Italic.ttf",
+  "hook": {
+    "text": "This is what Katie saw.",
+    "t1": 2.62
+  },
+  "shots": [
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw0.png",
+      "crop": [
+        1,
+        0,
+        840,
+        718
+      ],
+      "look": "before",
+      "t0": 0.0,
+      "t1": 2.62,
+      "z": [
+        1.0,
+        1.14
+      ],
+      "pan": [
+        0,
+        0.02
+      ],
+      "tr": "cut"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw1.png",
+      "crop": [
+        0,
+        63,
+        840,
+        659
+      ],
+      "look": "before",
+      "t0": 2.62,
+      "t1": 3.83,
+      "z": [
+        1.18,
+        1.06
+      ],
+      "pan": [
+        0.03,
+        0
+      ],
+      "tr": "punch"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw2.png",
+      "crop": [
+        145,
+        0,
+        695,
+        718
+      ],
+      "look": "before",
+      "t0": 3.83,
+      "t1": 5.11,
+      "z": [
+        1.02,
+        1.16
+      ],
+      "pan": [
+        -0.02,
+        0.02
+      ],
+      "tr": "whip"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw3.png",
+      "crop": [
+        0,
+        43,
+        840,
+        675
+      ],
+      "look": "before",
+      "t0": 5.11,
+      "t1": 5.67,
+      "z": [
+        1.2,
+        1.1
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "punch"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw4.png",
+      "crop": [
+        150,
+        0,
+        690,
+        718
+      ],
+      "look": "before",
+      "t0": 5.67,
+      "t1": 6.2,
+      "z": [
+        1.04,
+        1.14
+      ],
+      "pan": [
+        0,
+        -0.02
+      ],
+      "tr": "punch"
+    },
+    {
+      "kind": "video",
+      "src": "/YEAR_ONE_PACK/raw/clip.mp4",
+      "start": 21.0,
+      "look": "warm",
+      "t0": 6.2,
+      "t1": 9.59,
+      "z": [
+        1.02,
+        1.12
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "leakfade"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw8.png",
+      "crop": [
+        22,
+        0,
+        818,
+        718
+      ],
+      "look": "warm",
+      "t0": 9.59,
+      "t1": 14.07,
+      "z": [
+        1.0,
+        1.2
+      ],
+      "pan": [
+        0.03,
+        0.0
+      ],
+      "tr": "whip"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw0.png",
+      "crop": [
+        1,
+        0,
+        840,
+        718
+      ],
+      "look": "before",
+      "t0": 14.07,
+      "t1": 14.63,
+      "z": [
+        1.08,
+        1.1
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "flash"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw10.png",
+      "crop": [
+        0,
+        85,
+        840,
+        633
+      ],
+      "look": "warm",
+      "t0": 14.63,
+      "t1": 16.3,
+      "z": [
+        1.1,
+        1.02
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "wipe"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw5.png",
+      "crop": [
+        150,
+        0,
+        690,
+        718
+      ],
+      "look": "warm",
+      "t0": 16.3,
+      "t1": 17.44,
+      "z": [
+        1.16,
+        1.04
+      ],
+      "pan": [
+        0,
+        0.02
+      ],
+      "tr": "flash"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/9N0A9906.jpg",
+      "look": "warm",
+      "t0": 17.44,
+      "t1": 19.11,
+      "z": [
+        1.02,
+        1.14
+      ],
+      "pan": [
+        0,
+        -0.03
+      ],
+      "tr": "whip"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw9.png",
+      "crop": [
+        0,
+        43,
+        840,
+        675
+      ],
+      "look": "warm",
+      "t0": 19.11,
+      "t1": 20.2,
+      "z": [
+        1.04,
+        1.16
+      ],
+      "pan": [
+        0.02,
+        0
+      ],
+      "tr": "leakfade"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/9N0A0061.jpg",
+      "look": "warm",
+      "t0": 20.2,
+      "t1": 21.36,
+      "z": [
+        1.14,
+        1.03
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "punch"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/9N0A0014.jpg",
+      "look": "warm",
+      "t0": 21.36,
+      "t1": 22.45,
+      "z": [
+        1.02,
+        1.13
+      ],
+      "pan": [
+        0,
+        0.02
+      ],
+      "tr": "punch"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/9N0A0139.jpg",
+      "look": "warm",
+      "t0": 22.45,
+      "t1": 23.59,
+      "z": [
+        1.15,
+        1.04
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "whip"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/9N0A0072.jpg",
+      "look": "warm",
+      "t0": 23.59,
+      "t1": 25.82,
+      "z": [
+        1.02,
+        1.15
+      ],
+      "pan": [
+        -0.03,
+        0
+      ],
+      "tr": "leakfade"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw6.png",
+      "crop": [
+        0,
+        43,
+        840,
+        675
+      ],
+      "look": "warm",
+      "t0": 25.82,
+      "t1": 28.05,
+      "z": [
+        1.03,
+        1.15
+      ],
+      "pan": [
+        0.03,
+        0
+      ],
+      "tr": "punch"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/371A4425.jpg",
+      "look": "warm",
+      "t0": 28.05,
+      "t1": 30.28,
+      "z": [
+        1.15,
+        1.02
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "leakfade"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw10.png",
+      "crop": [
+        0,
+        85,
+        840,
+        633
+      ],
+      "look": "warm",
+      "t0": 30.28,
+      "t1": 30.84,
+      "z": [
+        1.16,
+        1.08
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "punch"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/9N0A9906.jpg",
+      "look": "warm",
+      "t0": 30.84,
+      "t1": 31.39,
+      "z": [
+        1.18,
+        1.1
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "punch"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/9N0A0014.jpg",
+      "look": "warm",
+      "t0": 31.39,
+      "t1": 31.95,
+      "z": [
+        1.16,
+        1.08
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "punch"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw5.png",
+      "crop": [
+        150,
+        0,
+        690,
+        718
+      ],
+      "look": "warm",
+      "t0": 31.95,
+      "t1": 32.51,
+      "z": [
+        1.18,
+        1.1
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "punch"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/9N0A0139.jpg",
+      "look": "warm",
+      "t0": 32.51,
+      "t1": 33.07,
+      "z": [
+        1.16,
+        1.08
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "punch"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/9N0A0061.jpg",
+      "look": "warm",
+      "t0": 33.07,
+      "t1": 33.62,
+      "z": [
+        1.18,
+        1.1
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "punch"
+    },
+    {
+      "src": "/YEAR_ONE_PACK/raw/raw8.png",
+      "crop": [
+        22,
+        0,
+        818,
+        718
+      ],
+      "look": "warm",
+      "t0": 33.62,
+      "t1": 34.16,
+      "z": [
+        1.16,
+        1.08
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "punch"
+    },
+    {
+      "src": "/NUMA_PLUGIN/skills/numa-reel-editor/assets/heroimage.jpg",
+      "look": "none",
+      "t0": 34.16,
+      "t1": 39.0,
+      "z": [
+        1.0,
+        1.1
+      ],
+      "pan": [
+        0,
+        0
+      ],
+      "tr": "flash"
+    }
+  ],
+  "lines": [
+    {
+      "words": [
+        [
+          "This",
+          0.68
+        ],
+        [
+          "is",
+          1.08
+        ],
+        [
+          "what",
+          1.26
+        ],
+        [
+          "Katie",
+          1.5,
+          1
+        ],
+        [
+          "saw.",
+          1.74,
+          1
+        ]
+      ],
+      "end": 2.45
+    },
+    {
+      "words": [
+        [
+          "I",
+          3.24
+        ],
+        [
+          "don't",
+          3.28
+        ],
+        [
+          "know",
+          3.38
+        ],
+        [
+          "how",
+          3.54
+        ],
+        [
+          "she",
+          3.72
+        ],
+        [
+          "does",
+          3.9
+        ],
+        [
+          "it,",
+          4.12
+        ],
+        [
+          "but",
+          5.38
+        ],
+        [
+          "she",
+          5.78
+        ],
+        [
+          "does.",
+          5.96,
+          1
+        ]
+      ],
+      "end": 6.5
+    },
+    {
+      "words": [
+        [
+          "We",
+          7.38
+        ],
+        [
+          "took",
+          7.96
+        ],
+        [
+          "a",
+          8.36
+        ],
+        [
+          "chance.",
+          8.5,
+          1
+        ]
+      ],
+      "end": 10.3
+    },
+    {
+      "words": [
+        [
+          "It's",
+          10.76
+        ],
+        [
+          "been",
+          10.98
+        ],
+        [
+          "one",
+          11.34
+        ],
+        [
+          "whole",
+          11.92
+        ],
+        [
+          "year.",
+          12.5,
+          1
+        ]
+      ],
+      "end": 13.9
+    },
+    {
+      "words": [
+        [
+          "And",
+          15.11
+        ],
+        [
+          "now",
+          15.37
+        ],
+        [
+          "we're",
+          16.09
+        ],
+        [
+          "beginning",
+          16.49
+        ],
+        [
+          "to",
+          16.81
+        ],
+        [
+          "see.",
+          17.19,
+          1
+        ]
+      ],
+      "end": 18.6
+    },
+    {
+      "words": [
+        [
+          "We",
+          19.3
+        ],
+        [
+          "are",
+          19.48
+        ],
+        [
+          "so",
+          19.56
+        ],
+        [
+          "grateful",
+          19.92
+        ],
+        [
+          "for",
+          20.4
+        ],
+        [
+          "you,",
+          20.8
+        ],
+        [
+          "Mobile.",
+          21.12,
+          1
+        ]
+      ],
+      "end": 21.6
+    },
+    {
+      "words": [
+        [
+          "Thank",
+          22.6
+        ],
+        [
+          "you",
+          23.0
+        ],
+        [
+          "for",
+          23.3
+        ],
+        [
+          "making",
+          23.7
+        ],
+        [
+          "this",
+          23.94
+        ],
+        [
+          "year",
+          24.32
+        ],
+        [
+          "awesome.",
+          25.22,
+          1
+        ]
+      ],
+      "end": 25.9
+    },
+    {
+      "words": [
+        [
+          "Looking",
+          27.02
+        ],
+        [
+          "forward",
+          27.28
+        ],
+        [
+          "to",
+          28.18
+        ],
+        [
+          "so",
+          28.58
+        ],
+        [
+          "many",
+          28.78
+        ],
+        [
+          "more.",
+          29.0,
+          1
+        ]
+      ],
+      "end": 30.25
+    }
+  ],
+  "leaks": [
+    [
+      6.2,
+      1.2,
+      0.4
+    ],
+    [
+      9.59,
+      0.6,
+      0.3
+    ],
+    [
+      14.07,
+      2.4,
+      0.3
+    ],
+    [
+      16.3,
+      0.8,
+      0.35
+    ],
+    [
+      19.11,
+      1.0,
+      0.4
+    ],
+    [
+      23.59,
+      1.0,
+      0.35
+    ],
+    [
+      28.05,
+      1.2,
+      0.4
+    ],
+    [
+      34.16,
+      1.6,
+      0.5
+    ]
+  ],
+  "endcard": {
+    "t": 34.16,
+    "logo": "/NUMA_PLUGIN/skills/numa-reel-editor/assets/Numa_Workmark_Dark.png",
+    "tagline": "Wellness Collective",
+    "subtitle": "Year one. Thank you, Mobile."
+  },
+  "signature": {
+    "type": "wipe",
+    "t": 14.63
+  },
+  "music": {
+    "source": "folder",
+    "path": "/YEAR_ONE_PACK/raw/music.mp3",
+    "license": "Supplied by NUMA in the reel folder (Year One test pack)",
+    "title": null
+  },
+  "ai": {
+    "people": false,
+    "scenes": false,
+    "label_required": false
+  },
+  "template": "transformation",
+  "meta": {
+    "slug": "year-one",
+    "title": "Year One",
+    "goal": "community",
+    "day": "2026-11-09"
+  },
+  "formats": {
+    "reach_cut": {
+      "t0": 14.07,
+      "t1": 25.82,
+      "hook": "One whole year."
+    },
+    "story": [
+      {
+        "t": 1.5,
+        "text": "This is what Katie saw."
+      },
+      {
+        "t": 15.5,
+        "text": "One whole year."
+      },
+      {
+        "t": 36.0,
+        "text": "Thank you, Mobile."
+      }
+    ],
+    "cover": {
+      "t": 15.5,
+      "title": "Year One"
+    }
+  }
+}
