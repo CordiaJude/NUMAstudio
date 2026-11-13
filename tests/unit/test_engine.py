@@ -746,3 +746,43 @@ def test_render_cache_avoids_cloud_synced_folders(tmp_path, monkeypatch):
     assert not engine.is_cloud_synced(local) and engine.cache_root(local) == local
     monkeypatch.setenv("NUMA_RENDER_CACHE", str(tmp_path / "cache"))
     assert engine.cache_root(tmp_path / "Dropbox" / "work") == tmp_path / "cache"
+
+
+def test_scrim_leaves_text_that_already_reads_untouched(plan_factory, flat_image, monkeypatch):
+    src = str(flat_image(110, name="midgrey.png"))
+    p = short_plan(plan_factory, size=[540, 960], leaks=[],
+                   shots=[{"src": src, "look": "none", "t0": 0.0, "t1": 2.0, "z": [1.0, 1.0], "tr": "cut"}])
+    p.pop("endcard")
+    with engine.Renderer(p) as r:
+        frames = [r.frame(t) for t in (0.0, 0.6, 1.2)]
+        assert all(v is None for v in r._scrims.values()) and r._scrims   # measured, not triggered
+        _, _, x0, y0, x1, y1 = r.caption_boxes[0]
+        assert _contrast(frames[2][int(y0):int(y1), int(x0):int(x1)]) >= 4.5
+    monkeypatch.setattr(engine, "LEGIBLE_TRIGGER_LUM", 10.0)   # scrim disabled
+    with engine.Renderer(p) as r:
+        for f, t in zip(frames, (0.0, 0.6, 1.2)):
+            assert np.array_equal(f, r.frame(t))
+
+
+def test_scrim_strength_is_constant_over_a_moving_shot(plan_factory, ramp_image, monkeypatch):
+    p = short_plan(plan_factory, size=[540, 960], leaks=[],
+                   lines=[{"words": [["Walk", 0.1], ["out", 0.3], ["wide", 0.5], ["awake.", 0.7, 1]], "end": 1.8}],
+                   shots=[{"src": str(ramp_image), "look": "none", "t0": 0.0, "t1": 2.0, "z": [1.0, 1.25],
+                           "pan": [0.1, 0.05], "tr": "cut"}])
+    p.pop("endcard")
+    seen = []
+    orig = engine.Renderer._apply_scrim
+
+    def spy(img, scrim, vis):
+        if scrim is not None and scrim[0].start > img.shape[0] // 2:   # the caption's scrim (not the hook's)
+            seen.append(scrim[3])
+        return orig(img, scrim, vis)
+    monkeypatch.setattr(engine.Renderer, "_apply_scrim", staticmethod(spy))
+    with engine.Renderer(p) as r:
+        first = r.frame(0.4)
+        for n in range(int(0.1 * r.fps), int(1.8 * r.fps)):
+            r.frame_index(n)
+        assert not np.array_equal(r._base_picture(0.3), r._base_picture(1.7))   # the picture really moves
+    assert len(seen) > 30 and seen[0] > 0 and len(set(seen)) == 1
+    with engine.Renderer(p) as r2:                                                 # deterministic
+        assert np.array_equal(first, r2.frame(0.4))
