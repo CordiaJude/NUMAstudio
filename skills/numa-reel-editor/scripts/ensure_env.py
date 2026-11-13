@@ -86,7 +86,12 @@ def parse_requirements(path: Path) -> list[dict]:
             raise nc.UserError(f"{path.name} line {n}: cannot read {raw.strip()!r}")
         dist = m.group(1)
         clauses = []
-        for c in [c.strip() for c in m.group(3).split(",") if c.strip()]:
+        rest = m.group(3).strip()
+        if rest.startswith("@"):  # PEP 508 direct reference (`pkg @ <url>`): presence is all that can be checked
+            if not rest[1:].strip():
+                raise nc.UserError(f"{path.name} line {n}: {raw.strip()!r} has '@' but no URL")
+            rest = ""
+        for c in [c.strip() for c in rest.split(",") if c.strip()]:
             cm = _CLAUSE_RE.match(c)
             if not cm:
                 raise nc.UserError(f"{path.name} line {n}: unsupported version clause {c!r}")

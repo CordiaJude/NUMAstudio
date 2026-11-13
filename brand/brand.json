@@ -2348,8 +2348,8 @@
         "severity": "fail",
         "label": "the sauna clears alcohol or a hangover",
         "patterns": [
-          "\\b(sweat\\w*|sauna\\w*|heat)\\b[^.!?\\n]{0,40}?\\b(alcohol|booze|hangovers?|last\\s+night'?s\\s+drinks?)\\b",
-          "\\b(alcohol|booze|hangovers?)\\b[^.!?\\n]{0,40}?\\b(sweat\\w*|sauna\\w*)\\b",
+          "\\b(sweat\\w*|sauna\\w*|heat)\\b[^.!\\n]{0,40}?\\b(alcohol|booze|hangovers?|last\\s+night'?s\\s+drinks?)\\b",
+          "\\b(alcohol|booze|hangovers?)\\b[^.!\\n]{0,40}?\\b(sweat\\w*|sauna\\w*)\\b",
           "\\b(clear|clears|clearing|flush|flushes|flushing|process|processes)\\s+(out\\s+)?(the\\s+|your\\s+)?(alcohol|booze)\\b"
         ],
         "applies_to": "all"
@@ -2360,7 +2360,7 @@
         "severity": "fail",
         "label": "red light \"restores elasticity\" (say \"supports\" or \"improves\")",
         "patterns": [
-          "\\brestor\\w*\\s+(\\w+\\s+){0,3}?elasticity\\b",
+          "\\brestor\\w*\\s+([\\w']+\\s+){0,3}?elasticity\\b",
           "\\belasticity\\b[^.!?\\n]{0,20}?\\brestor\\w*"
         ],
         "applies_to": "all"

@@ -16,11 +16,12 @@
 | T10 Setup/posting | ACCEPTED (re-review 7/7 PASS; 2 minors fixed by orchestrator) | 2 | |
 | T12 Templates/prefs/kinetic/rule41 | ACCEPTED (re-review 5/5 PASS) | 2 | minors logged |
 | T11 Integration | ACCEPTED (re-review 6/6 PASS) | 2 | |
-| T14 Claude Design carousels (v2.1) | IN REVIEW | 1 | shared asks: README, CI playwright install, post-reel re-render → T16 |
-| T15 Photo posts + carousel/image posting (v2.1) | IN REVIEW | 1 | shared asks: README, config instagram.tags post_type, CONTRACTS metrics → T16 |
+| T14 Claude Design carousels (v2.1) | REVISING (review: pass with fixes + new brand rules) | 2 | shared asks: README, CI playwright install, post-reel re-render → T16 |
+| T15 Photo posts + carousel/image posting (v2.1) | ACCEPTED (re-review PASS; consent-no always blocks) | 3 | shared asks: README, config instagram.tags post_type, CONTRACTS metrics → T16 |
 | T16 Planner/shoot cards/build/digest for new post types (v2.1) | PENDING | 0 | |
-| T17 Scheduling reliability: ensure_env, runlog watchdog, Chrome queue (v2.1) | IN PROGRESS | 1 | |
-| T18 Adaptive strategy engine + playbook (v2.1) | IN PROGRESS | 1 | |
+| T17 Scheduling reliability: ensure_env, runlog watchdog, Chrome queue (v2.1) | REVISING (review FAIL R341/R342; approval-gated posting D26) | 2 | |
+| T18 Adaptive strategy engine + playbook (v2.1) | IN PROGRESS (re-seeding from real research R1-R7) | 1 | |
+| T19 Owners' answers into brand data (v2.1) | IN PROGRESS | 1 | people/consent stay private (STATE) |
 
 ## Minor findings (all resolved)
 All minor findings logged during review rounds (example-plan whip spacing, claims gaps/false positives, finish loudness loop, render cache in synced folders, shoot_card BrokenPipe, D18 NUMA_BRAND wiring, formats/baseline sentence fragments, rule 24 counting, card clause length, analyze role guess, transcript capitals and dropped words, outro-aware caption spans, music-only reel length, myth_vs_fact hook, caption legibility over bright frames, prep colour tags, macOS CI, real-3.10 parse) were fixed in the round revisions or the final polish tasks P1-P3.

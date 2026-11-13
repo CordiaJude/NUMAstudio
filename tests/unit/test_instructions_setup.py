@@ -300,7 +300,8 @@ def test_brand_setup_rules(texts, brand):
     # defaults the spec fixes are the shipped values
     assert brand["consent"]["children"]["value"] == "never"
     assert brand["posting"]["auto_post"]["value"] is True
-    assert brand["posting"]["see_first"]["value"] == []
+    # owners' answers (2026-11-13, Q35): member posts need the member's yes first
+    assert brand["posting"]["see_first"]["value"] == ["members"]
 
 
 # ---------------------------------------------------------------------------
@@ -353,8 +354,12 @@ def test_post_reel_gates_and_flow(texts, brand):
     gates = [t.find(k) for k in ("`posting.auto_post.value`", "`posting.legal_review_done.value`",
                                  "`posting.require_approval.value`")]
     assert gates == sorted(gates)
-    assert brand["posting"]["require_approval"]["value"] is False  # the switch ships off
-    assert brand["posting"]["legal_review_done"]["value"] is False
+    # owners' answers (2026-11-13, DECISIONS D26): nothing goes out without a person approving it, and the
+    # lawyer review is waived (kept as an open gate so post-reel's legacy gate 3 doesn't block)
+    assert brand["posting"]["require_approval"]["value"] is True
+    assert brand["posting"]["human_approval_required"]["value"] is True
+    assert brand["posting"]["legal_review_done"]["value"] is True
+    assert brand["posting"]["legal_review_done"]["waived"] is True
     for needle in ["off by default", "escalation.contact", "`instagram.publishing_limit_per_24h`",
                    "`instagram.container_max_age_hours`", "never reuse", "`instagram.publish_wait_minutes`",
                    "sleep 180", "Composio file staging", "Drive public link", "video/mp4", "publicly fetchable",

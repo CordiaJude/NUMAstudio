@@ -648,23 +648,28 @@ def fit_models(posts: list[dict], pb: dict) -> dict:
             records.setdefault((var, lv), []).append({"post": p["id"], "date": p["posted"].date().isoformat() if p["posted"] else None,
                                                       "S": s, "win": bool(won), "final": p["status"] == "final",
                                                       "january": p["january"]})
+    n = len(judged)
+    prior_decay = gamma ** n          # R6: all counts, the priors' pseudo-counts too, decay by gamma per new post (floor Beta(1,1))
     arms: dict[tuple[str, str], dict] = {}
     for key in set(ev) | set(records):
-        a0, b0 = arm_prior(pb, *key)
-        wa, wb = ev.get(key, [0.0, 0.0])
-        arms[key] = {"alpha": a0 + wa, "beta": b0 + wb, "records": records.get(key, [])}
-        arms[key]["mean"] = arms[key]["alpha"] / (arms[key]["alpha"] + arms[key]["beta"])
-    n = len(judged)
+        arms[key] = make_arm(pb, key, prior_decay, ev.get(key, [0.0, 0.0]), records.get(key, []))
     return {"arms": arms, "cohorts": cohort, "lambda": min(1.0, n / float(lp["data_led_after_posts"])), "judged": n,
+            "prior_decay": prior_decay,
             "final": sum(p["status"] == "final" for p in judged), "provisional": sum(p["status"] == "provisional" for p in judged)}
 
 
+def make_arm(pb: dict, key: tuple[str, str], prior_decay: float, ev: list[float], records: list[dict]) -> dict:
+    a0, b0 = arm_prior(pb, *key)
+    a = 1.0 + (a0 - 1.0) * prior_decay + ev[0]
+    b = 1.0 + (b0 - 1.0) * prior_decay + ev[1]
+    return {"alpha": a, "beta": b, "records": records, "mean": a / (a + b)}
+
+
 def arm(fits: dict, pb: dict, var: str, level: str) -> dict:
-    """An arm's posterior (its prior when NUMA has no data on it yet)."""
+    """An arm's posterior (its decayed prior when Numa has no data on it yet)."""
     if (var, level) in fits["arms"]:
         return fits["arms"][(var, level)]
-    a0, b0 = arm_prior(pb, var, level)
-    return {"alpha": a0, "beta": b0, "records": [], "mean": a0 / (a0 + b0)}
+    return make_arm(pb, (var, level), fits.get("prior_decay", 1.0), [0.0, 0.0], [])
 
 
 def decision_stats(records: list[dict], january: bool = True) -> dict:
@@ -1180,17 +1185,21 @@ class Planner:
         feed = [r for r in rows if r["kind"] in ("reel", "carousel", "image")]
         n_explore = int(round(float(self.lp["explore_share"]) * len(feed)))
         protected = [r for r in feed if not (r.get("sales") or r.get("event_role") or r.get("signature") or r.get("collab"))]
-        order = [v for v in self.lp["test_order"] if v in ("hook", "structure", "cta")] or ["hook"]
-        cycle = [order[0], order[1 % len(order)], order[0], order[2 % len(order)]]
+        current = self.current_test_variable()
+        r_note = f"testing {current} first (R6 test order: {', '.join(self.lp['test_order'])})"
         tested: dict[int, str] = {}
-        for i, j in enumerate(list(rng.permutation(len(protected)))[:n_explore] if protected else []):
-            tested[id(protected[int(j)])] = cycle[i % len(cycle)]
+        for j in (list(rng.permutation(len(protected)))[:n_explore] if protected else []):
+            tested[id(protected[int(j)])] = current
+        plan["_test_note"] = r_note
         for r in rows:
             if r["kind"] == "trial_reel":
                 tested[id(r)] = "hook"        # Trial Reels test hooks, on top of the explore share (trial-only pool)
         cap = float(self.lp["max_pattern_share_month"])
         hook_rows = [r for r in rows if r["kind"] in ("reel", "trial_reel", "carousel", "image")]
         limit = max(1, int(math.floor(cap * len(hook_rows) + 1e-9)))
+        week_rows: dict[str, int] = {}
+        for r in hook_rows:
+            week_rows[r["strategy"]["week"]] = week_rows.get(r["strategy"]["week"], 0) + 1
         used: dict[str, int] = {}
         week_used: dict[tuple[str, str], int] = {}
         diag = self.diagnosis_bonus()
@@ -1209,7 +1218,8 @@ class Planner:
             r["strategy"]["goal"] = goal
             chosen: list[str] = []
             if ptype != "story":
-                hook = self.pick(r, dr, "hook", ptype, goal, var == "hook", diag, used, limit, week_used)
+                wk_limit = max(1, int(math.ceil(cap * week_rows.get(wk, 1) - 1e-9)))   # the 40% cap, spread over the weeks
+                hook = self.pick(r, dr, "hook", ptype, goal, var == "hook", diag, used, limit, week_used, wk_limit)
                 if hook:
                     used[hook] = used.get(hook, 0) + 1
                     week_used[(wk, hook)] = week_used.get((wk, hook), 0) + 1
@@ -1220,7 +1230,7 @@ class Planner:
                     tmpl = self.pb["patterns"][st].get("templates") or []
                     if r["kind"] in ("reel", "trial_reel") and tmpl and not (r.get("event_role") or r.get("signature") or r.get("sales")):
                         r["template"] = tmpl[0]
-                extra = self.pick(r, dr, "offer" if r.get("sales") else "cta", ptype, goal, var == "cta", diag, {}, 99, {})
+                extra = self.pick(r, dr, "offer" if r.get("sales") else "cta", ptype, goal, var == "cta", diag, {}, 99, {}, 99)
                 if extra:
                     chosen.append(extra)
             r["pattern_ids"] = chosen
@@ -1235,6 +1245,22 @@ class Planner:
             moms = [m["id"] for m in self.moments if r["date"] in m["dates"] and m["group"] != "monthly"]
             if moms:
                 r["moments"] = moms
+
+    def current_test_variable(self) -> str:
+        """The first variable in R6's test order that is not settled yet (a proven arm, or every arm in its pool tried enough)."""
+        need = float(self.lp["promote"]["min_tries"])
+        kinds = {"hook": ("hook",), "structure": STRUCTURE_KINDS, "cta": ("cta",)}
+        for var in self.lp["test_order"]:
+            if var not in kinds:
+                continue                       # format: the weekly allocation; time: the blocked rotation
+            pats = [p for p in self.pb["patterns"].values() if p["kind"] in kinds[var] and p["status"] != "retired"]
+            if any(p["status"] == "proven" for p in pats):
+                continue
+            testing = [p for p in pats if p["status"] == "testing"]
+            if any(self.pstat(p["id"], "reel" if var != "structure" or p["kind"] == "structure" else p["formats"][0])["tries"] < need
+                   for p in testing):
+                return var
+        return next((v for v in self.lp["test_order"] if v in kinds), "hook")
 
     def row_goal(self, r: dict) -> str:
         if r.get("sales") or r.get("event_role") == "teaser" or r.get("goal") == "offer":
@@ -1297,8 +1323,13 @@ class Planner:
         if explore:
             pool = [p for p in pats if p["status"] != "proven"] or pats
             lo, hi = self.lp["arms_per_variable"]
-            ranked = sorted(pool, key=lambda p: (-(self.pstat(p["id"], ptype)["mean"] + self.fit_bonus(p, r, goal, diag)), p["id"]))
-            pool = ranked[:max(int(lo), int(hi))]
+            need = float(self.lp["promote"]["min_tries"])
+
+            def rank(p: dict) -> tuple:
+                done = self.pstat(p["id"], ptype)["tries"] >= need
+                return (p["status"] != "testing", done, p.get("priority", 99), p["id"])
+            # R6: 3-5 arms at a time, in test-first order; an arm with enough tries makes room for the next
+            pool = sorted(pool, key=rank)[:max(int(lo), int(hi))]
             scored = []
             for p in pool:
                 st = self.pstat(p["id"], ptype)
@@ -1323,9 +1354,11 @@ class Planner:
                 f"P(beats median) {st['mean']:.0%})")
 
     def pick(self, r: dict, dr: Draws, kind: str, ptype: str, goal: str, explore: bool, diag: dict,
-             used: dict, limit: int, week_used: dict) -> str | None:
-        pats = [p for p in self.candidates((kind,), ptype, r) if used.get(p["id"], 0) < limit]
-        penalty = {p["id"]: 0.05 * week_used.get((r["strategy"]["week"], p["id"]), 0) for p in pats}   # keep exploit varied
+             used: dict, limit: int, week_used: dict, week_limit: int) -> str | None:
+        wk = r["strategy"]["week"]
+        pats = [p for p in self.candidates((kind,), ptype, r)
+                if used.get(p["id"], 0) < limit and week_used.get((wk, p["id"]), 0) < week_limit]
+        penalty: dict[str, float] = {}     # hook fatigue is handled by the monthly cap (R6: 40% per pattern)
         got = self.choose(r, dr, pats, ptype, goal, explore, diag, penalty)
         if not got:
             return None
@@ -1384,6 +1417,7 @@ def month_plan(pb: dict, fits: dict, month_text: str, seed: int | None, events: 
     assert plan is not None
     planner.pattern_slots(plan)
     plan.pop("_draws", None)
+    test_note = plan.pop("_test_note", "")
     for r in plan["rows"]:
         r.pop("_protect", None)
     overridden = len(tried) > 1
@@ -1395,6 +1429,7 @@ def month_plan(pb: dict, fits: dict, month_text: str, seed: int | None, events: 
                    "format when share x (Beta win-rate draw difference) > stickiness; patterns are Thompson-sampled from day one",
         "explore_share": planner.lp["explore_share"],
         "time_slot": planner.time_plan()[2],
+        "explore_variable": test_note,
         "explore_slots": sum(r.get("strategy", {}).get("mode") == "explore" for r in plan["rows"]),
         "pattern_slots": sum(bool(r.get("pattern_ids")) for r in plan["rows"]),
         "moments": planner.moments,

@@ -1,5 +1,5 @@
 {
-  "_readme": "Numa's pattern library: 31 hook patterns (docs/research/R1_Hooks.md), 16 script structures (R3), 12 carousel templates and 9 single-photo types (R4), plus CTA, offer-framing and growth seeds (spec and the developer-kit research). Seeded by strategy.py's research importer and corrected by docs/research/REVIEW.md, where Numa's facts and rules win: 'Numa' never 'NUMA', plunges 44-52°F and sauna 175-190°F, no stated sauna capacity, no Clinical Conversations (cancelled), no emojis, no trending songs (trend-audio-sync became beat-sync-original-sound), member words photo-led only (no quote cards), no unconfirmed amenities (robes, tea, lockers), R4's yoga-studio copy replaced (its slide structure kept). owner_signal records what the owners' own posts showed (real people, collabs, walk-out lines, event recaps and member testimony worked; graphics and posters flopped): those priors count more than research. No seed is 'proven': that is earned only from Numa's own posts (strategy.py learn). Every example and template passes claims_scan.py (tests/unit/test_strategy.py). This file changes only with a plugin release; learned statuses live in STATE/strategy.json.",
+  "_readme": "Numa's pattern library: 31 hook patterns (docs/research/R1_Hooks.md), 16 script structures (R3), 12 carousel templates and 9 single-photo types (R4), plus CTA, offer-framing and growth seeds (spec and the developer-kit research). Seeded by strategy.py's research importer and corrected by docs/research/REVIEW.md, where Numa's facts and rules win: 'Numa' never 'NUMA', plunges 44-52°F and sauna 175-190°F, no stated sauna capacity, no Clinical Conversations (cancelled), no emojis, no trending songs (trend-audio-sync became beat-sync-original-sound), member words photo-led only (no quote cards), no unconfirmed amenities (robes, tea, lockers), R4's yoga-studio copy replaced (its slide structure kept). owner_signal records what the owners' own posts showed (real people, collabs, walk-out lines, event recaps and member testimony worked; graphics and posters flopped): those priors count more than research. Hook priority follows R1's 'The 10 to Test First' (those and the owners' winners start as testing, the rest as candidates, so 3-5 arms are tested at a time, R6). No seed is 'proven': that is earned only from Numa's own posts (strategy.py learn). Every example and template passes claims_scan.py (tests/unit/test_strategy.py). This file changes only with a plugin release; learned statuses live in STATE/strategy.json.",
   "schema_version": 1,
   "kind": "patterns",
   "patterns": [
@@ -77,7 +77,7 @@
       "hook_types": [
         "first_timer"
       ],
-      "priority": 2
+      "priority": 3
     },
     {
       "id": "timer-challenge",
@@ -108,7 +108,7 @@
       "try_instead": [],
       "origin": "seed",
       "visual": "Large running timer graphic over a person in the plunge or sauna.",
-      "priority": 3
+      "priority": 4
     },
     {
       "id": "steam-pour",
@@ -140,7 +140,7 @@
       "try_instead": [],
       "origin": "seed",
       "visual": "Ladle mid-pour, steam already rising off the stones. Warm, dark, high contrast.",
-      "priority": 4
+      "priority": 2
     },
     {
       "id": "sound-first-asmr",
@@ -171,7 +171,7 @@
       ],
       "origin": "seed",
       "visual": "A close-up of the sound source (stones, water surface, cedar door) with the caption in large type for mute viewers.",
-      "priority": 5
+      "priority": 11
     },
     {
       "id": "pov-first-visit",
@@ -202,7 +202,7 @@
       "try_instead": [],
       "origin": "seed",
       "visual": "First-person shot already moving through the door or toward the sauna. Movement starts at frame 0, not after.",
-      "priority": 6
+      "priority": 12
     },
     {
       "id": "temp-split",
@@ -237,7 +237,7 @@
       "hook_types": [
         "reveal"
       ],
-      "priority": 7
+      "priority": 13
     },
     {
       "id": "myth-or-question",
@@ -274,7 +274,7 @@
         "question",
         "myth"
       ],
-      "priority": 8
+      "priority": 14
     },
     {
       "id": "first-timer-faq",
@@ -335,7 +335,7 @@
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win).",
         "confidence": "low"
       },
-      "status": "testing",
+      "status": "candidate",
       "when_not": "if \"reality\" implies outcomes (\"you'll leave pain-free\"). If it underperforms: let a member deliver it (`member-experience-voice`).",
       "try_instead": [],
       "origin": "seed",
@@ -343,7 +343,7 @@
       "hook_types": [
         "reveal"
       ],
-      "priority": 10
+      "priority": 15
     },
     {
       "id": "price-anchor",
@@ -370,7 +370,7 @@
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
-      "status": "candidate",
+      "status": "testing",
       "when_not": "in Trial Reels to cold non-local audiences. The price means nothing outside Mobile.",
       "try_instead": [
         "plunge-entry"
@@ -380,7 +380,7 @@
       "pillars": [
         "offers_events"
       ],
-      "priority": 11
+      "priority": 6
     },
     {
       "id": "local-callout",
@@ -406,7 +406,7 @@
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
-      "status": "candidate",
+      "status": "testing",
       "when_not": "in back-to-back weeks, because it reads as a billboard. If it underperforms: make it about a specific local moment (`seasonal-weather`).",
       "try_instead": [],
       "origin": "seed",
@@ -418,7 +418,7 @@
       "hook_types": [
         "local"
       ],
-      "priority": 12
+      "priority": 5
     },
     {
       "id": "seasonal-weather",
@@ -458,7 +458,7 @@
       "hook_types": [
         "local"
       ],
-      "priority": 13
+      "priority": 16
     },
     {
       "id": "event-crowd",
@@ -497,7 +497,7 @@
         "community"
       ],
       "owner_signal": "worked",
-      "priority": 14
+      "priority": 7
     },
     {
       "id": "story-countdown",
@@ -521,7 +521,7 @@
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
-      "status": "testing",
+      "status": "candidate",
       "when_not": "more than one countdown at a time. If it underperforms: open on a video clip from the last event, then put the sticker on frame 2.",
       "try_instead": [],
       "origin": "seed",
@@ -533,7 +533,7 @@
         "tease",
         "announcement"
       ],
-      "priority": 15
+      "priority": 17
     },
     {
       "id": "send-this-to",
@@ -563,7 +563,7 @@
       "try_instead": [],
       "origin": "seed",
       "visual": "Two people reacting together, line on screen.",
-      "priority": 16
+      "priority": 8
     },
     {
       "id": "bring-a-friend-duo",
@@ -597,7 +597,7 @@
       "origin": "seed",
       "visual": "Two people at the plunge edge, mid-countdown or mid-laugh.",
       "owner_signal": "worked",
-      "priority": 17
+      "priority": 8
     },
     {
       "id": "instructor-mid-sentence",
@@ -658,7 +658,7 @@
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
-      "status": "testing",
+      "status": "candidate",
       "when_not": "if it prescribes times or temperatures as health dosing. Say \"how we run it here\" and \"go at your own pace.\" If it underperforms: make slide 2 the most visual step (the plunge), per the re-serve mechanic.",
       "try_instead": [],
       "origin": "seed",
@@ -837,7 +837,7 @@
       "series": [
         "regulate"
       ],
-      "priority": 24
+      "priority": 10
     },
     {
       "id": "stillness-break",
@@ -866,7 +866,7 @@
       "try_instead": [],
       "origin": "seed",
       "visual": "Glass-still plunge water, a single ripple.",
-      "priority": 25
+      "priority": 24
     },
     {
       "id": "number-cover",
@@ -901,7 +901,7 @@
       "hook_types": [
         "number"
       ],
-      "priority": 26
+      "priority": 25
     },
     {
       "id": "myth-not-required",
@@ -934,7 +934,7 @@
       ],
       "origin": "seed",
       "visual": "Relatable, non-athletic member in a towel, smiling.",
-      "priority": 27
+      "priority": 26
     },
     {
       "id": "collab-local-face",
@@ -972,7 +972,7 @@
         "meet_the_collective"
       ],
       "owner_signal": "worked",
-      "priority": 28
+      "priority": 27
     },
     {
       "id": "beat-sync-original-sound",
@@ -1002,7 +1002,7 @@
       "try_instead": [],
       "origin": "seed",
       "visual": "Person poised at the plunge edge, ready to drop on the beat.",
-      "priority": 29
+      "priority": 28
     },
     {
       "id": "slide2-rehook",
@@ -1031,7 +1031,7 @@
       "try_instead": [],
       "origin": "seed",
       "visual": "A different shot type from slide 1 (if 1 is a room, 2 is a face).",
-      "priority": 30
+      "priority": 9
     },
     {
       "id": "poll-first-frame",
@@ -1056,12 +1056,12 @@
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
-      "status": "testing",
+      "status": "candidate",
       "when_not": "daily. Poll fatigue sets in. If it underperforms: use a quiz sticker (\"How hot is our sauna?\") with the answer on frame 2.",
       "try_instead": [],
       "origin": "seed",
       "visual": "Split hot/cold image with the poll centered.",
-      "priority": 31
+      "priority": 29
     },
     {
       "id": "struct-myth-vs-fact",
