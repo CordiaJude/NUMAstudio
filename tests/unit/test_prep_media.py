@@ -21,6 +21,13 @@ import vision
 BRAND = Path(numa_common.BRAND_PHOTOS_DIR)
 
 
+# The dark clips darken a full-range JPEG with eq, which works on the YUV values it is given. ffmpeg 6
+# hands eq limited-range YUV; ffmpeg 7+ keeps the JPEG's full range, so the same eq settings leave the
+# clip noticeably brighter (mean luma 0.26 instead of 0.22, no longer dark). Convert to limited range
+# explicitly first: the same pixels on every ffmpeg version (identical to ffmpeg 6's frames).
+TO_LIMITED = "out_range=tv,format=yuv420p"
+
+
 def ffmpeg(*args, data: bytes | None = None) -> None:
     subprocess.run([numa_common.ffmpeg_bin(), "-hide_banner", "-v", "error", "-y", *map(str, args)],
                    input=data, check=True)
@@ -67,12 +74,12 @@ def job(tmp_path_factory):
     walk_clip(raw / "c0_shaky.mp4", amp=0.012)
     ffmpeg("-loop", "1", "-i", BRAND / "breathwork-class.jpg", "-f", "lavfi",
            "-i", "sine=frequency=300:sample_rate=48000:duration=3", "-t", "3",
-           "-vf", "scale=480:-2,crop=240:320,eq=brightness=-0.3:contrast=0.6,fps=30",
+           "-vf", f"scale=480:-2:{TO_LIMITED},crop=240:320,eq=brightness=-0.3:contrast=0.6,fps=30",
            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest",
            raw / "c1_dark.mp4")
     walk_clip(raw / "c2_shaky_face.mp4", amp=0.01, size=(360, 640), photo="cold-plunge.jpg")
     ffmpeg("-loop", "1", "-i", BRAND / "sauna-people.jpg", "-t", "2",
-           "-vf", "scale=360:540,eq=brightness=-0.3:contrast=0.5,fps=30",
+           "-vf", f"scale=360:540:{TO_LIMITED},eq=brightness=-0.3:contrast=0.5,fps=30",
            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", raw / "c3_dark_faces.mp4")
     with Image.open(BRAND / "sauna-people.jpg") as im:
         rgb = np.asarray(im.convert("RGB").resize((360, 540))).astype(np.float32)

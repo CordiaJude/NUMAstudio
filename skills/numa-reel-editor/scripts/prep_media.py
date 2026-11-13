@@ -67,6 +67,9 @@ X264 = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-profile:v", "h
         "-threads", "4", "-x264-params", "threads=4:lookahead_threads=1"]
 OPENCV_COLOR_TAGS = ["-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709",
                      "-color_trc", "bt709"]
+# the same tags on the frames themselves: ffmpeg 7+ takes the encoder's colour description from the
+# frames (piped raw RGB frames have none) and drops primaries/transfer set only as output options
+OPENCV_COLOR_FRAMES = "setparams=range=tv:color_primaries=bt709:color_trc=bt709:colorspace=bt709"
 BITEXACT = ["-map_metadata", "-1", "-map_chapters", "-1", "-fflags", "+bitexact", "-flags:v", "+bitexact",
             "-flags:a", "+bitexact", "-movflags", "+faststart"]
 
@@ -118,8 +121,38 @@ def audio_args(info: dict, input_index: int) -> list[str]:
     return ["-map", f"{input_index}:a:0", *codec]
 
 
+_RANGE: dict[str, str | None] = {}
+
+
+def color_range(path: str) -> str | None:
+    """The video stream's color_range tag ('tv', 'pc', ...; None when unknown or without ffprobe)."""
+    fp = Path(path).resolve()
+    try:
+        st = fp.stat()
+        key = f"{fp}|{st.st_size}|{st.st_mtime_ns}"
+    except OSError:
+        return None
+    if key not in _RANGE:
+        val = None
+        try:
+            data = nc.ffprobe_json(fp)
+        except nc.UserError:
+            data = {}
+        for st in data.get("streams") or []:
+            if st.get("codec_type") == "video":
+                val = st.get("color_range") or None
+                break
+        _RANGE[key] = val
+    return _RANGE[key]
+
+
 def full_range(info: dict) -> bool:
-    return str(info.get("pix_fmt") or "").startswith("yuvj")
+    """Full-range (0-255) luma: a yuvj* pixel format (ffmpeg 6 and older) or a yuv* stream tagged
+    color_range pc/jpeg (ffmpeg 7+ writes full range that way, as do some phones)."""
+    if str(info.get("pix_fmt") or "").startswith("yuvj"):
+        return True
+    rng = info["color_range"] if "color_range" in info else (color_range(info["path"]) if info.get("path") else None)
+    return str(rng or "").lower() in ("pc", "jpeg", "full")
 
 
 def brighten_filter(gamma: float, full: bool) -> str:
@@ -133,13 +166,16 @@ def brighten_filter(gamma: float, full: bool) -> str:
 
 
 def clip_luma(path: str, info: dict, duration: float):
-    """Luma samples (0-1 in the clip's range) from frames at 2 fps, 320 px wide."""
+    """Luma samples (0-1, black to white) from frames at 2 fps, 320 px wide.
+
+    ffmpeg's gray conversion already maps the clip's own range (limited 16-235 or full 0-255, whatever
+    its tags say) onto 0-255, so the samples are the real luma for either range; scaling them again
+    for a limited-range clip would read every clip darker than it is."""
     import numpy as np
     proc = nc.run([nc.ffmpeg_bin(), "-hide_banner", "-nostdin", "-v", "error", "-i", path, "-an", "-sn",
                    "-t", f"{duration:.3f}", "-vf", "fps=2,scale=320:-2,format=gray", "-f", "rawvideo", "-"],
                   what=f"ffmpeg luma {Path(path).name}")
-    y = np.frombuffer(proc.stdout, dtype=np.uint8).astype(np.float64)
-    return y / 255.0 if full_range(info) else np.clip((y - 16.0) / 219.0, 0.0, 1.0)
+    return np.frombuffer(proc.stdout, dtype=np.uint8).astype(np.float64) / 255.0
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +342,7 @@ def stabilize_opencv(src: str, info: dict, dst: Path, gamma: float, scratch: Pat
     vf = "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p"
     if gamma > 1.0:
         vf += "," + brighten_filter(gamma, full=False)
+    vf += "," + OPENCV_COLOR_FRAMES
     cmd += ["-vf", vf, *OPENCV_COLOR_TAGS, "-fps_mode", "cfr", *_encode_out(tmp)]
     enc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     cx, cy = W2 / 2.0, H2 / 2.0
