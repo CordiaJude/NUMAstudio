@@ -926,8 +926,8 @@ Collective a month, event teaser/recap windows); exit 1 on violations.
 
 ### photo_post.py [T15]
 ```
-photo_post.py single PHOTO --out OUT [--text TEXT] [--look warm|none] [--slug S] [--consent] [--library FILE] [--blur-faces] [--json]
-photo_post.py carousel PHOTOS... --out OUT [--texts FILE] [--look warm|none] [--slug S] [--consent] [--library FILE] [--blur-faces] [--json]
+photo_post.py single PHOTO --out OUT [--text TEXT] [--look warm|none] [--slug S] [--consent] [--library FILE] [--blur-faces] [--people-free] [--json]
+photo_post.py carousel PHOTOS... --out OUT [--texts FILE] [--look warm|none] [--slug S] [--consent] [--library FILE] [--blur-faces] [--people-free PHOTO ...] [--json]
 ```
 Feed photo posts at 1080x1350 (4:5) rendered by engine.py from a one-shot
 plan (the reels' look, bloom, vignette and grain), framed on vision.py's
@@ -938,10 +938,17 @@ with the engine's legibility scrim; it moves to the bottom when an unblurred
 face is under it. `carousel`: 2-10 photos or folders (name order) into OUT as
 `<slug>_carousel_NN.jpg` (01, 02, ...; earlier ones replaced); `--texts` is a
 JSON list or one line per slide. Every text is claims-scanned (banned claim:
-exit 1). Consent: a photo with detected faces needs `--consent` (Consent List
-checked) or a `--library` index entry with consent yes; otherwise exit 1
-unless `--blur-faces`. Deterministic bytes. `--json` prints `{ok, kind, files,
-slides: [{file, src, text, faces, consent, blurred, focus, text_position, upscale}]}`.
+exit 1). People: detectors only ever say yes, so every photo needs a recorded
+basis, reported as `people_basis`: `consent` (`--consent`, Consent List
+checked), `library_consent` (`--library` entry with consent yes),
+`library_tag_no` (library entry with people no and `people_source` "tag"),
+`people_free_flag` (`--people-free` after LOOKING: single takes the flag,
+carousel names each photo, repeatable) or `blurred` (`--blur-faces` and
+detected faces, all blurred). None: exit 1. `--blur-faces` alone never passes
+a photo with no detected face; faces on a photo marked people-free need
+`--blur-faces` or consent; library consent no is never overridden.
+Deterministic bytes. `--json` prints `{ok, kind, files, slides: [{file, src,
+text, faces, consent, people_basis, blurred, focus, text_position, upscale}]}`.
 
 ### design_render.py [T14]
 ```

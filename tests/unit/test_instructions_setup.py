@@ -476,6 +476,9 @@ def test_post_reel_image_gates_and_rules(texts, brand, config):
                    "Facebook never blocks Instagram", "Meta Business Suite", "Never publish the same carousel or photo twice",
                    "code 9007", "section 8", "never a question", "STATE/consent_list.json", "--blur-faces",
                    "photo_post.py\" carousel", "photo_post.py\" single", "LOOK at every slide",
+                   "`--people-free`", "only ever says yes", "Never pass `--people-free` for a photo you have not looked at",
+                   "`people_basis`", "other than `people_free_flag` or `library_tag_no`", "`max_wait_seconds`",
+                   '"mimetype": "image/jpeg"', "`s3key`",
                    "_carousel_NN.jpg", "read as a number", "Never ask Katie anything"]:
         assert needle in sec, needle
     assert "socials.facebook" in sec and resolve(brand, "socials.facebook")
@@ -494,3 +497,9 @@ def test_post_reel_post_types_match_metrics():
     sec = body(CMD["post-reel"])
     assert "reel, carousel, image, story, trial_reel" in sec
     assert tuple("reel, carousel, image, story, trial_reel".split(", ")) == metrics.POST_TYPES
+
+
+def test_post_reel_prefers_public_urls(texts):
+    sec = _section12(texts)
+    step = sec[sec.find("**3. Public image URLs**"):sec.find("**4. Limits")]
+    assert step.find("Drive public link (first choice, `image_url`)") < step.find("Composio file staging (fallback, `image_file`)")

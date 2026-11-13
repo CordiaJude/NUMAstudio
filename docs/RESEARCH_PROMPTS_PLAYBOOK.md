@@ -83,3 +83,34 @@ Research practical methods for a small Instagram account (20-25 posts a month) t
 
 Deliver: (1) a recommended scoring formula per goal with weights and why; (2) decision rules with thresholds (e.g. "promote a hook pattern after N tries if its median score beats the account median by X"); (3) an explore/exploit policy suited to ~20 posts a month (how many slots to spend on experiments, which variables to test first); (4) pitfalls and how to avoid them (novelty effects, follower growth changing baselines, viral outliers); (5) sources for each recommendation, with evidence level.
 ```
+
+## R7: How long to wait before judging a post
+
+Save the result as `R7 Judging windows`. NUMA Studio imports it into the playbook's judging-window policy, which replaces the spec default of an early read at 72 h and a final score at 7 days.
+
+```
+Context: [same NUMA context as above]
+
+Research how long a small Instagram business account (under 5,000 followers, 20-25 posts a month) should wait after posting before judging how a post performed, for each post type: Reels, Trial Reels, carousels, single-image posts, and Stories. Use, in this order: Meta/Instagram official documentation (Graph API insights data delay, metric availability windows, Stories' 24-hour insights limit, Trial Reels test period), statements from Instagram leadership (Mosseri), measured studies of view and engagement accumulation over time (Socialinsider, Buffer, Metricool, Later, Hootsuite, Emplifi, Dash Hudson, academic papers), then practitioner reports. Separate what is measured from what is observed or opinion, and say when a source is about large accounts only.
+
+Answer:
+1. Data lag: how long Instagram insights take to become complete and stable for each metric (reach, views, plays, average watch time, skip rate, likes, comments, saves, shares/sends, profile visits, follows), with sources.
+2. Accumulation curves: what share of a post's eventual reach and engagement typically arrives by 24 h, 48 h, 72 h, 7 days, 14 days and 30 days, per post type and for small accounts. Do saves and sends accumulate more slowly than likes? How does a long tail (Reels resurfacing, Explore, search, sends) change this?
+3. Early indicators: which early metrics (for example the first 24-72 h skip rate, average watch time, or sends per reach) predict the 7-day or 30-day result well enough to act on early, with correlation or accuracy figures if they exist.
+4. Trial Reels: when its results are final, and what to compare against.
+5. Stories: how to capture data before the 24-hour limit, and when to judge.
+6. Pitfalls: posts that start slowly and grow, posts boosted by a collab or a share, weekends and holidays, and how to avoid judging too early or too late.
+
+Deliver a table with ONE row per post type (reel, trial_reel, carousel, image, story) and exactly these columns:
+- post_type
+- ignore_before_hours (no judgment before this)
+- provisional_hours (early read)
+- provisional_weight (0-1, how much an early read should count)
+- final_hours (when the score is final)
+- best_early_metric (the metric to read first, and why)
+- evidence: measured | observed | opinion
+- confidence: high | medium | low
+- sources (links)
+- how to verify on NUMA's own data (for example: compare 72 h against 7 d scores after 20 posts and adjust the weight)
+Then list any metric-specific exceptions (for example "saves: judge at 7 d, not 72 h") in the same column format, with a metric column added.
+```

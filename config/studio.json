@@ -18,7 +18,8 @@
       "scout": "sonnet",
       "librarian": "haiku",
       "copywriter": "haiku",
-      "designer": "sonnet"
+      "designer": "sonnet",
+      "strategist": "sonnet"
     },
     "effort": {
       "director": "high",

@@ -378,6 +378,11 @@ def post_type_of(post: dict) -> str:
     return "trial_reel" if tags.get("trial_reel") is True else "reel"
 
 
+def article(word: str) -> str:
+    """'a carousel', 'an image'."""
+    return f"{'an' if word[:1] in 'aeiou' else 'a'} {word}"
+
+
 def drop_video_only(metrics: dict, post_type: str, where: str) -> dict:
     """A carousel's or image's metrics without watch time or skip rate (WARN for each dropped)."""
     if post_type in VIDEO_TYPES:
@@ -385,7 +390,7 @@ def drop_video_only(metrics: dict, post_type: str, where: str) -> dict:
     out = {}
     for k, v in metrics.items():
         if k in VIDEO_ONLY_METRICS:
-            nc.warn(f"{where}: {k} does not apply to a {post_type} post; ignored")
+            nc.warn(f"{where}: {k} does not apply to {article(post_type)} post; ignored")
             continue
         out[k] = v
     return out
@@ -443,7 +448,7 @@ def store_problems(data: Any) -> list[str]:
                 if k in banned:
                     out.append(f"reels.{rid}.pulls.{label}.metrics.{k}: retired metric")
                 elif k in VIDEO_ONLY_METRICS and ptype not in VIDEO_TYPES:
-                    out.append(f"reels.{rid}.pulls.{label}.metrics.{k}: a {ptype} post has no {k}")
+                    out.append(f"reels.{rid}.pulls.{label}.metrics.{k}: {article(ptype)} post has no {k}")
                 elif isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0:
                     out.append(f"reels.{rid}.pulls.{label}.metrics.{k}: not a number >= 0")
     acct = data.get("account", {})

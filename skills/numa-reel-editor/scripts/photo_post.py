@@ -41,7 +41,9 @@ bloom, vignette and bottom gradient, and the seeded film grain.
   Without one the run is an ERROR. ``--blur-faces`` alone never passes a photo
   with no detected face (there is nothing to blur, the people may still be
   there). Faces found on a photo marked people-free (tag or flag) need
-  ``--blur-faces`` or consent. A library entry with consent ``no`` is never
+  ``--blur-faces`` or consent. A photo marked people-free with no detected face
+  keeps that basis even with ``--consent`` (so it never counts as showing
+  members). A library entry with consent ``no`` is never
   overridden by ``--consent`` or ``--people-free``. Detection misses faces:
   LOOK at the output.
 
@@ -206,15 +208,18 @@ class Photo:
         self.blur: list[list[float]] = []
         self.people_basis: str | None = None
         n = len(self.faces)
+        marked_free = "library_tag_no" if lib.get("people_no") else "people_free_flag" if people_free else None
         if lib.get("consent") is False:
             self.consent = False           # the library says no: never overridden by --consent / --people-free
+        elif marked_free and not n:
+            self.consent = True if lib.get("consent") is True else None
+            self.people_basis = marked_free  # looked at and no people: no member hold, whatever --consent says
         elif lib.get("consent") is True or consent_flag:
             self.consent = True
             self.people_basis = "library_consent" if lib.get("consent") is True else "consent"
         else:
             self.consent = None
         if self.people_basis is None:
-            marked_free = "library_tag_no" if lib.get("people_no") else "people_free_flag" if people_free else None
             if n and blur_faces:
                 self.people_basis = "blurred"
                 self.blur = [blur_box(b) for b in self.faces]
