@@ -62,6 +62,12 @@ def smooth(p: float) -> float:
     return p * p * (3 - 2 * p)
 
 
+def smooth_arr(p: np.ndarray) -> np.ndarray:
+    """smooth() for an array."""
+    p = np.clip(p, 0.0, 1.0)
+    return p * p * (3 - 2 * p)
+
+
 def ease_out(p: float) -> float:
     """Cubic ease-out: fast start, gentle landing (punch snap-back, text rise)."""
     p = clamp01(p)

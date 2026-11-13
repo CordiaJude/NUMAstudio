@@ -328,3 +328,53 @@ def test_cli_errors(tmp_path, run_script):
     (tmp_path / "work").mkdir()
     r = run_script("finish.py", tmp_path / "work", tmp_path / "o.mp4")
     assert r.returncode == 1 and "ERROR: rendered video not found" in r.stderr and "Traceback" not in r.stderr
+
+
+def scripted_passes(monkeypatch, values):
+    """Each AAC pass measures as the next (integrated_lufs, true_peak_db) in `values`."""
+    real = finish.measure_audio
+    encoded: list[dict] = []
+
+    def fake(path):
+        res = real(path)
+        if Path(path).suffix == ".m4a":
+            i, tp = values[min(len(encoded), len(values) - 1)]
+            res = dict(res, integrated_lufs=i, true_peak_db=tp)
+            encoded.append(res)
+        return res
+
+    monkeypatch.setattr(finish, "measure_audio", fake)
+    return encoded
+
+
+def test_loudness_stops_on_first_in_spec_pass(media, tmp_path, monkeypatch, capsys):
+    encoded = scripted_passes(monkeypatch, [(-15.4, -2.0), (-15.0, -2.0)])
+    work = make_job(tmp_path, media, nat=False)
+    sec = finish.finish(work, tmp_path / "out" / "a.mp4", qa=False)
+    assert len(encoded) == 1 and sec["passes"] == 1 and sec["delivered_pass"] == 1
+    report = json.loads((tmp_path / "out" / "report.json").read_text())
+    assert report["finish"]["delivered_pass"] == 1
+    # the log line shows what pass 1 used and measured
+    logs = capsys.readouterr()
+    line = (f"loudness pass 1: gain {sec['gain_db']:+.2f} dB, limiter ceiling "
+            f"{-1.5 - finish.TP_HEADROOM_DB:.2f} dB -> -15.40 LUFS, true peak -2.00 dB")
+    assert line in logs.out + logs.err
+    assert "loudness pass 2" not in logs.out + logs.err
+
+
+def test_loudness_stops_after_two_passes_without_improvement(media, tmp_path, monkeypatch, capsys):
+    # pass 2 is the closest (0.8 LU off, inside tolerance but outside the 0.5 LU spec);
+    # passes 3 and 4 do not beat it, so the loop stops and delivers pass 2
+    encoded = scripted_passes(monkeypatch, [(-16.2, -3.0), (-15.8, -3.0), (-15.9, -3.0), (-16.0, -3.0)])
+    work = make_job(tmp_path, media, nat=False)
+    sec = finish.finish(work, tmp_path / "out" / "b.mp4", qa=False)
+    assert len(encoded) == 4 and sec["passes"] == 4 and sec["delivered_pass"] == 2
+    logs = capsys.readouterr()
+    text = logs.out + logs.err
+    lines = re.findall(r"loudness pass (\d): gain ([+-]\d+\.\d\d) dB, limiter ceiling (-?\d+\.\d\d) dB -> "
+                       r"(-?\d+\.\d\d) LUFS, true peak (-?\d+\.\d\d) dB", text)
+    assert [(n, i, tp) for n, _, _, i, tp in lines] == [
+        ("1", "-16.20", "-3.00"), ("2", "-15.80", "-3.00"), ("3", "-15.90", "-3.00"), ("4", "-16.00", "-3.00")]
+    # the reported gain is the one pass 2 used, as its own log line shows
+    assert f"{sec['gain_db']:+.2f}" == lines[1][1]
+    assert "using loudness pass 2" in text

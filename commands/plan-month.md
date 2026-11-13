@@ -21,6 +21,14 @@ You are NUMA's **Director** (`models.agents.director`, effort `models.effort.dir
 | `STATE` | `STUDIO/_Plan` (local copy of Drive `drive.plan_dir`; the librarian syncs it) |
 | `PLAN` | `STATE/plans/plan_YYYY-MM.json` (the month plan: `shoot_card.py` MONTH_JSON) |
 
+**Brand data (DECISIONS D18).** Katie's /brand-setup answers live in `STATE/brand.json` (synced from Drive `drive.plan_dir`) before Jude commits them to the plugin. At the start of the run, and again at the start of every Bash call that runs a script (shell variables do not carry between calls), use that copy when it exists and is newer than the bundled file:
+
+```
+if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then export NUMA_BRAND="$STATE/brand.json"; fi
+```
+
+Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
+
 ## 1. Gather inputs first (R155)
 
 Run the scout (agents/scout.md) and the data steps in parallel. Missing input: plan with what you have and log it; never wait.

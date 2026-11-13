@@ -52,7 +52,8 @@ STRIP_AT = (0.05, 0.25, 0.45, 0.65, 0.85, 0.97)
 MAX_PASSES = 8              # gain/ceiling refinement passes (each: gain+limit, AAC encode, measure)
 TP_HEADROOM_DB = 1.0        # first limiter ceiling: 1 dB under the limit for resample + AAC overshoot
 TP_MARGIN_DB = 0.2          # extra step when the encoded true peak is still over
-LUFS_SETTLE = 0.3           # stop refining once within this of the target
+LUFS_SETTLE = 0.5           # in spec (stop refining): within this of the target and true peak at/below its limit
+STALL_PASSES = 2            # stop after this many passes without beating the best deliverable pass
 MAX_GAIN_DB = 80.0          # a quiet but real recording (peak above SILENT_PEAK_DB) can still reach -15
 LIMITER_OVERSAMPLE = 4      # limit at 192 kHz so inter-sample (true) peaks are caught
 QUIET_START_PEAK_DB = -12.0 # first gain for audio below the -70 LUFS gate: bring its peak here
@@ -408,28 +409,43 @@ def finish(work: Path, out: Path, video: Path | None = None, plan_path: Path | N
         slope = 1.0  # LU gained per dB of gain; falls under heavy limiting, kept across ceiling changes
         m4a = Path(tmpd) / "audio.m4a"
         best_m4a, best_aud = Path(tmpd) / "best.m4a", Path(tmpd) / "best.wav"
-        best: tuple[float, int, tuple] | None = None   # (distance from target, pass, (gain, ceiling))
-        settled = False
+        # best pass so far: ((true peak over, outside tolerance, distance from target), pass, (gain, ceiling))
+        best: tuple[tuple, int, tuple] | None = None
+        delivered = 1
         for passes in range(1, MAX_PASSES + 1):
             used = (gain, ceiling)
             normalize_pass(pre, gain, ceiling, aud, duration)
             encode_audio(aud, m4a, duration, audio_cfg)
             loud = measure_audio(m4a)
+            delivered = passes
             if gain is None:
                 break
             i_now, tp_now = loud["integrated_lufs"], loud["true_peak_db"]
+            nc.info(f"loudness pass {passes}: gain {used[0]:+.2f} dB, limiter ceiling {used[1]:.2f} dB -> "
+                    f"{'n/a' if i_now is None else f'{i_now:.2f}'} LUFS, true peak "
+                    f"{'n/a' if tp_now is None else f'{tp_now:.2f}'} dB")
             tp_over = tp_now is not None and tp_now > target["tp"]
-            i_off = i_now is not None and math.isfinite(i_now) and abs(i_now - target["i"]) > LUFS_SETTLE
-            in_spec = (not tp_over and i_now is not None and math.isfinite(i_now)
-                       and abs(i_now - target["i"]) <= tol)
-            if in_spec and (best is None or abs(i_now - target["i"]) < best[0]):
-                shutil.copyfile(m4a, best_m4a)
-                shutil.copyfile(aud, best_aud)
-                best = (abs(i_now - target["i"]), passes, used)
-            if not tp_over and not i_off:
-                settled = True
-                break
-            if passes == MAX_PASSES:
+            finite = i_now is not None and math.isfinite(i_now)
+            i_off = finite and abs(i_now - target["i"]) > LUFS_SETTLE
+            score = (tp_over, not finite or abs(i_now - target["i"]) > tol,
+                     abs(i_now - target["i"]) if finite else math.inf)
+            if best is None or score < best[0]:
+                best = (score, passes, used)
+                if passes < MAX_PASSES:
+                    shutil.copyfile(m4a, best_m4a)
+                    shutil.copyfile(aud, best_aud)
+            if finite and not tp_over and not i_off:
+                break  # in spec: deliver this pass
+            # no better for STALL_PASSES (once a deliverable pass exists: TP ok, inside tolerance)
+            stalled = passes - best[1] >= STALL_PASSES and best[0][:2] == (False, False)
+            if passes == MAX_PASSES or stalled:
+                if best[1] != passes:
+                    # out of passes, or no better for STALL_PASSES: deliver the best pass instead
+                    shutil.copyfile(best_m4a, m4a)
+                    shutil.copyfile(best_aud, aud)
+                    gain, ceiling = best[2]
+                    delivered = best[1]
+                    nc.info(f"using loudness pass {best[1]} (closest to the target)")
                 break
             if tp_over:
                 ceiling = max(-24.0, ceiling - (tp_now - target["tp"]) - TP_MARGIN_DB)
@@ -442,14 +458,6 @@ def finish(work: Path, out: Path, video: Path | None = None, plan_path: Path | N
                     slope = min(1.0, max(0.25, (i_now - prev[1]) / (used[0] - prev[0])))
                 prev = (used[0], i_now, used[1])
                 gain = max(-MAX_GAIN_DB, min(MAX_GAIN_DB, gain + (target["i"] - i_now) / slope))
-            nc.info(f"loudness pass {passes}: {i_now:.2f} LUFS, true peak {tp_now:.2f} dB; "
-                    f"gain {gain:+.2f} dB, limiter ceiling {ceiling:.2f} dB")
-        if not settled and best is not None:
-            # the refinement ran out of passes off target: deliver the best in-spec pass instead
-            shutil.copyfile(best_m4a, m4a)
-            shutil.copyfile(best_aud, aud)
-            gain, ceiling = best[2]
-            nc.info(f"using loudness pass {best[1]} (closest in-spec result)")
         mux(video, m4a, out, duration)
     loud = measure_audio(out)  # the delivered file, measured independently of the passes
 
@@ -483,6 +491,7 @@ def finish(work: Path, out: Path, video: Path | None = None, plan_path: Path | N
         "gain_db": None if gain is None else round(gain, 2),
         "true_peak_ceiling_db": round(ceiling, 2),
         "passes": passes,
+        "delivered_pass": delivered,
         "loudness": json_safe({k: loud[k] for k in ("integrated_lufs", "true_peak_db", "lra", "mean_db")}),
         "nat_bursts": len(bursts),
         "qa_strip": str(strip) if strip else None,

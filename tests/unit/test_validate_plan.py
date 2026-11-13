@@ -395,7 +395,7 @@ def test_rule24_missing_words(base):
     long = _words([(f"w{i}", 0.3 + i * 0.05) for i in range(4)] + [(f"x{i}", 3 + i * 0.1) for i in range(10)])
     p = base()
     p["lines"][0]["words"] = [[f"w{i}", round(0.3 + i * 0.05, 2)] for i in range(4)]
-    assert find(run(p, analysis(words=long)), 24, "WARN", "lines", "captions show 4 of 14")
+    assert find(run(p, analysis(words=long)), 24, "WARN", "lines", "captions show 4 and text cards 0 of the 14 words")
 
 
 # ---- rules 25-26: safe area and faces --------------------------------------------------

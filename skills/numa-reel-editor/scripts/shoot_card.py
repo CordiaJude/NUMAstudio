@@ -85,6 +85,7 @@ import calendar
 import csv
 import io
 import json
+import os
 import re
 import sys
 from datetime import date, timedelta
@@ -946,5 +947,20 @@ def main(argv: list[str] | None = None) -> int:
             "sheet": cmd_sheet}[args.cmd](args)
 
 
+def cli(argv: list[str] | None = None) -> int:
+    """main() for the command line: a reader that stops early (`shoot_card.py month ... | head`)
+    ends the run quietly instead of with a BrokenPipe error."""
+    try:
+        rc = main(argv)
+        sys.stdout.flush()
+        return rc
+    except BrokenPipeError:
+        # nothing more can be written: point stdout at the null device so the exit flush is silent
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        os.close(devnull)
+        return 0
+
+
 if __name__ == "__main__":
-    nc.run_cli(main)
+    nc.run_cli(cli)

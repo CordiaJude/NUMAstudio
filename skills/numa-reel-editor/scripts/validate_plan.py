@@ -453,7 +453,8 @@ class Checker:
     def check_transcript(self) -> None:
         if not isinstance(self.analysis, dict):
             return
-        tw = [w for w in self.analysis.get("words") or [] if isinstance(w, dict)]
+        tw = [w for w in self.analysis.get("words") or [] if isinstance(w, dict)
+              and float(w.get("appear", 0.0)) < self.D]   # words after the reel's end are not in it
         if not tw or not self.lines:
             return
         cap = [(j, k, w) for j, ln in enumerate(self.lines) for k, w in enumerate(ln["words"])]
@@ -494,7 +495,8 @@ class Checker:
                        if c.get("style", "statement") == "statement")   # a card can carry a spoken line
         missing = len(tw) - shown - on_cards
         if missing > max(3, 0.1 * len(tw)):
-            self.wrn(24, "lines", f"captions show {shown} of {len(tw)} spoken words; every spoken word appears as it's spoken")
+            self.wrn(24, "lines", f"captions show {shown} and text cards {on_cards} of the {len(tw)} words spoken "
+                                  f"before {self.D:g} s; every spoken word appears as it's spoken")
 
     # -- rules 22, 25, 26 ----------------------------------------------------
     def _effective_font(self, style: str) -> str | None:

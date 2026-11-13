@@ -94,6 +94,56 @@ def test_align_keeps_adlibs_and_dissimilar_runs():
     assert [w["w"] for w in new] == ["hello", "everyone", "This", "is", "what", "Katie", "saw."]
 
 
+def test_align_keeps_sentence_initial_capital():
+    # a 1.6 s pause after "cold" breaks the caption line: "We" starts it and keeps its capital
+    words = words_of("It was cold") + words_of("We took a chance", t0=3.0)
+    script = ft.script_tokens("It was cold, we took a chance.")
+    new, corr, _ = ft.align_to_script(words, script)
+    assert [w["w"] for w in new] == ["It", "was", "cold,", "We", "took", "a", "chance."]
+    assert not any(c["to"] == "we" for c in corr)
+    # no pause and the script joins the sentences: lowercase is right there
+    new, _, _ = ft.align_to_script(words_of("It was cold We took a chance"), script)
+    assert new[3]["w"] == "we"
+    # first word of the transcript (a caption line start) keeps its capital too
+    new, _, _ = ft.align_to_script(words_of("We took a chance"), ft.script_tokens("we took a chance."))
+    assert new[0]["w"] == "We"
+    # mid-sentence the script's lowercase still wins
+    new, _, _ = ft.align_to_script(words_of("thank You so much"), ft.script_tokens("Thank you so much."))
+    assert [w["w"] for w in new] == ["Thank", "you", "so", "much."]
+
+
+def test_align_inserts_dropped_script_word_with_interpolated_timing(nc, analysis_doc):
+    words = words_of("It was hard. We took a chance")   # 0.5 s apart, 0.4 s long: 0.1 s gaps
+    doc = analysis_doc(words)
+    ft.correct(doc, ft.script_tokens("It was hard. And we took a chance."))
+    got = doc["words"]
+    assert [w["w"] for w in got] == ["It", "was", "hard.", "And", "we", "took", "a", "chance."]
+    ins = got[3]
+    assert ins["source"] == "script" and got[2]["end"] <= ins["start"] < ins["end"] <= got[4]["start"]
+    assert ins["appear"] == ft.appear_time(ins["start"], ins["end"])
+    assert {"index": 3, "from": "", "to": "And", "reason": "script"} in doc["corrections"]
+    assert [w["appear"] for w in got] == sorted(w["appear"] for w in got)
+    assert nc.schema_errors("analysis", doc) == []
+    # sentence-initial drop with no word before it: placed just before the next word
+    new, _, _ = ft.align_to_script(words_of("We took a chance", t0=1.0), ft.script_tokens("And we took a chance."))
+    assert [w["w"] for w in new] == ["And", "we", "took", "a", "chance."]
+    assert 0 <= new[0]["start"] < new[0]["end"] <= 1.0
+
+
+def test_align_does_not_insert_long_or_cross_sentence_gaps():
+    # three missing words: too long a gap to invent timing
+    new, _, _ = ft.align_to_script(words_of("we went to the beach"),
+                                   ft.script_tokens("we went all the way to the beach"))
+    assert [w["w"] for w in new] == ["we", "went", "to", "the", "beach"]
+    # a whole missing sentence ("Yes.") between two heard sentences is not inserted
+    new, _, _ = ft.align_to_script(words_of("It was cold. We stayed"),
+                                   ft.script_tokens("It was cold. Yes. We stayed."))
+    assert [w["w"] for w in new] == ["It", "was", "cold.", "We", "stayed."]
+    # nothing heard after the missing words: no right neighbour
+    new, _, _ = ft.align_to_script(words_of("we took a"), ft.script_tokens("we took a chance"))
+    assert [w["w"] for w in new] == ["we", "took", "a"]
+
+
 def test_script_wins_over_brand_list(nc, analysis_doc):
     # the script spells it "Moby" (e.g. a person's name): the brand fix must not override the script
     doc = analysis_doc(words_of("say hi to Moby today"))
@@ -144,6 +194,23 @@ def test_missing_transcript_uses_script_with_audio_duration(nc, analysis_doc):
     ft.correct(doc, ft.script_tokens("A short line for the reel."))
     assert len(doc["words"]) == 6
     assert doc["words"][-1]["end"] <= 20.0 - 7.5 + 1e-6   # the music outro stays caption-free
+
+
+def test_silent_voice_with_music_keeps_script_captions_out_of_outro(nc, analysis_doc, make_audio, tmp_path):
+    # the voice file holds no detectable speech or energy: the fallback span must stop
+    # before the music-only outro instead of spreading over the whole reel
+    voice = make_audio(tmp_path / "voice.wav", seconds=1.0, kind="silence")
+    doc = analysis_doc([], duration=20.0)
+    doc["audio"]["voice"] = str(voice)
+    doc["audio"]["music"] = "/abs/music.wav"
+    spans = ft.speech_spans(doc)
+    assert spans and spans[-1][1] <= 20.0 - 7.5 + 1e-6
+    ft.correct(doc, ft.script_tokens("A short line for the reel."))
+    assert doc["words"] and doc["words"][-1]["end"] <= 20.0 - 7.5 + 1e-6
+    # without music the whole duration stays available
+    doc = analysis_doc([], duration=20.0)
+    doc["audio"]["voice"] = str(voice)
+    assert ft.speech_spans(doc)[-1][1] > 20.0 - 7.5
 
 
 def test_music_only_never_gets_script_captions(nc, analysis_doc):

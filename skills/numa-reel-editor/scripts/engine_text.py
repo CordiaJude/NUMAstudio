@@ -92,8 +92,10 @@ def make_sprite(text: str, font_path: str, px: float, color, shadow_sigma: float
 
 
 def _composite(img: np.ndarray, alpha: np.ndarray, shadow: np.ndarray, color, x0: int, y0: int,
-               opacity: float) -> None:
-    """Blend an alpha mask (and its shadow) whose top-left lands at (x0, y0) onto img in place."""
+               opacity: float, shadow_gain: float = 1.0) -> None:
+    """Blend an alpha mask (and its shadow) whose top-left lands at (x0, y0) onto img in place.
+
+    shadow_gain > 1 deepens the shadow (capped at full black) for text over a bright picture."""
     H, W = img.shape[:2]
     h, w = alpha.shape
     X0, Y0, X1, Y1 = max(0, x0), max(0, y0), min(W, x0 + w), min(H, y0 + h)
@@ -102,6 +104,8 @@ def _composite(img: np.ndarray, alpha: np.ndarray, shadow: np.ndarray, color, x0
     sx, sy = X0 - x0, Y0 - y0
     a = alpha[sy:sy + Y1 - Y0, sx:sx + X1 - X0] * opacity
     s = shadow[sy:sy + Y1 - Y0, sx:sx + X1 - X0] * opacity
+    if shadow_gain != 1.0:
+        s = np.minimum(s * shadow_gain, 1.0)
     roi = img[Y0:Y1, X0:X1].astype(np.float32)
     roi *= (1.0 - s)[..., None]
     col = np.array(color, np.float32) * 255.0
@@ -110,12 +114,12 @@ def _composite(img: np.ndarray, alpha: np.ndarray, shadow: np.ndarray, color, x0
 
 
 def draw_sprite(img: np.ndarray, sp: Sprite, x: float, y_baseline: float, opacity: float,
-                color=None) -> None:
+                color=None, shadow_gain: float = 1.0) -> None:
     """Composite a sprite onto img (RGB uint8, in place): pen origin at (x, baseline)."""
     if opacity <= 0.002:
         return
     _composite(img, sp.alpha, sp.shadow, color if color is not None else sp.color,
-               int(round(x)) - sp.left, int(round(y_baseline)) - sp.baseline, opacity)
+               int(round(x)) - sp.left, int(round(y_baseline)) - sp.baseline, opacity, shadow_gain)
 
 
 def draw_sprite_scaled(img: np.ndarray, sp: Sprite, x: float, y_baseline: float, opacity: float,

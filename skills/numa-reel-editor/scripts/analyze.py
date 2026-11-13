@@ -85,7 +85,11 @@ def name_tokens(text: str) -> list[str]:
 
 def _tokens_role(tokens: Sequence[str]) -> str | None:
     voice = any(t in VOICE_EXACT or t.startswith(VOICE_PREFIX) for t in tokens)
-    music = any(t in MUSIC_EXACT or t.startswith(MUSIC_PREFIX) for t in tokens)
+    music_words = [t for t in tokens if t in MUSIC_EXACT or t.startswith(MUSIC_PREFIX)]
+    music = bool(music_words)
+    if (voice and all(t.startswith("track") for t in music_words)
+            and not any(t in MASTER_EXACT for t in tokens)):
+        return "voice"  # voice_track.wav / vo-track: "track" here means a recording, not music
     if voice and music:
         return "master"
     if voice:

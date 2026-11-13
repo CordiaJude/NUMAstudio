@@ -5,16 +5,20 @@ in docs/CONTRACTS.md section 9 and the other way round, README names every comma
 no secrets or media outside the bundled assets, nothing reads the git-ignored spec/ folder at run
 time, and every .py file parses with the Python 3.10 grammar.
 
-The Python 3.10 parse uses ast's `feature_version=(3, 10)`, which is best-effort: run locally on
-Python >= 3.12 it is advisory only (newer interpreters do not reject every post-3.10 construct).
-CI's 3.11 parse job and the 3.10 unit-test job are authoritative.
+The Python 3.10 parse uses ast's `feature_version=(3, 10)`, which is best-effort: newer interpreters
+do not reject every post-3.10 construct (a backslash inside an f-string expression slipped past it).
+So when a real `python3.10` is on PATH the same files are also parsed with it (one subprocess);
+without one that check is skipped. CI's parse job (a real 3.10) and the 3.10 unit-test job are
+authoritative.
 """
 from __future__ import annotations
 
 import ast
 import json
 import re
+import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -213,14 +217,81 @@ def test_every_py_parses_as_python_310(repo_root, files):
     assert not bad, f"not valid Python 3.10 syntax: {bad}"
 
 
+PARSE_WITH_THIS_INTERPRETER = """
+import ast, sys
+bad = []
+for f in sys.stdin.read().splitlines():
+    try:
+        with open(f, encoding="utf-8") as fh:
+            ast.parse(fh.read(), filename=f)
+    except SyntaxError as e:
+        bad.append(f"{f}:{e.lineno}: {e.msg}")
+print("\\n".join(bad))
+sys.exit(1 if bad else 0)
+"""
+
+
+def test_every_py_parses_with_a_real_python_310(repo_root, files):
+    """feature_version misses some 3.12-only syntax; a real 3.10 interpreter does not."""
+    exe = shutil.which("python3.10")
+    if sys.version_info[:2] == (3, 10):
+        exe = sys.executable
+    if not exe:
+        pytest.skip("no python3.10 on PATH (CI's parse job runs a real 3.10)")
+    py = [f for f in files if f.endswith(".py")]
+    r = subprocess.run([exe, "-I", "-c", PARSE_WITH_THIS_INTERPRETER], input="\n".join(py), cwd=repo_root,
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, f"not valid Python 3.10 syntax (real 3.10):\n{r.stdout}{r.stderr}"
+
+
 def test_ci_runs_the_suites_r309(repo_root):
     ci = (repo_root / ".github" / "workflows" / "ci.yml").read_text()
     for needle in ("push", "pull_request", '"3.10"', '"3.12"', "pytest tests/unit", "tests/run_tests.py",
-                   "feature_version=(3, 10)", "huggingface", "ffmpeg"):
+                   "huggingface", "ffmpeg", "brew install ffmpeg", "macos-latest"):
         assert needle in ci, needle
     try:
         import yaml
     except ImportError:
         return
     doc = yaml.safe_load(ci)
-    assert {"parse", "unit", "end-to-end"} <= set(doc["jobs"])
+    jobs = doc["jobs"]
+    assert {"parse", "unit", "unit-macos", "end-to-end"} <= set(jobs)
+    # R326: the parse job runs a real Python 3.10, not ast feature_version on a newer interpreter
+    setup = [s for s in jobs["parse"]["steps"] if str(s.get("uses", "")).startswith("actions/setup-python")]
+    assert [s["with"]["python-version"] for s in setup] == ["3.10"]
+    assert "ast.parse" in json.dumps(jobs["parse"]["steps"])
+    # R298: macOS (the primary platform) runs the unit tests on 3.12
+    mac = jobs["unit-macos"]
+    assert mac["runs-on"] == "macos-latest"
+    assert any(s.get("with", {}).get("python-version") == "3.12" for s in mac["steps"])
+    assert any("pytest tests/unit" in str(s.get("run", "")) for s in mac["steps"])
+
+
+# ---------------------------------------------------------------- run-time brand data (DECISIONS D18)
+
+D18_FILES = ["commands/make-reel.md", "commands/build-today.md", "commands/plan-month.md",
+             "commands/night-check.md", "commands/digest.md", "commands/dashboard-refresh.md",
+             "commands/trend-check.md", "commands/post-reel.md", "agents/librarian.md"]
+
+
+@pytest.mark.parametrize("name", D18_FILES)
+def test_run_files_point_numa_brand_at_state_copy_d18(repo_root, name):
+    text = (repo_root / name).read_text()
+    line = 'if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then export NUMA_BRAND="$STATE/brand.json"; fi'
+    assert text.count(line) == 1, f"{name}: the D18 NUMA_BRAND line, once, in the setup section"
+    assert text.index(line) < text.index("python3 "), f"{name}: NUMA_BRAND is set before the first script call"
+
+
+# ---------------------------------------------------------------- docs/examples (R251)
+
+def test_metrics_example_is_a_valid_store(repo_root, nc):
+    """docs/examples/metrics.example.json is metrics.py output: `validate` accepts it and `compute` is stable."""
+    ex = repo_root / "docs" / "examples" / "metrics.example.json"
+    store = json.loads(ex.read_text())
+    assert store["schema_version"] == 1 and store["reels"] and store["account"]["daily"]
+    script = repo_root / "skills" / "numa-reel-editor" / "scripts" / "metrics.py"
+    r = subprocess.run([sys.executable, str(script), "validate", "--store", str(ex)], capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    readme = (repo_root / "docs" / "examples" / "README.md").read_text()
+    assert "metrics.example.json" in readme
+    assert "docs/examples/" in (repo_root / "README.md").read_text()

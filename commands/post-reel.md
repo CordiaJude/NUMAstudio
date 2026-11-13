@@ -15,6 +15,14 @@ You are NUMA's **Director**. make-reel step 13 hands over `JOB` when the reel is
 | `POST` | `JOB/work/post.json`: this post's state (status, container, media id, times); re-read it first on every run |
 | Queue and log | `STATE/post_queue.json` (posts waiting on a fix), `STATE/post_log.json` (every API post: date, media id, slug, kind), `STATE/escalations.json` (last date each Jude message was sent) |
 
+**Brand data (DECISIONS D18).** Katie's /brand-setup answers live in `STATE/brand.json` (synced from Drive `drive.plan_dir`) before Jude commits them to the plugin. At the start of the run, and again at the start of every Bash call that runs a script (shell variables do not carry between calls), use that copy when it exists and is newer than the bundled file:
+
+```
+if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then export NUMA_BRAND="$STATE/brand.json"; fi
+```
+
+Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
+
 `$ARGUMENTS`: `JOB` = stage, then publish at the posting time (section 3); `JOB publish` = publish now (the one-time task from section 3 runs this); `queue` = only drain the queue (section 9). Every run drains the queue first.
 
 ## 1. Gates, in this order (brand.json `posting`)

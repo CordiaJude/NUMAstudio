@@ -114,6 +114,11 @@ def test_heic_converted_to_upright_jpg(nc, tmp_path, make_image):
     ("track01.wav", "music"),
     ("BGM.aac", "music"),
     ("final_mix.wav", "master"),
+    ("voice_track.wav", "voice"),
+    ("VO Track 2.m4a", "voice"),
+    ("voiceover_tracks.wav", "voice"),
+    ("voice_track_mix.wav", "master"),
+    ("voice_track_music.wav", "master"),
     ("audio.mp3", None),
     ("volume.mp3", None),
 ])

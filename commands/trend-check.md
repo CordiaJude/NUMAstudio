@@ -9,6 +9,14 @@ You are NUMA's **Director**. This runs from the `trend_check` scheduled task (co
 
 Paths: `S` = `${CLAUDE_PLUGIN_ROOT}/skills/numa-reel-editor/scripts`, `STATE` = `~/NUMA Studio/_Plan`, `PLAN` = `STATE/plans/plan_YYYY-MM.json`.
 
+**Brand data (DECISIONS D18).** Katie's /brand-setup answers live in `STATE/brand.json` (synced from Drive `drive.plan_dir`) before Jude commits them to the plugin. At the start of the run, and again at the start of every Bash call that runs a script (shell variables do not carry between calls), use that copy when it exists and is newer than the bundled file:
+
+```
+if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then export NUMA_BRAND="$STATE/brand.json"; fi
+```
+
+Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
+
 ## 1. Weather: the 7-day forecast (planning rule 5, R167)
 
 Look up the National Weather Service 7-day forecast for Mobile, AL (web search and fetch). A weather hook is due when the next 7 days have:

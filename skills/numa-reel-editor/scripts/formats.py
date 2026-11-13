@@ -34,7 +34,17 @@ the plan schema and validate_plan's rules (claims, safe area, tiling, files)
 before it is rendered. Re-running replaces this script's earlier files of the
 same kind. Writes the ``formats`` section of DIR/report.json (sections of other
 kinds from earlier runs are kept) and each video's ``check_output`` result.
-Exit 1 when an input is unusable or a video fails its output check.
+
+Skipped vs failed: without ``--only`` every kind is tried and an output this
+plan cannot make (a default with no material: no whole sentences for story or
+carousel, no new hook text for the reach cut or hook variants, no captions or
+transcript for the .srt, a reel shorter than a reach cut) is skipped with a
+WARN and listed in report.json ``formats.skipped`` as ``{kind, reason}``;
+``ok`` stays true. Kinds named in ``--only`` are requested: one of them
+skipped is an ERROR and makes ``ok`` false. ``ok`` is true only when every
+requested output was made and passed its check.
+Exit 1 when an input is unusable, a requested output is skipped or a video
+fails its output check.
 """
 from __future__ import annotations
 
@@ -73,6 +83,8 @@ SHORT_CAPTION_CHARS = 48              # carousel captions are short
 STORY_TEXT_CHARS = 64                 # a story line: one caption line of at most 2 rows
 HOOK_TEXT_CHARS = 52                  # hook text: 3 rows at most
 MIN_LAST_SEGMENT_S = 0.5              # defence: no tiny final encoder segment (see reach_plan)
+REPEAT_WINDOW_S = 4.0                 # reach cut: no caption repeating the new hook in its first 4 s
+DHASH_NEAR_BITS = 6                   # carousel: pictures whose 64-bit dHash differs in <= this many bits match
 SRT_ROW_CHARS = 42                    # standard subtitle row width
 AUDIO_FADE_IN_S = 0.08
 AUDIO_JOIN_FADE_S = 0.12
@@ -296,14 +308,28 @@ def hook_for(plan: dict, text: str, duration: float) -> dict:
     return h
 
 
-def clear_hook_window(d: dict) -> dict:
-    """Drop captions that would share the screen with the hook text (or repeat it)."""
+def repeats(a: str, b: str) -> bool:
+    """True when one text repeats the other: equal, one inside the other, or mostly the same words."""
+    na, nb = norm(a), norm(b)
+    if not na or not nb:
+        return False
+    if na == nb or f" {na} " in f" {nb} " or f" {nb} " in f" {na} ":
+        return True
+    wa = {w for w in na.split() if len(w) > 2}
+    wb = {w for w in nb.split() if len(w) > 2}
+    return min(len(wa), len(wb)) >= 2 and len(wa & wb) >= 0.6 * min(len(wa), len(wb))
+
+
+def clear_hook_window(d: dict, repeat_s: float = 0.0) -> dict:
+    """Drop captions that would share the screen with the hook text (or repeat it). repeat_s > 0 also
+    drops a caption line starting within that many seconds that repeats the hook (reach cuts)."""
     hook = d.get("hook")
     if not hook:
         return d
     gone = float(hook.get("t1", 2.0)) + engine.HOOK_FADE_OUT_S
     d["lines"] = [ln for ln in d.get("lines") or []
-                  if float(ln["words"][0][1]) >= gone and norm(line_text(ln)) != norm(hook["text"])]
+                  if float(ln["words"][0][1]) >= gone and norm(line_text(ln)) != norm(hook["text"])
+                  and not (float(ln["words"][0][1]) < repeat_s and repeats(line_text(ln), hook["text"]))]
     return d
 
 
@@ -351,8 +377,9 @@ def _bad_tail_frames(seconds: float, fps: float) -> int:
     return r if 0 < r < math.ceil(MIN_LAST_SEGMENT_S * fps) else 0
 
 
-def reach_plan(plan: dict, rc: dict) -> tuple[dict, list[tuple[float, float]]]:
-    """Derived reach plan and the reel-audio segments that play under it."""
+def reach_plan(plan: dict, rc: dict, warnings: list[str] | None = None) -> tuple[dict, list[tuple[float, float]]]:
+    """Derived reach plan and the reel-audio segments that play under it. A window the final-segment
+    defence lengthens is reported in warnings."""
     a, b = float(rc["t0"]), float(rc["t1"])
     lo, hi = nc.config_value("render.length_s.reach_cut", [8, 12])
     D = float(plan["duration"])
@@ -372,7 +399,11 @@ def reach_plan(plan: dict, rc: dict) -> tuple[dict, list[tuple[float, float]]]:
         if tail and tail - r / fps >= ENDCARD_TAIL_MIN_S - EPS:
             tail = (n - r) / fps - (b - a)
         elif not tail and b + up / fps <= D + EPS and (n + up) / fps <= hi + EPS:
+            old = b
             b = a + (n + up) / fps - tail
+            if warnings is not None:
+                warnings.append(f"reach cut lengthened from {old - a:.2f} s to {b - a:.2f} s ({a:g}-{b:.3f} s) so the "
+                                f"encoder's last 2 s segment is at least {MIN_LAST_SEGMENT_S:g} s")
         elif (n - r) / fps >= lo - EPS:
             b = a + (n - r) / fps - tail
     d = clip_plan(plan, a, b)
@@ -382,7 +413,7 @@ def reach_plan(plan: dict, rc: dict) -> tuple[dict, list[tuple[float, float]]]:
         d = add_endcard_tail(plan, d, tail)
         segments.append((float(ec["t"]), float(ec["t"]) + tail))
     d["hook"] = hook_for(plan, rc["hook"], float(d["duration"]))
-    return clear_hook_window(d), segments
+    return clear_hook_window(d, REPEAT_WINDOW_S), segments
 
 
 def opening_length(plan: dict) -> float:
@@ -515,18 +546,18 @@ def sentences(plan: dict) -> list[dict]:
 
 
 def fit_text(text: str, limit: int) -> str | None:
-    """The whole sentence when it fits, else its first clause with an ellipsis; None when nothing reads well."""
+    """The whole sentence when it fits, else its whole first clause closed with a full stop (never an
+    ellipsis or clipped words); None when neither fits or reads well."""
     t = plain(text)
     if len(t) <= limit:
         return t if good_text(t) else None
-    for part in re.split(r"(?<=[,;:.!?])\s+|\s+[-–—]\s+", t):
-        p = part.strip()
-        if ends_sentence(p) and 3 <= len(p) <= limit and good_text(p):
-            return p
-        p = p.rstrip(",;:-–— ").strip()
-        if 3 <= len(p) <= limit - 1 and not p[:1].islower():
-            return p + "…"
-    return None
+    parts = [p for p in re.split(r"(?<=[,;:.!?])\s+|\s+[-–—]\s+", t) if p.strip()]
+    if len(parts) < 2:
+        return None
+    p = parts[0].strip()
+    if not ends_sentence(p):
+        p = p.rstrip(",;:-–— ").strip() + "."
+    return p if 3 <= len(p) <= limit and good_text(p) and len(p.split()) >= 2 else None
 
 
 def sentence_texts(plan: dict, limit: int, exclude: tuple[str, ...] = ()) -> list[tuple[dict, str]]:
@@ -729,9 +760,53 @@ def default_story(plan: dict) -> list[dict]:
     return sorted(out, key=lambda e: e["t"])
 
 
+_DHASH: dict[str, int | None] = {}
+
+
+def dhash(src: str) -> int | None:
+    """64-bit difference hash of a photo (None for clips or unreadable files)."""
+    if src not in _DHASH:
+        val = None
+        if media_kind(src) == "image":
+            try:
+                from PIL import Image
+                with Image.open(src) as im:
+                    g = np.asarray(im.convert("L").resize((9, 8), Image.BILINEAR), dtype=np.int16)
+                bits = (g[:, 1:] > g[:, :-1]).flatten()
+                val = int(sum(1 << i for i, b in enumerate(bits) if b))
+            except Exception:  # noqa: BLE001 - unreadable here: the render reports it
+                val = None
+        _DHASH[src] = val
+    return _DHASH[src]
+
+
+def same_picture(plan: dict, t1: float, t2: float) -> bool:
+    """True when reel times t1 and t2 show the same picture: the same photo, the same moment (+-1.5 s) of
+    the same clip, or a photo that is a near-duplicate of the other (dHash within DHASH_NEAR_BITS)."""
+    a, b = shot_at(plan, t1), shot_at(plan, t2)
+    if a["src"] == b["src"]:
+        if a.get("kind") != "video" and media_kind(a["src"]) == "image":
+            return True
+
+        def at(s: dict, t: float) -> float:
+            return float(s.get("start", 0.0)) + (t - float(s["t0"])) * float(s.get("speed", 1.0))
+        return abs(at(a, t1) - at(b, t2)) < 1.5
+    ha, hb = dhash(a["src"]), dhash(b["src"])
+    return ha is not None and hb is not None and bin(ha ^ hb).count("1") <= DHASH_NEAR_BITS
+
+
+def _repeats_neighbour(plan: dict, out: list[dict], t: float) -> bool:
+    """A slide at t would sit next to (in time) a slide with the same or a near-duplicate picture."""
+    before = [o["t"] for o in out if o["t"] <= t]
+    after = [o["t"] for o in out if o["t"] > t]
+    near = ([max(before)] if before else []) + ([min(after)] if after else [])
+    return any(same_picture(plan, t, n) for n in near)
+
+
 def default_carousel(plan: dict) -> list[dict]:
     """Slide 1: the hook (or title) on the opening shot; then one slide per sentence, on the frame where
-    it is spoken."""
+    it is spoken. A slide never repeats the picture of the slide next to it: another frame of the
+    sentence is tried, else the sentence is skipped for the next one."""
     ce = content_end(plan)
     shots = _content_shots(plan)
     lead = _hook_text(plan) or _title(plan)
@@ -743,18 +818,32 @@ def default_carousel(plan: dict) -> list[dict]:
     sents = [(s, t) for s, t in sentence_texts(plan, SHORT_CAPTION_CHARS) if s["first"] < ce
              and norm(t) not in used]
     room = 8 - len(out)
+    order = sents
     if len(sents) > room:
-        sents = [sents[round(i * (len(sents) - 1) / (room - 1))] for i in range(room)]
-    for s, text in sents:
-        spoken = min((s["first"] + s["last"]) / 2 + 0.3, s["end"], ce - 0.2)
-        t = still_time(plan, readable_time(plan, s["first"], min(s["end"], ce - 0.2), spoken))
-        if any(abs(t - o["t"]) < 0.3 for o in out):
+        picked = [round(i * (len(sents) - 1) / (room - 1)) for i in range(room)]
+        order = [sents[i] for i in picked] + [x for i, x in enumerate(sents) if i not in picked]
+    want = len(out) + min(room, len(sents))
+    for s, text in order:
+        if len(out) >= want:
+            break
+        hi_t = min(s["end"], ce - 0.2)
+        spoken = min((s["first"] + s["last"]) / 2 + 0.3, hi_t)
+        cands = [still_time(plan, readable_time(plan, s["first"], hi_t, spoken))]
+        for sh in sorted_shots(plan):   # other frames of the sentence, nearest the spoken moment first
+            lo, hi = max(float(sh["t0"]), s["first"]), min(float(sh["t1"]), hi_t)
+            if hi > lo:
+                cands.append(still_time(plan, (lo + hi) / 2))
+        cands = [cands[0]] + sorted(set(cands[1:]) - {cands[0]}, key=lambda c: (abs(c - spoken), c))
+        t = next((c for c in cands if not any(abs(c - o["t"]) < 0.3 for o in out)
+                  and not _repeats_neighbour(plan, out, c)), None)
+        if t is None:
             continue
         out.append({"t": t, "text": text})
         used.add(norm(text))
     title = _title(plan)
     if len(out) < 5 and title and norm(title) not in used and fit_text(title, SHORT_CAPTION_CHARS):
-        free = [s for s in shots if all(abs(_mid(s, ce) - o["t"]) > 0.3 for o in out)]
+        free = [s for s in shots if all(abs(_mid(s, ce) - o["t"]) > 0.3 for o in out)
+                and not _repeats_neighbour(plan, out, still_time(plan, _mid(s, ce)))]
         if free:
             out.append({"t": still_time(plan, _mid(free[-1], ce)), "text": title})
     if len(out) < 5:
@@ -813,11 +902,13 @@ def default_hook_variants(plan: dict, have: list[dict]) -> list[dict]:
 
 
 def resolve_formats(plan: dict, kinds: set[str], warnings: list[str],
-                    plan_dir: Path | None = None) -> tuple[dict, list[str], set[str]]:
+                    plan_dir: Path | None = None,
+                    reasons: dict[str, str] | None = None) -> tuple[dict, list[str], set[str]]:
     """The formats to render: the plan's entries, defaults for missing ones.
 
     Returns (formats, defaulted keys, skipped kinds); a default that cannot be made is a WARN and its
-    output is skipped, so the other outputs still render."""
+    output is skipped, so the other outputs still render. reasons (when given) gets kind -> why."""
+    reasons = reasons if reasons is not None else {}
     fm = copy.deepcopy(plan.get("formats") or {})
     defaulted: list[str] = []
     skipped: set[str] = set()
@@ -833,6 +924,7 @@ def resolve_formats(plan: dict, kinds: set[str], warnings: list[str],
             except NoDefault as e:
                 warnings.append(f"{kind}: skipped: {e}")
                 skipped.add(kind)
+                reasons[kind] = str(e)
     if "hooks" in kinds:
         have = fm.get("hook_variants") or []
         full = default_hook_variants(plan, have)
@@ -842,6 +934,7 @@ def resolve_formats(plan: dict, kinds: set[str], warnings: list[str],
         if not full:
             warnings.append("hooks: skipped: no new hook text or first shot in this plan; add formats.hook_variants")
             skipped.add("hooks")
+            reasons["hooks"] = "no new hook text or first shot in this plan; add formats.hook_variants"
         elif len(full) < 2:
             warnings.append(f"hook variants: only {len(full)} distinct opening(s) could be made from this plan "
                             f"(add formats.hook_variants, meta.title or more shots)")
@@ -1075,6 +1168,8 @@ class Job:
         self.warnings: dict[str, list[str]] = {}
         self.checks: dict[str, dict] = {}
         self.failed: list[str] = []
+        self.skipped: dict[str, str] = {}    # kind -> why it could not be made
+        self.explicit = False                # the kinds were asked for by name (--only)
         self._audio: Path | None = None
 
     def name(self, kind: str, n: int | None = None, ext: str | None = None) -> Path:
@@ -1141,7 +1236,7 @@ def render_reach(job: Job, fm: dict) -> None:
         w.append(f"reach cut moved from {float(rc['t0']):g}-{float(rc['t1']):g} s to {a:g}-{b:g} s "
                  f"so it does not cut a caption line")
         rc = fm["reach_cut"] = dict(rc, t0=a, t1=b)
-    d, segments = reach_plan(job.plan, rc)
+    d, segments = reach_plan(job.plan, rc, w)
     d = check_derived(d, "reach cut", w)
     out = job.name("reach")
     job.video(d, segments, "reach", out, w)
@@ -1227,6 +1322,7 @@ def render_srt(job: Job) -> None:
         if out.exists():
             out.unlink()
         w.append("srt: the plan has no caption lines and there is no transcript (music-only reel): no .srt written")
+        job.skipped["srt"] = "the plan has no caption lines and there is no transcript (music-only reel)"
         return
     write_srt(out, cues)
     job.add("srt", out)
@@ -1268,7 +1364,11 @@ def parse_only(text: str | None) -> list[str]:
 def run(plan_path: str | Path, reel: str | Path, out_dir: str | Path | None = None, slug: str | None = None,
         only: list[str] | None = None, draft: bool = False, workers: int | None = None,
         progress: bool = True) -> dict:
-    """Render the formats; returns the report section (also written to OUT_DIR/report.json)."""
+    """Render the formats; returns the report section (also written to OUT_DIR/report.json).
+
+    only = None renders every kind and an output that cannot be made from this plan is skipped
+    (WARN, listed under `skipped`, `ok` unaffected); kinds named in `only` are requested, so one of
+    them skipped makes `ok` false and is an error."""
     plan_path = Path(plan_path).expanduser().resolve()
     reel = Path(reel).expanduser().resolve()
     plan = engine.load_plan(plan_path)
@@ -1279,12 +1379,15 @@ def run(plan_path: str | Path, reel: str | Path, out_dir: str | Path | None = No
     if not slug_:
         raise nc.UsageError("--slug: give a name with letters or digits")
     run_warn: list[str] = []
-    fm, defaulted, skipped = resolve_formats(plan, set(kinds), run_warn, plan_path.parent)
+    reasons: dict[str, str] = {}
+    fm, defaulted, skipped = resolve_formats(plan, set(kinds), run_warn, plan_path.parent, reasons)
     asked = list(kinds)
     kinds = [k for k in kinds if k not in skipped]
     check_formats(plan, fm)
     job = Job(plan, plan_path, reel, out, slug_, draft, workers, progress)
     job.warnings["formats"] = run_warn
+    job.explicit = only is not None
+    job.skipped.update({k: reasons.get(k, "cannot be made from this plan") for k in KINDS if k in skipped})
     for k in skipped:   # a skipped output must not leave an earlier run's files behind
         if k in ("story", "carousel", "hooks"):
             job.clear({"hooks": "hook"}.get(k, k), ("jpg", "mp4"))
@@ -1326,6 +1429,11 @@ def write_report(job: Job, kinds: list[str], fm: dict, defaulted: list[str]) -> 
     names_now = {Path(f).name for k in order for f in outputs[k]["files"]}
     checks = {n: r for n, r in (prev.get("checks") or {}).items() if n in names_now and n not in job.checks}
     checks.update({n: {"ok": r["ok"], "errors": r["errors"], "warnings": r["warnings"]} for n, r in job.checks.items()})
+    skipped = [{"kind": k, "reason": r} for k, r in sorted(job.skipped.items(), key=lambda x: KINDS.index(x[0]))]
+    prev_skipped = [x for x in prev.get("skipped") or [] if isinstance(x, dict) and x.get("kind") not in kinds]
+    skipped = sorted(prev_skipped + skipped, key=lambda x: KINDS.index(x["kind"]) if x["kind"] in KINDS else 99)
+    if job.explicit:   # a kind asked for by name that could not be made is a failure, not a skip
+        job.failed += [f"{x['kind']}: requested but skipped: {x['reason']}" for x in skipped if x["kind"] in kinds]
     section = {
         "files": [f for k in order for f in outputs[k]["files"]],
         "warnings": job.warnings.get("formats", []) + [m for k in order for m in outputs[k]["warnings"]],
@@ -1333,7 +1441,8 @@ def write_report(job: Job, kinds: list[str], fm: dict, defaulted: list[str]) -> 
         "checks": checks,
         "slug": job.slug,
         "draft": job.draft,
-        "ok": all(c["ok"] for c in checks.values()),
+        "skipped": skipped,
+        "ok": all(c["ok"] for c in checks.values()) and not (job.explicit and any(x["kind"] in kinds for x in skipped)),
     }
     nc.update_report(job.out, "formats", section)
     if job.checks:
@@ -1358,7 +1467,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true", help="print one JSON report on stdout")
     args = ap.parse_args(argv)
     only = parse_only(args.only)
-    section = run(args.plan, args.reel, args.out, args.slug, only, args.draft, progress=not args.json)
+    section = run(args.plan, args.reel, args.out, args.slug, only if args.only else None, args.draft,
+                  progress=not args.json)
     for e in section["errors"]:
         nc.error_line(e)
     if args.json:

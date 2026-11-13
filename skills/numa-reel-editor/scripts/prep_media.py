@@ -65,6 +65,8 @@ MAX_CORRECTION = 0.08         # OpenCV fallback: largest shift correction (fract
 MAX_ANGLE = math.radians(2.0)  # OpenCV fallback: largest rotation correction
 X264 = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-profile:v", "high", "-pix_fmt", "yuv420p",
         "-threads", "4", "-x264-params", "threads=4:lookahead_threads=1"]
+OPENCV_COLOR_TAGS = ["-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709",
+                     "-color_trc", "bt709"]
 BITEXACT = ["-map_metadata", "-1", "-map_chapters", "-1", "-fflags", "+bitexact", "-flags:v", "+bitexact",
             "-flags:a", "+bitexact", "-movflags", "+faststart"]
 
@@ -299,10 +301,12 @@ def stabilize_opencv(src: str, info: dict, dst: Path, gamma: float, scratch: Pat
     cmd = [nc.ffmpeg_bin(), "-hide_banner", "-nostdin", "-v", "error", "-y",
            "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W2}x{H2}", "-framerate", f"{fps:.6f}", "-i", "-",
            "-i", src, "-map", "0:v:0", *audio_args(info, 1)]
+    # the piped RGB frames carry no colour tags: convert them to limited-range BT.709 YUV
+    # explicitly and tag the stream so players and the renderer read the range right
+    vf = "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p"
     if gamma > 1.0:
-        # the piped RGB frames are converted to limited-range YUV before this filter runs
-        cmd += ["-vf", brighten_filter(gamma, full=False)]
-    cmd += ["-fps_mode", "cfr", *_encode_out(tmp)]
+        vf += "," + brighten_filter(gamma, full=False)
+    cmd += ["-vf", vf, *OPENCV_COLOR_TAGS, "-fps_mode", "cfr", *_encode_out(tmp)]
     enc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     cx, cy = W2 / 2.0, H2 / 2.0
     try:

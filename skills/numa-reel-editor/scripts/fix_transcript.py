@@ -9,7 +9,9 @@ Order of fixes (spec p.6, transcript failure row):
      recognized words to the script and let the script win for spelling and
      punctuation. Timing is kept: only `words[].w` changes (a word the recognizer
      split in two, e.g. "Moby le" for "Mobile", is merged into one word that
-     spans both timings).
+     spans both timings; one or two script words it dropped inside a sentence
+     are inserted with timing interpolated between their neighbours). Sentence
+     and caption-line starts keep their capital.
   2. Apply brand.json `transcript_fixes` (e.g. "Moby" -> "Mobile") to the words
      the script did not confirm.
   3. When there is no transcript, or it has almost nothing in common with the
@@ -40,6 +42,11 @@ SCRIPT_MISMATCH_WARNING = ("transcript differs from the shoot-card script (confi
 WORD_SIMILARITY = 0.5        # misheard word vs script word: replace when this similar (or anchored by context)
 MAX_BLOCK = 4                # longest mismatch run (words) the aligner rewrites
 SCRIPT_FALLBACK_WARNING = "captions from the script, timed to the audio (transcript missing or unusable)"
+MAX_INSERT = 2               # script words the recognizer dropped: re-inserted when the gap is this short
+INSERT_SLOT_S = 0.1          # least time per re-inserted word
+INSERT_MAX_S = 0.35          # most time per re-inserted word
+LINE_PAUSE_S = 0.7           # a pause this long starts a new caption line (baseline_plan.split_sentences)
+SENTENCE_END = (".", "!", "?")
 
 _TOKEN_RE = re.compile(r"^(\W*)(.*?)(\W*)$", re.S)
 _POSSESSIVE_RE = re.compile(r"^(.*?)(['’]s)$", re.I)
@@ -198,14 +205,45 @@ def _restyle(token: str, word: str) -> str:
     return token + split_token(word)[2]
 
 
+def ends_sentence(word: str) -> bool:
+    return word.rstrip().rstrip("\"'”’)").endswith(SENTENCE_END)
+
+
+def _insert_times(prev: dict | None, nxt: dict, k: int, tail_of_prev_sentence: bool) -> list[tuple[float, float]] | None:
+    """Start/end for k dropped script words between two heard words (None: no room)."""
+    hi = float(nxt.get("start", nxt["appear"]))
+    if prev is None:
+        lo = max(0.0, hi - INSERT_MAX_S * k)
+    else:
+        lo = float(prev["end"])
+        if hi - lo > INSERT_MAX_S * k:  # a long pause: keep the words next to their own sentence
+            if tail_of_prev_sentence:
+                hi = lo + INSERT_MAX_S * k
+            else:
+                lo = hi - INSERT_MAX_S * k
+        elif hi - lo < INSERT_SLOT_S * k:  # words run together: share the end of the previous word
+            lo = max(float(prev["appear"]), hi - INSERT_SLOT_S * k)
+    if hi - lo < INSERT_SLOT_S * k - 1e-9:
+        return None
+    step = (hi - lo) / k
+    return [(round(lo + x * step, 2), round(lo + (x + 1) * step, 2)) for x in range(k)]
+
+
+def _capitalize(text: str) -> str:
+    pre, core, post = split_token(text)
+    return f"{pre}{core[:1].upper()}{core[1:]}{post}" if core else text
+
+
 def align_to_script(words: Sequence[dict], tokens: Sequence[str]) -> tuple[list[dict], list[dict], set[int]]:
     """Align recognized words to script tokens (difflib on normalized words).
 
     Equal runs take the script's spelling/punctuation. Short mismatch runs are
     rewritten when they look misheard: 1:1 when similar or anchored between
     matching words, n:1 merges ("Moby le" -> "Mobile") and 1:n splits are folded
-    into one word when the letters agree. Timing is never invented: a merged word
-    keeps the first word's start/appear and the last word's end.
+    into one word when the letters agree. A merged word keeps the first word's
+    start/appear and the last word's end. One or two script words the recognizer
+    dropped inside a sentence are inserted with timing interpolated between their
+    neighbours. A word that starts a sentence or caption line keeps its capital.
     Returns (new words, corrections, indices confirmed by the script)."""
     src = [dict(w) for w in words]
     a = [norm(w["w"]) for w in src]
@@ -215,11 +253,18 @@ def align_to_script(words: Sequence[dict], tokens: Sequence[str]) -> tuple[list[
     out: list[dict] = []
     corrections: list[dict] = []
     confirmed: set[int] = set()
+    heard_cap: list[bool] = []   # per output word: the recognizer wrote it with a capital
+
+    def capital(text: str) -> bool:
+        core = split_token(text)[1]
+        return core[:1].isupper()
 
     def keep(w: dict) -> None:
+        heard_cap.append(capital(w["w"]))
         out.append(w)
 
     def change(w: dict, new_text: str, *, confirm: bool = True) -> None:
+        heard_cap.append(capital(w["w"]))
         if new_text != w["w"]:
             corrections.append({"index": len(out), "from": w["w"], "to": new_text, "reason": "script"})
             w = dict(w, w=new_text)
@@ -227,13 +272,37 @@ def align_to_script(words: Sequence[dict], tokens: Sequence[str]) -> tuple[list[
             confirmed.add(len(out))
         out.append(w)
 
+    def insert(nxt_i: int, j1: int, j2: int) -> None:
+        """Script words tokens[j1:j2] were not heard before src[nxt_i]: insert them
+        between their neighbours when the gap is short and inside one sentence."""
+        k = j2 - j1
+        if k > MAX_INSERT or nxt_i >= len(src):
+            return  # a long run, or nothing heard after it: no caption
+        if any(ends_sentence(t) for t in tokens[j1:j2 - 1]):
+            return
+        prev = out[-1] if out else None
+        left_ends = j1 == 0 or ends_sentence(tokens[j1 - 1])
+        if left_ends and ends_sentence(tokens[j2 - 1]):
+            return  # a whole missing sentence, not a dropped word
+        times = _insert_times(prev, src[nxt_i], k, tail_of_prev_sentence=not left_ends)
+        if times is None:
+            return
+        for j, (t0, t1) in zip(range(j1, j2), times):
+            corrections.append({"index": len(out), "from": "", "to": tokens[j], "reason": "script"})
+            confirmed.add(len(out))
+            heard_cap.append(False)
+            out.append({"w": tokens[j], "appear": appear_time(t0, t1), "end": t1, "start": t0, "source": "script"})
+
     for k, (tag, i1, i2, j1, j2) in enumerate(ops):
         if tag == "equal":
             for i, j in zip(range(i1, i2), range(j1, j2)):
                 change(src[i], _restyle(tokens[j], src[i]["w"]))
             continue
-        if tag in ("delete", "insert"):
-            # ad-libbed words stay as heard; script words that were not spoken get no caption
+        if tag == "insert":
+            insert(i1, j1, j2)
+            continue
+        if tag == "delete":
+            # ad-libbed words stay as heard
             for i in range(i1, i2):
                 keep(src[i])
             continue
@@ -268,6 +337,7 @@ def align_to_script(words: Sequence[dict], tokens: Sequence[str]) -> tuple[list[
                 new_text = _restyle(tokens[j], last["w"])
                 corrections.append({"index": len(out), "from": heard_text, "to": new_text, "reason": "script"})
                 confirmed.add(len(out))
+                heard_cap.append(capital(first["w"]))
                 merged["w"] = new_text
                 out.append(merged)
         else:
@@ -275,7 +345,33 @@ def align_to_script(words: Sequence[dict], tokens: Sequence[str]) -> tuple[list[
             groups = _group(b[j1:j2], a[i1:i2])
             for (g0, g1), i in zip(groups, range(i1, i2)):
                 change(src[i], " ".join(tokens[j1 + x] for x in range(g0, g1)))
+    _keep_line_capitals(out, corrections, heard_cap)
     return out, corrections, confirmed
+
+
+def _keep_line_capitals(out: list[dict], corrections: list[dict], heard_cap: Sequence[bool]) -> None:
+    """A word that starts a sentence or caption line (first word, after . ! ?, or after a
+    pause long enough to break the line) keeps a capital the recognizer gave it, and a
+    script word inserted there gets one."""
+    by_index = {c["index"]: c for c in corrections}
+    for idx, w in enumerate(out):
+        if idx > 0:
+            prev = out[idx - 1]
+            if not ends_sentence(prev["w"]) and float(w["appear"]) - float(prev["end"]) <= LINE_PAUSE_S:
+                continue
+        core = split_token(w["w"])[1]
+        if not core[:1].islower():
+            continue
+        if not heard_cap[idx] and w.get("source") != "script":
+            continue
+        new_text = _capitalize(w["w"])
+        out[idx] = dict(w, w=new_text)
+        c = by_index.get(idx)
+        if c is not None:
+            if c["from"] == new_text:
+                corrections.remove(c)
+            else:
+                c["to"] = new_text
 
 
 def _group(longer: Sequence[str], shorter: Sequence[str]) -> list[tuple[int, int]]:
@@ -354,8 +450,9 @@ def silero_spans(audio, sr: int = 16000) -> list[tuple[float, float]] | None:
 
 def speech_spans(analysis: dict) -> list[tuple[float, float]]:
     """Where the voice is in the reel's audio: the voiceover file by energy (it is dry),
-    a combined track by Silero VAD (else frame energy). Without Silero the spans
-    stop before the music outro so script captions never run into it."""
+    a combined track by Silero VAD (else frame energy). Without Silero, or when no
+    speech is found at all, the spans stop before the music outro so script
+    captions never run into it."""
     audio = analysis.get("audio") or {}
     duration = float(analysis.get("duration") or 0.0)
     voice, master = audio.get("voice"), audio.get("master")
@@ -382,6 +479,8 @@ def speech_spans(analysis: dict) -> list[tuple[float, float]]:
         limit = duration - outro
     if duration > 0:
         spans = [(s, min(e, limit)) for s, e in (spans or []) if s < limit - 0.1]
+    if not spans and has_music and duration > outro + 3:
+        limit = duration - outro  # no voice detected: the music-only outro still gets no captions
     if not spans and limit > 0:
         spans = [(min(0.3, limit / 4), max(limit - 0.3, 0.5))]
     return spans or []

@@ -649,3 +649,16 @@ def test_offer_hidden_in_an_ask_the_dpt_reel(tmp_path, capsys):
     row(p, 14)["lines"] = row(p, 14)["lines"][:3] + ["Discover NUMA is $49 for your first month."]
     code, vs = violations(tmp_path, capsys, p)
     assert code == 1 and any("Ask the DPT" in v["message"] for v in vs)
+
+
+def test_month_piped_into_closed_reader_exits_quietly():
+    # `shoot_card.py month 2026-12 | head`: the reader goes away before all lines are written
+    import subprocess
+    import sys
+    proc = subprocess.Popen([sys.executable, sc.__file__, "month", "2026-12"],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc.stdout.close()          # closed before the first write: every write hits a broken pipe
+    err = proc.stderr.read()
+    proc.stderr.close()
+    assert proc.wait(timeout=60) == 0
+    assert b"BrokenPipe" not in err and b"ERROR" not in err and b"Traceback" not in err

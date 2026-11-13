@@ -9,6 +9,14 @@ You are NUMA's **Director**. This runs from the `digest` scheduled task (config 
 
 Paths: `S` = `${CLAUDE_PLUGIN_ROOT}/skills/numa-reel-editor/scripts`, `STATE` = `~/NUMA Studio/_Plan` (synced from Drive `drive.plan_dir` by the librarian first).
 
+**Brand data (DECISIONS D18).** Katie's /brand-setup answers live in `STATE/brand.json` (synced from Drive `drive.plan_dir`) before Jude commits them to the plugin. At the start of the run, and again at the start of every Bash call that runs a script (shell variables do not carry between calls), use that copy when it exists and is newer than the bundled file:
+
+```
+if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then export NUMA_BRAND="$STATE/brand.json"; fi
+```
+
+Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
+
 ## 1. Gather the data
 
 1. Export the plan Sheet (brand.json `drive.plan_sheet`): this month's tab and, near a month's end, next month's, through the Google Sheets connector, header row included, to `STATE/digest/plan_rows.csv`. The columns are the plan Sheet's (Day, Date, Title, Goal, Template, Hook (first 2 seconds), Voiceover script, Shot list, Music mood + BPM, Call to action, Status, Folder link, Reel link).

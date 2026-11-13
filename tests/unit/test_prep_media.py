@@ -267,3 +267,25 @@ def test_opencv_output_keeps_timing(job, tmp_path):
 
 def test_shaky_motion_is_not_rewarded():
     assert vision.second_score(150, 20, 0, 0.5, shaky=True) < vision.second_score(150, 0, 0, 0.5)
+
+
+@pytest.mark.parametrize("gamma", [1.0, 1.6])
+def test_opencv_output_is_tagged_limited_range_bt709(tmp_path, gamma):
+    # a flat mid-grey BT.709 clip: the OpenCV path must tag the range and colour, and keep the level
+    src = tmp_path / "grey.mp4"
+    ffmpeg("-f", "lavfi", "-i", "color=c=0x808080:s=240x426:r=30:d=1", "-vf", "format=yuv420p",
+           "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
+           "-c:v", "libx264", "-crf", "10", str(src))
+    out = tmp_path / "grey_cv.mp4"
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    pm.stabilize_opencv(str(src), numa_common.media_info(src), out, gamma, scratch)
+    probe = json.loads(subprocess.run(
+        [numa_common.ffprobe_bin(), "-v", "error", "-select_streams", "v:0", "-show_entries",
+         "stream=color_range,color_space,color_primaries,color_transfer", "-of", "json", str(out)],
+        capture_output=True, check=True).stdout)["streams"][0]
+    assert probe == {"color_range": "tv", "color_space": "bt709", "color_primaries": "bt709",
+                     "color_transfer": "bt709"}
+    if gamma == 1.0:
+        y_src, y_out = frame(src, 0.5), frame(out, 0.5)
+        assert abs(float(y_src.mean()) - float(y_out.mean())) < 3

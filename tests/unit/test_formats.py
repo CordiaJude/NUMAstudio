@@ -122,8 +122,9 @@ def test_sentences_fit_text_and_markup():
     assert ss[0]["first"] == 3.24 and ss[0]["last_line"] == 5.38 and ss[0]["end"] == 6.96
     assert formats.fit_text("Short one.", 48) == "Short one."
     assert formats.fit_text("Three minutes feels long, until it is over and you walk out into the light.", 30) \
-        == "Three minutes feels long\u2026"
+        == "Three minutes feels long."      # a whole first clause, never an ellipsis
     assert formats.fit_text("but she does.", 48) is None and formats.fit_text("no ending", 48) is None
+    assert formats.fit_text("Breathe in slowly and let the cold settle around you now.", 30) is None  # no clause
     w = formats.text_words("Your *first* plunge.", 1.0)
     assert [x[0] for x in w] == ["Your", "first", "plunge."] and w[1][2] == 1 and len(w[0]) == 2
 

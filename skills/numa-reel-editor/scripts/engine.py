@@ -40,7 +40,10 @@ gradient, the frame-zero hook text, kinetic text cards (plan ``cards``: large se
 with a gold accent revealed word by word over the blurred, darkened picture or
 brand teal; the hook waits while a card is on screen), word-by-word captions
 (safe areas, off faces), the end card, seeded film grain and the global fades (fade-in <= 0.2 s
-and none with a hook, so frame 0 is never black; 0.8 s fade-out).
+and none with a hook, so frame 0 is never black; 0.8 s fade-out). Caption and hook legibility
+adapts to the picture: over a bright region the band behind the text is darkened (a stronger
+bottom gradient) and the text shadow deepens until white text keeps about 6:1 contrast; over dark
+frames nothing changes.
 
 Determinism: the picture is a pure function of (plan, size, frame index);
 grain and leak motion are seeded by ``plan.seed``. Frames rendered by N worker
@@ -52,7 +55,10 @@ Video shots are decoded once per render with one seek per shot into a per-shot
 frame cache (memory-mapped, shared by the workers) at the resolution the shot
 needs; stills are prepared once per shot the same way. The cache lives in a
 hidden temporary folder under OUT_DIR (or $NUMA_RENDER_CACHE), is removed after
-the render, and its size is checked against the free disk space first.
+the render, and its size is checked against the free disk space first. When OUT_DIR is
+inside a cloud-synced folder (its path contains "Google Drive", "GoogleDrive",
+"CloudStorage", "Dropbox" or "OneDrive") the cache defaults to the system temp folder
+instead, so the sync client never uploads gigabytes of temporary frames.
 
 Encoding: fixed 2 s segments, each one GOP from its own single-threaded x264, joined
 without re-encoding. Each segment gets a rate budget (see ``rate_budget``) whose worst
@@ -112,6 +118,18 @@ CARD_RISE_PX = 46
 CARD_WORD_POP = 0.14         # words grow from 86% to full size
 CARD_NUMBER_POP = 0.35       # the numeral grows from 65%
 CARD_DARKEN = 0.42
+# Adaptive text legibility: under each caption line and the hook the picture is measured every frame
+# (95th percentile of linear luminance); when it is brighter than LEGIBLE_BG_LUM the band behind the
+# text is darkened just enough to bring it there (white text then keeps >= ~8:1 contrast) and the
+# text shadow deepens. Dark frames are left exactly as they are.
+LEGIBLE_BG_LUM = 0.07
+LEGIBLE_PERCENTILE = 95
+LEGIBLE_MIN_GAIN = 0.3        # never darker than 30% of the picture
+LEGIBLE_SHADOW_GAIN = 0.9     # shadow opacity x (1 + this) at full strength
+LEGIBLE_FEATHER_ABOVE = 0.08  # band feather above / below the text, fractions of the frame height
+LEGIBLE_FEATHER_BELOW = 0.14
+_SRGB_TO_LINEAR = ((np.arange(256, dtype=np.float32) / 255.0 + 0.055) / 1.055) ** 2.4
+_SRGB_TO_LINEAR[:11] = np.arange(11, dtype=np.float32) / 255.0 / 12.92
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +449,8 @@ class Renderer:
             top = self.safe_top + 0.012 * H
         top = min(max(top, self.safe_top), self.safe_bottom - blk.height)
         self._hook = (blk, top, float(hook.get("t1", 2.0)))
+        self._hook_ink = (min(blk.baseline(top, r) - (sp.baseline - sp.ink_top) for sp, _, r, _ in blk.words),
+                          max(blk.baseline(top, r) + (sp.ink_bottom - sp.baseline) for sp, _, r, _ in blk.words))
 
     def _shot_at(self, t: float) -> int:
         i = 0
@@ -506,7 +526,7 @@ class Renderer:
                 ok = [c for c in cands if clear(c)]
                 if ok:
                     top = min(ok, key=lambda c: (abs(c - top), c))
-            self._lines.append((blk, top, t_first, fade_start, gone))
+            self._lines.append((blk, top, t_first, fade_start, gone, top + ink_top, top + ink_bot))
             self.caption_boxes.append((t_first, t_end, blk.x_min, top + ink_top, blk.x_max, top + ink_bot))
 
     def _build_endcard(self) -> None:
@@ -789,6 +809,42 @@ class Renderer:
         layer = np.clip(layer + 0.5, 0, 255).astype(np.uint8)
         return self._screen(img, layer, 1.0)
 
+    def _legibility(self, img: np.ndarray, y0: float, y1: float, x0: float, x1: float, vis: float,
+                    to_top: bool = False) -> float:
+        """Darken the band behind text whose ink spans rows y0..y1 and columns x0..x1 (in place) when the
+        picture there is bright; returns the shadow gain for the text. vis (0..1) scales the effect with
+        the text's own opacity; to_top holds the band up to the frame's top edge (the hook's top shade).
+        A pure function of the pixels, so renders stay deterministic."""
+        if vis <= 0.002:
+            return 1.0
+        H, W = img.shape[:2]
+        m = 0.02 * H
+        r0, r1 = max(0, int(y0 - m)), min(H, int(math.ceil(y1 + m)))
+        c0, c1 = max(0, int(x0)), min(W, int(math.ceil(x1)))
+        if r1 <= r0 or c1 <= c0:
+            return 1.0
+        step = max(1, int(round(2 * self.s)))
+        sample = img[r0:r1:step, c0:c1:step]
+        lum = (_SRGB_TO_LINEAR[sample[..., 0]] * 0.2126 + _SRGB_TO_LINEAR[sample[..., 1]] * 0.7152
+               + _SRGB_TO_LINEAR[sample[..., 2]] * 0.0722)
+        bright = float(np.percentile(lum, LEGIBLE_PERCENTILE))
+        if bright <= LEGIBLE_BG_LUM:
+            return 1.0
+        gain = max(LEGIBLE_MIN_GAIN, (LEGIBLE_BG_LUM / bright) ** (1 / 2.2))   # sRGB scale for that linear gain
+        depth = (1.0 - gain) * vis
+        fa, fb = LEGIBLE_FEATHER_ABOVE * H, LEGIBLE_FEATHER_BELOW * H
+        b0, b1 = 0 if to_top else max(0, int(r0 - fa)), min(H, int(math.ceil(r1 + fb)))
+        y = np.arange(b0, b1, dtype=np.float32) + 0.5
+        prof = np.ones_like(y)
+        up = y < r0
+        if not to_top:
+            prof[up] = em.smooth_arr(1.0 - (r0 - y[up]) / fa)
+        dn = y >= r1
+        prof[dn] = em.smooth_arr(1.0 - (y[dn] - r1) / fb)
+        f = 1.0 - depth * prof
+        img[b0:b1] = (img[b0:b1].astype(np.float32) * f[:, None, None] + 0.5).astype(np.uint8)
+        return 1.0 + LEGIBLE_SHADOW_GAIN * (1.0 - gain) / (1.0 - LEGIBLE_MIN_GAIN) * vis
+
     def _draw_hook(self, img: np.ndarray, t: float) -> None:
         if not self._hook:
             return
@@ -800,20 +856,23 @@ class Renderer:
         shade = 1.0 - (1.0 - self._hook_shade) * a
         roi = img[:rows].astype(np.float32) * shade[:, None, None]
         img[:rows] = (roi + 0.5).astype(np.uint8)
+        gain = self._legibility(img, *self._hook_ink, blk.x_min, blk.x_max, a, to_top=True)
         for sp, x, r, _ in blk.words:
-            et.draw_sprite(img, sp, x, blk.baseline(top, r), a)
+            et.draw_sprite(img, sp, x, blk.baseline(top, r), a, shadow_gain=gain)
 
     def _draw_captions(self, img: np.ndarray, t: float) -> None:
-        for blk, top, t_first, fade_start, gone in self._lines:
+        for blk, top, t_first, fade_start, gone, ink0, ink1 in self._lines:
             if t < t_first - 0.01 or t >= gone:
                 continue
             lo = 1.0 - em.smooth((t - fade_start) / max(1e-3, gone - fade_start)) if t > fade_start else 1.0
+            vis = lo * em.ease_out((t - t_first) / self.word_fade) if t > t_first else 0.0
+            gain = self._legibility(img, ink0, ink1, blk.x_min, blk.x_max, vis)
             for sp, x, r, ts in blk.words:
                 p = (t - ts) / self.word_fade
                 if p <= 0:
                     continue
                 q = em.ease_out(p)
-                et.draw_sprite(img, sp, x, blk.baseline(top, r) + self.rise * (1 - q), q * lo)
+                et.draw_sprite(img, sp, x, blk.baseline(top, r) + self.rise * (1 - q), q * lo, shadow_gain=gain)
 
     def _draw_endcard(self, img: np.ndarray, t: float) -> np.ndarray:
         ec = self._ec
@@ -1081,6 +1140,26 @@ def _check_space(r: "Renderer", folder: Path, frames: range) -> None:
                            f"(free some space or set NUMA_RENDER_CACHE to a folder on a bigger disk)")
 
 
+CLOUD_SYNC_MARKERS = ("Google Drive", "GoogleDrive", "CloudStorage", "Dropbox", "OneDrive")
+
+
+def is_cloud_synced(path: str | os.PathLike) -> bool:
+    """True when the path lies in a cloud-synced folder (Google Drive, Dropbox, OneDrive, macOS CloudStorage)."""
+    text = str(Path(path).expanduser())
+    return any(m in text for m in CLOUD_SYNC_MARKERS)
+
+
+def cache_root(out_dir: str | os.PathLike) -> Path:
+    """Where the render cache's hidden temp folder goes: $NUMA_RENDER_CACHE, else the system temp folder
+    when out_dir is cloud-synced (the sync client must not upload gigabytes of frames), else out_dir."""
+    env = os.environ.get("NUMA_RENDER_CACHE")
+    if env:
+        return Path(env).expanduser()
+    if is_cloud_synced(out_dir):
+        return Path(tempfile.gettempdir())
+    return Path(out_dir).expanduser()
+
+
 def render_video(plan: dict | str | os.PathLike, out_path: str | os.PathLike, *, t_from: float | None = None,
                  t_to: float | None = None, size: tuple[int, int] | None = None, draft: bool | None = None,
                  workers: int | None = None, encoder: str = "libx264", progress: bool = True,
@@ -1110,7 +1189,7 @@ def render_video(plan: dict | str | os.PathLike, out_path: str | os.PathLike, *,
     starts = segment_starts(frames, seg_len, r.fps)
     timings: dict[str, float] = {}
     old_threads = cv2.getNumThreads()
-    scratch_root = Path(os.environ.get("NUMA_RENDER_CACHE") or plan["out_dir"]).expanduser()
+    scratch_root = cache_root(plan["out_dir"])
     scratch_root.mkdir(parents=True, exist_ok=True)
     _check_space(r, scratch_root, frames)
     with tempfile.TemporaryDirectory(prefix=".numa-render-", dir=str(scratch_root)) as tmp:
@@ -1229,7 +1308,10 @@ def _parser() -> nc.ArgParser:
     p = nc.ArgParser(
         prog="engine.py",
         description="Render a NUMA reel from plan.json (silent MP4), or a preview grid of chosen times.",
-        epilog="Preview: engine.py PLAN_JSON preview T1 [T2 ...] [--size WxH] [--out FILE]")
+        epilog="Preview: engine.py PLAN_JSON preview T1 [T2 ...] [--size WxH] [--out FILE]. "
+               "Render cache: decoded frames go to a hidden temp folder under the plan's out_dir, or under "
+               "$NUMA_RENDER_CACHE; when out_dir is inside a cloud-synced folder (path contains 'Google Drive', "
+               "'GoogleDrive', 'CloudStorage', 'Dropbox' or 'OneDrive') it defaults to the system temp folder.")
     p.add_argument("plan", help="plan.json")
     p.add_argument("mode", nargs="*", help="'preview' followed by reel times in seconds")
     p.add_argument("--draft", action="store_true", help="lower resolution and fast preset (config render.draft)")

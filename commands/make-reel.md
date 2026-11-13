@@ -55,6 +55,14 @@ Paths used below (quote them; folder names contain spaces):
 | `JOB` | `STUDIO/<month folder>/<day folder>` with `raw/`, `work/`, `out/` (docs/CONTRACTS.md section 2) |
 | `SLUG` | `plan.meta.slug`, else the slugified day folder name |
 
+**Brand data (DECISIONS D18).** Katie's /brand-setup answers live in `STATE/brand.json` (synced from Drive `drive.plan_dir`) before Jude commits them to the plugin. At the start of the run, and again at the start of every Bash call that runs a script (shell variables do not carry between calls), use that copy when it exists and is newer than the bundled file:
+
+```
+if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then export NUMA_BRAND="$STATE/brand.json"; fi
+```
+
+Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
+
 **Find the folder (R13), first match wins:**
 1. `$ARGUMENTS` names a folder: use it.
 2. `$ARGUMENTS` is `newest`: the newest dated day folder under `drive.root`.

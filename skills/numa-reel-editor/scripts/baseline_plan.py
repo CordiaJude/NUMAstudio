@@ -67,6 +67,7 @@ import numa_common as nc  # noqa: E402
 import validate_plan  # noqa: E402
 
 MAX_LEN_S = 60.0
+MIN_LEN_S = 15.0              # config render.length_s.main_reel[0]: the shortest main reel
 DEFAULT_NO_AUDIO_S = 30.0
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 STOP = set("""a an and are as at be but by for from had has have he her his i in is it its me my no not of on or our
@@ -414,6 +415,23 @@ def lines_from_script(script: str, grid: list[float], body_end: float, meter: Ro
     return lines
 
 
+def script_length(script: str, A: dict, meter: RowMeter) -> float:
+    """Music-only reel length for a --script without --duration: the script's caption timing (~2.3 words
+    a second, lines starting on beats) plus the music-only outro (config render.outro_music_only_s.default,
+    with the 3.5-5 s end card inside it, REQUIREMENTS interpretation 5), at most the audio (and 60 s), at
+    least 15 s."""
+    audio_d = float(A.get("duration") or 0.0)
+    cap = min(audio_d, MAX_LEN_S) if audio_d > 0 else MAX_LEN_S
+    grid, _ = beat_grid(A, 4 * MAX_LEN_S)
+    lines = lines_from_script(script, grid, 4 * MAX_LEN_S, meter)
+    if not lines:
+        return cap if audio_d > 0 else DEFAULT_NO_AUDIO_S
+    spoken = float(lines[-1]["end"])
+    outro = float(_cfg("render.outro_music_only_s.default", 7.5))
+    lo = float((_cfg("render.length_s.main_reel", [MIN_LEN_S, MAX_LEN_S]) or [MIN_LEN_S])[0])
+    return min(cap, max(lo, spoken + outro))
+
+
 # ---------------------------------------------------------------------------
 # The plan
 # ---------------------------------------------------------------------------
@@ -520,18 +538,30 @@ def shorten(text: str, n: int) -> str:
 CARD_MAX_WORDS = 12   # validate_plan rule 42: a statement card holds at most 12 words
 
 
+CARD_OVER_WORDS = 2   # a whole first clause may run this many words over max_words (with a WARN)
+
+
+def _clause_text(words: list[str]) -> str:
+    return " ".join(words).rstrip(",;:\u2014").rstrip() + ("" if words[-1][-1:] in ".!?" else ".")
+
+
 def card_text(text: str, n: int) -> str:
-    """Statement-card text: the whole line when it fits n words, else its first clause (even a little over n,
-    up to CARD_MAX_WORDS, so the card reads as a whole); clipped words only as a last resort."""
+    """Statement-card text within n words: the whole line when it fits, else the first whole clause that
+    fits; only when no clause fits, the first clause up to CARD_OVER_WORDS over n (WARN); clipped words
+    as a last resort."""
     words = text.replace("*", "").split()
     if len(words) <= n:
         return " ".join(words)
     clauses = [c.split() for c in re.split(r"(?<=[,;:.!?\u2014])\s+|\s-\s", " ".join(words)) if c.strip()]
+    for c in clauses:
+        if 2 <= len(c) <= n:
+            return _clause_text(c)
     first = clauses[0] if clauses else words
-    if 2 <= len(first) <= n:
-        return " ".join(first).rstrip(",;:\u2014").rstrip() + ("" if first[-1][-1:] in ".!?" else ".")
-    if 2 <= len(first) <= CARD_MAX_WORDS:
-        return " ".join(first).rstrip(",;:\u2014").rstrip() + ("" if first[-1][-1:] in ".!?" else ".")
+    if 2 <= len(first) <= min(n + CARD_OVER_WORDS, CARD_MAX_WORDS):
+        short = _clause_text(first)
+        nc.warn(f"text card: no clause of \"{' '.join(words)}\" fits {n} words; the card shows its first "
+                f"clause, {len(first)} words: \"{short}\"")
+        return short
     return shorten(text, n)
 
 
@@ -655,6 +685,13 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
         if not lo_t <= duration <= hi_t:
             nc.warn(f"--duration {duration:g} s is outside the {T['id']} template's typical {lo_t:g}-{hi_t:g} s")
     audio_d = float(A.get("duration") or 0.0)
+    caption_px = _num_pref(prefs, "caption_px")
+    max_chars = int(_num_pref(prefs, "max_caption_chars") or 70)
+    max_gold = int(_num_pref(prefs, "max_gold_words") if _num_pref(prefs, "max_gold_words") is not None else 2)
+    meter = RowMeter(caption_px, max_chars, max_gold)
+    voiced_analysis = bool(A.get("voice_present", True) and A.get("words"))
+    if duration is None and not from_template and script and not voiced_analysis:
+        duration = script_length(script, A, meter)   # not the whole track: the script plus its outro
     if audio_d > 0:
         D = min(x for x in (duration, audio_d, MAX_LEN_S) if x)
     else:
@@ -675,10 +712,6 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
     material = collect_media(A, library)
     by_id = {m.id: m for m in material}
     media = consent_gate(material)
-    caption_px = _num_pref(prefs, "caption_px")
-    max_chars = int(_num_pref(prefs, "max_caption_chars") or 70)
-    max_gold = int(_num_pref(prefs, "max_gold_words") if _num_pref(prefs, "max_gold_words") is not None else 2)
-    meter = RowMeter(caption_px, max_chars, max_gold)
 
     # shot lengths in beats: the template's pacing, then the shot-length preferences
     max_beats = int(_cfg("render.max_shot_beats", 4))
@@ -1002,7 +1035,8 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
     plan["shots"] = shots
     plan["lines"] = lines
     if card_specs:
-        cards, shown = make_cards(card_specs, times, end_t if end_t is not None else D, lines)
+        cards, shown = make_cards(card_specs, times, end_t if end_t is not None else D, lines,
+                                  after=float(plan["hook"]["t1"]) if plan.get("hook") else 0.0)
         if cards:
             plan["cards"] = cards
         if shown:   # the card is that line's on-screen text (rule 24 counts card words as shown)
@@ -1088,10 +1122,11 @@ def sentence_of(lines: list[dict], line: dict) -> tuple[str, list[dict]]:
 
 
 def make_cards(specs: list, times: list[float], limit: float,
-               lines: list[dict] | None = None) -> tuple[list[dict], list[dict]]:
+               lines: list[dict] | None = None, after: float = 0.0) -> tuple[list[dict], list[dict]]:
     """Text cards for a kinetic-type template: one per text_cards entry, on its beat, starting on a cut.
 
-    Returns (cards, the caption lines that statement cards show)."""
+    after: no card starts before this time (the hook's t1), so the hook text owns frame 0 and the first
+    second (a card on screen hides the hook). Returns (cards, the caption lines that statement cards show)."""
     cards: list[dict] = []
     shown: list[dict] = []
     cuts = [t for t in times if t < limit - 1e-6]
@@ -1109,6 +1144,9 @@ def make_cards(specs: list, times: list[float], limit: float,
             nc.warn(f"text card for beat {beat!r}: no spoken or script line to show; left out")
             continue
         t0 = 0.0 if start <= 1e-6 else min(cuts, key=lambda c: (abs(c - start), c))
+        if t0 < after - 1e-6:   # the hook owns the opening: start on the first cut after it
+            later = [c for c in cuts if c >= after - 1e-6]
+            t0 = later[0] if later else after
         nxt = [s for _, (_, s, _, _) in specs[j + 1:] if s > t0 + 0.5]
         n = len(text.replace("*", "").split())
         need = 0.6 + 0.25 * n

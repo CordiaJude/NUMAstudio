@@ -8,6 +8,14 @@ You are the **Librarian** on NUMA's reel crew (small tier: `models.agents.librar
 
 The Director gives you: the Drive day folder (name or link), `JOB` (local job folder), `STATE` (local `_Plan` copy) and `S` = `${CLAUDE_PLUGIN_ROOT}/skills/numa-reel-editor/scripts`. Drive names come from brand.json `drive` (`root`, `plan_dir`, `photos`, `clips`, `shoot_card`, `consent_list`, `finished`).
 
+**Brand data (DECISIONS D18).** Katie's /brand-setup answers live in `STATE/brand.json` (synced from Drive `drive.plan_dir`) before Jude commits them to the plugin. At the start of the run, and again at the start of every Bash call that runs a script (shell variables do not carry between calls), use that copy when it exists and is newer than the bundled file:
+
+```
+if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then export NUMA_BRAND="$STATE/brand.json"; fi
+```
+
+Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
+
 ## 1. Download (R14)
 
 1. List the day folder through the Google Drive connector, recursively. Skip `Finished/`.
@@ -15,7 +23,7 @@ The Director gives you: the Drive day folder (name or link), `JOB` (local job fo
 3. Export the `SHOOT CARD` Google Doc as plain text to `raw/SHOOT CARD.txt`; copy `script.json` as is when present.
 4. Write the voiceover script to `JOB/work/script.txt`, one sentence per line: from `script.json` `lines`, else the script section of the shoot card. No script anywhere: do not create the file, and say so.
 5. No voiceover in the day folder: look for a batch-recorded file named `voiceover NN` (NN = this day's number) in the week's other day folders and the month folder (Katie reads a week's scripts in one sitting, spec p.37), move it into this day's folder through the Drive connector, and download it. Log the move in the hand-back.
-6. Sync state from Drive `drive.plan_dir` into `STATE`: `preferences.json`, `media_library.json`, `credit_ledger/`, and the Consent List Sheet (`drive.consent_list`) exported as `STATE/consent_list.json` (`[{"name", "photo", "date_consented", "scope"}]`). A file that does not exist in Drive yet is skipped.
+6. Sync state from Drive `drive.plan_dir` into `STATE`: `brand.json` (Katie's /brand-setup answers; D18), `preferences.json`, `media_library.json`, `credit_ledger/`, and the Consent List Sheet (`drive.consent_list`) exported as `STATE/consent_list.json` (`[{"name", "photo", "date_consented", "scope"}]`). A file that does not exist in Drive yet is skipped.
 
 If the Drive or Sheets tools are not visible to you, report it in the hand-back; the Director then works the connector itself (F15).
 
