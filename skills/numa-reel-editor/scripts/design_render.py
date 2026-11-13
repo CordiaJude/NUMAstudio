@@ -3,7 +3,8 @@
 
 Usage:
     design_render.py validate CAROUSEL_JSON [--json]
-    design_render.py build    CAROUSEL_JSON --root ROOT [--uploads-only] [--created-at ISO] [--json]
+    design_render.py build    CAROUSEL_JSON --root ROOT [--uploads-only] [--created-at ISO]
+                              [--design-system URL [--design-system-title T] [--design-system-version V]] [--json]
     design_render.py canvas   DIR --out OUT [--slug SLUG] [--runtime FILE] [--format jpg|png] [--list-blobs] [--json]
     design_render.py spec     CAROUSEL_JSON --out OUT [--format jpg|png] [--json]
 
@@ -24,6 +25,10 @@ build     Writes the canvas files for a new canvas under ROOT, ready for one
           Images must be uploaded first: `--uploads-only` copies each image that
           needs an upload (slide photos, the wordmark) to `ROOT/uploads/` and lists
           them; record each upload's `/_blob/<id>` in carousel.json `canvas.blobs`.
+          `--design-system URL` (config `carousel.design_system_url`) adds the
+          system's `designSystems` record (namespace `numa`) and, in the printed
+          `files` map, the server-side copy of its tokens.json to
+          `project/ds/numa/tokens.json` (the Design type's install rule).
 canvas    Renders a canvas folder read back with the Artifact tool: `canvas.json`
           and the `.dc.html` artboards (in `DIR/project/` or `DIR/`), the Design
           type's `artifact-type/dc-runtime.js` (served as `project/support.js`;
@@ -183,7 +188,8 @@ def template_fields(component: str) -> tuple[set[str], set[str]]:
 
 def rich(text: str, accent: str) -> str:
     """Field text -> markup: HTML-escaped, *emphasis* in italic accent, line breaks kept."""
-    out = html.escape(str(text).strip(), quote=False)
+    out = re.sub(r"(?<=\w)'(?=\w)", "\u2019", str(text).strip())  # typographic apostrophe
+    out = html.escape(out, quote=False)
     out = re.sub(r"\*([^*\n]+)\*", lambda m: f'<em style="font-style: italic; color: {accent}">{m.group(1)}</em>', out)
     return out.replace("\n", "<br>")
 
@@ -333,7 +339,17 @@ def board_file(n: int) -> str:
     return "Main.dc.html" if n == 1 else f"Slide{n:02d}.dc.html"
 
 
-def canvas_index(spec: dict, slides: list[dict], created_at: str) -> dict:
+DS_FOLDER = "numa"                   # project/ds/numa/ on the canvas
+DS_URL = re.compile(r"^https:\/\/(preview\.)?claude\.(ai|com)/(code/)?artifact/[A-Za-z0-9_-]+$")
+
+
+def design_system_record(url: str, title: str, version: str | None, now: str) -> dict:
+    if not DS_URL.match(url):
+        raise nc.UserError(f"--design-system must be a design system's link cut after its id, got {url!r}")
+    return {"title": title, "namespace": DS_FOLDER, "artifact": url, "version": version, "copiedAt": now}
+
+
+def canvas_index(spec: dict, slides: list[dict], created_at: str, design_systems: list[dict] | None = None) -> dict:
     w, h = SIZE
     boards, order = {}, []
     for sl in slides:
@@ -346,7 +362,7 @@ def canvas_index(spec: dict, slides: list[dict], created_at: str) -> dict:
             f"so your edits go out as they are.\n\nCaption:\n{spec['caption']}")
     return {"v": 3, "createdOnFiles": {"v": 1, "at": created_at}, "title": spec["title"], "launch": {"view": "canvas"},
             "pages": [], "boards": boards, "order": order,
-            "notes": {"brief": {"x": 0, "y": h + NOTE_GAP, "w": w, "text": note}}, "designSystems": []}
+            "notes": {"brief": {"x": 0, "y": h + NOTE_GAP, "w": w, "text": note}}, "designSystems": design_systems or []}
 
 
 def upload_name(key: str, path: Path) -> str:
@@ -397,10 +413,14 @@ def cmd_build(args) -> int:
         (project / f).write_text(doc, encoding="utf-8")
         files[f"project/{f}"] = f"project/{f}"
     created = args.created_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    nc.write_json(project / "canvas.json", canvas_index(spec, slides, created))
-    result = {"ok": True, "root": str(root), "index": str(project / "canvas.json"), "boards": list(files),
+    systems = [design_system_record(args.design_system, args.design_system_title, args.design_system_version, created)] \
+        if args.design_system else []
+    nc.write_json(project / "canvas.json", canvas_index(spec, slides, created, systems))
+    if args.design_system:  # the server copies the system's tokens.json into the canvas (Design type, Installing)
+        files[f"project/ds/{DS_FOLDER}/tokens.json"] = {"artifact": args.design_system, "path": "project/tokens.json"}
+    result = {"ok": True, "root": str(root), "index": str(project / "canvas.json"), "boards": [f for f in files if f.endswith(".dc.html")],
               "files": files, "uploads": needed, "warnings": probs.warnings}
-    return finish_simple(result, args.json, lambda: [f"wrote {root / f}" for f in ["project/canvas.json", *files]])
+    return finish_simple(result, args.json, lambda: [f"wrote {root / f}" for f in ["project/canvas.json", *result["boards"]]])
 
 
 def finish_simple(result: dict, as_json: bool, lines: Callable[[], list[str]]) -> int:
@@ -648,12 +668,13 @@ def check_probe(probe: dict, page_errors: list[str], where: str, probs: Problems
     dw, dh = probe["doc"]
     if dw > w + 1 or dh > h + 1:
         probs.error(f"{where}: the page is {dw}x{dh}, larger than {w}x{h}")
-    for f in probe["failed"]:
-        probs.error(f"{where}: font {f} failed to load")
-    for u in probe["used"]:
-        if not u["loaded"]:
-            probs.error(f"{where}: font {u['family']} ({u['style']}) is not loaded, text such as {u['sample']!r} would "
-                        f"render in a system font; use the bundled Fraunces / Inter")
+    unloaded = [u for u in probe["used"] if not u["loaded"]]
+    if not unloaded:
+        for f in probe["failed"]:
+            probs.error(f"{where}: font {f} failed to load")
+    for u in unloaded:
+        probs.error(f"{where}: font {u['family']} ({u['style']}) is not loaded, text such as {u['sample']!r} would "
+                    f"render in a system font; use the bundled Fraunces / Inter")
     for o in probe["overflow"]:
         if o.get("outside"):
             probs.error(f"{where}: text {o['text']!r} ({o['field']}) runs outside the slide")
@@ -942,7 +963,7 @@ def render_canvas(args) -> int:
     if not boards:
         raise nc.UserError("; ".join(probs.errors) or "the canvas has no 1080x1350 artboards")
     with Browser() as browser:
-        browser.roots = [project.resolve(), folder]
+        browser.roots = [project.resolve(), folder, nc.FONTS_DIR.resolve()]
         browser.files[(project / "support.js").as_uri()] = runtime
         browser.blobs = {bid: p for bid, p in found.items() if p}
         jobs = [{"n": n, "url": (project / name).as_uri(),
@@ -995,6 +1016,10 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--root", required=True, help="folder that will hold project/ (inside the scratchpad or working directory)")
     b.add_argument("--uploads-only", action="store_true", help="copy the images to upload into ROOT/uploads and list them")
     b.add_argument("--created-at", help="createdOnFiles timestamp (ISO 8601, default now in UTC)")
+    b.add_argument("--design-system", metavar="URL", help="install this Claude Design design system (config "
+                   "carousel.design_system_url): a designSystems record and its tokens.json copied to project/ds/numa/")
+    b.add_argument("--design-system-title", default="NUMA", help="the design system's title for its record")
+    b.add_argument("--design-system-version", help="the design system's version id as the Artifact tool reports it")
     b.add_argument("--json", action="store_true", help="print one JSON report")
     c = sub.add_parser("canvas", help="render a canvas folder read back with the Artifact tool")
     c.add_argument("dir", metavar="DIR")

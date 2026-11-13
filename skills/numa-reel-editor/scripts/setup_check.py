@@ -22,6 +22,10 @@ fix (spec p.13, p.50, p.53; docs/CONTRACTS.md section 9):
   speech model  faster-whisper small.en is downloaded (--download-model fetches
                 it now so the first reel is not slow; without the flag a missing
                 model is a warning: the first transcription downloads it)
+  slide renderer  headless Chromium (Python Playwright) renders a 2-slide test
+                carousel from the bundled components and fonts (R338); missing:
+                a warning with the fix `pip install -r requirements.txt, then
+                python -m playwright install chromium` (component carousels need it)
   test render   a 3-second reel from two bundled brand photos and a generated
                 music pad, through engine.py and finish.py, then check_output
                 (with the length rule set to this test's 3 s instead of a
@@ -364,6 +368,19 @@ def check_speech_model(download: bool) -> Result:
 
 
 # --------------------------------------------------------------------------- test render
+def check_slide_renderer() -> Result:
+    """R338: headless Chromium (Python Playwright) renders a 2-slide test carousel with the bundled fonts."""
+    name = "slide renderer"
+    fix = "pip install -r requirements.txt, then python -m playwright install chromium"
+    import design_render
+    remove_old_test_dirs()
+    folder = Path(tempfile.mkdtemp(prefix=TEST_DIR_PREFIX + "slides-"))
+    ok, detail = design_render.selftest(folder)
+    if ok:
+        return passed(name, detail)
+    return warned(name, f"component carousels cannot be rendered: {detail} (reels and photo carousels still work)", fix)
+
+
 def remove_old_test_dirs() -> None:
     """Remove earlier test folders, but only stale ones (older than STALE_TEST_DIR_S), so a
     check running at the same time never loses its folder."""
@@ -493,6 +510,7 @@ def run_checks(skip_render: bool, download_model: bool) -> tuple[list[Result], d
     guarded("face model", check_face_model)
     guarded("disk", check_disk)
     guarded("speech model", lambda: check_speech_model(download_model))
+    guarded("slide renderer", check_slide_renderer)
 
     render: dict = {}
     if not skip_render:

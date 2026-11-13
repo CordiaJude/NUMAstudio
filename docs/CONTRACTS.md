@@ -942,3 +942,75 @@ exit 1). Consent: a photo with detected faces needs `--consent` (Consent List
 checked) or a `--library` index entry with consent yes; otherwise exit 1
 unless `--blur-faces`. Deterministic bytes. `--json` prints `{ok, kind, files,
 slides: [{file, src, text, faces, consent, blurred, focus, text_position, upscale}]}`.
+
+### design_render.py [T14]
+```
+design_render.py validate CAROUSEL_JSON [--json]
+design_render.py build    CAROUSEL_JSON --root ROOT [--uploads-only] [--created-at ISO]
+                          [--design-system URL [--design-system-title T] [--design-system-version V]] [--json]
+design_render.py canvas   DIR --out OUT [--slug SLUG] [--runtime FILE] [--format jpg|png] [--list-blobs] [--json]
+design_render.py spec     CAROUSEL_JSON --out OUT [--format jpg|png] [--json]
+```
+Component carousels (R328-R332, DECISIONS D21). Needs Python Playwright plus
+its Chromium (`pip install -r requirements.txt`, then
+`python -m playwright install chromium`); no network at render time.
+- `validate`: carousel.json against `schemas/carousel.schema.json`, every text
+  field + caption + hashtags through `claims_scan` (fail = ERROR, warn = WARN),
+  offer prices from brand.json (`needs_katie` price = ERROR), photos exist,
+  2-10 slides (outside config `formats` carousel `count`: WARN).
+- `build`: writes `ROOT/project/canvas.json` (boards `Main.dc.html`,
+  `Slide02.dc.html`, ... 1080x1350, 80 px apart in one row, a sticky with the
+  posting date and caption; `designSystems` record when `--design-system`) and
+  one `.dc.html` per slide from `assets/carousel/<component>.dc.html`, fields
+  filled as literal markup. `--uploads-only` copies the images to upload to
+  `ROOT/uploads/` and lists them (keys: the slide's `photo` string, `wordmark`);
+  without `canvas.blobs` for each, `build` exits 1. `--json` prints
+  `{"ok", "root", "index", "boards", "files", "uploads", "warnings"}`; `files`
+  is the Artifact publish `files` map (plus the design system's tokens.json copy).
+- `canvas`: renders `DIR` as read back with the Artifact tool: `canvas.json` and
+  `*.dc.html` in `DIR/project/` (or `DIR/`), the Design type's runtime
+  `DIR/artifact-type/dc-runtime.js` (served as `project/support.js`; `--runtime`
+  overrides), images `/_blob/<id>` from `DIR/<id>.<ext>` (where the Artifact
+  read saves an asset) or `DIR/_blob/`. Slides in reading order (rows top to
+  bottom, left to right); every board must be 1080x1350. Google Fonts links are
+  served from the bundled Fraunces/Inter; another family = ERROR. The rendered
+  text is claims-scanned (Katie may have edited it). `--list-blobs` prints
+  `<id>\t<file|MISSING>` and exits 0. Default slug: `slugify(canvas title)`.
+- `spec`: the fallback; same checks, rendering `assets/carousel/<component>.html`
+  (identical slide markup to the `.dc.html`, so the same pixels).
+- Checks per slide (ERROR, exit 1): 1080x1350 at (0,0), page not larger; every
+  font used is loaded (no system fallback); not blank/near-uniform (< 0.3% of
+  pixels differ from the background); no text box overflowing (scroll size
+  beyond the box by more than 0.3 em, or text outside the slide); no
+  `[PRICE]` placeholder (a `$` amount that is not a brand.json price: WARN);
+  JPG quality 92 (>= 90 checked), 4:4:4, sRGB ICC embedded.
+- Writes `OUT/<slug>_carousel_<N>.jpg|png` (deliverable_name; old ones of the
+  slug removed first), `OUT/carousel_sheet.jpg` (contact sheet) and
+  `report.json` `design_render`: `{"mode": "canvas|spec", "source", "slug",
+  "ok", "files", "sheet", "slides": [{"n", "file", "board"|"component",
+  "title"?, "ok", "errors", "warnings", "fonts", "text"}], "errors",
+  "warnings"}`. Exit 1 on any ERROR (the slides are still written to LOOK at).
+
+**carousel.json** (`schemas/carousel.schema.json`; usually `JOB/work/carousel.json`):
+```json
+{"schema_version": 1, "slug": "2026-12-08-sauna-vs-red-light",
+ "title": "NUMA Carousel · 2026-12-08 · Sauna vs red light", "date": "2026-12-08",
+ "topic": "Ask the DPT: sauna vs red light", "caption": "Sauna vs red light in Mobile, AL: ...",
+ "hashtags": ["#MobileAL"],
+ "slides": [
+   {"component": "cover", "fields": {"kicker": "Ask the DPT", "title": "Sauna vs red light: what's *different*?", "subtitle": "..."}},
+   {"component": "photo", "photo": "skills/numa-reel-editor/assets/brand-photos/red-light.jpg", "photo_position": "50% 38%",
+    "fields": {"kicker": "Red light", "caption": "Red light is *light*, not heat."}},
+   {"component": "offer", "fields": {"kicker": "New here?", "title": "Your first month", "offer": "Discover NUMA", "cta": "discover.numawellness.org"}},
+   {"component": "cta", "fields": {"title": "Feel the difference.", "button": "discover.numawellness.org"}}],
+ "canvas": {"url": "https://claude.ai/artifact/<id>",
+            "blobs": {"skills/numa-reel-editor/assets/brand-photos/red-light.jpg": "/_blob/<id>", "wordmark": "/_blob/<id>"}}}
+```
+Components and fields (required, *optional*): `cover` kicker, title, *subtitle*;
+`point` kicker, number, title, body; `stat` kicker, stat (<= 8 chars), label,
+*body*, *source*; `myth_fact` kicker, myth, fact; `quote` kicker, quote, name,
+*role*; `steps` kicker, title, step1-3, *step4*; `offer` kicker, title, offer
+(a brand.json offer/session name; price and its note come from brand.json),
+cta, *details*; `photo` kicker, caption (+ slide `photo`, *`photo_position`*,
+*`photo_alt`*); `cta` title, button, *body* (wordmark added). Text: `\n` line
+break, `*word*` italic cedar-ember emphasis; text fits are measured at render.

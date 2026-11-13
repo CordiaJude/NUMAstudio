@@ -17,7 +17,8 @@
       "scriptwriter": "sonnet",
       "scout": "sonnet",
       "librarian": "haiku",
-      "copywriter": "haiku"
+      "copywriter": "haiku",
+      "designer": "sonnet"
     },
     "effort": {
       "director": "high",
@@ -532,6 +533,11 @@
     },
     "judge_at_hours": 72,
     "competitors_tracked_posts": 12
+  },
+  "carousel": {
+    "_source": "DECISIONS D21 (Claude Design carousels); engineering default",
+    "design_system_url": null,
+    "design_system_note": "Link of NUMA's Claude Design design system (Artifact type \"Design System\"), e.g. https://claude.ai/artifact/<id>. When set, skills/numa-carousel installs it on every carousel canvas and builds with it; null = the bundled NUMA components (skills/numa-reel-editor/assets/carousel)."
   },
   "formats": {
     "_source": "spec p.46 (one reel, many outputs); REQUIREMENTS interpretation 1 (main reel 15-60 s); file names from docs/CONTRACTS.md",
