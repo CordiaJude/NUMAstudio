@@ -501,3 +501,19 @@ def test_r119_exemptions_are_setup_only():
     for rel in LINT_XFAIL:
         assert (REPO / rel).exists(), f"stale xfail entry {rel}"
         assert rel not in {p.relative_to(REPO).as_posix() for p in OWNED.values()}, "owned files may not be xfailed"
+
+
+# ---------------------------------------------------------------------------
+# R340, R342: the crew keeps the run log and Chrome queue merged with Drive; the scout hands back Chrome wishes
+# ---------------------------------------------------------------------------
+def test_librarian_merges_runlog_and_chrome_queue(texts):
+    t = texts["librarian"]
+    assert 'runlog.py" merge "$STATE/runlog.drive.json" --state "$STATE"' in t
+    assert 'chrome_queue.py" merge "$STATE/chrome_queue.drive.json" --state "$STATE"' in t
+    assert "never overwritten" in t and "merge the Drive copy first" in t
+
+
+def test_scout_chrome_queue_handback(texts):
+    t = texts["scout"]
+    assert "**Chrome queue (R342).**" in t and "`chrome_wanted`" in t and '"chrome_wanted": []' in t
+    assert "commands/chrome-queue.md" in t and '{"queue_id", "result"}' in t

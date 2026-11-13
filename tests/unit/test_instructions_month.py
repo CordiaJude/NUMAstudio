@@ -474,3 +474,184 @@ def test_no_confirm_or_approval_steps(texts):
         low = t.lower()
         assert "approve the plan?" not in low and "confirm before" not in low and "reply with" not in low, name
     assert "Nobody approves the plan" in texts["plan-month"]
+
+
+# ---------------------------------------------------------------------------
+# scheduling reliability: bootstrap, run log, watchdog, Chrome queue (R339-R343)
+# ---------------------------------------------------------------------------
+CHROME_QUEUE_CMD = REPO / "commands" / "chrome-queue.md"
+MAKE_REEL = REPO / "commands" / "make-reel.md"
+TASK_IDS = {"plan-month": "plan_month", "night-check": "night_check", "build-today": "build_today",
+            "dashboard-refresh": "dashboard_refresh", "trend-check": "trend_check", "digest": "digest"}
+
+
+def _prompts(text: str) -> dict[str, str]:
+    """'**N. Name**' heading -> the fenced prompt under it."""
+    return {m.group(1): m.group(2) for m in re.finditer(r"\*\*\d\. ([^*]+)\*\*[^\n]*\n```\n(.*?)\n```", text, re.S)}
+
+
+@pytest.mark.parametrize("cmd", COMMANDS)
+def test_every_scheduled_command_logs_and_bootstraps(cmd, texts, config):
+    t = texts[cmd]
+    task = TASK_IDS[cmd]
+    assert task in {x["id"] for x in config["schedule"]["tasks"]}
+    sec = t[t.find("## Run start and end"):]
+    assert sec and t.find("## Run start and end") < t.find("## 1.")              # first thing the run does
+    assert f'runlog.py" start {task} --state "$STATE"' in sec                   # R340
+    assert 'ensure_env.py" --json' in sec                                       # R339
+    assert 'runlog.py" merge "$STATE/runlog.drive.json"' in sec and 'chrome_queue.py" merge' in sec
+    assert 'runlog.py" finish <RUN_ID> --outcome' in sec and f"--task {task}" in sec
+    assert "always, also when the run fails" in sec                             # finish on failure too
+    assert "escalation channel in `STATE/brand.json`" in sec and "D19" in sec    # env failure: Jude only
+    assert "finished in the run log" in t[t.find("## Done means"):]
+
+
+def test_build_today_bootstrap_flags(texts):
+    t = texts["build-today"]
+    assert 'ensure_env.py" --json --with-model' in t and "`--with-chromium`" in t and "component carousel" in t
+    assert "make-reel skips its own" in t
+
+
+def test_make_reel_bootstrap_when_run_by_hand():
+    t = MAKE_REEL.read_text(encoding="utf-8")
+    assert 'runlog.py" start make_reel --state "$STATE"' in t and 'ensure_env.py" --json --with-model' in t
+    assert "always, also on failure" in t and 'runlog.py" finish' in t
+    assert "from /build-today, skip this paragraph" in t
+    assert 'chrome_queue.py" add --kind higgsfield_unlimited' in t
+
+
+@pytest.mark.parametrize("cmd", ["night-check", "dashboard-refresh"])
+def test_watchdog_r341(cmd, texts):
+    t = texts[cmd]
+    assert "## 6. Watchdog (R341)" in t
+    assert 'runlog.py" check --state "$STATE" --json --mark-reported' in t
+    assert 'chrome_queue.py" expire' in t
+    assert '"new": true' in t and "Jude one line" in t and "Katie gets nothing" in t
+    full = texts["night-check"]
+    for action in ("`late_build`", "`reschedule`", "`rerun`", "`skip`"):
+        assert action in full
+    assert "commands/build-today.md" in full and "Reschedule" in full and "before the posting window ends" in full
+
+
+def test_night_check_final_message_stays_katies(texts):
+    t = texts["night-check"]
+    sec = t[t.find("## 6. Watchdog"):t.find("## Done means")]
+    assert "before the run's final message" in sec and "never goes in this run's final message" in sec
+
+
+def test_digest_shows_run_health(texts):
+    t = texts["digest"]
+    assert 'runlog.py" summary --week --state "$STATE" --json' in t
+    assert 'chrome_queue.py" list --status expired' in t
+    heads = re.search(r"^\| 6 \| Heads-ups \|(.*)$", t, re.M).group(1)
+    assert "run health" in heads and "nothing for you to do" in heads
+    assert "Jude-only footer" in t and "never into Katie's text" in t
+
+
+@pytest.mark.parametrize("cmd", ["plan-month", "night-check", "trend-check", "build-today"])
+def test_chrome_steps_check_then_drain_or_queue(cmd, texts):
+    t = texts[cmd]
+    assert "**Claude in Chrome (R342).**" in t and "`mcp__claude-in-chrome__*`" in t
+    assert "drain the queue first (commands/chrome-queue.md sections 2 and 4)" in t
+    if cmd != "build-today":
+        assert 'chrome_queue.py" add --kind' in t and "--deadline" in t and "--fallback" in t
+
+
+def test_queued_payloads_are_json(texts):
+    for name, text in {**texts, "make-reel": MAKE_REEL.read_text(encoding="utf-8")}.items():
+        for payload in re.findall(r"--payload '([^']*)'", text):
+            assert isinstance(json.loads(payload), dict), (name, payload)
+
+
+def test_competitor_log_queue_and_fallback(texts):
+    t = texts["trend-check"]
+    assert "--kind competitor_log" in t and "web-search competitor log" in t
+
+
+def test_plan_month_avoids_unlabelled_ai_people(texts):
+    t = texts["plan-month"]
+    sec = t[t.find("**AI-animated people (R342).**"):t.find("## 7. Check until clean")]
+    for needle in ["cannot be guaranteed", "no AI-label field", "Claude in Chrome", "people-free",
+                   "`STATE/setup.json` `verified`", "posting.ai_label_rule"]:
+        assert needle in sec, needle
+
+
+# ---------------------------------------------------------------------------
+# commands/chrome-queue.md (the desktop-only drain task)
+# ---------------------------------------------------------------------------
+def test_chrome_queue_command(config):
+    import chrome_queue
+
+    fm = frontmatter(CHROME_QUEUE_CMD)
+    assert fm.get("description") and fm.get("argument-hint")
+    assert fm.get("model") == config["models"]["agents"]["director"]
+    t = CHROME_QUEUE_CMD.read_text(encoding="utf-8")
+    order = ["## 1. Run start", "## 2. Expired items first", "## 3. Is Chrome here?", "## 4. Drain the queue",
+             "## 5. Late build", "## 6. Run end"]
+    pos = [t.find(h) for h in order]
+    assert -1 not in pos and pos == sorted(pos)
+    for needle in ['runlog.py" start chrome_queue', 'ensure_env.py" --json', 'chrome_queue.py" merge',
+                   'chrome_queue.py" expire', 'chrome_queue.py" next', 'chrome_queue.py" done <id> --result',
+                   'chrome_queue.py" fail <id> --reason', 'runlog.py" check --state "$STATE" --json',
+                   "`late_build`", "`runs` below 2", 'runlog.py" finish <RUN_ID> --outcome',
+                   "always, also on failure", "desktop scheduled task", "only while the Mac is awake",
+                   "`mcp__claude-in-chrome__*`", "deadline order", "heads_ups", "not_before"]:
+        assert needle in t, needle
+    rows = re.findall(r"^\| `([a-z_]+)` \|(?:[^|\n]+\|){3}$", t, re.M)        # kind | payload | Chrome | fallback
+    assert sorted(rows) == sorted(chrome_queue.KINDS)                              # every kind, with a fallback
+    assert "--mark-reported" not in t.replace("do not pass `--mark-reported`", "")
+
+
+def test_chrome_queue_command_scripts_lint_and_keys(brand, config):
+    t = CHROME_QUEUE_CMD.read_text(encoding="utf-8")
+    for script, sub, flags in script_calls(t):
+        path = SCRIPTS / script
+        assert path.exists(), script
+        if sub and subcommands(path):
+            assert sub in subcommands(path), (script, sub)
+        for f in flags:
+            assert f in argparse_flags(path), (script, f)
+    for src, key in KEY_RE.findall(t):
+        assert resolve(brand if src == "brand.json" else config, key), key
+    assert resolve(config, "higgsfield.defaults.motion_draft")
+    assert not _director_lint()(t)
+
+
+# ---------------------------------------------------------------------------
+# docs/SCHEDULED_TASKS.md: self-contained prompts, the seventh and the desktop task (R343)
+# ---------------------------------------------------------------------------
+def test_scheduled_prompts_are_self_contained(config):
+    t = SCHEDULED.read_text(encoding="utf-8")
+    prompts = _prompts(t)
+    names = [x["name"] for x in config["schedule"]["tasks"]] + ["Quarterly research re-check", "Chrome queue"]
+    assert list(prompts) == names
+    for task in config["schedule"]["tasks"]:
+        p = prompts[task["name"]]
+        cmd = task["command"].lstrip("/")
+        assert p.startswith(f"Run {task['command']} ")
+        assert "NUMA Studio plugin (numa-studio)" in p and f"commands/{cmd}.md" in p
+        assert f"If {task['command']} does not expand into instructions" in p
+        assert f"runlog.py start {task['id']}" in p and "runlog.py finish" in p and "also when something fails" in p
+        assert "ensure_env.py" in p
+    q = prompts["Quarterly research re-check"]
+    assert "runlog.py start quarterly_research" in q and "runlog.py finish" in q and "Jude" in q
+    c = prompts["Chrome queue"]
+    assert "commands/chrome-queue.md" in c and "runlog.py start chrome_queue" in c
+    for p in prompts.values():
+        assert "?" not in p, "a scheduled prompt never asks anything"
+
+
+def test_scheduled_doc_seventh_and_desktop_tasks(config):
+    t = SCHEDULED.read_text(encoding="utf-8")
+    assert "## The eight tasks" in t and "## Cloud or desktop: where a task runs" in t
+    assert ("| 7 | Quarterly research re-check | The 12th of Feb, May, Aug and Nov, 10 am | "
+            "`CRON_TZ=America/Chicago 0 10 12 2,5,8,11 *` |") in t
+    assert "| 8 | Chrome queue | Hourly at :47, while the Mac is awake | `CRON_TZ=America/Chicago 47 * * * *` | " \
+           "`/chrome-queue` | **Desktop** |" in t
+    for needle in ["fresh machine every time", "Only while the Mac is awake", "local/desktop scheduled task",
+                   "not in the cloud", "runlog.py check --since", "`OK:`", "Watchdog (R341)", "ensure_env.py"]:
+        assert needle in t, needle
+    for extra in config["schedule"].get("extra_tasks", []):   # once config carries tasks 7 and 8
+        assert f"| {extra['name']} | {extra['when']} | `CRON_TZ=America/Chicago {extra['cron']}` |" in t, extra["id"]
+        if extra.get("where") == "desktop":
+            assert extra["command"] == "/chrome-queue"

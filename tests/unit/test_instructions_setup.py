@@ -503,3 +503,30 @@ def test_post_reel_prefers_public_urls(texts):
     sec = _section12(texts)
     step = sec[sec.find("**3. Public image URLs**"):sec.find("**4. Limits")]
     assert step.find("Drive public link (first choice, `image_url`)") < step.find("Composio file staging (fallback, `image_file`)")
+
+
+# ---------------------------------------------------------------------------
+# R339, R343: setup bootstraps with ensure_env and verifies every task in the run log
+# ---------------------------------------------------------------------------
+def test_numa_setup_bootstrap_and_task_verification(texts):
+    t = texts["numa-setup"]
+    step1 = t[t.find("## 1."):t.find("## 2.")]
+    assert 'ensure_env.py" --with-model --with-chromium' in step1 and "--break-system-packages" in step1
+    sec = t[t.find("## 10. Scheduled tasks"):t.find("## 11.")]
+    for needle in ["eight scheduled tasks", "Quarterly research re-check", "0 10 12 2,5,8,11 *", "Chrome queue",
+                   "local (desktop) scheduled task", "never in the cloud", "Run now", "`SINCE`",
+                   'runlog.py" check --since "<SINCE>" --tasks', "(not run)", "Leave the schedule off",
+                   "do not expand", "copied **exactly**"]:
+        assert needle in sec, needle
+    ids = re.search(r"--tasks ([a-z_,]+)", sec).group(1).split(",")
+    assert ids == ["plan_month", "night_check", "build_today", "dashboard_refresh", "trend_check", "digest",
+                   "quarterly_research", "chrome_queue"]
+
+
+def test_setup_guide_eight_tasks_and_runlog_check(texts):
+    t = texts["guide"]
+    for needle in ["Create the eight scheduled tasks", "| Quarterly research re-check |", "| Chrome queue |",
+                   "**Desktop** (Katie's Mac)", "Cloud or desktop.", "only while the Mac is awake",
+                   "Check the run log", "runlog.py check --since", "`ensure_env.py`"]:
+        assert needle in t, needle
+    assert "six scheduled tasks" not in t
