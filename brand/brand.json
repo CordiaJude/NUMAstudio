@@ -733,7 +733,8 @@
       "water_teal": "#5E8C8F",
       "cream": "#FAF6EE",
       "caption_gold": "#F7D6A0",
-      "caption_text": "#FFFFFF"
+      "caption_text": "#FFFFFF",
+      "ink": "#133037"
     },
     "roles": {
       "caption_text": "caption_text",
