@@ -768,7 +768,7 @@ def test_scrim_strength_is_constant_over_a_moving_shot(plan_factory, tmp_path, m
     # a bright, textured picture (text on it reads below 4.5:1) that the zoom and pan move under the caption
     w, h = 1600, 2400
     yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
-    v = 185 + 35 * np.sin(xx / 37.0) * np.cos(yy / 53.0) + 30 * (xx / w)
+    v = 225 + 25 * np.sin(xx / 37.0) * np.cos(yy / 53.0) + 10 * (xx / w)
     bright = tmp_path / "bright_texture.png"
     Image.fromarray(np.clip(np.stack([v, v * 0.97, v * 0.9], -1), 0, 255).round().astype(np.uint8)).save(bright)
     p = short_plan(plan_factory, size=[540, 960], leaks=[],
