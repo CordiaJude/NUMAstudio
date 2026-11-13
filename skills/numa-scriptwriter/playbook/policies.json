@@ -1,0 +1,108 @@
+{
+  "_readme": "Starting policies, all priors to be updated by NUMA's own data (strategy.py). Score units: a post's score is roughly ln(its metric / NUMA's rolling median for that post type), winsorised, so +0.15 is about 16% better than NUMA's median and 0 is the median. prior_means are cold-start tilts in those units; prior_strength is how many posts' worth of weight a research prior gets (measured 3, observed 2, opinion 1), so NUMA's own posts outweigh research after a handful. Judging windows: spec default (early read at 72 h, final at 7 d) until R6/R7 research is imported. Planning rules (shoot_card.py check, spec p.34) always override these numbers.",
+  "schema_version": 1,
+  "kind": "policies",
+  "policies": {
+    "post_types": {
+      "reel": {"role": "Discovery: the main growth format below 50K followers.", "default_goal": "reach",
+               "evidence": {"level": "measured", "sources": ["research/1-content-benchmarks.md (Socialinsider reach rate by size: Reels 9.78% for 1K-5K accounts, lead below 50K)", "spec p.9"]}},
+      "trial_reel": {"role": "Hook tests on non-followers; compared only with other Trial Reels.", "default_goal": "reach",
+                     "evidence": {"level": "measured", "sources": ["research/1-content-benchmarks.md (Instagram Jun 2025, official, narrow)", "spec p.9 (1-2 Trial Reels a week)"]}},
+      "carousel": {"role": "Saveable explainers, protocols, comparisons, pricing.", "default_goal": "saves",
+                   "evidence": {"level": "measured", "sources": ["research/1-content-benchmarks.md (Socialinsider: carousels slightly more engagement and saves below 50K)", "spec p.9"]}},
+      "image": {"role": "Announcements and grid rhythm for followers; weakest reach.", "default_goal": "reach",
+                "evidence": {"level": "measured", "sources": ["research/1-content-benchmarks.md (Metricool 2026: Reels reach 212% more than single images)"]}},
+      "story": {"role": "Daily, cut from the same material; behind the scenes, reminders.", "default_goal": "conversion",
+                "evidence": {"level": "opinion", "sources": ["spec p.33 (daily Stories)"]}}
+    },
+    "cadence": {
+      "feed_per_week": {"value": 5, "min": 4, "max": 5},
+      "trial_per_week": {"value": 1, "min": 1, "max": 2},
+      "stories": "Daily, cut from the week's material; one Stories-only day in the default week (Saturday).",
+      "never_dark_week": true,
+      "evidence": {"level": "measured", "sources": ["research/1-content-benchmarks.md (Buffer 2.1M posts: 3-5 a week about doubles follower growth vs 1-2; no-post weeks fall below the account's norm; correlational)", "spec p.33-34 (4-5 feed posts, 1-2 Trial Reels, never a week dark)"]}
+    },
+    "feed_mix": {
+      "reel": {"prior": 0.67, "min": 0.5, "max": 0.85},
+      "carousel": {"prior": 0.33, "min": 0.1, "max": 0.5},
+      "image": {"prior": 0.0, "min": 0.0, "max": 0.2},
+      "evidence": {"level": "measured", "sources": ["spec p.9, p.33 (about two-thirds Reels, one-third carousels)", "research/1-content-benchmarks.md (Socialinsider guidance 60-70% Reels is opinion; Buffer/Socialinsider format data measured)", "research/4-mobile-competitor-audit.md (about 15% static images, opinion)"], "notes": "min/max are engineering bounds on how far learning may move the mix in one plan."}
+    },
+    "hour_bands": {
+      "bands": {
+        "morning": {"hours": [6, 10], "post_at": "07:30"},
+        "midday": {"hours": [11, 14], "post_at": "12:15"},
+        "late_afternoon": {"hours": [15, 17], "post_at": "16:30"},
+        "evening": {"hours": [18, 20], "post_at": "18:45"},
+        "night": {"hours": [21, 23], "post_at": "21:15"}
+      },
+      "default": "late_afternoon",
+      "evidence": {"level": "opinion", "sources": ["spec p.34 (posting hours start late afternoon Central, re-tuned after 30 reels)", "research/1-content-benchmarks.md (no 2025-2026 niche study on time of day; Metricool's 3-day decay matters more than the hour)"], "notes": "A measured gap: hours are learned from NUMA's own data."}
+    },
+    "offers": {
+      "max_sales_per_week": 1,
+      "offers_per_month": [2, 3],
+      "rules": [
+        "At most one sales-focused post a week (spec p.34 rule 1).",
+        "Ask the DPT never sells (brand.json claims.rules education).",
+        "Experience first, offer in the last beat (opinion).",
+        "Never state a price whose brand.json status is needs_katie.",
+        "Nothing that invites people in on a closure day (spec p.34 rule 8).",
+        "Weeks without an offer carry the collab or Meet the Collective feature in the sales slot (default week)."
+      ],
+      "evidence": {"level": "opinion", "sources": ["spec p.34", "brand.json claims.rules"]}
+    },
+    "scoring": {
+      "judge_pulls": ["72h", "7d"],
+      "baseline": {"window_days": 90, "min_posts": 3},
+      "winsor_log_cap": 1.386,
+      "skip_unit": 0.10,
+      "goal_weights": {
+        "reach": {"views": 0.25, "sends": 0.3, "skip": 0.25, "retention": 0.2},
+        "saves": {"saves": 0.6, "sends": 0.2, "views": 0.2},
+        "conversion": {"profile_visits": 0.35, "follows": 0.35, "link_clicks": 0.3}
+      },
+      "pooled_weights": {"views": 0.4, "sends": 0.3, "saves": 0.3},
+      "evidence": {"level": "opinion", "sources": ["research/1-content-benchmarks.md (Mosseri, Jan 2025: watch time, likes per reach and sends per reach are the top signals; official)", "spec p.8, p.34, p.47 (skip rate vs NUMA's median, judge at 72 h, sends and saves per 1,000 reach)"], "notes": "Which metrics matter is official; the weights are engineering defaults until R6 research. winsor_log_cap ln(4): a viral post counts as at most 4x the median. skip_unit: 10 points of skip rate = one score unit. Missing metrics drop out and the weights re-normalise; a conversion post with no conversion metrics is scored on reach."}
+    },
+    "judging": {
+      "reel": {"ignore_before_hours": 72, "provisional_hours": 72, "provisional_weight": 0.5, "final_hours": 168, "best_early_metric": "skip_rate", "origin": "seed",
+               "evidence": {"level": "opinion", "sources": ["spec p.34 (judge each reel at 72 h, when about 65% of views have arrived)", "spec p.47 (pull at 48 h and 7 days)", "config/studio.json instagram.judge_at_hours"], "notes": "Spec default until R7 research is imported."}},
+      "trial_reel": {"ignore_before_hours": 72, "provisional_hours": 72, "provisional_weight": 0.5, "final_hours": 168, "best_early_metric": "skip_rate", "origin": "seed",
+                     "evidence": {"level": "opinion", "sources": ["spec p.34, p.47", "research/4-mobile-competitor-audit.md (Trial Reels report after about 24 h and can auto-share within 72 h)"], "notes": "Spec default until R7 research is imported."}},
+      "carousel": {"ignore_before_hours": 72, "provisional_hours": 72, "provisional_weight": 0.5, "final_hours": 168, "best_early_metric": "saves_per_1k_reach", "origin": "seed",
+                   "evidence": {"level": "opinion", "sources": ["spec p.34, p.47"], "notes": "Spec default until R7 research is imported."}},
+      "image": {"ignore_before_hours": 72, "provisional_hours": 72, "provisional_weight": 0.5, "final_hours": 168, "best_early_metric": "reach", "origin": "seed",
+                "evidence": {"level": "opinion", "sources": ["spec p.34, p.47"], "notes": "Spec default until R7 research is imported."}},
+      "story": {"ignore_before_hours": 0, "provisional_hours": 6, "provisional_weight": 0.5, "final_hours": 20, "best_early_metric": "reach", "origin": "seed",
+                "evidence": {"level": "opinion", "sources": ["metrics.py docstring (Instagram keeps a Story's insights only while it is live, 24 h; pulled the same day)"], "notes": "Any Story pull is taken as final (the store has no hourly pulls for Stories)."}}
+    },
+    "learning": {
+      "prior_strength": {"measured": 3, "observed": 2, "opinion": 1, "interaction": 4},
+      "evidence_prior_mean": {"measured": 0.04, "observed": 0.03, "opinion": 0.0, "numa": 0.0},
+      "half_life_days": 90,
+      "data_led_after_posts": 30,
+      "noise_sd": 0.5,
+      "exploration_budget": 0.25,
+      "explore_variance_inflation": 4,
+      "stickiness": 0.1,
+      "max_pattern_share_week": 0.6,
+      "underperform_score": -0.15,
+      "promote": {"min_n": 5, "min_effect": 0.15, "min_prob": 0.8},
+      "retire": {"min_n": 6, "min_effect": 0.15, "min_prob": 0.85},
+      "demote": {"min_n": 8, "min_effect": 0.0, "min_prob": 0.5},
+      "insight": {"min_n": 3, "min_effect": 0.15, "min_prob": 0.75},
+      "evidence": {"level": "opinion", "sources": ["spec p.34 rule 10 (re-tune mix, lengths and hours after 30 posted reels)", "spec p.8 ('treat observed patterns as things to test, not laws')", "docs/RESEARCH_PROMPTS_PLAYBOOK.md R6 (thresholds to be replaced by research)"], "notes": "Engineering defaults. data-led share = min(1, judged posts / data_led_after_posts). promote: posterior mean >= +min_effect with P(better than median) >= min_prob after min_n posts; retire: mean <= -min_effect with P(worse) >= min_prob; demote a proven pattern to testing when P(better) falls below min_prob after min_n posts. interaction = prior strength of the post_type x weekday cells, so they move only with real data."}
+    },
+    "prior_means": {
+      "post_type": {"reel": 0.0, "carousel": 0.0, "image": -0.05},
+      "hour_band": {"morning": 0.0, "midday": 0.0, "late_afternoon": 0.05, "evening": 0.03, "night": -0.03},
+      "offer_week": {"w1": 0.03, "w2": 0.0, "w3": 0.02, "w4": 0.0, "w5": -0.02}
+    },
+    "prior_evidence": {
+      "post_type": {"level": "measured", "sources": ["research/1-content-benchmarks.md (Metricool: Reels reach 212% more than single images)"], "notes": "Only the image tilt is set; reels vs carousels start equal because they serve different goals."},
+      "hour_band": {"level": "opinion", "sources": ["spec p.34 (start late afternoon)"]},
+      "offer_week": {"level": "opinion", "sources": ["calendar.json monthly (payday hypothesis)"]}
+    }
+  }
+}

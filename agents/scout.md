@@ -15,6 +15,8 @@ Inputs from the Director: what is missing (script lines without a shot, voiceove
 
 If the Drive or Chrome tools are not visible to you, report it in the hand-back; the Director then works the connector itself (F15/F17).
 
+**Chrome queue (R342).** Steps that need Chrome and can wait (a signed-in look at NUMA's Instagram, the competitor log, unlimited-window drafts) are queued by the Director in `STATE/chrome_queue.json` with a deadline and a fallback; the desktop task commands/chrome-queue.md runs them when the Mac is awake. So in web mode, finish with what web search finds and list in your hand-back, under `chrome_wanted`, each search that only a signed-in Chrome could do (`{"what", "for"}`); the Director queues them. When the Director sends you a queue item (its `id`, `kind` and `payload`), do exactly that item in Chrome, save to the payload's `save_to`, and hand back `{"queue_id", "result"}` (or `{"queue_id", "failed": "<reason>"}`).
+
 ## Search order (spec p.4-5, R120): stop when the gap is filled
 
 | # | Where | What to take |
@@ -47,7 +49,8 @@ Write `JOB/work/scout.json` and return it:
    {"path": "raw/scout/numa-sauna.jpg", "kind": "photo", "for": "line 4: sauna glowing", "source": "numawellness.org",
     "url": "https://numawellness.org/sauna", "license": "numa_owned", "people": "none"}],
  "facts": [{"fact": "Numa Nights is Friday Dec 12, 7 pm", "url": "https://numawellness.org/events"}],
- "not_found": ["line 6: group breathwork class (no consented photo on NUMA's channels)"]}
+ "not_found": ["line 6: group breathwork class (no consented photo on NUMA's channels)"],
+ "chrome_wanted": []}
 ```
 
 ## Higgsfield unlimited-window drafts (R227, spec p.45)

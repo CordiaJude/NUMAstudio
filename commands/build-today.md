@@ -17,6 +17,16 @@ if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then ex
 
 Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
 
+## Run start and end (R339-R342)
+
+This run's log entry also covers the /make-reel procedure it follows (make-reel skips its own).
+
+1. **Log the start:** `python3 "$S/runlog.py" start build_today --state "$STATE"`; keep the printed run id (`RUN_ID`). Sync with Drive: download Drive `drive.plan_dir`/`runlog.json` and `chrome_queue.json` to `STATE/runlog.drive.json` and `STATE/chrome_queue.drive.json` (skip what does not exist yet), then `python3 "$S/runlog.py" merge "$STATE/runlog.drive.json" --state "$STATE"` and `python3 "$S/chrome_queue.py" merge "$STATE/chrome_queue.drive.json" --state "$STATE"`, and upload both files back.
+2. **Environment:** `python3 "$S/ensure_env.py" --json --with-model` (a fresh cloud machine installs the packages and the speech model; a warm one returns in seconds); add `--with-chromium` when today's row is a component carousel (slides need headless Chromium). Exit 1: send Jude its ERROR line's fix through the escalation channel in `STATE/brand.json` (DECISIONS D19), reschedule the day (section 3 step 3), finish `failed` (step 3) and stop. The night check's watchdog sees the failed slot.
+3. **Finish, always, also when the run fails or stops early:** `python3 "$S/runlog.py" finish <RUN_ID> --outcome ok --note "<one line>" --state "$STATE"` (`ok` = "Done means" met; `partial` = posted or saved with something left out, such as a Chrome step that went to its fallback; `failed` = stopped or rescheduled by a failure), then merge and upload as in step 1. Lost the id: `--task build_today`.
+
+**Claude in Chrome (R342).** When the `mcp__claude-in-chrome__*` tools are visible and answer a harmless call (read the open tab's title), drain the queue first (commands/chrome-queue.md sections 2 and 4). The steps of today's post that need Chrome (Trial Reel, collab invite, AI label) are queued by the `post-reel` command with a deadline at the posting time and run their fallback there, so nothing here waits for Chrome.
+
 ## 1. Resolve today's row and folder
 
 1. `DAY` = `$ARGUMENTS`, else today's date in Central time.
@@ -44,4 +54,4 @@ Closure day (`STATE/closures.json`): make-reel failure row F13 first; nothing th
 
 ## Done means
 
-Today's post is in `Finished/` (or posted), the row says `Ready to post` / `Posted` / rescheduled, the delivery note is sent, and the Decisions log is complete.
+Today's post is in `Finished/` (or posted), the row says `Ready to post` / `Posted` / rescheduled, the delivery note is sent, the Decisions log is complete, and the run is finished in the run log.

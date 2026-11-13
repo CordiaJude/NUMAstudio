@@ -23,7 +23,11 @@ Every script then reads brand facts, claims, consent and closures from it. When 
 3. Export the `SHOOT CARD` Google Doc as plain text to `raw/SHOOT CARD.txt`; copy `script.json` as is when present.
 4. Write the voiceover script to `JOB/work/script.txt`, one sentence per line: from `script.json` `lines`, else the script section of the shoot card. No script anywhere: do not create the file, and say so.
 5. No voiceover in the day folder: look for a batch-recorded file named `voiceover NN` (NN = this day's number) in the week's other day folders and the month folder (Katie reads a week's scripts in one sitting, spec p.37), move it into this day's folder through the Drive connector, and download it. Log the move in the hand-back.
-6. Sync state from Drive `drive.plan_dir` into `STATE`: `brand.json` (Katie's /brand-setup answers; D18), `preferences.json`, `media_library.json`, `credit_ledger/`, and the Consent List Sheet (`drive.consent_list`) exported as `STATE/consent_list.json` (`[{"name", "photo", "date_consented", "scope"}]`). A file that does not exist in Drive yet is skipped.
+6. Sync state from Drive `drive.plan_dir` into `STATE`: `brand.json` (Katie's /brand-setup answers; D18), `preferences.json`, `media_library.json`, `credit_ledger/`, and the Consent List Sheet (`drive.consent_list`) exported as `STATE/consent_list.json` (`[{"name", "photo", "date_consented", "scope"}]`). A file that does not exist in Drive yet is skipped. The run log and the Chrome queue are never overwritten (another run may have written them since): download them as `STATE/runlog.drive.json` and `STATE/chrome_queue.drive.json` and fold them in (R340, R342):
+   ```
+   python3 "$S/runlog.py" merge "$STATE/runlog.drive.json" --state "$STATE"
+   python3 "$S/chrome_queue.py" merge "$STATE/chrome_queue.drive.json" --state "$STATE"
+   ```
 
 If the Drive or Sheets tools are not visible to you, report it in the hand-back; the Director then works the connector itself (F15).
 
@@ -62,4 +66,4 @@ Write `JOB/work/inventory.json` and return the same content:
    ```
    python3 "$S/library.py" add --index "$STATE/media_library.json" "$JOB/raw/photos" "$JOB/raw/clips" --tags "cold plunge, plunge room, morning"
    ```
-2. Upload `STATE/preferences.json`, `STATE/media_library.json`, `STATE/credit_ledger/` and any `STATE/competitors_YYYY-MM.json` back to Drive `drive.plan_dir` (update in place). A failed upload is reported, not retried in a loop; the Director queues it.
+2. Upload `STATE/preferences.json`, `STATE/media_library.json`, `STATE/credit_ledger/` and any `STATE/competitors_YYYY-MM.json` back to Drive `drive.plan_dir` (update in place). For `runlog.json` and `chrome_queue.json`, merge the Drive copy first (section 1 step 6), then upload. A failed upload is reported, not retried in a loop; the Director queues it.

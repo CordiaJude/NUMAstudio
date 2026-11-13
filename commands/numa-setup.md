@@ -15,12 +15,12 @@ Work through the steps in order. Report each item as ✅ / ❌ with its one-line
 | `STUDIO` | `~/NUMA Studio` (local mirror of Drive brand.json `drive.root`) |
 | `STATE` | `STUDIO/_Plan` |
 
-## 1. Python packages (R265)
+## 1. Python packages, speech model and Chromium (R265, R339)
 
 ```
-python3 -m pip install -r "${CLAUDE_PLUGIN_ROOT}/requirements.txt"
+python3 "$S/ensure_env.py" --with-model --with-chromium
 ```
-pip refuses with "externally-managed-environment": re-run with `--break-system-packages`; still refused: add `--user`. OpenCV must stay below 5 (`opencv-python-headless>=4.8,<5`, DECISIONS D16); requirements.txt pins it.
+The same bootstrap every scheduled run starts with: it installs requirements.txt when something is missing (retrying with `--break-system-packages`, then `--user`, when pip refuses with "externally-managed-environment"), finds ffmpeg (system or the imageio-ffmpeg fallback), downloads the faster-whisper small.en model and headless Chromium for carousel slides, then writes a stamp so later runs take seconds. Every line must be `OK:` (a `WARN:` is fine). Each `ERROR:` line names the fix; apply it and run again. By hand, the package step is `python3 -m pip install -r "${CLAUDE_PLUGIN_ROOT}/requirements.txt"`. OpenCV must stay below 5 (`opencv-python-headless>=4.8,<5`, DECISIONS D16); requirements.txt pins it.
 
 ## 2. Self-check, speech model and the 3-second test render (R266, R267, R270)
 
@@ -87,7 +87,7 @@ Follow docs/SCHEDULED_TASKS.md section "So runs never stall": every tool of Goog
 
 ## 7. Desktop app settings (spec p.15, p.49 step 2)
 
-Have Jude switch on, in the Claude desktop app's settings on Katie's Mac: **Keep computer awake** and **Run on startup**. They keep Claude in Chrome available to the Scout as often as possible; the daily reel ships from the cloud either way. Confirm both are on before going on.
+Have Jude switch on, in the Claude desktop app's settings on Katie's Mac: **Keep computer awake** and **Run on startup**. They keep Claude in Chrome available to the Scout and to the hourly Chrome queue task (step 10) as often as possible; the daily reel ships from the cloud either way, and Chrome steps that miss their deadline run their fallback. Confirm both are on before going on.
 
 ## 8. Brand answers
 
@@ -102,13 +102,17 @@ When brand.json still has `needs_katie` facts (step 2's brand.json line counts t
 
 ## 10. Scheduled tasks
 
-Only after step 9 passed, create the six scheduled tasks from docs/SCHEDULED_TASKS.md, one per row of its table and of config `schedule.tasks`:
+Only after step 9 passed, create the eight scheduled tasks from docs/SCHEDULED_TASKS.md: the six cloud tasks (one per row of config `schedule.tasks`), the seventh cloud task "Quarterly research re-check" (cron `CRON_TZ=America/Chicago 0 10 12 2,5,8,11 *`: the 12th of Feb, May, Aug and Nov, 10 am Central), and the desktop-only "Chrome queue" task:
 
-1. Name = the task name in the table; schedule = its cron line in `schedule.timezone` (Central); prompt = the task's text under "Exact prompts to paste", copied **exactly** (do not reword it); notifications on.
-2. Where this session has the scheduled-task tool, create them yourself; otherwise Jude pastes each one in the app's Scheduled section while you read it out.
-3. Check that the connector tools are approved (step 6), then "Run now" each task once and confirm it finishes with no permission prompt. A task that stops on a prompt: set that tool to Always allow and run it again.
-4. Also create a seventh, quarterly reminder task, "Quarterly research re-check": cron `CRON_TZ=America/Chicago 0 10 12 2,5,8,11 *` (the 12th of Feb, May, Aug and Nov, 10 am Central), notifications on, prompt: "NUMA Studio quarterly reminder for Jude: re-run the five research prompts in docs/SETUP_GUIDE.md (Research prompts), then update config/studio.json higgsfield.prices and prices_verified_on and instagram.graph_api_version, and brand.json claims through /brand-setup. Send this as one line to the escalation channel in STATE/brand.json; change nothing yourself and ask nobody anything."
-5. Record the seven task names and their next run times in `STATE/setup.json` (`scheduled_tasks`).
+1. Name = the task name in the table; schedule = its cron line in `schedule.timezone` (Central); prompt = the task's text under "Exact prompts to paste", copied **exactly** (do not reword it; each prompt names the plugin and the command file, so it works even when slash commands do not expand); notifications on.
+2. The seven cloud tasks: where this session has the scheduled-task tool, create them yourself; otherwise Jude pastes each one in the app's Scheduled section while you read it out. **Chrome queue** is created in the Claude desktop app on Katie's Mac as a local (desktop) scheduled task, never in the cloud: it runs only while the Mac is awake, which is exactly when Claude in Chrome exists.
+3. Check that the connector tools are approved (step 6). Note the time (`SINCE`, ISO with the Central offset), then "Run now" each of the eight tasks once and confirm it finishes with no permission prompt. A task that stops on a prompt: set that tool to Always allow and run it again.
+4. **Verify in the run log (R343).** Download Drive `drive.plan_dir`/`runlog.json` into `STATE` (merge it as the librarian does) and run:
+   ```
+   python3 "$S/runlog.py" check --since "<SINCE>" --tasks plan_month,night_check,build_today,dashboard_refresh,trend_check,digest,quarterly_research,chrome_queue --state "$STATE"
+   ```
+   Every task must show `OK:` (finished ok after `SINCE`). `NOT OK: <task> (not run)` means its prompt did not reach the run log steps: re-paste the prompt exactly and Run now again. `(failed)` shows the run's note; fix it and Run now again. Leave the schedule off until all eight are `OK:`.
+5. Record the eight task names, where each runs (cloud or desktop) and their next run times in `STATE/setup.json` (`scheduled_tasks`), plus the `runlog.py check --since` result.
 
 ## 11. Finish
 

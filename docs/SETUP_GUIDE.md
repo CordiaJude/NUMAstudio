@@ -1,6 +1,6 @@
 # NUMA Studio setup guide
 
-One afternoon, done by Jude on Katie's Mac (spec p.49-51). After this, Katie makes no decisions and types no commands: six scheduled tasks plan, build and post every reel, and her only job is to film what a shoot card lists.
+One afternoon, done by Jude on Katie's Mac (spec p.49-51). After this, Katie makes no decisions and types no commands: seven cloud scheduled tasks plan, build and post every reel (with her Mac on or off), and one desktop task does the Claude in Chrome steps whenever her Mac is awake, and her only job is to film what a shoot card lists.
 
 Tick each box in order. Commands are typed in the Claude desktop app (or Claude Code) with the numa-studio plugin installed.
 
@@ -27,21 +27,26 @@ Nothing in the code can replace these (spec p.2):
 5. [ ] **Claude in Chrome:** install the extension in a Chrome profile that is signed in to NUMA's Instagram, Facebook and Google Business accounts.
 6. [ ] **Drive:** `/numa-setup` step 5 creates whatever is missing: `NUMA Reels/` with `_Plan/`, `_Plan/Music Library/`, `_Plan/Digests/`, a **Consent List** Sheet (columns exactly `name`, `photo`, `date consented`, `scope`) and a **Closures** Sheet (columns `Date`, `Name`, `Note`). Check them afterwards.
 7. [ ] **Voice (optional, strongly recommended):** Katie records a 1-minute voice sample for her cloned voice, and her written consent goes into the Consent List (scope `voice clone`). Without both, reels without her voiceover use a preset voice or on-screen text.
-8. [ ] **Run `/numa-setup`.** It installs the Python packages, runs `setup_check.py --download-model` (every check green, the speech model pre-downloaded, a 3-second test reel rendered and looked at), confirms every connector, asks you once which Drive folder holds reel material, reports how many reels the Higgsfield balance covers, and has you set every connector tool to **Always allow** so scheduled runs never stall on a permission prompt (docs/SCHEDULED_TASKS.md, "So runs never stall").
+8. [ ] **Run `/numa-setup`.** It runs the same bootstrap every scheduled run starts with (`ensure_env.py`: Python packages, ffmpeg, the speech model and headless Chromium, installed only when missing), runs `setup_check.py --download-model` (every check green, the speech model pre-downloaded, a 3-second test reel rendered and looked at), confirms every connector, asks you once which Drive folder holds reel material, reports how many reels the Higgsfield balance covers, and has you set every connector tool to **Always allow** so scheduled runs never stall on a permission prompt (docs/SCHEDULED_TASKS.md, "So runs never stall").
 9. [ ] **Run `/brand-setup`** with Katie's answers (the filled questions file, or her answers live). Each answer goes into its brand.json key and is marked confirmed; brand.json is validated and a copy is saved to Drive `_Plan/`. Commit the updated `brand/brand.json` to the plugin repo so cloud runs and future installs carry it.
 10. [ ] **Golden test (M2) before switching the schedule on:** upload the "2026-11-09 Year One" test pack to Drive, run `/make-reel 2026-11-09 Year One` with no other input. Pass: finished in under 15 minutes; story arc, before/after wipe, beat-synced cuts and synced captions present; you rate it at least as good as the hand-built reference reel. Fail: fix before going on.
-11. [ ] **Create the six scheduled tasks** exactly as docs/SCHEDULED_TASKS.md lists them (all Central time; config `schedule`):
+11. [ ] **Create the eight scheduled tasks** exactly as docs/SCHEDULED_TASKS.md lists them (all Central time; config `schedule`), pasting each prompt word for word (each one names the plugin and its command file, so it works even when slash commands do not expand):
 
-| Task | When (Central) |
-|---|---|
-| Plan next month | The 24th of each month, 9 pm |
-| Tomorrow's material check + Scout | Daily, 8 pm |
-| Build today's reel and outputs | Daily, 5 am |
-| Dashboard refresh | Daily, 10 pm |
-| Weekly trend check | Fridays, 7 pm |
-| Monday digest | Sundays, 6 pm |
+| Task | When (Central) | Where |
+|---|---|---|
+| Plan next month | The 24th of each month, 9 pm | Cloud |
+| Tomorrow's material check + Scout | Daily, 8 pm | Cloud |
+| Build today's reel and outputs | Daily, 5 am | Cloud |
+| Dashboard refresh | Daily, 10 pm | Cloud |
+| Weekly trend check | Fridays, 7 pm | Cloud |
+| Monday digest | Sundays, 6 pm | Cloud |
+| Quarterly research re-check | The 12th of Feb, May, Aug and Nov, 10 am | Cloud |
+| Chrome queue | Hourly at :47, while the Mac is awake | **Desktop** (Katie's Mac) |
+
+   **Cloud or desktop.** A cloud task runs on Anthropic's servers on a fresh machine at its time, whether the Mac is on or off; that is where the reel is built and posted. A desktop task is created in the Claude desktop app on Katie's Mac as a local scheduled task and runs only while the Mac is awake and the app is open. Chrome queue must be the desktop kind: it does the steps that need Claude in Chrome (signed-in research, competitor log, Trial Reels, collab invites, the AI label, Higgsfield unlimited drafts), which exists only on the awake Mac. Anything it cannot reach by its deadline runs a fallback, so nothing waits for the Mac.
 
    Turn notifications on for each, then "Run now" each once and confirm it finishes with no permission prompt.
+12. [ ] **Check the run log** (R343): `/numa-setup` step 10 runs `runlog.py check --since <the time of the first Run now>`. Every one of the eight tasks must show `OK:` (it started and finished ok). A task that shows `not run` did not follow its prompt: paste the prompt again exactly and Run now. Only then is the schedule left on.
 
 ## Account fixes at setup (from the Mobile audit; done once by Jude)
 
@@ -60,7 +65,7 @@ The plugin already handles both outcomes of each (DECISIONS D7, D8). Record each
 |---|---|---|---|---|
 | 1 | Can Instagram's AI label be applied through the API? | Look at the schema of INSTAGRAM_POST_IG_USER_MEDIA (Composio's COMPOSIO_GET_TOOL_SCHEMAS) and Meta's Instagram API reference for media creation for an AI-label field. The first reel with AI-animated people shows which path /post-reel used (`work/post.json`). | The API sets it (post-reel section 6 row 1) | Claude in Chrome posts those reels with the label on; when Chrome is not available they are left for manual posting and you get one line (row 2-3) |
 | 2 | Can Trial Reels and collaborator invites go through the Graph API directly? (Composio's tools don't expose them.) | On the first Trial Reel day, /post-reel tries a direct Graph API call through COMPOSIO_PROXY_EXECUTE with `trial_params` (and `collaborators` on a collab day) and records `trial_path` / `collab_path` in `work/post.json`. | Graph API path (post-reel section 5 column 1) | Claude in Chrome, else left for manual posting with one line to you |
-| 3 | Can a cloud scheduled task drive Claude in Chrome when the desktop app happens to be open? | With the Mac awake and the desktop app open, create a one-off cloud scheduled task: "Use Claude in Chrome to open instagram.com and report the page title." | Keep all six tasks in the cloud | Re-create "Tomorrow's material check + Scout" as a desktop scheduled task on Katie's Mac so the Scout gets Chrome; the others stay in the cloud (failure row F17 covers nights the Mac is asleep) |
+| 3 | Can a cloud scheduled task drive Claude in Chrome when the desktop app happens to be open? | With the Mac awake and the desktop app open, create a one-off cloud scheduled task: "Use Claude in Chrome to open instagram.com and report the page title." | Cloud runs that see Chrome drain the Chrome queue themselves; the desktop Chrome queue task still covers the rest | Nothing to change: Chrome steps are queued and the desktop "Chrome queue" task does them while the Mac is awake; past a deadline the fallback runs (failure row F17 covers the Scout) |
 | 4 | Where does the performance dashboard store its data: an artifact database, a Google Sheet, or both? | Decided (DECISIONS D7): `_Plan/metrics.json` plus the "NUMA Reel Metrics" Google Sheet; the dashboard page is rebuilt from them each night. After the first dashboard refresh, check that both exist and the dashboard artifact shows the first reel. | - | - |
 
 ## Monthly cost
