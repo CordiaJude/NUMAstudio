@@ -6,8 +6,10 @@ Usage:
                  [--title TEXT]
 
 Reads the metrics store written by metrics.py and writes OUT_HTML with:
-a leaderboard of reels; results by series, length and hook type; a posting-time
-heatmap (day x hour, Central time); a 90-day trend line (reel views, plus
+a leaderboard of every post (reels, trial reels, carousels, photos, stories;
+each row names its type); results by post type (R337: carousels and photos have
+no watch time, so their retention shows a dash), series, length and hook type; a posting-time
+heatmap (day x hour, Central time); a 90-day trend line (views per post, plus
 account reach per day when account insights are stored); the monthly
 competitor tracker; and the Director's "Do more of / Do less of" box.
 
@@ -40,6 +42,7 @@ import numa_common as nc  # noqa: E402
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 TREND_DAYS = 90
 LEADERBOARD_TOP = 20
+TYPE_LABELS = {"reel": "Reel", "trial_reel": "Trial reel", "carousel": "Carousel", "image": "Photo", "story": "Story"}
 
 
 def esc(x: Any) -> str:
@@ -86,6 +89,7 @@ def reel_rows(store: dict) -> list[dict]:
             posted = mx.to_central(mx.parse_time(tags["posting_time"], f"reels.{rid}.tags.posting_time"))
         rows.append({
             "id": rid, "title": tags.get("title") or tags.get("slug") or rid, "permalink": tags.get("permalink"),
+            "type": mx.post_type_of(reel),
             "series": tags.get("series"), "pillar": tags.get("pillar"), "hook_type": tags.get("hook_type"),
             "length": tags.get("length"), "posted": posted, "pull": label,
             "trial_reel": tags.get("trial_reel"), "collab": tags.get("collab"),
@@ -130,8 +134,10 @@ def group(rows: list[dict], key, order: list[str] | None = None) -> list[dict]:
             groups.setdefault(k, []).append(r)
     names = order and [n for n in order if n in groups] or sorted(groups)
     return [{"name": n, "count": len(groups[n]), "views": med([r["views"] for r in groups[n]]),
+             "reach": med([r["reach"] for r in groups[n]]),
              "retention": med([r["retention"] for r in groups[n]]),
-             "sends_1k": med([r["sends_1k"] for r in groups[n]])} for n in names]
+             "sends_1k": med([r["sends_1k"] for r in groups[n]]),
+             "saves_1k": med([r["saves_1k"] for r in groups[n]])} for n in names]
 
 
 def data_through(rows: list[dict], store: dict, comp: dict | None) -> date | None:
@@ -299,7 +305,7 @@ def table(caption: str, head: list[str], rows: list[list[str]], first_is_name: b
 
 
 def tiles(rows: list[dict]) -> str:
-    items = [("Reels tracked", fmt_num(len(rows))), ("Median views", fmt_num(med([r["views"] for r in rows]))),
+    items = [("Posts tracked", fmt_num(len(rows))), ("Median views", fmt_num(med([r["views"] for r in rows]))),
              ("Median retention", fmt_pct(med([r["retention"] for r in rows]))),
              ("Median sends / 1,000 reach", fmt_num(med([r["sends_1k"] for r in rows]), 1)),
              ("Median saves / 1,000 reach", fmt_num(med([r["saves_1k"] for r in rows]), 1))]
@@ -321,16 +327,18 @@ def do_more_less(notes: dict | None) -> str:
 
 def leaderboard(rows: list[dict], names: dict[str, str]) -> str:
     head = ('<section aria-labelledby="lb-h"><h2 id="lb-h">Leaderboard</h2>'
-            '<p class="sub">Every reel by views, from its latest pull (7 d, else 72 h, else 48 h).</p>')
+            '<p class="sub">Every post by views, from its latest pull (7 d, else 72 h, else 48 h). '
+            'Carousels and photos have no watch time or skip rate.</p>')
     if not rows:
-        return head + empty("No reels yet: the dashboard fills in after the first 48-hour insights pull.") + "</section>"
+        return head + empty("No posts yet: the dashboard fills in after the first 48-hour insights pull.") + "</section>"
     ranked = sorted(rows, key=lambda r: (-(r["views"] or 0), r["id"]))
     body = []
     for i, r in enumerate(ranked, 1):
         title = esc(r["title"])
         if r["permalink"]:
             title = f'<a href="{esc(r["permalink"])}">{title}</a>'
-        flags = " · ".join(x for x, on in (("Trial", r["trial_reel"]), ("Collab", r["collab"])) if on)
+        flags = " · ".join(x for x, on in (("Trial", r["trial_reel"] and r["type"] != "trial_reel"),
+                                            ("Collab", r["collab"])) if on)
         if flags:
             title += f' <span class="sub">({esc(flags)})</span>'
         sv = r["skip_vs"]
@@ -339,14 +347,14 @@ def leaderboard(rows: list[dict], names: dict[str, str]) -> str:
         meta = [r["posted"].strftime("%b %-d") if r["posted"] else None, names.get(r["series"], r["series"]),
                 f"{fmt_num(r['length'])} s" if isinstance(r["length"], (int, float)) else None, f"{r['pull']} pull"]
         name = f'{i}. {title}<span class="meta">{esc(" · ".join(m for m in meta if m))}</span>'
-        body.append([name, fmt_num(r["views"]), fmt_num(r["reach"]), fmt_pct(r["retention"]),
-                     fmt_num(r["sends_1k"], 1), fmt_num(r["saves_1k"], 1), skip])
-    cols = ["Reel", "Views", "Reach", "Retention", "Sends/1k", "Saves/1k", "Skip vs median"]
-    out = head + table(f"Top {min(len(body), LEADERBOARD_TOP)} reels by views; skip rate is in points against NUMA's "
-                       "median (lower is better).", cols, body[:LEADERBOARD_TOP])
+        body.append([name, esc(TYPE_LABELS[r["type"]]), fmt_num(r["views"]), fmt_num(r["reach"]),
+                     fmt_pct(r["retention"]), fmt_num(r["sends_1k"], 1), fmt_num(r["saves_1k"], 1), skip])
+    cols = ["Post", "Type", "Views", "Reach", "Retention", "Sends/1k", "Saves/1k", "Skip vs median"]
+    out = head + table(f"Top {min(len(body), LEADERBOARD_TOP)} posts by views; skip rate is in points against NUMA's "
+                       "reel median (lower is better).", cols, body[:LEADERBOARD_TOP], left=(1,))
     if len(body) > LEADERBOARD_TOP:
-        out += (f"<details><summary>Show the other {len(body) - LEADERBOARD_TOP} reels</summary>"
-                + table("The rest of the reels by views.", cols, body[LEADERBOARD_TOP:]) + "</details>")
+        out += (f"<details><summary>Show the other {len(body) - LEADERBOARD_TOP} posts</summary>"
+                + table("The rest of the posts by views.", cols, body[LEADERBOARD_TOP:], left=(1,)) + "</details>")
     return out + "</section>"
 
 
@@ -365,6 +373,31 @@ def breakdown(title: str, hid: str, groups: list[dict], what: str) -> str:
                                                          "Sends/1k"], rows) + "</section>"
 
 
+def by_post_type(rows: list[dict]) -> str:
+    """Median results per post type (R337), in metrics.POST_TYPES order; every type is listed."""
+    head = ('<section aria-labelledby="bt-h"><h2 id="bt-h">By post type</h2>'
+            '<p class="sub">Retention is for video posts only: carousels and photos have no watch time.</p>')
+    if not rows:
+        return head + empty("No posts yet: each post is tagged with its type (reel, carousel, photo, story, "
+                            "trial reel) when it posts.") + "</section>"
+    groups = {g["name"]: g for g in group(rows, lambda r: r["type"], list(mx.POST_TYPES))}
+    top = max([g["views"] or 0 for g in groups.values()] or [0]) or 1
+    body = []
+    for t in mx.POST_TYPES:
+        g = groups.get(t)
+        if not g:
+            body.append([esc(TYPE_LABELS[t]), "0", "–", "–", "–", "–", "–"])
+            continue
+        w = 0 if not g["views"] else max(2, round(60 * g["views"] / top))
+        ret = fmt_pct(g["retention"]) if t in mx.VIDEO_TYPES else '<span class="sub">n/a</span>'
+        body.append([esc(TYPE_LABELS[t]), fmt_num(g["count"]),
+                     f'<span class="bar" style="width:{w}px" aria-hidden="true"></span>{fmt_num(g["views"])}',
+                     fmt_num(g["reach"]), ret, fmt_num(g["sends_1k"], 1), fmt_num(g["saves_1k"], 1)])
+    return head + table("Median results by post type; a type with no posts yet shows 0.",
+                        ["Post type", "Posts", "Median views", "Median reach", "Retention", "Sends/1k", "Saves/1k"],
+                        body) + "</section>"
+
+
 def heatmap(rows: list[dict]) -> str:
     head = ('<section aria-labelledby="hm-h"><h2 id="hm-h">Posting-time heatmap</h2>'
             '<p class="sub">Median views by day and hour posted (Central time). Stronger colour means more views.</p>')
@@ -373,7 +406,7 @@ def heatmap(rows: list[dict]) -> str:
         if r["posted"] and isinstance(r["views"], (int, float)):
             cells.setdefault((r["posted"].weekday(), r["posted"].hour), []).append(r["views"])
     if not cells:
-        return head + empty("No posting times yet: tag each reel's posting_time when it posts.") + "</section>"
+        return head + empty("No posting times yet: tag each post's posting_time when it posts.") + "</section>"
     hours = sorted(set(range(6, 23)) | {h for _, h in cells})
     vals = {k: med(v) for k, v in cells.items()}
     top = max(vals.values()) or 1
@@ -383,8 +416,8 @@ def heatmap(rows: list[dict]) -> str:
         tds = []
         for h in hours:
             v = vals.get((d, h))
-            label = f"{DAYS[d]} {hour_label(h)}: " + (f"median {fmt_num(v)} views, {len(cells[(d, h)])} reels" if v is not None
-                                                     else "no reels")
+            label = f"{DAYS[d]} {hour_label(h)}: " + (f"median {fmt_num(v)} views, {len(cells[(d, h)])} posts" if v is not None
+                                                     else "no posts")
             if v is None:
                 tds.append(f'<td title="{esc(label)}"><span class="vh">{esc(label)}</span></td>')
             else:
@@ -399,7 +432,7 @@ def heatmap(rows: list[dict]) -> str:
               '<i style="background:rgba(var(--heat),.75)"></i><i style="background:rgba(var(--heat),1)"></i>'
               '<span>More views</span></div>')
     return (head + '<div class="scroll"><table class="heat"><caption class="vh">Median views per posting slot; empty cells had no '
-            f'reels.</caption><thead><tr><th scope="col">Day</th>{th}</tr></thead><tbody>{"".join(body)}</tbody>'
+            f'posts.</caption><thead><tr><th scope="col">Day</th>{th}</tr></thead><tbody>{"".join(body)}</tbody>'
             f"</table></div>{legend}</section>")
 
 
@@ -452,19 +485,19 @@ def _line_svg(points: list[tuple[date, float, str]], start: date, end: date, lab
 def trend(rows: list[dict], store: dict, today: date | None) -> str:
     head = ('<section aria-labelledby="tr-h"><h2 id="tr-h">90-day trend</h2>')
     if today is None:
-        return head + empty("No data yet: the trend line starts with the first posted reel.") + "</section>"
+        return head + empty("No data yet: the trend line starts with the first post.") + "</section>"
     start = today - timedelta(days=TREND_DAYS - 1)
     out = [head, f'<p class="sub">{start.strftime("%b %-d, %Y")} – {today.strftime("%b %-d, %Y")}</p>']
     pts = [(r["posted"].date(), float(r["views"]), f'{r["title"]}: {fmt_num(r["views"])} views')
            for r in rows if r["posted"] and isinstance(r["views"], (int, float)) and start <= r["posted"].date() <= today]
     if pts:
-        out.append("<h3 class=\"sub\">Views per reel, by posting date</h3>")
-        out.append(line_chart(pts, start, today, "Views per reel over the last 90 days"))
+        out.append("<h3 class=\"sub\">Views per post, by posting date</h3>")
+        out.append(line_chart(pts, start, today, "Views per post over the last 90 days"))
         out.append("<details><summary>Show as a table</summary>" + table(
-            "Views per reel in the last 90 days.", ["Posted", "Reel", "Views"],
+            "Views per post in the last 90 days.", ["Posted", "Post", "Views"],
             [[esc(p[0].isoformat()), esc(p[2].rsplit(":", 1)[0]), fmt_num(p[1])] for p in sorted(pts)]) + "</details>")
     else:
-        out.append(empty("No reels posted in the last 90 days."))
+        out.append(empty("No posts in the last 90 days."))
     daily = (store.get("account", {}) or {}).get("daily", {}) or {}
     apts = [(date.fromisoformat(d), float(v["reach"]), f"{d}: {fmt_num(v['reach'])} accounts reached")
             for d, v in sorted(daily.items()) if isinstance(v.get("reach"), (int, float))
@@ -531,6 +564,7 @@ def build(store: dict, notes: dict | None, comp: dict | None, today: date | None
         tiles(rows),
         do_more_less(notes),
         leaderboard(rows, names),
+        by_post_type(rows),
         '<div class="grid" style="margin-top:16px">',
         breakdown("By series", "bs-h", group(rows, lambda r: names.get(r["series"], r["series"])), "series"),
         breakdown("By length", "bl-h", group(rows, lambda r: length_bucket(r["length"]), LENGTH_ORDER), "length"),
@@ -570,7 +604,7 @@ def main(argv: list[str] | None = None) -> int:
     tmp = out.with_name(f".{out.name}.tmp")
     tmp.write_text(doc, encoding="utf-8", newline="\n")
     tmp.replace(out)
-    print(f"Wrote {out} ({len(store['reels'])} reels)")
+    print(f"Wrote {out} ({len(store['reels'])} posts)")
     return 0
 
 

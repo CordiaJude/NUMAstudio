@@ -1,0 +1,22 @@
+/* NUMA carousel components: bundled open-licensed fonts (SIL OFL 1.1, see ../fonts/OFL-*.txt).
+   Rendering needs no network. The .dc.html artboards load the same families from Google Fonts in
+   Claude Design; design_render.py serves these local files in their place. */
+@font-face {
+  font-family: "Fraunces";
+  src: url("../fonts/Fraunces.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Fraunces";
+  src: url("../fonts/Fraunces-Italic.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/Inter.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+}
+body { margin: 0; }

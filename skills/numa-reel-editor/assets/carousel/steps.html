@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="numa-component" content="steps">
+<title>{{slide_title}}</title>
+<link rel="stylesheet" href="carousel.css">
+</head>
+<body>
+<!--slide-->
+<div data-slide="{{component}}" style="width: 1080px; height: 1350px; box-sizing: border-box; padding: 96px 96px 80px; display: flex; flex-direction: column; gap: 48px; overflow: hidden; background: {{color.cream}}; color: {{color.ink}}; font-family: Inter, system-ui, sans-serif">
+<div style="display: flex; align-items: center; gap: 16px; height: 40px; flex-shrink: 0">
+<div style="width: 56px; height: 6px; flex-shrink: 0; background: {{color.cedar_ember}}; border-radius: 3px"></div>
+<p data-fit="kicker" style="margin: 0; max-width: 820px; overflow: hidden; white-space: nowrap; font-size: 26px; line-height: 40px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: {{color.water_teal}}">{{kicker}}</p>
+</div>
+<div data-fit="content" style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 56px">
+<h2 data-fit="title" style="margin: 0; max-height: 255px; overflow: hidden; font-family: Fraunces, Georgia, serif; font-size: 80px; line-height: 85px; font-weight: 600; color: {{color.ink}}; letter-spacing: -0.02em">{{title}}</h2>
+<div style="display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; align-items: flex-start; gap: 32px">
+<p style="margin: 0; width: 72px; height: 72px; flex-shrink: 0; border-radius: 36px; background: {{color.cedar_ember}}; color: {{color.cream}}; font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 40px; line-height: 72px; text-align: center">1</p>
+<p data-fit="step1" style="margin: 0; max-height: 159px; overflow: hidden; font-family: Inter, system-ui, sans-serif; font-size: 38px; line-height: 53px; font-weight: 500; color: {{color.ink}}; flex: 1; min-width: 0; padding-top: 8px">{{step1}}</p>
+</div>
+<div style="display: flex; align-items: flex-start; gap: 32px">
+<p style="margin: 0; width: 72px; height: 72px; flex-shrink: 0; border-radius: 36px; background: {{color.cedar_ember}}; color: {{color.cream}}; font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 40px; line-height: 72px; text-align: center">2</p>
+<p data-fit="step2" style="margin: 0; max-height: 159px; overflow: hidden; font-family: Inter, system-ui, sans-serif; font-size: 38px; line-height: 53px; font-weight: 500; color: {{color.ink}}; flex: 1; min-width: 0; padding-top: 8px">{{step2}}</p>
+</div>
+<div style="display: flex; align-items: flex-start; gap: 32px">
+<p style="margin: 0; width: 72px; height: 72px; flex-shrink: 0; border-radius: 36px; background: {{color.cedar_ember}}; color: {{color.cream}}; font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 40px; line-height: 72px; text-align: center">3</p>
+<p data-fit="step3" style="margin: 0; max-height: 159px; overflow: hidden; font-family: Inter, system-ui, sans-serif; font-size: 38px; line-height: 53px; font-weight: 500; color: {{color.ink}}; flex: 1; min-width: 0; padding-top: 8px">{{step3}}</p>
+</div>
+<!--if:step4-->
+<div style="display: flex; align-items: flex-start; gap: 32px">
+<p style="margin: 0; width: 72px; height: 72px; flex-shrink: 0; border-radius: 36px; background: {{color.cedar_ember}}; color: {{color.cream}}; font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 40px; line-height: 72px; text-align: center">4</p>
+<p data-fit="step4" style="margin: 0; max-height: 159px; overflow: hidden; font-family: Inter, system-ui, sans-serif; font-size: 38px; line-height: 53px; font-weight: 500; color: {{color.ink}}; flex: 1; min-width: 0; padding-top: 8px">{{step4}}</p>
+</div>
+<!--/if:step4-->
+</div>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 32px; height: 72px; flex-shrink: 0; box-sizing: border-box; border-top: 2px solid {{color.water_teal}}; padding-top: 26px">
+<p style="margin: 0; font-family: Fraunces, Georgia, serif; font-size: 30px; line-height: 44px; color: {{color.water_teal}}">{{brand_name}}</p>
+<p style="margin: 0; font-size: 26px; line-height: 44px; font-weight: 600; letter-spacing: 0.08em; color: {{color.cedar_ember}}">{{page}}</p>
+</div>
+</div>
+<!--/slide-->
+</body>
+</html>

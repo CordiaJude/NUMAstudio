@@ -45,7 +45,7 @@ def test_builds_all_views(nc, tmp_path):
     out = tmp_path / "dash" / "index.html"
     assert run([str(m), str(out), "--notes", str(notes), "--competitors", str(comp), "--today", "2026-11-12"]) == 0
     html = out.read_text()
-    for heading in ("Leaderboard", "By series", "By length", "By hook type", "Posting-time heatmap", "90-day trend",
+    for heading in ("Leaderboard", "By post type", "By series", "By length", "By hook type", "Posting-time heatmap", "90-day trend",
                     "Competitor tracker", "Do more of / Do less of"):
         assert heading in html
     assert "Question hooks" in html and "Whips in Regulate" in html
@@ -78,7 +78,7 @@ def test_empty_states(nc, tmp_path):
     out = tmp_path / "e.html"
     assert run([str(m), str(out)]) == 0
     html = out.read_text()
-    assert "No reels yet" in html and "No posting times yet" in html and "Nothing logged yet" in html
+    assert "No posts yet" in html and "No posting times yet" in html and "Nothing logged yet" in html
     assert "No data yet" in html
 
 
@@ -120,7 +120,7 @@ def test_leaderboard_cards_and_cap(nc, tmp_path):
     assert run([str(m), str(out)]) == 0
     html = out.read_text()
     assert 'class="cards"' in html and 'data-label="Views"' in html and "table.cards td::before" in html
-    assert "Show the other 6 reels" in html
+    assert "Show the other 6 posts" in html
     assert 'class="sr"' not in html and "Darker is better" not in html
 
 
@@ -130,3 +130,40 @@ def test_dark_heat_ink_rule_wins(nc):
     base = css.index(".heat td.v{color:var(--ink-l)}")
     dark = [i for i in (css.find(':root:not([data-theme="light"]) .heat td.v{color:var(--ink-d)}'), css.find(':root[data-theme="dark"] .heat td.v'))]
     assert all(i > base for i in dark) and css.count("--ink-l)") == 1
+
+
+def test_results_by_post_type(nc, tmp_path):
+    """R337: a post-type table and the type on every leaderboard row; no watch time for carousels or photos."""
+    store = fixture_store()
+    store["reels"]["c1"] = {"tags": {"title": "Five rituals", "post_type": "carousel",
+                                     "posting_time": "2026-11-03T12:00:00-06:00"},
+                            "pulls": {"48h": {"pulled_at": None, "metrics": {"views": 9000, "reach": 4000, "shares": 40,
+                                                                            "saves": 120}}}}
+    store["reels"]["i1"] = {"tags": {"title": "Cold plunge photo", "post_type": "image"},
+                            "pulls": {"7d": {"pulled_at": None, "metrics": {"views": 700, "reach": 500, "saves": 9}}}}
+    m = tmp_path / "metrics.json"
+    m.write_text(json.dumps(store))
+    out = tmp_path / "o.html"
+    assert run([str(m), str(out), "--today", "2026-11-12"]) == 0
+    html = out.read_text()
+    sec = html[html.index('id="bt-h"'):html.index("</section>", html.index('id="bt-h"'))]
+    for label in ("Reel", "Carousel", "Photo", "Story", "Trial reel"):
+        assert f'<th scope="row" class="name">{label}</th>' in sec, label
+    assert sec.index(">Reel<") < sec.index(">Carousel<") < sec.index(">Photo<") < sec.index(">Story<")
+    row = sec[sec.index(">Carousel<"):sec.index("</tr>", sec.index(">Carousel<"))]
+    assert "n/a" in row and "9,000" in row and "30.0" in row          # saves per 1k reach
+    story = sec[sec.index(">Story<"):sec.index("</tr>", sec.index(">Story<"))]
+    assert 'data-label="Posts">0<' in story                          # a type with no posts yet
+    lb = html[html.index('id="lb-h"'):html.index("</section>", html.index('id="lb-h"'))]
+    assert 'data-label="Type" class="l">Carousel<' in lb and 'data-label="Type" class="l">Photo<' in lb
+    assert lb.index("Five rituals") < lb.index("Reel 5")             # most views first, any type
+    assert 'data-label="Type" class="l">Trial reel<' in lb and "(Trial)" not in lb  # v2.0 trial_reel tag -> type
+
+
+def test_post_type_empty_state(nc, tmp_path):
+    m = tmp_path / "metrics.json"
+    m.write_text(json.dumps({"schema_version": 1, "reels": {}, "account": {"daily": {}, "totals": {}}}))
+    out = tmp_path / "e.html"
+    assert run([str(m), str(out)]) == 0
+    html = out.read_text()
+    assert "By post type" in html and "each post is tagged with its type" in html

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{slide_title}}</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:{{color.water_teal}}}a:hover{color:{{color.ink}}}
+</style>
+</helmet>
+<!--slide-->
+<div data-slide="{{component}}" style="width: 1080px; height: 1350px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: {{color.cream}}; color: {{color.ink}}; font-family: Inter, system-ui, sans-serif">
+<img src="{{photo}}" alt="{{photo_alt}}" style="display: block; width: 1080px; height: 820px; flex-shrink: 0; object-fit: cover; object-position: {{photo_position}}">
+<div style="flex: 1; min-height: 0; box-sizing: border-box; padding: 56px 96px 80px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; align-items: center; gap: 16px; height: 40px; flex-shrink: 0">
+<div style="width: 56px; height: 6px; flex-shrink: 0; background: {{color.cedar_ember}}; border-radius: 3px"></div>
+<p data-fit="kicker" style="margin: 0; max-width: 820px; overflow: hidden; white-space: nowrap; font-size: 26px; line-height: 40px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: {{color.water_teal}}">{{kicker}}</p>
+</div>
+<div data-fit="content" style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-start; gap: 24px">
+<p data-fit="caption" style="margin: 0; max-height: 260px; overflow: hidden; font-family: Fraunces, Georgia, serif; font-size: 56px; line-height: 65px; font-weight: 500; color: {{color.ink}}">{{caption}}</p>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 32px; height: 72px; flex-shrink: 0; box-sizing: border-box; border-top: 2px solid {{color.water_teal}}; padding-top: 26px">
+<p style="margin: 0; font-family: Fraunces, Georgia, serif; font-size: 30px; line-height: 44px; color: {{color.water_teal}}">{{brand_name}}</p>
+<p style="margin: 0; font-size: 26px; line-height: 44px; font-weight: 600; letter-spacing: 0.08em; color: {{color.cedar_ember}}">{{page}}</p>
+</div>
+</div>
+</div>
+<!--/slide-->
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":1350}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

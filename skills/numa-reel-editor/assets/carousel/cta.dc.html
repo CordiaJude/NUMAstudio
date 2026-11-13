@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{slide_title}}</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:{{color.water_teal}}}a:hover{color:{{color.ink}}}
+</style>
+</helmet>
+<!--slide-->
+<div data-slide="{{component}}" style="width: 1080px; height: 1350px; box-sizing: border-box; padding: 96px 96px 80px; display: flex; flex-direction: column; gap: 48px; overflow: hidden; background: {{color.cream}}; color: {{color.ink}}; font-family: Inter, system-ui, sans-serif">
+<div data-fit="content" style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 44px">
+<img src="{{wordmark}}" alt="NUMA" style="display: block; width: 440px; height: 97px; flex-shrink: 0">
+<div style="width: 220px; height: 16px; flex-shrink: 0; background: {{color.caption_gold}}; border-radius: 8px"></div>
+<h2 data-fit="title" style="margin: 0; max-height: 392px; overflow: hidden; font-family: Fraunces, Georgia, serif; font-size: 92px; line-height: 98px; font-weight: 600; color: {{color.ink}}; letter-spacing: -0.02em">{{title}}</h2>
+<!--if:body-->
+<p data-fit="body" style="margin: 0; max-height: 156px; overflow: hidden; font-family: Inter, system-ui, sans-serif; font-size: 36px; line-height: 52px; font-weight: 400; color: {{color.ink}}">{{body}}</p>
+<!--/if:body-->
+<p data-fit="button" style="margin: 0; align-self: flex-start; max-width: 888px; box-sizing: border-box; overflow: hidden; white-space: nowrap; padding: 0 44px; border-radius: 48px; background: {{color.cedar_ember}}; color: {{color.cream}}; font-size: 34px; line-height: 92px; font-weight: 600">{{button}}</p>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 32px; height: 72px; flex-shrink: 0; box-sizing: border-box; border-top: 2px solid {{color.water_teal}}; padding-top: 26px">
+<p style="margin: 0; font-family: Fraunces, Georgia, serif; font-size: 30px; line-height: 44px; color: {{color.water_teal}}">{{brand_name}}</p>
+<p style="margin: 0; font-size: 26px; line-height: 44px; font-weight: 600; letter-spacing: 0.08em; color: {{color.cedar_ember}}">{{page}}</p>
+</div>
+</div>
+<!--/slide-->
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":1350}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
