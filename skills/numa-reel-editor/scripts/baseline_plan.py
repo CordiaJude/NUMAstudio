@@ -548,23 +548,25 @@ def _clause_text(words: list[str]) -> str:
 
 
 def card_text(text: str, n: int) -> str:
-    """Statement-card text within n words: the whole line when it fits, else the first whole clause that
-    fits; only when no clause fits, the first clause up to CARD_OVER_WORDS over n (WARN); clipped words
-    as a last resort."""
+    """Statement-card text within n words: the whole line when it fits, else its first whole clause when
+    it fits, else that first clause up to CARD_OVER_WORDS over n (WARN, it carries the context), else a
+    later whole clause that fits; clipped words as a last resort."""
     words = text.replace("*", "").split()
     if len(words) <= n:
         return " ".join(words)
     clauses = [c.split() for c in re.split(r"(?<=[,;:.!?\u2014])\s+|\s-\s", " ".join(words)) if c.strip()]
-    for c in clauses:
+    first = clauses[0] if clauses else words
+    if 2 <= len(first) <= n:
+        return _clause_text(first)
+    if 2 <= len(first) <= min(n + CARD_OVER_WORDS, CARD_MAX_WORDS):   # the first clause keeps the context
+        short = _clause_text(first)
+        nc.warn(f"text card: the first clause of \"{' '.join(words)}\" is {len(first)} words, over {n}; "
+                f"the card shows it whole: \"{short}\"")
+        return short
+    for c in clauses[1:]:
         if 2 <= len(c) <= n:
             short = _clause_text(c)
             return short[:1].upper() + short[1:]   # a later clause starts the card: capitalised
-    first = clauses[0] if clauses else words
-    if 2 <= len(first) <= min(n + CARD_OVER_WORDS, CARD_MAX_WORDS):
-        short = _clause_text(first)
-        nc.warn(f"text card: no clause of \"{' '.join(words)}\" fits {n} words; the card shows its first "
-                f"clause, {len(first)} words: \"{short}\"")
-        return short
     return shorten(text, n)
 
 

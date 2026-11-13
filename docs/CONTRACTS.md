@@ -664,8 +664,8 @@ audio and 60 s, at least 15 s.
   (`meta.hook_type`, plus `goal`, `pillar`, `length_class`), `template`, and
   `cards` from `text_cards` when `kinetic_type` is true (a label card is a
   `number` card, a line card the beat's line shortened to `max_words`: the
-  first whole clause within `max_words`, else the first clause up to 2 words
-  over with a WARN; each starts on a cut). A card that would cover the hook
+  first clause within `max_words`, else that first clause up to 2 words over
+  with a WARN, else a later whole clause that fits; each starts on a cut). A card that would cover the hook
   window (before `hook.t1`) starts on the first cut after it unless it shows
   the hook text itself, so the hook is on screen from frame 0. Music-only reels with `--script` spread the script lines
   across the beats.
@@ -731,10 +731,13 @@ engine.py PLAN_JSON preview T1 [T2 ...] [--size WxH] [--out FILE]
   inside a cloud-synced folder (path contains "Google Drive", "GoogleDrive",
   "CloudStorage", "Dropbox" or "OneDrive") it defaults to the system temp
   folder so the sync client never uploads the cache.
-- Text legibility: under each caption line and the hook the engine measures
-  the picture every frame; over a bright region it darkens the band behind
-  the text and deepens the text shadow until white text keeps about 8:1
-  contrast (at least 4.5:1); dark frames are left untouched. Deterministic.
+- Text legibility: for each caption line and the hook, per shot it is shown
+  over, the engine measures the median luminance under the text's ink box
+  (three moments, middle value). Only when white text would read below 4.5:1
+  does a soft-edged scrim limited to that box plus a small margin darken the
+  picture to about 5:1 and deepen the text shadow; its strength is constant
+  while the line stays on one shot. Text that already reads at 4.5:1 is
+  rendered exactly as before. Deterministic.
 - Preview: renders the listed times into one grid `OUT_DIR/preview.jpg`
   (5 tiles per row).
 - Reads only the plan, bundled assets/fonts and brand.json defaults (R9).

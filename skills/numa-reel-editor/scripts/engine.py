@@ -41,9 +41,10 @@ with a gold accent revealed word by word over the blurred, darkened picture or
 brand teal; the hook waits while a card is on screen), word-by-word captions
 (safe areas, off faces), the end card, seeded film grain and the global fades (fade-in <= 0.2 s
 and none with a hook, so frame 0 is never black; 0.8 s fade-out). Caption and hook legibility
-adapts to the picture: over a bright region the band behind the text is darkened (a stronger
-bottom gradient) and the text shadow deepens until white text keeps about 6:1 contrast; over dark
-frames nothing changes.
+adapts to the picture: when the picture under a line's (or the hook's) ink box would give white
+text less than 4.5:1 contrast, a soft-edged scrim behind just that text box darkens it to about
+5:1 and the text shadow deepens; the strength is fixed per line (measured once at three moments
+of its display), so it never pumps. Text that already reads at 4.5:1 is left exactly as it was.
 
 Determinism: the picture is a pure function of (plan, size, frame index);
 grain and leak motion are seeded by ``plan.seed``. Frames rendered by N worker
@@ -118,16 +119,21 @@ CARD_RISE_PX = 46
 CARD_WORD_POP = 0.14         # words grow from 86% to full size
 CARD_NUMBER_POP = 0.35       # the numeral grows from 65%
 CARD_DARKEN = 0.42
-# Adaptive text legibility: under each caption line and the hook the picture is measured every frame
-# (95th percentile of linear luminance); when it is brighter than LEGIBLE_BG_LUM the band behind the
-# text is darkened just enough to bring it there (white text then keeps >= ~8:1 contrast) and the
-# text shadow deepens. Dark frames are left exactly as they are.
-LEGIBLE_BG_LUM = 0.07
-LEGIBLE_PERCENTILE = 95
+# Adaptive text legibility (white text, relative luminance 1.0): WCAG contrast is
+# 1.05 / (L_bg + 0.05). A caption line (or the hook) is checked once, on the picture under its ink
+# box at three moments of each shot it is shown over (median linear luminance; the middle of the
+# three, so one transient such as a flash does not count). Only when it is
+# above LEGIBLE_TRIGGER_LUM (contrast below 4.5:1) does a soft-edged scrim, limited to the text's
+# box plus a margin, darken the picture just enough to reach LEGIBLE_TARGET_LUM (5:1); the strength
+# is fixed while the line stays on one shot (it changes only at a cut, and follows the text's own fade)
+# and the text shadow deepens with it.
+LEGIBLE_TRIGGER_LUM = 1.05 / 4.5 - 0.05   # 0.183: below 4.5:1 for white text
+LEGIBLE_TARGET_LUM = 1.05 / 5.0 - 0.05    # 0.160: 5:1 for white text
+LEGIBLE_PERCENTILE = 50       # the typical background under the ink box (median)
 LEGIBLE_MIN_GAIN = 0.3        # never darker than 30% of the picture
-LEGIBLE_SHADOW_GAIN = 0.9     # shadow opacity x (1 + this) at full strength
-LEGIBLE_FEATHER_ABOVE = 0.08  # band feather above / below the text, fractions of the frame height
-LEGIBLE_FEATHER_BELOW = 0.14
+LEGIBLE_SHADOW_GAIN = 0.9     # shadow opacity x (1 + this) at the strongest scrim
+LEGIBLE_MARGIN_Y = 0.035      # soft margin around the ink box, fractions of the frame height
+LEGIBLE_MARGIN_X = 0.06       # ... and of the frame width
 _SRGB_TO_LINEAR = ((np.arange(256, dtype=np.float32) / 255.0 + 0.055) / 1.055) ** 2.4
 _SRGB_TO_LINEAR[:11] = np.arange(11, dtype=np.float32) / 255.0 / 12.92
 
@@ -359,6 +365,7 @@ class Renderer:
         self._build_endcard()
         self._build_cards()
         self._cache_dir: Path | None = None
+        self._scrims: dict = {}   # legibility scrim per caption line / hook, measured on first use
 
     def _warn(self, msg: str) -> None:
         if not self.quiet:
@@ -809,41 +816,76 @@ class Renderer:
         layer = np.clip(layer + 0.5, 0, 255).astype(np.uint8)
         return self._screen(img, layer, 1.0)
 
-    def _legibility(self, img: np.ndarray, y0: float, y1: float, x0: float, x1: float, vis: float,
-                    to_top: bool = False) -> float:
-        """Darken the band behind text whose ink spans rows y0..y1 and columns x0..x1 (in place) when the
-        picture there is bright; returns the shadow gain for the text. vis (0..1) scales the effect with
-        the text's own opacity; to_top holds the band up to the frame's top edge (the hook's top shade).
-        A pure function of the pixels, so renders stay deterministic."""
-        if vis <= 0.002:
-            return 1.0
-        H, W = img.shape[:2]
-        m = 0.02 * H
-        r0, r1 = max(0, int(y0 - m)), min(H, int(math.ceil(y1 + m)))
+    def _base_picture(self, t: float) -> np.ndarray:
+        """The picture at t before any text, grain or fades (what text is laid over)."""
+        t = min(max(float(t), 0.0), self.duration)
+        img = self._leak(self._bloom(self._picture(t)), t)
+        return cv2.multiply(img, self._mask, scale=1 / 255.0)
+
+    def _scrim(self, key, y0: float, y1: float, x0: float, x1: float, times: list[float],
+               hook: bool = False) -> tuple | None:
+        """(row/col slices, mask, depth, shadow gain) of the legibility scrim behind one text block, or
+        None when the text already reads at 4.5:1. Measured once per block and kept, so a line's scrim
+        is constant; a pure function of the plan, so every worker computes the same one."""
+        if key in self._scrims:
+            return self._scrims[key]
+        H, W = self.height, self.width
+        r0, r1 = max(0, int(y0)), min(H, int(math.ceil(y1)))
         c0, c1 = max(0, int(x0)), min(W, int(math.ceil(x1)))
-        if r1 <= r0 or c1 <= c0:
+        res = None
+        if r1 > r0 and c1 > c0:
+            step = max(1, int(round(2 * self.s)))
+            levels = []
+            for t in times:
+                img = self._base_picture(t)
+                if hook:
+                    rows = self._hook_shade.shape[0]
+                    img[:rows] = (img[:rows].astype(np.float32) * self._hook_shade[:, None, None] + 0.5
+                                  ).astype(np.uint8)
+                smp = img[r0:r1:step, c0:c1:step]
+                lum = (_SRGB_TO_LINEAR[smp[..., 0]] * 0.2126 + _SRGB_TO_LINEAR[smp[..., 1]] * 0.7152
+                       + _SRGB_TO_LINEAR[smp[..., 2]] * 0.0722)
+                levels.append(float(np.percentile(lum, LEGIBLE_PERCENTILE)))
+            bright = float(np.median(levels))   # robust to one transient (a flash, a crossfade)
+            if bright > LEGIBLE_TRIGGER_LUM:
+                # sRGB scale that brings that linear luminance to the target; quantised so tiny decode
+                # differences between a cached and a one-off render cannot change it
+                gain = max(LEGIBLE_MIN_GAIN, (LEGIBLE_TARGET_LUM / bright) ** (1 / 2.2))
+                gain = math.floor(gain * 64) / 64
+                my, mx = LEGIBLE_MARGIN_Y * H, LEGIBLE_MARGIN_X * W
+                b0, b1 = max(0, int(r0 - my)), min(H, int(math.ceil(r1 + my)))
+                a0, a1 = max(0, int(c0 - mx)), min(W, int(math.ceil(c1 + mx)))
+                y = np.arange(b0, b1, dtype=np.float32) + 0.5
+                x = np.arange(a0, a1, dtype=np.float32) + 0.5
+                py = em.smooth_arr(np.minimum((y - (r0 - my)) / my, ((r1 + my) - y) / my))
+                px = em.smooth_arr(np.minimum((x - (c0 - mx)) / mx, ((c1 + mx) - x) / mx))
+                mask = (py[:, None] * px[None, :]).astype(np.float32)
+                shadow = 1.0 + LEGIBLE_SHADOW_GAIN * (1.0 - gain) / (1.0 - LEGIBLE_MIN_GAIN)
+                res = (slice(b0, b1), slice(a0, a1), mask, 1.0 - gain, shadow)
+        self._scrims[key] = res
+        return res
+
+    def _shot_samples(self, t: float, a: float, b: float, lo: float, hi: float) -> list[float]:
+        """Three moments to measure a text block over the shot on screen at t: its span inside [a, b]
+        (the text fully shown), else inside [lo, hi] (the text's whole display)."""
+        i = self._shot_at(t)
+        s0 = self.shots[i].t0
+        s1 = self._t0s[i + 1] if i + 1 < len(self._t0s) else self.duration
+        x, y = max(a, s0), min(b, s1)
+        if y <= x:
+            x, y = max(lo, s0), min(hi, s1, self.duration)
+        y = max(x, y - 1e-3)
+        return [x, (x + y) / 2, y]
+
+    @staticmethod
+    def _apply_scrim(img: np.ndarray, scrim: tuple | None, vis: float) -> float:
+        """Darken under the scrim (in place) at the text's opacity vis; returns the shadow gain."""
+        if scrim is None or vis <= 0.002:
             return 1.0
-        step = max(1, int(round(2 * self.s)))
-        sample = img[r0:r1:step, c0:c1:step]
-        lum = (_SRGB_TO_LINEAR[sample[..., 0]] * 0.2126 + _SRGB_TO_LINEAR[sample[..., 1]] * 0.7152
-               + _SRGB_TO_LINEAR[sample[..., 2]] * 0.0722)
-        bright = float(np.percentile(lum, LEGIBLE_PERCENTILE))
-        if bright <= LEGIBLE_BG_LUM:
-            return 1.0
-        gain = max(LEGIBLE_MIN_GAIN, (LEGIBLE_BG_LUM / bright) ** (1 / 2.2))   # sRGB scale for that linear gain
-        depth = (1.0 - gain) * vis
-        fa, fb = LEGIBLE_FEATHER_ABOVE * H, LEGIBLE_FEATHER_BELOW * H
-        b0, b1 = 0 if to_top else max(0, int(r0 - fa)), min(H, int(math.ceil(r1 + fb)))
-        y = np.arange(b0, b1, dtype=np.float32) + 0.5
-        prof = np.ones_like(y)
-        up = y < r0
-        if not to_top:
-            prof[up] = em.smooth_arr(1.0 - (r0 - y[up]) / fa)
-        dn = y >= r1
-        prof[dn] = em.smooth_arr(1.0 - (y[dn] - r1) / fb)
-        f = 1.0 - depth * prof
-        img[b0:b1] = (img[b0:b1].astype(np.float32) * f[:, None, None] + 0.5).astype(np.uint8)
-        return 1.0 + LEGIBLE_SHADOW_GAIN * (1.0 - gain) / (1.0 - LEGIBLE_MIN_GAIN) * vis
+        ys, xs, mask, depth, shadow = scrim
+        f = 1.0 - (depth * vis) * mask
+        img[ys, xs] = (img[ys, xs].astype(np.float32) * f[..., None] + 0.5).astype(np.uint8)
+        return 1.0 + (shadow - 1.0) * vis
 
     def _draw_hook(self, img: np.ndarray, t: float) -> None:
         if not self._hook:
@@ -856,17 +898,23 @@ class Renderer:
         shade = 1.0 - (1.0 - self._hook_shade) * a
         roi = img[:rows].astype(np.float32) * shade[:, None, None]
         img[:rows] = (roi + 0.5).astype(np.uint8)
-        gain = self._legibility(img, *self._hook_ink, blk.x_min, blk.x_max, a, to_top=True)
+        h0, h1 = self._hook_ink
+        sc = self._scrim(("hook", self._shot_at(t)), h0, h1, blk.x_min, blk.x_max,
+                         self._shot_samples(t, 0.0, t1, 0.0, t1 + HOOK_FADE_OUT_S), hook=True)
+        gain = self._apply_scrim(img, sc, a)
         for sp, x, r, _ in blk.words:
             et.draw_sprite(img, sp, x, blk.baseline(top, r), a, shadow_gain=gain)
 
     def _draw_captions(self, img: np.ndarray, t: float) -> None:
-        for blk, top, t_first, fade_start, gone, ink0, ink1 in self._lines:
+        for li, (blk, top, t_first, fade_start, gone, ink0, ink1) in enumerate(self._lines):
             if t < t_first - 0.01 or t >= gone:
                 continue
             lo = 1.0 - em.smooth((t - fade_start) / max(1e-3, gone - fade_start)) if t > fade_start else 1.0
             vis = lo * em.ease_out((t - t_first) / self.word_fade) if t > t_first else 0.0
-            gain = self._legibility(img, ink0, ink1, blk.x_min, blk.x_max, vis)
+            a = min(t_first + self.word_fade, fade_start)
+            sc = self._scrim((li, self._shot_at(t)), ink0, ink1, blk.x_min, blk.x_max,
+                             self._shot_samples(t, a, fade_start, t_first, gone))
+            gain = self._apply_scrim(img, sc, vis)
             for sp, x, r, ts in blk.words:
                 p = (t - ts) / self.word_fade
                 if p <= 0:

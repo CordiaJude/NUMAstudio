@@ -567,12 +567,16 @@ def test_script_without_duration_ends_after_its_outro(make_job):
 
 
 def test_card_text_prefers_a_whole_clause_within_max_words(capsys):
-    # a later whole clause that fits beats an over-long first one
+    # a first clause up to 2 words over max_words wins over a later clause (it carries the context), WARN
+    assert bp.card_text("Colder is not always better for you, but it isn't.", 6) \
+        == "Colder is not always better for you."
+    assert "over 6" in capsys.readouterr().err
+    # a later whole clause only when the first one is more than 2 words over
     assert bp.card_text("Most people think the colder the water the better it works, but it isn't.", 6) \
         == "But it isn't."
     assert "WARN" not in capsys.readouterr().err
-    # no clause fits: the first clause up to max_words + 2, with a WARN
+    # no clause at all: the sentence up to max_words + 2, with a WARN
     assert bp.card_text("Start with three minutes in the water.", 5) == "Start with three minutes in the water."
-    assert "no clause" in capsys.readouterr().err
+    assert "over 5" in capsys.readouterr().err
     # more than 2 over: never the whole clause
     assert len(bp.card_text("Start slowly with three easy minutes in the cold water today.", 5).split()) <= 5
