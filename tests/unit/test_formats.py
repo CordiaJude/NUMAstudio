@@ -180,6 +180,71 @@ def test_default_texts_are_whole_sentences(job, make_image, nc):
         assert s["first"] - 1e-6 <= c["t"] <= s["end"] + 1e-6
 
 
+
+# a sentence with commas that wraps to 3 caption rows whole (64 characters), one without a clause break
+# that still wraps to 3 rows (62 characters: the CI voice's transcript of the voice_and_music case), and
+# a 38-word sentence with no clause break; each spread over caption lines that fit on their own
+LONG_LINES = [("This is what Katie saw.", 0.68, 2.74), ("I don't know how she does it,", 3.24, 5.06),
+              ("but she does.", 5.38, 6.96),
+              ("Heat first, then the cold plunge,", 7.38, 8.6), ("breathe slow and stay with it.", 8.7, 9.9),
+              ("Heat first then the cold plunge", 10.76, 13.5), ("breathe slow and stay with it.", 15.11, 18.01),
+              ("Every single morning we open the doors early so that the people", 19.3, 20.5),
+              ("of this town can come in out of the heat and sit in", 20.6, 21.8),
+              ("the quiet room for as long as they would like before work begins.", 21.9, 23.0),
+              ("We took a chance.", 23.2, 26.2), ("Looking forward to so many more.", 27.02, 29.9)]
+
+
+def test_default_story_and_carousel_text_always_fits_the_caption_rows(job, make_image, nc):
+    plan = year_one_like(job, make_image)
+    plan["lines"] = [{"words": [[w, round(t0 + min(0.3, (end - t0 - 0.2) / len(text.split())) * k, 3)]
+                                for k, w in enumerate(text.split())], "end": end} for text, t0, end in LONG_LINES]
+    plan = engine.prepare_plan(plan, job.work)
+    fits = formats.caption_fit(plan)
+    whole_commas = "Heat first, then the cold plunge, breathe slow and stay with it."
+    no_clause = "Heat first then the cold plunge breathe slow and stay with it."
+    assert not fits(whole_commas) and not fits(no_clause)          # rule 22's measure: 3 rows each
+    assert len(" ".join(LONG_LINES[7][0].split() + LONG_LINES[8][0].split() + LONG_LINES[9][0].split()).split()) >= 25
+    warnings = []
+    fm, defaulted, skipped = formats.resolve_formats(plan, {"story", "carousel"}, warnings)
+    assert not skipped and set(defaulted) == {"story", "carousel"}, warnings
+    texts = [x["text"] for x in fm["story"] + fm["carousel"]]
+    # the commas sentence is shortened to its leading whole clauses, the others are left out with a WARN
+    assert "Heat first, then the cold plunge." in texts
+    assert not any(formats.norm(t) in (formats.norm(whole_commas), formats.norm(no_clause)) for t in texts)
+    assert not any("Every single morning" in t for t in texts)
+    for kind in ("story", "carousel"):
+        notes = [w for w in warnings if w.startswith(f"{kind}: left out")]
+        assert any("Heat first then the cold plunge" in w for w in notes), warnings
+        assert any("Every single morning" in w for w in notes), warnings
+    # every default still passes validate_plan (rule 22 included) as formats renders it: never an ERROR
+    for n, st in enumerate(fm["story"], 1):
+        t = formats.still_time(plan, st["t"])
+        formats.check_derived(formats.still_plan(plan, t, st["text"]), f"story {n}", [], still=True)
+    for n, c in enumerate(fm["carousel"], 1):
+        t = formats.still_time(plan, c["t"])
+        formats.check_derived(formats.still_plan(plan, t, c["text"]), f"carousel {n}", [], still=True)
+    # the same choice when baseline_plan writes the defaults into the plan
+    assert [x["text"] for x in formats.default_story(plan)] == [x["text"] for x in fm["story"]]
+
+
+def test_plan_supplied_story_text_too_long_is_still_an_error(job, make_image, nc):
+    plan = year_one_like(job, make_image)
+    plan["formats"] = {"story": [{"t": 1.5, "text": "Heat first then the cold plunge breathe slow and stay with it."},
+                                 {"t": 5.5, "text": "But she does."}, {"t": 28.0, "text": "So many more."}]}
+    plan_path = job.work / "plan.json"
+    numa_common.write_json(plan_path, plan)
+    with pytest.raises(numa_common.UserError, match=r"story 1: .*rule 22"):
+        formats.run(plan_path, job.out / "year-one_reel.mp4", only=["story"], progress=False)
+
+
+def test_fit_text_keeps_the_longest_whole_clause_run_that_fits():
+    t = "Heat first, then the cold plunge, breathe slow and stay with it."
+    assert formats.fit_text(t, 64) == t                                  # characters alone allow it
+    fits = formats.caption_fit({"size": [1080, 1920]})
+    assert formats.fit_text(t, 64, fits) == "Heat first, then the cold plunge."
+    assert formats.fit_text(t, 20, fits) == "Heat first."
+    assert formats.fit_text("Heat first then the cold plunge breathe slow and stay with it.", 64, fits) is None
+
 def test_reach_window_never_cuts_a_caption_and_avoids_a_tiny_last_segment(job, make_image, nc):
     plan = engine.prepare_plan(year_one_like(job, make_image), job.work)
     warnings = []

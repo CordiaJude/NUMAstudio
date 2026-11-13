@@ -489,6 +489,29 @@ def test_formats_text_is_whole_sentences(make_job):
     assert "but she does." not in texts and "I don't know how she does it," not in texts
 
 
+
+def test_formats_story_and_carousel_text_fits_the_caption_rows(make_job, capsys):
+    # the voice_and_music case as CI's speech model heard it: a sentence with no clause break that still
+    # wraps to 3 caption rows whole, and one with commas that does too (both under 64 characters)
+    text = ("Welcome to NUMA in Mobile. Heat first then the cold plunge breathe slow and stay with it. "
+            "Heat first, then the cold plunge, breathe slow and stay with it. This is how you reset. "
+            "Rest between rounds. Leave lighter than you came. Come try it in Mobile.")
+    work, A = _vo_job(make_job, text=text)
+    plan = build(work, A)
+    import formats
+    fits = formats.caption_fit(plan)
+    fm = plan["formats"]
+    assert len(fm["story"]) >= 3 and len(fm["carousel"]) >= 5
+    for kind in ("story", "carousel"):
+        for n, item in enumerate(fm[kind], 1):
+            assert fits(item["text"]), item
+            t = formats.still_time(plan, item["t"])     # renders without a rule 22 ERROR
+            formats.check_derived(formats.still_plan(plan, t, item["text"]), f"{kind} {n}", [], still=True)
+    texts = {x["text"] for x in fm["story"] + fm["carousel"]}
+    assert "Heat first then the cold plunge breathe slow and stay with it." not in texts
+    assert "Heat first, then the cold plunge, breathe slow and stay with it." not in texts
+    assert "WARN: formats story: left out 'Heat first then the cold plunge" in capsys.readouterr().err
+
 def test_statement_card_replaces_its_caption(make_job):
     work, A = _vo_job(make_job, duration=60.0)
     plan = build(work, A, template=bp.load_template("myth_vs_fact"))

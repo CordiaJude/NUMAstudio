@@ -80,7 +80,7 @@ ENDCARD_TAIL_PREF_S = 3.0
 HOOK_VARIANT_S = (3.0, 5.0, 4.0)      # opening length: min, max, preferred
 STORY_CLIP_DEFAULT_S = 5.0
 SHORT_CAPTION_CHARS = 48              # carousel captions are short
-STORY_TEXT_CHARS = 64                 # a story line: one caption line of at most 2 rows
+STORY_TEXT_CHARS = 64                 # a story line: one caption line (rows measured: caption_fit)
 HOOK_TEXT_CHARS = 52                  # hook text: 3 rows at most
 MIN_LAST_SEGMENT_S = 0.5              # defence: no tiny final encoder segment (see reach_plan)
 REPEAT_WINDOW_S = 4.0                 # reach cut: no caption repeating the new hook in its first 4 s
@@ -549,31 +549,63 @@ def sentences(plan: dict) -> list[dict]:
     return out
 
 
-def fit_text(text: str, limit: int) -> str | None:
-    """The whole sentence when it fits, else its whole first clause closed with a full stop (never an
-    ellipsis or clipped words); None when neither fits or reads well."""
+def caption_fit(plan: dict):
+    """A test of whether display text, shown as one caption line of this plan, stays within the caption
+    row limit: measured exactly as validate_plan rule 22 measures it (the plan's caption fonts, caption_px
+    and size, 960 px box at 1080 wide, render.captions.max_rows). Returns text -> bool."""
+    chk = validate_plan.Checker(plan)
+    chk.size = plan.get("size") or [1080, 1920]   # as Checker.run sets it
+    max_rows = int(chk._cfg("render.captions.max_rows", 2))
+
+    def fits(text: str) -> bool:
+        if not et.hook_words(text):
+            return False
+        rows = chk._rows(text_words(text, 0.0))   # rule 22's own measure
+        return rows is None or rows <= max_rows   # None: no font to measure with (rule 5 reports it)
+    return fits
+
+
+def fit_text(text: str, limit: int, fits=None) -> str | None:
+    """The whole sentence when it fits, else the longest run of its whole leading clauses that fits,
+    closed with a full stop (never an ellipsis or clipped words); None when nothing fits or reads well.
+    Fitting means at most `limit` characters and, when `fits` is given (see caption_fit), within the
+    caption row limit."""
     t = plain(text)
-    if len(t) <= limit:
-        return t if good_text(t) else None
+
+    def ok(c: str) -> bool:
+        return len(c) <= limit and good_text(c) and (fits is None or fits(c))
+
+    if ok(t):
+        return t
+    if len(t) <= limit and not good_text(t):
+        return None
     parts = [p for p in re.split(r"(?<=[,;:.!?])\s+|\s+[-–—]\s+", t) if p.strip()]
     if len(parts) < 2:
         return None
-    p = parts[0].strip()
-    if not ends_sentence(p):
-        p = p.rstrip(",;:-–— ").strip() + "."
-    return p if 3 <= len(p) <= limit and good_text(p) and len(p.split()) >= 2 else None
+    for k in range(len(parts) - 1, 0, -1):    # longest whole-clause run first, never the whole sentence
+        p = " ".join(x.strip() for x in parts[:k])
+        if not ends_sentence(p):
+            p = p.rstrip(",;:-–— ").strip() + "."
+        if 3 <= len(p) and len(p.split()) >= 2 and ok(p):
+            return p
+    return None
 
 
-def sentence_texts(plan: dict, limit: int, exclude: tuple[str, ...] = ()) -> list[tuple[dict, str]]:
-    """(sentence, display text) for every complete sentence that fits (or shortens at a clause)."""
+def sentence_texts(plan: dict, limit: int, exclude: tuple[str, ...] = (), fits=None,
+                   dropped: list[str] | None = None) -> list[tuple[dict, str]]:
+    """(sentence, display text) for every complete sentence that fits (or shortens at a clause).
+    With `fits`, a complete sentence too long for the caption rows, with no whole clause that fits,
+    is left out and named in `dropped`."""
     skip = {norm(x) for x in exclude if x}
     out = []
     for s in sentences(plan):
         if not s["complete"] or norm(s["text"]) in skip:
             continue
-        t = fit_text(s["text"], limit)
+        t = fit_text(s["text"], limit, fits)
         if t and norm(t) not in skip:
             out.append((s, t))
+        elif t is None and fits is not None and dropped is not None and not fits(s["text"]):
+            dropped.append(s["text"])
     return out
 
 
@@ -735,9 +767,26 @@ def default_reach(plan: dict, plan_dir: Path | None = None) -> dict:
     return {"t0": r3(a), "t1": r3(b), "hook": default_reach_hook(plan, a, b, plan_dir)}
 
 
-def default_story(plan: dict) -> list[dict]:
+def _note_dropped(kind: str, dropped: list[str], warnings: list[str] | None) -> None:
+    if warnings is None:
+        return
+    for text in dropped:
+        short = text if len(text) <= 60 else text[:57].rstrip() + "..."
+        msg = (f"{kind}: left out {short!r}: too long for the caption rows and no whole clause of it fits; "
+               f"add formats.{kind} to choose the text")
+        if msg not in warnings:
+            warnings.append(msg)
+
+
+def default_story(plan: dict, warnings: list[str] | None = None) -> list[dict]:
+    """3-5 stills, one whole sentence (or its leading whole clauses) each, measured to fit the caption
+    rows; a sentence that cannot fit is left out (WARN in `warnings`), never rendered too long."""
     ce = content_end(plan)
-    sents = [(s, t) for s, t in sentence_texts(plan, STORY_TEXT_CHARS) if s["first"] < ce]
+    fits = caption_fit(plan)
+    dropped: list[str] = []
+    sents = [(s, t) for s, t in sentence_texts(plan, STORY_TEXT_CHARS, fits=fits, dropped=dropped)
+             if s["first"] < ce]
+    _note_dropped("story", dropped, warnings)
     n = 3 if len(sents) <= 4 else 4 if len(sents) <= 8 else 5
     out: list[dict] = []
     used: set[str] = set()
@@ -752,7 +801,7 @@ def default_story(plan: dict) -> list[dict]:
             out.append({"t": still_time(plan, t), "text": text})
             used.add(norm(text))
     shots = _content_shots(plan)
-    pool = [fit_text(x, STORY_TEXT_CHARS) for x in (_hook_text(plan), _title(plan)) if x]
+    pool = [fit_text(x, STORY_TEXT_CHARS, fits) for x in (_hook_text(plan), _title(plan)) if x]
     pool = [p for p in pool if p and norm(p) not in used]
     while len(out) < n and pool:   # few sentences: spread the hook/title over the shots
         s = shots[min(len(shots) - 1, (2 * len(out) + 1) * len(shots) // (2 * n))]
@@ -807,20 +856,24 @@ def _repeats_neighbour(plan: dict, out: list[dict], t: float) -> bool:
     return any(same_picture(plan, t, n) for n in near)
 
 
-def default_carousel(plan: dict) -> list[dict]:
+def default_carousel(plan: dict, warnings: list[str] | None = None) -> list[dict]:
     """Slide 1: the hook (or title) on the opening shot; then one slide per sentence, on the frame where
     it is spoken. A slide never repeats the picture of the slide next to it: another frame of the
-    sentence is tried, else the sentence is skipped for the next one."""
+    sentence is tried, else the sentence is skipped for the next one. Every caption is measured to fit
+    the caption rows; a sentence that cannot fit is left out (WARN in `warnings`)."""
     ce = content_end(plan)
+    fits = caption_fit(plan)
+    dropped: list[str] = []
     shots = _content_shots(plan)
     lead = _hook_text(plan) or _title(plan)
     out: list[dict] = []
     used: set[str] = set()
-    if lead and fit_text(lead, SHORT_CAPTION_CHARS):
+    if lead and fit_text(lead, SHORT_CAPTION_CHARS) and fits(lead):
         out.append({"t": still_time(plan, _mid(shots[0], ce)), "text": lead})
         used.add(norm(lead))
-    sents = [(s, t) for s, t in sentence_texts(plan, SHORT_CAPTION_CHARS) if s["first"] < ce
-             and norm(t) not in used]
+    sents = [(s, t) for s, t in sentence_texts(plan, SHORT_CAPTION_CHARS, fits=fits, dropped=dropped)
+             if s["first"] < ce and norm(t) not in used]
+    _note_dropped("carousel", dropped, warnings)
     room = 8 - len(out)
     order = sents
     if len(sents) > room:
@@ -845,7 +898,8 @@ def default_carousel(plan: dict) -> list[dict]:
         out.append({"t": t, "text": text})
         used.add(norm(text))
     title = _title(plan)
-    if len(out) < 5 and title and norm(title) not in used and fit_text(title, SHORT_CAPTION_CHARS):
+    if len(out) < 5 and title and norm(title) not in used and fit_text(title, SHORT_CAPTION_CHARS) \
+            and fits(title):
         free = [s for s in shots if all(abs(_mid(s, ce) - o["t"]) > 0.3 for o in out)
                 and not _repeats_neighbour(plan, out, still_time(plan, _mid(s, ce)))]
         if free:
@@ -917,8 +971,8 @@ def resolve_formats(plan: dict, kinds: set[str], warnings: list[str],
     defaulted: list[str] = []
     skipped: set[str] = set()
     makers = {"reach": ("reach_cut", lambda: default_reach(plan, plan_dir)),
-              "story": ("story", lambda: default_story(plan)),
-              "carousel": ("carousel", lambda: default_carousel(plan)),
+              "story": ("story", lambda: default_story(plan, warnings)),
+              "carousel": ("carousel", lambda: default_carousel(plan, warnings)),
               "cover": ("cover", lambda: default_cover(plan))}
     for kind, (key, make) in makers.items():
         if kind in kinds and key not in fm:

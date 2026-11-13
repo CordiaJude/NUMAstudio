@@ -1230,13 +1230,17 @@ def make_formats(plan: dict, lines: list[dict], sig_t: float | None, story_end: 
         if lo - 1e-6 <= t1 - t0 <= hi + 1e-6:
             out["reach_cut"] = {"t0": r3(t0), "t1": r3(t1), "hook": reach_hook}
     # story stills and carousel slides: whole sentences only (caption lines joined), chosen the way
-    # formats.py chooses its defaults
+    # formats.py chooses its defaults, each measured to fit the caption rows (validate_plan rule 22);
+    # a sentence that cannot fit is left out with a WARN, never written into the plan too long
     import formats  # noqa: PLC0415 - heavy (engine); only needed here
     for key, make in (("story", formats.default_story), ("carousel", formats.default_carousel)):
+        notes: list[str] = []
         try:
-            out[key] = [{"t": r3(e["t"]), "text": e["text"]} for e in make(plan)]
+            out[key] = [{"t": r3(e["t"]), "text": e["text"]} for e in make(plan, notes)]
         except formats.NoDefault:
             pass
+        for msg in notes:
+            nc.warn(f"formats {msg}")
     title = hook_text or longest
     if title:
         t = min(D, (sig_t + 0.5) if sig_t is not None else (plan["shots"][0]["t1"] / 2))
