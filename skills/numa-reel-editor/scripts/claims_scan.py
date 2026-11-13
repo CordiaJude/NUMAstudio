@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scan text for banned health claims (brand.json `claims`), the reusable claims checker.
+"""Scan text for banned health claims and brand word rules (brand.json `claims`), the reusable claims checker.
 
 Usage:
     claims_scan.py [TEXT ...] [--file FILE ...] [--plan PLAN_JSON] [--hashtags TEXT] [--json]
@@ -14,9 +14,16 @@ The rules come from brand/brand.json (one banned list for every script, R128):
 `captions.hashtags.never`. A few spec p.21 rules that are pure text checks and
 are not in brand.json are added here: testimonial-outcome phrasing ("cured my
 back pain"), the dosing line with any wording ("57 minutes ... 11 ..."),
-services NUMA doesn't offer (`offerings.not_offered`, warn) and "breathwork
+services Numa doesn't offer (`offerings.not_offered`, warn) and "breathwork
 therapy" when brand.json has no rule for it. "FDA-cleared" fails unless
-brand.json confirms the red-light device facts and the text names that device.
+brand.json confirms the red-light device facts (and, when recorded, its
+`fda_clearance`) and the text names that device.
+
+Besides health claims, brand.json carries the owners' word rules (2026-11-13) as
+banned entries with a `kind`: brand ("NUMA" instead of "Numa", "Discover Pass",
+"Explore Numa", "credits", "cheap", any emoji), fact (a sauna capacity, 34°F,
+the cancelled Clinical Conversations) and offer (NEWBIE or "50% off" in public
+copy). A rule that must match case uses a scoped inline flag, `(?-i:...)`.
 
 Matching is case-insensitive with the patterns' own word boundaries; hyphen and
 space variants ("anti-aging", "anti aging", "antiaging") and CamelCase hashtags
@@ -64,11 +71,11 @@ BUILTIN_RULES: list[dict] = [
             r"\b(i|i've|i\s+have|she|he|they)\s+(lost|dropped|shed)\s+\d+\s*(pounds|lbs?|kilos?|kg)\b",
             r"\b(off|stopped|quit)\s+(my\s+)?(pain\s+)?(meds|medications?|pills|painkillers)\b",
         ],
-        "source": "spec p.21 (testimonials are NUMA's claims)",
+        "source": "spec p.21 (testimonials are Numa's claims)",
     },
     {
         "id": "dosing_line_any",
-        "label": "the website dosing line (\"57 minutes of sauna and 11 of cold\"), blocked until counsel clears it",
+        "label": "the website dosing line (\"57 minutes of sauna and 11 of cold\")",
         "severity": "fail",
         "patterns": [
             r"\b57\s*(min|mins|minutes)\b[^.!?\n]{0,60}?\b(sauna|heat|cold|plunge)\b",
@@ -108,6 +115,7 @@ class Hit:
     match: str
     where: str
     suggestion: str | None = None
+    kind: str = "claim"
 
     def line(self) -> str:
         tail = f' (rule {self.rule}' + (f'; try: "{self.suggestion}")' if self.suggestion else ")")
@@ -131,6 +139,8 @@ class _Rule:
     suggestion: str | None
     builtin: bool = False
     tag_patterns: list[re.Pattern] = field(default_factory=list)
+    kind: str = "claim"
+    explicit: bool = False  # the suggestion is the rule's own `rewrite`: keep it over the modality 'say' line
 
 
 @dataclass
@@ -161,6 +171,9 @@ def _device_names(claims: dict) -> list[str]:
     node = (claims.get("modalities") or {}).get("red_light", {}).get("device_facts")
     if not isinstance(node, dict) or node.get("status") != "confirmed":
         return []
+    clearance = node.get("fda_clearance")
+    if isinstance(clearance, dict) and (clearance.get("status") != "confirmed" or not clearance.get("value")):
+        return []  # make and model known, but no confirmed clearance: "FDA-cleared" still fails
     val = node.get("value")
     names: list[str] = []
     if isinstance(val, str) and val.strip():
@@ -206,14 +219,22 @@ def build_rules(brand: dict) -> _Rules:
     for r in claims["banned"]:
         pats = [re.compile(p, FLAGS) for p in r["patterns"]]
         brand_ids.add(r["id"])
-        sugg = r.get("rewrite") or _modality_suggestion(claims, pats) or (principle if r.get("severity", "fail") == "fail" else None)
-        rules.append(_Rule(r["id"], r["label"], r.get("severity", "fail"), pats, sugg))
+        kind = r.get("kind", "claim")
+        if r.get("rewrite"):
+            sugg = r["rewrite"]
+        elif kind == "claim":
+            sugg = _modality_suggestion(claims, pats) or (principle if r.get("severity", "fail") == "fail" else None)
+        else:
+            sugg = None
+        rules.append(_Rule(r["id"], r["label"], r.get("severity", "fail"), pats, sugg, kind=kind,
+                           explicit=bool(r.get("rewrite"))))
         rules[-1].tag_patterns = [tp for tp in map(_tag_pattern, r["patterns"]) if tp] \
             if r.get("severity", "fail") == "fail" else []
     dosing = claims.get("dosing_line") or {}
     blocked = bool(dosing.get("blocked"))
+    reason = str(dosing.get("reason") or "blocked until its source is recorded")
     if blocked and dosing.get("patterns"):
-        rules.append(_Rule("dosing_line", "the website dosing line, blocked until counsel clears it", "fail",
+        rules.append(_Rule("dosing_line", f"the website dosing line, blocked: {reason}", "fail",
                            [re.compile(p, FLAGS) for p in dosing["patterns"]], principle))
     for b in BUILTIN_RULES:
         if b.get("only_if_brand_lacks") and b["id"] in brand_ids:
@@ -221,7 +242,8 @@ def build_rules(brand: dict) -> _Rules:
         if b.get("needs_dosing_blocked") and not blocked:
             continue
         pats = [re.compile(p, FLAGS) for p in b["patterns"]]
-        rules.append(_Rule(b["id"], b["label"], b["severity"], pats, _modality_suggestion(claims, pats) or principle, True,
+        label = f"{b['label']}, blocked: {reason}" if b.get("needs_dosing_blocked") else b["label"]
+        rules.append(_Rule(b["id"], label, b["severity"], pats, _modality_suggestion(claims, pats) or principle, True,
                            [tp for tp in map(_tag_pattern, b["patterns"]) if tp] if b["id"] == "misspelled_claim" else []))
     not_offered = [str(x) for x in (nc.fact(brand.get("offerings", {}).get("not_offered")) or []) if x]
     never = {t.lower() for t in (brand.get("captions", {}).get("hashtags", {}).get("never") or [])}
@@ -346,8 +368,8 @@ def scan_text(text: str, where: str = "text", brand: dict | None = None) -> list
                 continue
             seen.add(key)
             hit_rules.add(rule.id)
-            sugg = (text_say or rule.suggestion) if rule.suggestion else None
-            hits.append(Hit(rule.id, rule.label, severity, " ".join(matched.split()), where, sugg))
+            sugg = rule.suggestion if rule.explicit else ((text_say or rule.suggestion) if rule.suggestion else None)
+            hits.append(Hit(rule.id, rule.label, severity, " ".join(matched.split()), where, sugg, rule.kind))
     for m in _HASHTAG.finditer(text):  # run-together hashtags: #sundaydetox, #boostimmunity
         body = m.group(1).lower().replace("_", "")
         for g in TAG_GUARDS:
@@ -358,8 +380,8 @@ def scan_text(text: str, where: str = "text", brand: dict | None = None) -> list
             if any(tp.search(body) for tp in rule.tag_patterns):
                 hit_rules.add(rule.id)
                 seen.add((rule.id, _norm(m.group(0))))
-                hits.append(Hit(rule.id, rule.label, "fail", "#" + m.group(1), where,
-                                text_say or rule.suggestion))
+                sugg = rule.suggestion if rule.explicit else ((text_say or rule.suggestion) if rule.suggestion else None)
+                hits.append(Hit(rule.id, rule.label, "fail", "#" + m.group(1), where, sugg, rule.kind))
     for m in _HASHTAG.finditer(text):
         tag = "#" + m.group(1)
         if tag.lower() in rules.never_tags and ("hashtag_never", tag.lower()) not in seen:
@@ -371,7 +393,7 @@ def scan_text(text: str, where: str = "text", brand: dict | None = None) -> list
         m = re.search(pat, text, FLAGS) or re.search(r"#" + re.escape(re.sub(r"\s+", "", service)), text, FLAGS)
         if m and ("not_offered", _norm(service)) not in seen:
             seen.add(("not_offered", _norm(service)))
-            hits.append(Hit("not_offered", f"{service}: a service NUMA doesn't offer; never show or imply it",
+            hits.append(Hit("not_offered", f"{service}: a service Numa doesn't offer; never show or imply it",
                             "warn", m.group(0), where, None))
     return hits
 
@@ -475,7 +497,8 @@ def scan_file(path: str | Path, brand: dict | None = None) -> list[Hit]:
 # ---------------------------------------------------------------------------
 def main(argv: list[str] | None = None) -> int:
     ap = nc.ArgParser(prog="claims_scan.py",
-                      description="Scan text, caption files and plans for banned health claims (brand.json claims).")
+                      description="Scan text, caption files and plans for banned health claims and brand word rules "
+                                  "(brand.json claims).")
     ap.add_argument("texts", nargs="*", metavar="TEXT", help='text to scan ("-" reads stdin)')
     ap.add_argument("--file", action="append", default=[], metavar="FILE", help="text, .srt or plan.json file (repeatable)")
     ap.add_argument("--plan", metavar="PLAN_JSON", help="scan every text field of a plan")

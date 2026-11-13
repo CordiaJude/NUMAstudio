@@ -4,25 +4,81 @@
   "title": "NUMA Studio strategy brief",
   "description": "The Strategist's week brief (STATE/strategy_brief.json), written by strategy.py brief and read by /plan-month, /build-today, the Scriptwriter and the Monday digest. strategy.py computes every number; the Strategist may only add strategist_notes. Planning rules (claims, consent, budget, events, closures, one sales post a week) override the brief.",
   "type": "object",
-  "required": ["schema_version", "kind", "date", "week_of", "data", "provisional", "pending", "mix", "slots",
-               "use_patterns", "avoid_patterns", "experiments", "diagnoses", "do_more", "do_less", "changes", "reasoning", "rules_note"],
+  "required": [
+    "schema_version",
+    "kind",
+    "date",
+    "week_of",
+    "data",
+    "provisional",
+    "pending",
+    "mix",
+    "slots",
+    "use_patterns",
+    "avoid_patterns",
+    "experiments",
+    "diagnoses",
+    "do_more",
+    "do_less",
+    "changes",
+    "reasoning",
+    "rules_note",
+    "guardrails"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": {"const": 1},
-    "kind": {"const": "strategy_brief"},
-    "date": {"$ref": "#/$defs/date"},
-    "week_of": {"$ref": "#/$defs/date", "description": "The Monday of the week the brief covers."},
-    "month": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}$"},
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "strategy_brief"
+    },
+    "date": {
+      "$ref": "#/$defs/date"
+    },
+    "week_of": {
+      "$ref": "#/$defs/date",
+      "description": "The Monday of the week the brief covers."
+    },
+    "month": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^\\d{4}-\\d{2}$"
+    },
     "data": {
       "type": "object",
-      "required": ["judged_posts", "final_posts", "provisional_posts", "pending_posts", "data_led_share"],
+      "required": [
+        "judged_posts",
+        "final_posts",
+        "provisional_posts",
+        "pending_posts",
+        "data_led_share"
+      ],
       "additionalProperties": false,
       "properties": {
-        "judged_posts": {"type": "integer", "minimum": 0},
-        "final_posts": {"type": "integer", "minimum": 0},
-        "provisional_posts": {"type": "integer", "minimum": 0},
-        "pending_posts": {"type": "integer", "minimum": 0},
-        "data_led_share": {"type": "number", "minimum": 0, "maximum": 1}
+        "judged_posts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "final_posts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "provisional_posts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pending_posts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data_led_share": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
       }
     },
     "provisional": {
@@ -30,66 +86,241 @@
       "description": "Posts judged on an early pull only (counted at reduced weight until their final pull).",
       "items": {
         "type": "object",
-        "required": ["id", "title", "post_type", "pull", "weight"],
+        "required": [
+          "id",
+          "title",
+          "post_type",
+          "pull",
+          "weight"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id": {"type": "string"}, "title": {"type": "string"}, "post_type": {"$ref": "#/$defs/post_type"},
-          "pull": {"type": "string"}, "weight": {"type": "number", "minimum": 0, "maximum": 1},
-          "final_after_hours": {"type": ["number", "null"]}
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "post_type": {
+            "$ref": "#/$defs/post_type"
+          },
+          "pull": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "final_after_hours": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
         }
       }
     },
-    "pending": {"type": "array", "items": {"type": "string"}, "description": "Post ids too young to judge."},
+    "pending": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Post ids too young to judge."
+    },
     "mix": {
       "type": "object",
-      "required": ["feed_posts", "post_types", "trial_reels"],
+      "required": [
+        "feed_posts",
+        "post_types",
+        "trial_reels"
+      ],
       "additionalProperties": false,
       "properties": {
-        "feed_posts": {"type": "integer", "minimum": 0},
-        "post_types": {"type": "object", "propertyNames": {"$ref": "#/$defs/post_type"}, "additionalProperties": {"type": "integer", "minimum": 0}},
-        "trial_reels": {"type": "integer", "minimum": 0},
-        "suggested_pillar_mix": {"type": "object", "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1},
-                                 "description": "brand.json content_mix tilted by the pillar posteriors (at most +/- 0.05); a suggestion for the Director."}
+        "feed_posts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "post_types": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/post_type"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "trial_reels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "suggested_pillar_mix": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "description": "brand.json content_mix tilted by the pillar posteriors (at most +/- 0.05); a suggestion for the Director."
+        }
       }
     },
     "slots": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["date", "post_type", "kind", "mode", "pattern_ids", "why"],
+        "required": [
+          "date",
+          "post_type",
+          "kind",
+          "mode",
+          "pattern_ids",
+          "why"
+        ],
         "additionalProperties": false,
         "properties": {
-          "date": {"$ref": "#/$defs/date"},
-          "weekday": {"type": ["string", "null"]},
-          "post_type": {"$ref": "#/$defs/post_type"},
-          "kind": {"enum": ["reel", "trial_reel", "carousel", "image", "stories"]},
-          "post_time": {"type": ["string", "null"], "pattern": "^\\d{2}:\\d{2}$"},
-          "hour_band": {"type": ["string", "null"]},
-          "pillar": {"type": ["string", "null"]},
-          "series": {"type": ["string", "null"]},
-          "goal": {"enum": ["reach", "saves", "conversion", null]},
-          "mode": {"enum": ["exploit", "explore", "rule"]},
-          "pattern_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
-          "strategy_arm": {"type": ["string", "null"]},
-          "event": {"type": ["string", "null"]},
-          "event_role": {"enum": ["teaser", "recap", null]},
-          "sales": {"type": "boolean"},
-          "why": {"type": "array", "items": {"type": "string"}}
+          "date": {
+            "$ref": "#/$defs/date"
+          },
+          "weekday": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "post_type": {
+            "$ref": "#/$defs/post_type"
+          },
+          "kind": {
+            "enum": [
+              "reel",
+              "trial_reel",
+              "carousel",
+              "image",
+              "stories"
+            ]
+          },
+          "post_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^\\d{2}:\\d{2}$"
+          },
+          "hour_band": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pillar": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "series": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "goal": {
+            "enum": [
+              "reach",
+              "saves",
+              "conversion",
+              null
+            ]
+          },
+          "mode": {
+            "enum": [
+              "exploit",
+              "explore",
+              "rule"
+            ]
+          },
+          "pattern_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "strategy_arm": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_role": {
+            "enum": [
+              "teaser",
+              "recap",
+              null
+            ]
+          },
+          "sales": {
+            "type": "boolean"
+          },
+          "why": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
-    "use_patterns": {"type": "array", "items": {"$ref": "#/$defs/pattern_note"}},
-    "avoid_patterns": {"type": "array", "items": {"$ref": "#/$defs/pattern_note"}},
+    "use_patterns": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pattern_note"
+      }
+    },
+    "avoid_patterns": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pattern_note"
+      }
+    },
     "experiments": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["date", "post_type", "testing", "compare_with", "metric"],
+        "required": [
+          "date",
+          "post_type",
+          "testing",
+          "compare_with",
+          "metric"
+        ],
         "additionalProperties": false,
         "properties": {
-          "date": {"$ref": "#/$defs/date"}, "post_type": {"$ref": "#/$defs/post_type"},
-          "testing": {"type": "array", "items": {"$ref": "#/$defs/id"}},
-          "compare_with": {"type": "string"}, "metric": {"type": "string"}
+          "date": {
+            "$ref": "#/$defs/date"
+          },
+          "post_type": {
+            "$ref": "#/$defs/post_type"
+          },
+          "testing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "compare_with": {
+            "type": "string"
+          },
+          "metric": {
+            "type": "string"
+          }
         }
       }
     },
@@ -97,34 +328,134 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["post", "post_type", "rows"],
+        "required": [
+          "post",
+          "post_type",
+          "rows"
+        ],
         "additionalProperties": true,
         "properties": {
-          "post": {"type": "string"}, "post_type": {"$ref": "#/$defs/post_type"},
-          "rows": {"type": "array", "items": {"type": "object", "required": ["id", "fix", "try_patterns"]}}
+          "post": {
+            "type": "string"
+          },
+          "post_type": {
+            "$ref": "#/$defs/post_type"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "fix",
+                "try_patterns"
+              ]
+            }
+          },
+          "index": {
+            "type": "number"
+          }
         }
       }
     },
-    "do_more": {"type": "array", "items": {"type": "string"}},
-    "do_less": {"type": "array", "items": {"type": "string"}},
-    "changes": {"type": "array", "items": {"type": "object", "required": ["date", "action", "target", "why"]}},
-    "reasoning": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-    "strategist_notes": {"type": "string", "description": "The Strategist's own reading, in plain sentences (no new numbers)."},
-    "rules_note": {"type": "string"}
+    "do_more": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "do_less": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "date",
+          "action",
+          "target",
+          "why"
+        ]
+      }
+    },
+    "reasoning": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "strategist_notes": {
+      "type": "string",
+      "description": "The Strategist's own reading, in plain sentences (no new numbers)."
+    },
+    "rules_note": {
+      "type": "string"
+    },
+    "guardrails": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Offers only from brand.json; no invented offers, codes, boosts or partners; Saturday-morning and closure rules."
+    }
   },
   "$defs": {
-    "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
-    "id": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
-    "post_type": {"enum": ["reel", "trial_reel", "carousel", "image", "story"]},
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "post_type": {
+      "enum": [
+        "reel",
+        "trial_reel",
+        "carousel",
+        "image",
+        "story"
+      ]
+    },
     "pattern_note": {
       "type": "object",
-      "required": ["id", "kind", "reason"],
+      "required": [
+        "id",
+        "kind",
+        "reason"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": {"$ref": "#/$defs/id"},
-        "kind": {"enum": ["hook", "structure", "carousel", "photo", "offer", "cta", "growth"]},
-        "status": {"enum": ["proven", "testing", "candidate", "retired"]},
-        "reason": {"type": "string"}
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "hook",
+            "structure",
+            "carousel",
+            "photo",
+            "offer",
+            "cta",
+            "growth"
+          ]
+        },
+        "status": {
+          "enum": [
+            "proven",
+            "testing",
+            "candidate",
+            "retired"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
       }
     }
   }

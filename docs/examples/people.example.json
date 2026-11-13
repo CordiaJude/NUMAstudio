@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "_readme": "EXAMPLE ONLY: placeholder names, no real person. The real file is STATE/people.json (private, synced to Drive _Plan/people.json, never committed). Shape: schemas/people.schema.json.",
+  "updated": "2026-11-13",
+  "source": "placeholder example of the owners' setup answers",
+  "consent_log": {
+    "name": "Doc 04",
+    "location": null,
+    "note": "Every member yes is logged in the consent log; location to confirm."
+  },
+  "people": [
+    {
+      "id": "founder_a",
+      "name": "Founder A",
+      "kind": "founder",
+      "roles": ["co-founder", "records voiceovers"],
+      "on_camera": true,
+      "do_not_feature": false,
+      "consent": {"status": "not_needed", "scope": "all"}
+    },
+    {
+      "id": "instructor_a",
+      "name": "Instructor A",
+      "kind": "instructor",
+      "roles": ["yoga teacher"],
+      "on_camera": true,
+      "do_not_feature": false,
+      "collab": true,
+      "collab_handle": "@example_instructor",
+      "consent": {"status": "yes", "scope": "all", "ai_processing": null, "where": "Doc 04", "date": null}
+    },
+    {
+      "id": "staff_a",
+      "name": "Staff A",
+      "kind": "staff",
+      "roles": ["studio staff"],
+      "on_camera": true,
+      "do_not_feature": false,
+      "active_until": "2026-12-31",
+      "consent": {"status": "unknown", "scope": "none"}
+    },
+    {
+      "id": "staff_b",
+      "name": "Staff B",
+      "kind": "staff",
+      "roles": ["studio staff"],
+      "on_camera": false,
+      "do_not_feature": true,
+      "consent": {"status": "unknown", "scope": "none"},
+      "note": "Not on the schedule often: don't feature."
+    },
+    {
+      "id": "provider_a",
+      "name": "Provider A",
+      "kind": "provider",
+      "roles": ["massage therapist"],
+      "on_camera": null,
+      "do_not_feature": false,
+      "collab": true,
+      "collab_handle": null,
+      "collab_note": "Tags Numa and invites Numa as a collaborator.",
+      "consent": {"status": "unknown", "scope": "none"}
+    },
+    {
+      "id": "member_a",
+      "name": "Member A",
+      "kind": "member",
+      "roles": ["member"],
+      "on_camera": true,
+      "do_not_feature": false,
+      "lead_member_stories": true,
+      "consent": {"status": "yes", "scope": "all", "ai_processing": null, "where": "Doc 04", "date": null}
+    },
+    {
+      "id": "child_a",
+      "name": "Child A",
+      "kind": "child",
+      "roles": ["member's child"],
+      "on_camera": false,
+      "do_not_feature": true,
+      "consent": {"status": "yes", "scope": "one_existing_post_only", "parent_yes": true, "where": "Doc 04", "date": null},
+      "note": "Cleared for one existing post only; kids never appear in new content until the owners decide."
+    }
+  ],
+  "rules": {
+    "kids": "never until the owners decide",
+    "lead_member_stories_with": ["member_a"],
+    "cleared_for_one_existing_post_only": ["child_a"],
+    "do_not_feature": ["staff_b", "child_a"],
+    "who_may_appear": ["the co-founders", "instructors and staff", "members with a yes on record"]
+  }
+}

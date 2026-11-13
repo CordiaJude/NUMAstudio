@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render NUMA component carousels: Claude Design canvas -> 1080x1350 slides (R328-R332, DECISIONS D21).
+"""Render Numa component carousels: Claude Design canvas -> 1080x1350 slides (R328-R332, DECISIONS D21).
 
 Usage:
     design_render.py validate CAROUSEL_JSON [--json]
@@ -16,7 +16,9 @@ no Export click. The slides are rendered here, locally, with headless Chromium.
 validate  Checks carousel.json (schemas/carousel.schema.json): the components and
           their fields, the photos exist, 2-10 slides, every text field and the
           caption pass the claims scanner (claims_scan.py as a module), offer
-          prices come from brand.json (a price that is `needs_katie` is an ERROR).
+          prices come from brand.json (a price that is `needs_katie` is an ERROR),
+          every character is in the bundled fonts (assets/fonts/carousel_charset.json),
+          no emoji, the name written "Numa" (never "NUMA").
 build     Writes the canvas files for a new canvas under ROOT, ready for one
           Artifact publish per file: `ROOT/project/canvas.json` and one
           `ROOT/project/<board>.dc.html` per slide (Main.dc.html, Slide02.dc.html, ...)
@@ -35,7 +37,10 @@ canvas    Renders a canvas folder read back with the Artifact tool: `canvas.json
           or `--runtime FILE`) and the uploaded images (`/_blob/<id>` -> a file named
           `<id>` or `<id>.<ext>` in `DIR/_blob/`, `DIR/project/_blob/` or `DIR/`).
           Slides are taken in reading order (rows top to bottom, each left to
-          right). Google Fonts links are served from the bundled fonts; nothing is
+          right). Google Fonts links are served from the bundled fonts (Hanken
+          Grotesk and Nunito Sans, open stand-ins for Domaine Sans Text Light and
+          Avenir Next; NUMA_BRAND_FONTS=DIR with display.<woff2|woff|otf|ttf> and/or
+          body.<...> serves Numa's own files under those names instead); nothing is
           fetched from the network. `--list-blobs` prints the image ids the artboards
           use and whether each is present, then exits.
 spec      The fallback (R331): renders carousel.json straight from the bundled
@@ -45,7 +50,10 @@ Checks on every slide (an ERROR fails the run, exit 1):
   1080x1350 exactly; every font the slide uses is loaded (no system fallback);
   not blank or near-uniform; no text overflowing its box (scrollHeight /
   scrollWidth against the box, measured in the page); the claims scanner on the
-  slide's text; no "[PRICE]" placeholder left; 2-10 slides (outside config
+  slide's text; every character drawable by the bundled fonts (no glyph falls
+  back to a system font), no emoji, "Numa" not "NUMA"; no "[PRICE]" placeholder
+  left; text-led slides filling under 60% of the band between header and footer:
+  WARN (report `fill`); 2-10 slides (outside config
   formats `carousel` count: WARN); JPG quality >= 90, 4:4:4, sRGB profile embedded.
 
 Output: `OUT/<slug>_carousel_NN.<jpg|png>` (01, 02, ...: the names photo_post.py
@@ -64,9 +72,11 @@ from __future__ import annotations
 import html
 import io
 import json
+import os
 import re
 import shutil
 import sys
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -76,9 +86,13 @@ import numa_common as nc  # noqa: E402
 import claims_scan  # noqa: E402
 
 COMPONENTS_DIR = nc.ASSETS_DIR / "carousel"
-COMPONENTS = ("cover", "point", "stat", "myth_fact", "quote", "steps", "offer", "photo", "cta")
-LABELS = {"cover": "Cover", "point": "Point", "stat": "Stat", "myth_fact": "Myth vs fact", "quote": "Quote",
-          "steps": "Steps", "offer": "Offer", "photo": "Photo", "cta": "End slide"}
+COMPONENTS = ("cover", "cover_photo", "photo", "point", "stat", "myth_fact", "faq", "steps", "quote", "offer", "cta")
+LABELS = {"cover": "Cover", "cover_photo": "Cover photo", "photo": "Photo", "point": "Point", "stat": "Stat",
+          "myth_fact": "Myth vs fact", "faq": "FAQ", "steps": "Steps", "quote": "Quote", "offer": "Offer",
+          "cta": "End slide"}
+# Photo-led components (owners' brief): a quote only over that member's real photo, an offer only over a real photo.
+PHOTO_COMPONENTS = {"cover_photo", "photo", "quote", "offer"}
+MIN_FILL = 0.6                       # text-led slides: content fills >= 60% of the band between header and footer
 SCHEMA = "carousel.schema.json"
 SIZE = (1080, 1350)
 MIN_SLIDES, MAX_SLIDES = 2, 10
@@ -91,13 +105,25 @@ BLANK_TOLERANCE = 12                 # 0-255 per channel
 LOAD_TIMEOUT_MS = 30000
 SETTLE_TIMEOUT_MS = 20000
 PRICE_PLACEHOLDER = "[PRICE]"
-INK_DEFAULT = "#133037"              # the wordmark's ink; brand.json palette has no text colour yet
-INSTALL_FIX = "pip install -r requirements.txt, then python -m playwright install chromium"
-# Bundled open-licensed fonts (SIL OFL 1.1; assets/fonts/OFL-*.txt): family -> {style: file}.
-BUNDLED_FONTS = {
-    "fraunces": ("Fraunces", {"normal": "Fraunces.woff2", "italic": "Fraunces-Italic.woff2"}),
-    "inter": ("Inter", {"normal": "Inter.woff2"}),
+# Palette roles the components use -> (brand.json palette key, the owners' value until that key exists).
+PALETTE_ROLES = {
+    "bg": ("light", "#FBFAF8"),
+    "ink": ("dark_teal", "#06272E"),
+    "accent": ("tan_gold", "#CA8B3A"),
+    "panel": ("beige", "#F2EADB"),
+    "rule": ("blue", "#94BBC7"),
+    "tint": ("light_blue", "#C6E2E3"),
 }
+INSTALL_FIX = "pip install -r requirements.txt, then python -m playwright install chromium"
+# Bundled open-licensed stand-ins (SIL OFL 1.1; assets/fonts/OFL-*.txt): family -> (name, file, role, weights).
+# The brand fonts (Domaine Sans Text Light, Avenir Next) are commercial and never bundled: point
+# NUMA_BRAND_FONTS at a folder holding display.<woff2|woff|otf|ttf> and/or body.<...> to render with them.
+BUNDLED_FONTS = {
+    "hanken grotesk": ("Hanken Grotesk", "HankenGrotesk.woff2", "display", "100 900"),
+    "nunito sans": ("Nunito Sans", "NunitoSans.woff2", "body", "200 1000"),
+}
+FONT_EXTS = (".woff2", ".woff", ".otf", ".ttf")
+CHARSET_FILE = "carousel_charset.json"
 AUTO_FIELDS = {"component", "slide_title", "page", "brand_name", "wordmark", "photo", "photo_alt", "photo_position",
                "price", "price_note"}
 TOKEN = re.compile(r"\{\{\s*([A-Za-z0-9_.]+)\s*\}\}")
@@ -105,22 +131,82 @@ IF_BLOCK = re.compile(r"[ \t]*<!--if:([a-z0-9_]+)-->\n?(.*?)<!--/if:\1-->\n?", r
 SLIDE_MARKERS = re.compile(r"<!--/?slide-->\n?")
 BLOB_REF = re.compile(r"/_blob/([A-Za-z0-9_.-]+)")
 SAFE_BOARD = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]*(/[A-Za-z0-9_][A-Za-z0-9_.-]*)*\.dc\.html$")
-DOLLARS = re.compile(r"\$\s?\d[\d,]*(?:\.\d{2})?")
+DOLLARS = re.compile(r"\$\s?\d+(?:,\d{3})*(?:\.\d{2})?")
+CAPS_NAME = re.compile(r"\bNUMA\b")
 
 
 # --------------------------------------------------------------------------- brand data
 def palette(brand: dict) -> dict[str, str]:
-    colors = dict(nc.fact(brand.get("palette")) or {})
-    for key in ("cream", "cedar_ember", "water_teal", "caption_gold"):
-        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", str(colors.get(key, ""))):
+    """Role -> #RRGGBB: brand.json palette[<key>] when set, else the owners' value (PALETTE_ROLES)."""
+    colors = nc.fact(brand.get("palette")) or {}
+    out = {}
+    for role, (key, default) in PALETTE_ROLES.items():
+        value = colors.get(key, default)
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", str(value)):
             raise nc.UserError(f"brand.json palette.{key} must be a #RRGGBB colour")
-    colors.setdefault("ink", INK_DEFAULT)
-    return {k: v for k, v in colors.items() if isinstance(v, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", v)}
+        out[role] = value
+    return out
+
+
+def numa_case(text: str) -> str:
+    """The owners write the name "Numa" on slides, never "NUMA"."""
+    return CAPS_NAME.sub("Numa", text)
 
 
 def brand_name(brand: dict) -> str:
     name = nc.fact(nc.dig(brand, "business.name")) or {}
-    return name.get("full") or name.get("short") or "NUMA"
+    return numa_case(name.get("full") or name.get("short") or "Numa")
+
+
+# --------------------------------------------------------------------------- fonts and characters
+def brand_font_dir() -> Path | None:
+    raw = os.environ.get("NUMA_BRAND_FONTS", "").strip()
+    return Path(raw).expanduser() if raw else None
+
+
+def font_file(family_key: str) -> Path:
+    """The file served for a bundled family: the brand's own file from NUMA_BRAND_FONTS when present."""
+    _name, file, role, _weights = BUNDLED_FONTS[family_key]
+    folder = brand_font_dir()
+    if folder and folder.is_dir():
+        for ext in FONT_EXTS:
+            if (folder / f"{role}{ext}").is_file():
+                return (folder / f"{role}{ext}").resolve()
+    return (nc.FONTS_DIR / file).resolve()
+
+
+def font_overrides() -> dict[str, Path]:
+    """file:// url of each bundled font file -> the file actually served (differs only with brand fonts)."""
+    return {(nc.FONTS_DIR / spec[1]).resolve().as_uri(): font_file(key) for key, spec in BUNDLED_FONTS.items()}
+
+
+def charset_ranges() -> list[tuple[int, int]]:
+    data = nc.read_json(nc.FONTS_DIR / CHARSET_FILE, "font charset")
+    return [(int(a), int(b)) for a, b in data["ranges"]]
+
+
+def is_emoji(ch: str) -> bool:
+    cp = ord(ch)
+    return (0x1F000 <= cp <= 0x1FAFF or 0x2600 <= cp <= 0x27BF or 0x2B00 <= cp <= 0x2BFF or cp in (0x200D, 0xFE0F, 0x20E3)
+            or unicodedata.category(ch) == "So")
+
+
+def text_rules(text: str, where: str, probs: Problems) -> None:
+    """Every character drawable by the bundled fonts (no silent system fallback), no emoji, "Numa" not "NUMA"."""
+    ranges = charset_ranges()
+    bad: list[str] = []
+    for ch in dict.fromkeys(text):
+        if ch in "\n\t" or any(a <= ord(ch) <= b for a, b in ranges):
+            continue
+        if is_emoji(ch):
+            probs.error(f"{where}: emoji {ch!r} (U+{ord(ch):04X}): no emoji on slides")
+        else:
+            bad.append(f"{ch!r} (U+{ord(ch):04X})")
+    if bad:
+        probs.error(f"{where}: character {', '.join(bad)} is not in the bundled fonts and would render in a system "
+                    f"font; use plain words")
+    if CAPS_NAME.search(text):
+        probs.error(f'{where}: write the name as "Numa", never "NUMA"')
 
 
 def _price_text(price: dict) -> str | None:
@@ -187,10 +273,12 @@ def template_fields(component: str) -> tuple[set[str], set[str]]:
 
 
 def rich(text: str, accent: str) -> str:
-    """Field text -> markup: HTML-escaped, *emphasis* in italic accent, line breaks kept."""
+    """Field text -> markup: HTML-escaped, *emphasis* (medium weight, accent underline), line breaks kept."""
     out = re.sub(r"(?<=\w)'(?=\w)", "\u2019", str(text).strip())  # typographic apostrophe
     out = html.escape(out, quote=False)
-    out = re.sub(r"\*([^*\n]+)\*", lambda m: f'<em style="font-style: italic; color: {accent}">{m.group(1)}</em>', out)
+    out = re.sub(r"\*([^*\n]+)\*", lambda m: f'<em style="font-style: normal; font-weight: 500; text-decoration: underline; '
+                 f'text-decoration-color: {accent}; text-decoration-thickness: 0.06em; text-underline-offset: 0.14em">'
+                 f'{m.group(1)}</em>', out)
     return out.replace("\n", "<br>")
 
 
@@ -274,7 +362,7 @@ def prepare(spec: dict, spec_dir: Path, brand: dict, probs: Problems, *, image: 
             price_missing: Callable[[str], None]) -> list[dict]:
     """Per slide: the values to fill the template with. `image(key, path)` gives an image url."""
     colors = palette(brand)
-    accent = colors["cedar_ember"]
+    accent = colors["accent"]
     total = len(spec["slides"])
     slides = []
     for n, s in enumerate(spec["slides"], 1):
@@ -290,12 +378,13 @@ def prepare(spec: dict, spec_dir: Path, brand: dict, probs: Problems, *, image: 
                       brand_name=html.escape(brand_name(brand)))
         values["wordmark"] = image("wordmark", nc.brand_asset("wordmark")) if comp == "cta" else ""
         values["photo"] = values["photo_alt"] = values["photo_position"] = ""
-        if comp == "photo":
+        if comp in PHOTO_COMPONENTS:
             path = resolve_photo(s["photo"], spec_dir)
             if path is None:
                 probs.error(f"{where}: photo not found: {s['photo']}")
             values["photo"] = image(s["photo"], path)
-            values["photo_alt"] = html.escape(s.get("photo_alt") or plain(fields.get("caption", "")))
+            alt = s.get("photo_alt") or plain(fields.get("caption") or fields.get("title") or fields.get("quote") or "")
+            values["photo_alt"] = html.escape(numa_case(alt))
             values["photo_position"] = s.get("photo_position", "50% 50%")
         values["price"] = values["price_note"] = ""
         if comp == "offer" and "offer" in fields:
@@ -304,7 +393,7 @@ def prepare(spec: dict, spec_dir: Path, brand: dict, probs: Problems, *, image: 
                 names = ", ".join(o["name"] for o in offers(brand))
                 probs.error(f"{where}: offer {fields['offer']!r} is not in brand.json offerings ({names})")
             else:
-                values["offer"] = html.escape(offer["name"])
+                values["offer"] = html.escape(numa_case(offer["name"]))
                 values["price_note"] = html.escape(offer["note"])
                 if offer["price"]:
                     values["price"] = html.escape(offer["price"])
@@ -313,6 +402,8 @@ def prepare(spec: dict, spec_dir: Path, brand: dict, probs: Problems, *, image: 
                     price_missing(f"{where}: the price of {offer['name']!r} is needs_katie in brand.json")
         text = " ".join(plain(fields[k]) for k in fields)
         scan(" ".join(plain(v) for v in fields.values()), where, probs)
+        # the offer field is a brand.json lookup key ("Discover NUMA"); it is shown as "Discover Numa"
+        text_rules("\n".join(numa_case(v) if k == "offer" else v for k, v in fields.items()), where, probs)
         slides.append({"n": n, "component": comp, "values": values, "present": set(fields) & (required | optional),
                        "text": text, "photo_key": s.get("photo")})
     scan(spec["caption"], "caption", probs)
@@ -451,7 +542,18 @@ PROBE_JS = r"""
   const scope = slide || document.body;
   const r = scope.getBoundingClientRect();
   const out = {doc: [document.documentElement.scrollWidth, document.documentElement.scrollHeight],
-               root: [r.x, r.y, r.width, r.height], text: scope.innerText || '', used: [], failed: [], overflow: []};
+               root: [r.x, r.y, r.width, r.height], text: scope.innerText || '', raw: scope.textContent || '',
+               used: [], failed: [], overflow: [], fill: null, photo: !!scope.querySelector('img[src]:not([alt="Numa"])')};
+  const band = scope.querySelector('[data-fit="content"]');
+  if (band && band.children.length) {
+    let top = Infinity, bottom = -Infinity;
+    for (const c of band.children) {
+      const cr = c.getBoundingClientRect();
+      if (cr.height > 0) { top = Math.min(top, cr.top); bottom = Math.max(bottom, cr.bottom); }
+    }
+    const br = band.getBoundingClientRect();
+    if (br.height > 0 && bottom > top) out.fill = Math.round(1000 * (bottom - top) / br.height) / 1000;
+  }
   const loaded = {};
   for (const f of document.fonts) {
     const fam = f.family.replace(/^["']|["']$/g, '').toLowerCase();
@@ -545,7 +647,7 @@ def sniff_type(data: bytes, name: str) -> str:
 
 
 def google_fonts_css(url: str) -> tuple[str, list[str]]:
-    """CSS for a Google Fonts css2 link, pointing at the bundled files; and the families not bundled."""
+    """CSS for a Google Fonts css2 link, pointing at the bundled (or brand) files; and the families not bundled."""
     css, unknown = [], []
     for raw in re.findall(r"[?&]family=([^:&]+)", url):
         fam = re.sub(r"%([0-9A-Fa-f]{2})", lambda m: chr(int(m.group(1), 16)), raw.replace("+", " ")).strip()
@@ -553,11 +655,9 @@ def google_fonts_css(url: str) -> tuple[str, list[str]]:
         if not bundled:
             unknown.append(fam)
             continue
-        name, files = bundled
-        for style, file in files.items():
-            src = (nc.FONTS_DIR / file).as_uri()
-            css.append(f'@font-face {{ font-family: "{name}"; src: url("{src}") format("woff2"); '
-                       f"font-weight: 100 900; font-style: {style}; }}")
+        name, file, _role, weights = bundled
+        src = (nc.FONTS_DIR / file).resolve().as_uri()  # served as font_file(): the brand's file when supplied
+        css.append(f'@font-face {{ font-family: "{name}"; src: url("{src}"); font-weight: {weights}; font-style: normal; }}')
     return "\n".join(css) + "\n", unknown
 
 
@@ -581,7 +681,7 @@ class Browser:
             raise nc.UserError(f"headless Chromium did not start ({msg[:160]}); fix: {INSTALL_FIX}") from None
         self._ctx = self._browser.new_context(viewport={"width": SIZE[0], "height": SIZE[1]}, device_scale_factor=1)
         self.virtual: dict[str, tuple[bytes, str]] = {}
-        self.files: dict[str, Path] = {}
+        self.files: dict[str, Path] = font_overrides()
         self.blobs: dict[str, Path] = {}
         self.roots: list[Path] = []
         self.blocked: list[str] = []
@@ -674,7 +774,7 @@ def check_probe(probe: dict, page_errors: list[str], where: str, probs: Problems
             probs.error(f"{where}: font {f} failed to load")
     for u in unloaded:
         probs.error(f"{where}: font {u['family']} ({u['style']}) is not loaded, text such as {u['sample']!r} would "
-                    f"render in a system font; use the bundled Fraunces / Inter")
+                    f"render in a system font; use the bundled Hanken Grotesk / Nunito Sans")
     for o in probe["overflow"]:
         if o.get("outside"):
             probs.error(f"{where}: text {o['text']!r} ({o['field']}) runs outside the slide")
@@ -804,6 +904,11 @@ def run_render(jobs: list[dict], browser: Browser, out: Path, slug: str, fmt: st
         if scan_text:
             scan(text, where, slide_probs)
         price_rules(text, where, prices, slide_probs)
+        text_rules(probe["raw"], where, slide_probs)
+        fill = probe.get("fill")
+        if fill is not None and not probe.get("photo") and fill < MIN_FILL:
+            slide_probs.warn(f"{where}: the copy fills {fill:.0%} of the space between header and footer "
+                             f"(aim for {MIN_FILL:.0%}+): add a line, or make it a photo slide")
         path = out / slide_name(slug, job["n"], fmt)
         save_slide(png, path, fmt, where, slide_probs)
         files.append(path)
@@ -811,12 +916,12 @@ def run_render(jobs: list[dict], browser: Browser, out: Path, slug: str, fmt: st
         probs.warnings.extend(slide_probs.warnings)
         results.append({"n": job["n"], "file": str(path), **job["extra"], "ok": not slide_probs.errors,
                         "errors": slide_probs.errors, "warnings": slide_probs.warnings,
-                        "fonts": [f"{u['family']} {u['style']}" for u in fonts], "text": text})
+                        "fonts": [f"{u['family']} {u['style']}" for u in fonts], "fill": fill, "text": text})
     for bid in sorted(set(browser.missing_blobs)):
         probs.error(f"image /_blob/{bid} is missing locally: read it with the Artifact tool (action read, path {bid}) "
                     f"into the canvas folder's _blob/")
     for fam in browser.unknown_fonts:
-        probs.error(f"font family {fam!r} is linked but not bundled (assets/fonts has Fraunces and Inter)")
+        probs.error(f"font family {fam!r} is linked but not bundled (assets/fonts has Hanken Grotesk and Nunito Sans)")
     for url in sorted(set(browser.blocked)):
         probs.warn(f"blocked a request the slides made: {url[:120]}")
     return results, files
@@ -986,6 +1091,7 @@ def selftest(work: Path) -> tuple[bool, str]:
             "slides": [{"component": "cover", "fields": {"kicker": "Setup check", "title": "Slides render here",
                                                          "subtitle": "Bundled fonts, no network."}},
                        {"component": "cta", "fields": {"title": "Ready for carousels.", "button": "numawellness.org"}}]}
+    fonts = "brand fonts" if brand_font_dir() and brand_font_dir().is_dir() else "the bundled fonts"
     work.mkdir(parents=True, exist_ok=True)
     path = work / "carousel.json"
     nc.write_json(path, spec)
@@ -1001,16 +1107,16 @@ def selftest(work: Path) -> tuple[bool, str]:
                 browser.virtual[url] = (doc.encode("utf-8"), "text/html; charset=utf-8")
                 jobs.append({"n": sl["n"], "url": url, "extra": {}})
             results, files = run_render(jobs, browser, out, "setup-check", "jpg", probs, scan_text=False)
-    except nc.UserError as e:
-        return False, str(e)
+    except nc.UserError as e:  # the caller prints INSTALL_FIX as the fix: keep it out of the detail
+        return False, str(e).replace(f"; fix: {INSTALL_FIX}", "").replace(f": {INSTALL_FIX}", "")
     if probs.errors:
         return False, probs.errors[0]
-    return True, f"headless Chromium rendered {len(files)} slides at {SIZE[0]}x{SIZE[1]} with the bundled fonts ({out})"
+    return True, f"headless Chromium rendered {len(files)} slides at {SIZE[0]}x{SIZE[1]} with {fonts} ({out})"
 
 
 # --------------------------------------------------------------------------- CLI
 def main(argv: list[str] | None = None) -> int:
-    ap = nc.ArgParser(prog="design_render.py", description="Build and render NUMA component carousels "
+    ap = nc.ArgParser(prog="design_render.py", description="Build and render Numa component carousels "
                       "(Claude Design canvas or the bundled components) as 1080x1350 slides.")
     sub = ap.add_subparsers(dest="cmd", required=True, parser_class=nc.ArgParser)
     v = sub.add_parser("validate", help="check carousel.json: schema, claims, prices, photos")
@@ -1023,7 +1129,7 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--created-at", help="createdOnFiles timestamp (ISO 8601, default now in UTC)")
     b.add_argument("--design-system", metavar="URL", help="install this Claude Design design system (config "
                    "carousel.design_system_url): a designSystems record and its tokens.json copied to project/ds/numa/")
-    b.add_argument("--design-system-title", default="NUMA", help="the design system's title for its record")
+    b.add_argument("--design-system-title", default="Numa", help="the design system's title for its record")
     b.add_argument("--design-system-version", help="the design system's version id as the Artifact tool reports it")
     b.add_argument("--json", action="store_true", help="print one JSON report")
     c = sub.add_parser("canvas", help="render a canvas folder read back with the Artifact tool")

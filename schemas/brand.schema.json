@@ -34,7 +34,12 @@
     },
     "voice": {
       "type": "object",
-      "required": ["description", "reference_lines", "site_lines"],
+      "required": ["description", "reference_lines", "site_lines", "clone_allowed", "generic_ai_allowed"],
+      "properties": {
+        "clone_allowed": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": "boolean" } } }], "description": "Owners: no cloned voices (false)." },
+        "generic_ai_allowed": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": ["boolean", "null"] } } }], "description": "A generic, non-cloned AI voice when no VO was recorded; null = undecided = no." },
+        "emoji": { "$ref": "#/$defs/fact" }
+      },
       "additionalProperties": { "$ref": "#/$defs/fact" }
     },
     "offerings": {
@@ -206,11 +211,17 @@
     },
     "posting": {
       "type": "object",
-      "required": ["auto_post", "require_approval", "legal_review_done"],
+      "required": ["auto_post", "require_approval", "legal_review_done", "human_approval_required", "member_yes_required"],
       "properties": {
         "auto_post": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": "boolean" } } }] },
         "require_approval": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": "boolean" } } }] },
-        "legal_review_done": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": "boolean" } } }] }
+        "human_approval_required": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": "boolean" } } }], "description": "Nothing goes out without a person approving it (owners Q34, DECISIONS D26)." },
+        "member_yes_required": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": "boolean" } } }], "description": "A post showing a member needs that member's yes first (Q35)." },
+        "approver": { "$ref": "#/$defs/fact", "description": "Who approves each post and how; null while open." },
+        "legal_review_done": {
+          "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": "boolean" }, "required": { "type": "boolean" }, "waived": { "type": "boolean" } } }],
+          "description": "Legacy gate. The owners waived the lawyer review (Q51): required false, waived true, value true so the old post-reel gate stays open; human_approval_required replaces it."
+        }
       }
     },
     "escalation": {
@@ -248,7 +259,8 @@
         "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
         "label": { "$ref": "#/$defs/nonempty" },
         "severity": { "enum": ["fail", "warn"], "default": "fail", "description": "fail = banned claim (exit 1, Critic hard gate); warn = ambiguous or outcome language, a WARN for review." },
-        "rewrite": { "type": "string", "description": "Optional experience-language rewrite suggested by claims_scan for a hit on this rule." },
+        "kind": { "enum": ["claim", "brand", "fact", "offer"], "default": "claim", "description": "claim = a health or comparison claim; brand = name and word rules, emojis; fact = a fact Numa must not state (unconfirmed or cancelled); offer = a private or unconfirmed offer in public copy." },
+        "rewrite": { "type": "string", "description": "Optional rewrite suggested by claims_scan for a hit on this rule (kept over the modality 'say' line)." },
         "patterns": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } },
         "applies_to": { "const": "all" },
         "visual_rule": { "type": "string" }

@@ -1,999 +1,2903 @@
 {
-  "_readme": "NUMA's pattern library: hooks, script structures, carousel templates, photo post types, offer framings, CTAs and share lines, growth tactics. Seeded only from spec/SPEC.pdf (p.8-11, p.25, p.33-35) and the developer-kit research reports (research/1-content-benchmarks.md, research/4-mobile-competitor-audit.md); nothing here is invented data. No seed is 'proven': that status is earned only from NUMA's own posts (strategy.py learn). Seeds the spec adopts as defaults start as 'testing'; practitioner-opinion seeds start as 'candidate'. Every example passes claims_scan.py (tests/unit/test_strategy.py). strategy.py merges this file with STATE/strategy.json (statuses NUMA's data set, imported research patterns); this file itself is only changed by a plugin release.",
+  "_readme": "Numa's pattern library: 31 hook patterns (docs/research/R1_Hooks.md), 16 script structures (R3), 12 carousel templates and 9 single-photo types (R4), plus CTA, offer-framing and growth seeds (spec and the developer-kit research). Seeded by strategy.py's research importer and corrected by docs/research/REVIEW.md, where Numa's facts and rules win: 'Numa' never 'NUMA', plunges 44-52°F and sauna 175-190°F, no stated sauna capacity, no Clinical Conversations (cancelled), no emojis, no trending songs (trend-audio-sync became beat-sync-original-sound), member words photo-led only (no quote cards), no unconfirmed amenities (robes, tea, lockers), R4's yoga-studio copy replaced (its slide structure kept). owner_signal records what the owners' own posts showed (real people, collabs, walk-out lines, event recaps and member testimony worked; graphics and posters flopped): those priors count more than research. No seed is 'proven': that is earned only from Numa's own posts (strategy.py learn). Every example and template passes claims_scan.py (tests/unit/test_strategy.py). This file changes only with a plugin release; learned statuses live in STATE/strategy.json.",
   "schema_version": 1,
   "kind": "patterns",
   "patterns": [
     {
-      "id": "contrast-visual",
+      "id": "plunge-entry",
       "kind": "hook",
-      "name": "Hot/cold contrast in frame zero",
-      "formats": ["reel", "trial_reel", "carousel", "story"],
-      "goals": ["reach"],
-      "pillars": ["education", "local_seasonal", "community"],
-      "template": "Frame zero: heat and cold side by side (steam, then the plunge surface) with full-opacity text: \"{Heat}. Then {cold}.\"",
-      "visual": "Steam or the glowing sauna cut against the still plunge water within the first second; text at full opacity from frame zero.",
-      "examples": ["Sauna heat. Then the cold plunge.", "Steam on one side. Cold water on the other."],
-      "hook_types": ["reveal"],
-      "expected_effect": {"skip_rate": "lower than NUMA's median (the hypothesis to test)", "sends": "neutral to higher"},
+      "name": "The Plunge Moment",
+      "formats": [
+        "reel",
+        "story"
+      ],
+      "goals": [
+        "conversion",
+        "reach"
+      ],
+      "template": "\"[Person] / [water temp] / [round #]\" with the body already entering the water at 0.0s",
+      "examples": [
+        "48°F. Round two. No backing out.",
+        "Her first plunge at Numa. Watch her face."
+      ],
       "evidence": {
         "level": "observed",
-        "sources": ["research/1-content-benchmarks.md (Bathhouse NYC TikTok, Socialpruf estimates, Nov 2025-Nov 2026)", "spec p.8 and p.10 (frame zero carries a contrast visual)"],
-        "notes": "One account, TikTok, third-party estimates; the spec makes it a default to test with Trial Reels, not a law.",
+        "sources": [
+          "Remedy Place plunge videos at 2.7M–2.8M TikTok views, and Business of Fashion says some #6minuteclub videos have \"over 10 million views.\" Robb Report describes \"shock on their faces\" as the draw.  mechanism: skip rate covers the first 3 seconds (Instagram, August 2025"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "two posts in a row (fatigue), or with members who haven't consented to being filmed (sauna and plunge areas need explicit release). If it underperforms: move the cut earlier (start at water contact, not the step) or switch to `reaction-face`.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Feet or legs breaking the water surface of a plunge, mid-motion. Temperature text in the top third.",
+      "series": [
+        "first_plunge"
+      ],
+      "owner_signal": "worked",
+      "hook_types": [
+        "first_timer"
+      ],
+      "priority": 1
+    },
+    {
+      "id": "reaction-face",
+      "kind": "hook",
+      "name": "First-Timer Reaction",
+      "formats": [
+        "reel",
+        "story"
+      ],
+      "goals": [
+        "conversion",
+        "reach"
+      ],
+      "template": "\"[Name]'s first [plunge/round/breathwork] — [timer]\"",
+      "examples": [
+        "Marcus said he'd last 10 seconds. Watch.",
+        "First plunge ever. Here we go."
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "Remedy Place's \"First timer\" at 2.8M TikTok views. SweatHouz creator UGC is built on \"I only lasted 30 seconds\" reactions. A Bathhouse creator review reached about 35.5K likes"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "if the reaction looks like distress (it reads as unsafe), or with anyone who hasn't signed a media release. If it underperforms: pair two friends (`bring-a-friend-duo`) so the reaction becomes social, not solo.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Tight face shot at the instant of cold contact, eyes wide, with the plunge visible.",
+      "series": [
+        "first_plunge"
+      ],
+      "owner_signal": "worked",
+      "hook_types": [
+        "first_timer"
+      ],
+      "priority": 2
+    },
+    {
+      "id": "timer-challenge",
+      "kind": "hook",
+      "name": "On-Screen Clock",
+      "formats": [
+        "reel",
+        "story"
+      ],
+      "goals": [
+        "conversion",
+        "reach"
+      ],
+      "template": "\"[Timer 00:00] — can [name] make it to [time]?\"",
+      "examples": [
+        "Goal: 3 minutes. Clock's running.",
+        "First try: 0:45. Next visit: ?"
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "Remedy Place's #6minuteclub turns time-in-water into a shareable achievement; Business of Fashion quotes it as \"a very shareable moment.\"  mechanism: watch time is a top-3 signal (Mosseri, January 2025"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "never frame longer cold exposure as healthier or as a goal everyone should push toward. Keep it playful and include \"go at your pace.\" If it underperforms: shorten the clock (30 to 60 seconds) and put the result in the first frame (`end-result-first`).",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Large running timer graphic over a person in the plunge or sauna.",
+      "priority": 3
+    },
+    {
+      "id": "steam-pour",
+      "kind": "hook",
+      "name": "Löyly / Steam Burst",
+      "formats": [
+        "reel",
+        "carousel",
+        "story"
+      ],
+      "goals": [
+        "saves",
+        "reach"
+      ],
+      "template": "\"This is what [ritual name] sounds like\" over water hitting stones",
+      "examples": [
+        "The sound of our Finnish sauna waking up.",
+        "Ladle. Stones. Löyly. Wait for the wave."
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "Othership's towel-waving explainer got about 10× its normal likes (1,002 vs 49–122). : practitioner guides recommend opening on a sharp sound in the first half second"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "if the footage is dim or noisy. Phone sensors struggle in sauna light, and a dark frame 0 raises skips. If it underperforms: add a 4-word text overlay (\"What is löyly?\") and a narrator line, turning it into `myth-or-question`.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Ladle mid-pour, steam already rising off the stones. Warm, dark, high contrast.",
+      "priority": 4
+    },
+    {
+      "id": "sound-first-asmr",
+      "kind": "hook",
+      "name": "Sound Before Sight",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Sharp natural sound at 0.0s (hiss, splash, door latch) plus \"[Sound] = [moment]\"",
+      "examples": [
+        "That hiss = round one.",
+        "The splash you'll hear all evening."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "practitioner guides, e.g. PromptsLove's scan of 79 outlier Reels). Caution: the oft-cited muted-viewing figures trace to a May 2016 Digiday report on Facebook, not Instagram, where publishers self-reported about 85% soundless views (PopSugar: 50–80%), so the text overlay is mandatory"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "as the only hook. Muted viewers get nothing without text.",
+      "try_instead": [
+        "steam-pour"
+      ],
+      "origin": "seed",
+      "visual": "A close-up of the sound source (stones, water surface, cedar door) with the caption in large type for mute viewers.",
+      "priority": 5
+    },
+    {
+      "id": "pov-first-visit",
+      "kind": "hook",
+      "name": "POV Walk-In",
+      "formats": [
+        "reel",
+        "story"
+      ],
+      "goals": [
+        "conversion",
+        "reach"
+      ],
+      "template": "\"POV: your first [time/night] at [place]\"",
+      "examples": [
+        "POV: your first visit to Numa, start to finish.",
+        "POV: Tuesday 6pm in Midtown Mobile."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "widespread creator format). : SweatHouz creator UGC leans on \"first visit\" walk-throughs"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "if the walk-in shows an empty, unlit room. Emptiness reads as \"nobody goes here.\" If it underperforms: start the POV at the most dramatic point (the plunge) and loop back to the door.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "First-person shot already moving through the door or toward the sauna. Movement starts at frame 0, not after.",
+      "priority": 6
+    },
+    {
+      "id": "temp-split",
+      "kind": "hook",
+      "name": "Hot | Cold Split Screen",
+      "formats": [
+        "reel",
+        "carousel",
+        "image"
+      ],
+      "goals": [
+        "saves",
+        "conversion"
+      ],
+      "template": "\"[Hot temp]° | [Cold temp]° — [short invite]\"",
+      "examples": [
+        "185° | 48°. Pick your order.",
+        "From cedar heat to cold water in a few steps."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "practitioners list \"split screen before/after\" as a no-words visual hook). Uses  facts NUMA controls (its own temperatures), which keeps it FTC-safe"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "if temperatures vary day to day. Only post numbers you actually maintain. If it underperforms: add a human in each half, since faces outperform rooms in the observed examples.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Vertical split: glowing sauna left, blue plunge right, two huge numbers.",
+      "hook_types": [
+        "reveal"
+      ],
+      "priority": 7
+    },
+    {
+      "id": "myth-or-question",
+      "kind": "hook",
+      "name": "The Question First-Timers Actually Ask",
+      "formats": [
+        "reel",
+        "carousel"
+      ],
+      "goals": [
+        "saves"
+      ],
+      "template": "\"[Common question]?\" + instructor answering on camera or slides",
+      "examples": [
+        "Sauna first or plunge first? Here's how we run it at Numa.",
+        "Do I need to know what I'm doing? No. A guide walks you through it."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "practitioners: put the promise first). : Metricool found posts with CTAs get 203% more comments, so end with \"drop your question.\""
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "if the honest answer requires a health claim (\"will this help my arthritis?\"). Redirect those to a physician, not a Reel. If it underperforms: convert it into a carousel (`first-timer-faq`), where saves are measured higher.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Instructor mid-sentence, looking at the lens, question in bold top-third text.",
+      "series": [
+        "ask_the_dpt"
+      ],
+      "hook_types": [
+        "question",
+        "myth"
+      ],
+      "priority": 8
+    },
+    {
+      "id": "first-timer-faq",
+      "kind": "hook",
+      "name": "First-Timer Guide Carousel",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "saves",
+        "conversion"
+      ],
+      "template": "Cover: \"Your first [visit]: [n] things to know\" · Slide 2: standalone rehook",
+      "examples": [
+        "First time at Numa? 7 things nobody tells you.",
+        "What to bring, wear and expect, in one swipe."
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "Carousels lead save rate (0.05% vs 0.04% Reels, Socialinsider). Buffer: 6.9% engagement by reach. The slide-2 re-serve is from Mosseri"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "as the only format in a week. Carousels deepen; they don't discover at your size. If it underperforms: add music (Mosseri: makes carousels eligible for Reels surfaces) and rework slide 2.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Real photo of the sauna with people, a large number, a warm palette. Slide 2: a different strong image plus \"Swimsuit or towel? Both work.\"",
+      "pillars": [
+        "education",
+        "offers_events"
+      ],
+      "priority": 9
+    },
+    {
+      "id": "expectation-vs-reality",
+      "kind": "hook",
+      "name": "What It Actually Looks Like",
+      "formats": [
+        "reel",
+        "carousel"
+      ],
+      "goals": [
+        "conversion",
+        "reach"
+      ],
+      "template": "\"What you think [X] is / what it actually is at [place]\"",
+      "examples": [
+        "What you think a sauna studio is: silent, intimidating. What Numa is: this.",
+        "Breathwork: you expect weird. You get a calm Tuesday night with your neighbors."
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "Bathhouse's own \"Bathhouse vs spa, what's the difference?\" overlay hook. Othership positions itself as social, not silent.  numbers on brand posts (85 likes) suggest it works better voiced by people than by the brand"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win).",
         "confidence": "low"
       },
       "status": "testing",
-      "priority": 1,
-      "when_not": "When the post is a price or schedule announcement that must be read first, or on two reels in a row (it stops being a surprise).",
-      "try_instead": ["seasonal-weather", "first-timer-reaction"],
-      "origin": "seed"
+      "when_not": "if \"reality\" implies outcomes (\"you'll leave pain-free\"). If it underperforms: let a member deliver it (`member-experience-voice`).",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Split or quick-cut: stock-style \"intimidating spa\" vs real warm crowd.",
+      "hook_types": [
+        "reveal"
+      ],
+      "priority": 10
+    },
+    {
+      "id": "price-anchor",
+      "kind": "hook",
+      "name": "The $49 Line",
+      "formats": [
+        "reel",
+        "carousel",
+        "image",
+        "story"
+      ],
+      "goals": [
+        "conversion"
+      ],
+      "template": "\"$[price]. [Time]. [What's included].\"",
+      "examples": [
+        "$49. Discover Numa: your first month, one time, no commitment.",
+        "Discover Numa: three classes, three red light sessions, unlimited Flow Space."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "direct-response practice).  context: Metricool found CTA posts get 92% more saves. FTC: state offer terms clearly (new clients, one month"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "in Trial Reels to cold non-local audiences. The price means nothing outside Mobile.",
+      "try_instead": [
+        "plunge-entry"
+      ],
+      "origin": "seed",
+      "visual": "Price in huge type over motion (plunge or steam), never over a static logo.",
+      "pillars": [
+        "offers_events"
+      ],
+      "priority": 11
+    },
+    {
+      "id": "local-callout",
+      "kind": "hook",
+      "name": "Mobile, This Is Yours",
+      "formats": [
+        "reel",
+        "image",
+        "story"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "\"[City/neighborhood], you have a [unique thing] now.\"",
+      "examples": [
+        "Mobile, you have a Finnish sauna and cold plunges now. In Midtown.",
+        "Midtown Mobile's new weeknight plan."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "mechanism: sends weigh more for non-follower reach (Mosseri). \"Mobile\" in text and caption helps location relevance (Mosseri has said hashtags help Instagram understand topic, not raise reach"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "in back-to-back weeks, because it reads as a billboard. If it underperforms: make it about a specific local moment (`seasonal-weather`).",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Recognizable local cue (street sign, live oak, skyline) cutting straight into the sauna. Text names the city.",
+      "pillars": [
+        "local_seasonal",
+        "community"
+      ],
+      "hook_types": [
+        "local"
+      ],
+      "priority": 12
     },
     {
       "id": "seasonal-weather",
       "kind": "hook",
-      "name": "Season or weather hook",
-      "formats": ["reel", "trial_reel", "carousel", "story"],
-      "goals": ["reach"],
-      "pillars": ["local_seasonal"],
-      "series": ["too_hot_for_a_diy_plunge"],
-      "template": "\"{Weather moment} in Mobile? {What NUMA feels like right now}.\"",
-      "visual": "The weather itself (heat shimmer, a grey cold front, rain on Dauphin St) cut to the sauna or plunge.",
-      "examples": ["Sauna season in Mobile is open.", "Mobile tap water in August? Not cold enough for a real plunge."],
-      "hook_types": ["local"],
+      "name": "Weather-Jacked Hook",
+      "formats": [
+        "reel",
+        "image",
+        "story"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "\"It's [weather] in [city]. Here's [contrast].\"",
+      "examples": [
+        "92° and humid in Mobile. Our plunge is 48°.",
+        "First cold front of the year. Perfect sauna night."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "timeliness"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "after the moment passes. Post the same day. If it underperforms: turn it into a Story poll (`poll-first-frame`): \"Hot or cold person today?\"",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Weather app screenshot or sweaty-street shot, hard cut to plunge or sauna.",
+      "pillars": [
+        "local_seasonal"
+      ],
+      "series": [
+        "too_hot_for_a_diy_plunge"
+      ],
+      "hook_types": [
+        "local"
+      ],
+      "priority": 13
+    },
+    {
+      "id": "event-crowd",
+      "kind": "hook",
+      "name": "Numa Nights Energy",
+      "formats": [
+        "reel",
+        "carousel",
+        "story"
+      ],
+      "goals": [
+        "conversion",
+        "reach"
+      ],
+      "template": "\"This was [event] last [day]. Next one: [date].\"",
+      "examples": [
+        "Numa Nights, last time. The next one is on the calendar.",
+        "One sauna, one playlist, a room full of neighbors."
+      ],
       "evidence": {
         "level": "observed",
-        "sources": ["research/1-content-benchmarks.md (Bathhouse: 'Sauna season in NYC' 1.08M, 'New Yorkers as soon as it hits 60+' 696K, TikTok estimates)", "spec p.10, p.34 rule 5 (Friday forecast check)"],
-        "notes": "Niche examples only; the weather swap is a planning rule, the lift is a hypothesis.",
-        "confidence": "low"
+        "sources": [
+          "Othership's \"night out\" positioning (\"the new 'night out'\"). Remedy Place's \"Cooling Down Sunset\" group plunge events"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
       "status": "testing",
-      "priority": 2,
-      "when_not": "When the forecast doesn't match the line (no 'cold front' hook in a warm week).",
-      "try_instead": ["local-identity", "contrast-visual"],
-      "origin": "seed"
+      "when_not": "if the event was sparsely attended. Crop tight, or use a different hook.",
+      "try_instead": [
+        "reaction-face"
+      ],
+      "origin": "seed",
+      "visual": "Wide shot of a full sauna or lounge, people laughing, already mid-action.",
+      "pillars": [
+        "offers_events",
+        "community"
+      ],
+      "owner_signal": "worked",
+      "priority": 14
     },
     {
-      "id": "tease-announcement",
+      "id": "story-countdown",
       "kind": "hook",
-      "name": "Tease: something is coming",
-      "formats": ["reel", "trial_reel", "story", "image"],
-      "goals": ["reach", "conversion"],
-      "pillars": ["offers_events"],
-      "template": "\"Something new is coming to {place}. {When}.\" Show a detail, never the whole thing.",
-      "visual": "A close detail (candles being lit, a door opening) with the date in the text.",
-      "examples": ["Something new is coming to Midtown. Friday.", "Numa Nights is back. Save the date."],
-      "hook_types": ["tease", "announcement"],
-      "evidence": {
-        "level": "observed",
-        "sources": ["research/1-content-benchmarks.md (Bathhouse 'Something big, dropping soon' 1.39M views, TikTok estimate)", "spec p.34 rule 7 (teaser 2-3 days before every event)"],
-        "notes": "One example in the niche; used mainly for event teasers.",
-        "confidence": "low"
-      },
-      "status": "testing",
-      "priority": 4,
-      "when_not": "When there is no real date or news to reveal; a tease without a payoff costs trust.",
-      "try_instead": ["behind-the-scenes", "question-hook"],
-      "origin": "seed"
-    },
-    {
-      "id": "first-timer-reaction",
-      "kind": "hook",
-      "name": "First plunge reaction",
-      "formats": ["reel", "trial_reel", "story"],
-      "goals": ["reach"],
-      "pillars": ["community"],
-      "series": ["first_plunge"],
-      "template": "\"{Their} first cold plunge.\" Open on the face a second before the water.",
-      "visual": "A first-timer at the edge of the plunge with a guide beside them (consent list only).",
-      "examples": ["Her first cold plunge. Watch second three.", "First plunge ever. Our guide counts him in."],
-      "hook_types": ["first_timer"],
-      "needs": "Everyone on camera is on the Consent List (brand.json consent).",
-      "evidence": {
-        "level": "observed",
-        "sources": ["research/1-content-benchmarks.md (SweatHouz creator UGC: 'FIRST COLD PLUNGE')", "research/4-mobile-competitor-audit.md (First Plunge series)", "spec p.10, p.25"],
-        "notes": "The most common pattern in creator content about studios; brand-made versions are untested.",
-        "confidence": "medium"
-      },
-      "status": "testing",
-      "priority": 3,
-      "when_not": "When nobody on camera is on the Consent List, or the moment looks staged.",
-      "try_instead": ["pov-walkthrough", "quote-line"],
-      "origin": "seed"
-    },
-    {
-      "id": "behind-the-scenes",
-      "kind": "hook",
-      "name": "Behind the scenes",
-      "formats": ["reel", "trial_reel", "story", "image"],
-      "goals": ["reach"],
-      "pillars": ["community", "collective_collabs"],
-      "template": "\"Before the doors open at NUMA: {the ritual}.\"",
-      "visual": "Hands doing real prep work: filling the plunge, lighting candles, sweeping the sauna bench.",
-      "examples": ["Before the doors open: getting the plunge room ready.", "What happens at NUMA before the first guest walks in."],
-      "hook_types": ["behind_the_scenes"],
-      "evidence": {
-        "level": "observed",
-        "sources": ["research/1-content-benchmarks.md (Bathhouse 'Behind the scenes at Bathhouse' 446K, TikTok estimate)", "spec p.10"],
-        "confidence": "low"
-      },
-      "status": "testing",
-      "priority": 5,
-      "when_not": "On closure days or when the space looks unfinished in a way that reads as closed.",
-      "try_instead": ["contrast-visual", "pov-walkthrough"],
-      "origin": "seed"
-    },
-    {
-      "id": "question-hook",
-      "kind": "hook",
-      "name": "The question people actually ask",
-      "formats": ["reel", "trial_reel", "carousel"],
-      "goals": ["reach", "saves"],
-      "pillars": ["education"],
-      "series": ["ask_the_dpt"],
-      "template": "\"{Real question}?\" spoken by Katie on camera, the question as on-screen text.",
-      "visual": "Katie on camera mid-sentence, the question at full opacity.",
-      "examples": ["Sauna, infrared or red light: what's actually different?", "Cold plunge after lifting: good idea or not?"],
-      "hook_types": ["question"],
-      "evidence": {
-        "level": "opinion",
-        "sources": ["research/4-mobile-competitor-audit.md (Ask the DPT myth-busters, labelled inference)", "spec p.25"],
-        "confidence": "low"
-      },
-      "status": "testing",
-      "priority": 6,
-      "when_not": "When the honest answer would need a health claim; Ask the DPT explains, never promises.",
-      "try_instead": ["myth-buster", "number-list"],
-      "origin": "seed"
-    },
-    {
-      "id": "myth-buster",
-      "kind": "hook",
-      "name": "Myth vs fact opener",
-      "formats": ["reel", "trial_reel", "carousel"],
-      "goals": ["reach", "saves"],
-      "pillars": ["education"],
-      "template": "\"'{Common belief}.' Not quite.\"",
-      "visual": "The myth as a text card struck through, cut to the real thing.",
-      "examples": ["'You need ice-cold water for it to count.' Not quite.", "'Sauna is only for winter.' In Mobile? It's year-round."],
-      "hook_types": ["myth"],
-      "evidence": {
-        "level": "opinion",
-        "sources": ["research/4-mobile-competitor-audit.md (expert myth-busting, inference)", "spec p.35 (myth vs fact template)"],
-        "confidence": "low"
-      },
-      "status": "candidate",
-      "priority": 7,
-      "when_not": "When the 'fact' is itself a health claim; pick a myth about the experience, not the body.",
-      "try_instead": ["question-hook", "number-list"],
-      "origin": "seed"
-    },
-    {
-      "id": "pov-walkthrough",
-      "kind": "hook",
-      "name": "POV: your first hour",
-      "formats": ["reel", "trial_reel", "story"],
-      "goals": ["reach"],
-      "pillars": ["community", "education"],
-      "template": "\"POV: your first {session} at NUMA.\" First-person camera from the door.",
-      "visual": "Chest-height camera walking in from the front door toward the sauna.",
-      "examples": ["POV: your first hour at NUMA, start to finish.", "POV: you walk in after a twelve-hour shift."],
-      "hook_types": [],
-      "evidence": {
-        "level": "observed",
-        "sources": ["research/1-content-benchmarks.md (POV and first-timer creator content is the most common pattern about studios)"],
-        "notes": "Observed as creator content; no study compares it with other formats.",
-        "confidence": "low"
-      },
-      "status": "candidate",
-      "priority": 8,
-      "when_not": "When the footage can't be one continuous walk (it reads as a slideshow).",
-      "try_instead": ["first-timer-reaction", "behind-the-scenes"],
-      "origin": "seed"
-    },
-    {
-      "id": "local-identity",
-      "kind": "hook",
-      "name": "Midtown / Gulf Coast identity",
-      "formats": ["reel", "trial_reel", "carousel", "image"],
-      "goals": ["reach"],
-      "pillars": ["local_seasonal", "community"],
-      "template": "\"{Mobile place or moment}, meet {NUMA thing}.\"",
-      "visual": "A recognisable Midtown or Dauphin St detail in the first second.",
-      "examples": ["A 14-person Finnish sauna on Dauphin St.", "Midtown Mobile, meet your new evening ritual."],
-      "hook_types": ["local"],
-      "evidence": {
-        "level": "opinion",
-        "sources": ["research/4-mobile-competitor-audit.md (local-identity posts likely perform, labelled inference)", "spec p.24-25"],
-        "confidence": "low"
-      },
-      "status": "testing",
-      "priority": 9,
-      "when_not": "When the visual isn't recognisably Mobile (a generic street undoes it).",
-      "try_instead": ["seasonal-weather", "contrast-visual"],
-      "origin": "seed"
-    },
-    {
-      "id": "number-list",
-      "kind": "hook",
-      "name": "Three things",
-      "formats": ["reel", "trial_reel", "carousel"],
-      "goals": ["saves", "reach"],
-      "pillars": ["education"],
-      "template": "\"{N} things nobody tells you before your first {session}.\"",
-      "visual": "The number big on screen; kinetic type for each point.",
-      "examples": ["3 things nobody tells you before your first cold plunge.", "Two things to bring to your first sauna session."],
-      "hook_types": ["number"],
-      "evidence": {
-        "level": "opinion",
-        "sources": ["research/1-content-benchmarks.md (on-screen text heuristics are vendor opinion)", "skills/numa-scriptwriter/templates.json preset education_three_things"],
-        "confidence": "low"
-      },
-      "status": "candidate",
-      "priority": 10,
-      "when_not": "When there aren't really N useful points; padding loses viewers.",
-      "try_instead": ["question-hook", "myth-buster"],
-      "origin": "seed"
-    },
-    {
-      "id": "quote-line",
-      "kind": "hook",
-      "name": "One honest line",
-      "formats": ["reel", "trial_reel", "image", "carousel"],
-      "goals": ["reach", "saves"],
-      "pillars": ["community", "education"],
-      "template": "\"'{Experience quote}.'\" in the brand serif, then the moment it describes.",
-      "visual": "The line full-screen over a slow, warm shot.",
-      "examples": ["'My favorite hour of the week.'", "'Everyone hates the cold.' Then they come back."],
-      "hook_types": ["quote"],
-      "needs": "A member quote is about the experience, never a result, and the member is on the Consent List.",
-      "evidence": {
-        "level": "opinion",
-        "sources": ["brand.json voice.site_lines ('Everyone hates the cold.')", "brand.json claims.rules testimonials"],
-        "confidence": "low"
-      },
-      "status": "candidate",
-      "priority": 11,
-      "when_not": "When the quote hints at a health outcome; testimonials are NUMA's claims.",
-      "try_instead": ["first-timer-reaction", "behind-the-scenes"],
-      "origin": "seed"
-    },
-    {
-      "id": "audience-callout",
-      "kind": "hook",
-      "name": "Audience call-out",
-      "formats": ["reel", "trial_reel", "carousel"],
-      "goals": ["reach"],
-      "pillars": ["community", "education"],
-      "template": "\"{Audience}, this one's for you.\"",
-      "visual": "Someone who looks like the audience (scrubs after a shift, a runner, a student) in frame zero.",
-      "examples": ["Night shift? This is your reset.", "Healthcare crew: a quiet hour before your next shift."],
-      "hook_types": [],
-      "evidence": {
-        "level": "opinion",
-        "sources": ["research/4-mobile-competitor-audit.md (under-targeted audiences: shift workers, USA students, men, older adults)", "spec p.25"],
-        "confidence": "low"
-      },
-      "status": "candidate",
-      "priority": 12,
-      "when_not": "When the person on camera doesn't plausibly belong to the audience named.",
-      "try_instead": ["local-identity", "pov-walkthrough"],
-      "origin": "seed"
-    },
-    {
-      "id": "space-reveal",
-      "kind": "hook",
-      "name": "Space reveal",
-      "formats": ["reel", "trial_reel", "image"],
-      "goals": ["reach"],
-      "pillars": ["local_seasonal", "community"],
-      "template": "\"Lights off. Steam on. Here's the room.\" Open dark, reveal on the beat.",
-      "visual": "A dark room that lights up on the first beat (the hook text is already at full opacity).",
-      "examples": ["Lights off. Steam on. Here's the room.", "This is what Tuesday night looks like in the sauna."],
-      "hook_types": ["reveal"],
-      "evidence": {
-        "level": "opinion",
-        "sources": ["spec p.34 rule 6 (one signature transformation or reveal reel a month)", "skills/numa-scriptwriter/templates.json transformation"],
-        "confidence": "low"
-      },
-      "status": "candidate",
-      "priority": 13,
-      "when_not": "When the first frame would be black for more than 0.2 s (the hook rule wins).",
-      "try_instead": ["contrast-visual", "behind-the-scenes"],
-      "origin": "seed"
-    },
-    {
-      "id": "struct-modality-explainer",
-      "kind": "structure",
-      "name": "Modality explainer, 45-60 s",
-      "formats": ["reel", "trial_reel"],
-      "goals": ["reach", "saves"],
-      "pillars": ["education"],
-      "series": ["ask_the_dpt", "regulate"],
-      "templates": ["modality_explainer"],
-      "template": "Hook question -> what it is -> what a session feels like -> one practical tip -> share or save line -> music-only outro.",
-      "beats": ["hook", "what it is", "what it feels like", "one tip", "share/save line", "outro"],
-      "length_s": [45, 60],
-      "examples": ["Red light is light, not heat. Here's what a session feels like.", "Save this for your first visit."],
+      "name": "Countdown Sticker Opener",
+      "formats": [
+        "story"
+      ],
+      "goals": [
+        "conversion"
+      ],
+      "template": "Frame 1: \"[Event] in [n] days\" + countdown sticker",
+      "examples": [
+        "Numa Nights is coming. Tap to get reminded.",
+        "Two days to go. Tap the sticker."
+      ],
       "evidence": {
         "level": "measured",
-        "sources": ["research/1-content-benchmarks.md (Socialinsider 9.77M Reels, H1 2026: 45-60 s led, 10,374 median views)", "spec p.9"],
-        "notes": "The length range is measured across industries; the beat order is opinion.",
-        "confidence": "medium"
+        "sources": [
+          "Frame 1 has the highest Story exit rate (23.8%, Socialinsider).  on the sticker"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
       "status": "testing",
-      "priority": 1,
-      "when_not": "For announcements and atmosphere clips (15-30 s), or when there's nothing to teach.",
-      "try_instead": ["struct-myth-vs-fact", "struct-guided-practice"],
-      "origin": "seed"
+      "when_not": "more than one countdown at a time. If it underperforms: open on a video clip from the last event, then put the sticker on frame 2.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Best event photo full-bleed, sticker centered, 5 words max.",
+      "pillars": [
+        "offers_events"
+      ],
+      "hook_types": [
+        "tease",
+        "announcement"
+      ],
+      "priority": 15
+    },
+    {
+      "id": "send-this-to",
+      "kind": "hook",
+      "name": "Built for the DM",
+      "formats": [
+        "reel",
+        "carousel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "\"Send this to the friend who [relatable trait]\"",
+      "examples": [
+        "Send this to the friend who says they 'run cold.'",
+        "Send this to whoever owes you a weeknight plan."
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "mechanism. Sends per reach is the key signal for unconnected reach (Mosseri, January 2025). Reels hold the highest share rate (0.10%, Socialinsider). The pattern itself"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "every post. Explicit share-bait wears out quickly. If it underperforms: make the content itself sendable (`bring-a-friend-duo`) without saying \"send.\"",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Two people reacting together, line on screen.",
+      "priority": 16
+    },
+    {
+      "id": "bring-a-friend-duo",
+      "kind": "hook",
+      "name": "Two Friends, One Plunge",
+      "formats": [
+        "reel",
+        "image"
+      ],
+      "goals": [
+        "conversion",
+        "reach"
+      ],
+      "template": "\"[Relationship] at [place]: [funny/sweet line]\"",
+      "examples": [
+        "Date night that doesn't involve a bar tab.",
+        "Best friends, two plunges, one good decision."
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "SweatHouz couples UGC (\"This is how we do couples therapy around here\"). Othership's social positioning"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "if it makes solo visitors feel excluded. Alternate with solo stories.",
+      "try_instead": [
+        "reaction-face"
+      ],
+      "origin": "seed",
+      "visual": "Two people at the plunge edge, mid-countdown or mid-laugh.",
+      "owner_signal": "worked",
+      "priority": 17
+    },
+    {
+      "id": "instructor-mid-sentence",
+      "kind": "hook",
+      "name": "Already Talking",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "saves"
+      ],
+      "template": "Start speaking mid-phrase: \"…and that's why we [do X] at [place].\" Text says the setup.",
+      "examples": [
+        "...so round one is always the shortest.",
+        "...and the breathwork starts before you ever touch cold water."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "practitioners: appear already looking at the lens, mid-sentence; text should set up the line, not repeat it"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "if the instructor is uncomfortable on camera. Stiffness raises skips.",
+      "try_instead": [
+        "steam-pour"
+      ],
+      "origin": "seed",
+      "visual": "Instructor at lens, mouth moving, studio behind, text overlay (4–7 words) that sets up rather than duplicates the line.",
+      "series": [
+        "ask_the_dpt",
+        "regulate"
+      ],
+      "owner_signal": "worked",
+      "priority": 18
+    },
+    {
+      "id": "ritual-steps",
+      "kind": "hook",
+      "name": "The Numa Ritual in Steps",
+      "formats": [
+        "reel",
+        "carousel"
+      ],
+      "goals": [
+        "saves"
+      ],
+      "template": "\"Our [n]-round [ritual]: [step 1] [step 2] [step 3]\"",
+      "examples": [
+        "Our 3-round contrast flow, start to finish.",
+        "Breathe. Heat. Cold. Repeat. Here's the order we teach."
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "format effect. Carousels earn 9× the saves of single images (Metricool 2026). The pattern"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "if it prescribes times or temperatures as health dosing. Say \"how we run it here\" and \"go at your own pace.\" If it underperforms: make slide 2 the most visual step (the plunge), per the re-serve mechanic.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Numbered \"1\" over the first step's best image. Reel version: fast montage with step counters.",
+      "priority": 19
+    },
+    {
+      "id": "etiquette-rules",
+      "kind": "hook",
+      "name": "Unwritten Sauna Rules",
+      "formats": [
+        "reel",
+        "carousel"
+      ],
+      "goals": [
+        "saves",
+        "reach"
+      ],
+      "template": "\"[n] sauna rules nobody tells you\"",
+      "examples": [
+        "5 Finnish sauna rules nobody tells first-timers.",
+        "Towel down, voices low, ladle etiquette: the Numa basics."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "number-list hooks are a staple practitioner pattern). : carousel save rate leads"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "if the tone turns scolding. Keep it welcoming.",
+      "try_instead": [
+        "reaction-face"
+      ],
+      "origin": "seed",
+      "visual": "Big number plus a cheeky illustration or photo of a towel on the bench.",
+      "priority": 20
+    },
+    {
+      "id": "member-experience-voice",
+      "kind": "hook",
+      "name": "Member Says It (Experience Only)",
+      "formats": [
+        "reel",
+        "carousel",
+        "image"
+      ],
+      "goals": [
+        "conversion",
+        "reach"
+      ],
+      "template": "The member's own words about the experience go in the caption or over a real photo or clip of that member (yes on record); never a standalone text card.",
+      "examples": [
+        "My favorite hour of the week.",
+        "I came for the sauna, I stay for the people."
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "Creator/guest voices outperform brand voices at Bathhouse and SweatHouz. FTC: testimonials are the advertiser's claims, so edit out any health outcome (\"my back pain is gone\""
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "As a quote card, flyer or poster (Numa's flops); without the member's yes on record; when the words hint at a health result.",
+      "try_instead": [
+        "reaction-face"
+      ],
+      "origin": "seed",
+      "visual": "Member's face or hands with the quote large.",
+      "pillars": [
+        "community"
+      ],
+      "owner_signal": "worked",
+      "hook_types": [
+        "quote"
+      ],
+      "priority": 21
+    },
+    {
+      "id": "before-open",
+      "kind": "hook",
+      "name": "Before the Doors Open",
+      "formats": [
+        "reel",
+        "story"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "\"[Time]am at [place], before anyone arrives\"",
+      "examples": [
+        "Early morning. Stones heating. Plunges ready.",
+        "What happens before the first session of the day."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "behind-the-scenes is a common recommendation). Socialinsider notes Reels fit \"authentic behind-the-scenes glimpses.\""
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "as a reach play to strangers. It's a follower-loyalty format. If it underperforms: post it as a Story only.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Thermometer climbing or lights flicking on, with a time stamp in the corner.",
+      "hook_types": [
+        "behind_the_scenes"
+      ],
+      "priority": 22
+    },
+    {
+      "id": "end-result-first",
+      "kind": "hook",
+      "name": "Start at the Exhale",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "saves",
+        "reach"
+      ],
+      "template": "Open on the calm final moment, then \"How we got here: \"",
+      "examples": [
+        "Round three, done. Here's how we got here.",
+        "This is the quiet after the plunge. Rewind."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "practitioners: \"show the finished result in frame one\"). FTC: show a mood, not a medical before/after"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "if the frame reads as a health transformation (skin, weight, pain).",
+      "try_instead": [
+        "plunge-entry"
+      ],
+      "origin": "seed",
+      "visual": "Relaxed person wrapped in a towel on the cool-down bench, steam drifting.",
+      "owner_signal": "worked",
+      "priority": 23
+    },
+    {
+      "id": "breathe-along",
+      "kind": "hook",
+      "name": "Breathe With Us for 30 Seconds",
+      "formats": [
+        "reel",
+        "story"
+      ],
+      "goals": [
+        "saves",
+        "reach"
+      ],
+      "template": "\"Breathe with [instructor] for [n] seconds\"",
+      "examples": [
+        "Breathe with Fallon for 30 seconds. Right now, wherever you are.",
+        "Inhale with the circle. That's a Numa breathwork class, in miniature."
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "Othership grew from an app and Zoom breathwork community that pairs music with breath. Pattern"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "never promise anxiety, sleep or stress outcomes. Say \"take a minute,\" not \"lower your stress.\" If it underperforms: shorten to 15 seconds and loop.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Expanding circle graphic or instructor's chest rising, with the \"Breathe in\" text already on screen.",
+      "series": [
+        "regulate"
+      ],
+      "priority": 24
+    },
+    {
+      "id": "stillness-break",
+      "kind": "hook",
+      "name": "The Still Frame",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "One second of near-silence and stillness, then text: \"Your feed is loud. This isn't.\"",
+      "examples": [
+        "Your feed is loud. Our sauna isn't.",
+        "Pause here for 5 seconds."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "pattern-interrupt theory). There is a risk: most data favors motion at frame 0 (practitioners argue \"motion in frame 1\""
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "as a test baseline, or more than once a month. If it underperforms: add the ripple at 0.0s, not 1.0s.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Glass-still plunge water, a single ripple.",
+      "priority": 25
+    },
+    {
+      "id": "number-cover",
+      "kind": "hook",
+      "name": "Big Number Cover",
+      "formats": [
+        "carousel",
+        "image"
+      ],
+      "goals": [
+        "saves",
+        "conversion"
+      ],
+      "template": "\"[Number] [things] about [topic]\"",
+      "examples": [
+        "4 plunges. 1 sauna. 1 quiet evening.",
+        "3 things to try on your first visit."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "carousels lead engagement (0.55% in 2025, Socialinsider"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "with health stats (\"burns 300 calories\"). If it underperforms: pair the number with a face.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "One giant numeral over a real photo.",
+      "owner_signal": "flopped",
+      "hook_types": [
+        "number"
+      ],
+      "priority": 26
+    },
+    {
+      "id": "myth-not-required",
+      "kind": "hook",
+      "name": "You Don't Have To…\" Barrier-Breaker",
+      "formats": [
+        "reel",
+        "carousel"
+      ],
+      "goals": [
+        "conversion",
+        "reach"
+      ],
+      "template": "\"You don't have to be [barrier] to [do X]\"",
+      "examples": [
+        "You don't have to be a 'wellness person' to love a sauna night.",
+        "You don't need to plunge on day one. Most people don't."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "SweatHouz franchisees report customers who \"don't have a fitness routine.\""
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "to downplay real safety screening. Keep the \"check with your doctor if…\" policy visible on the website.",
+      "try_instead": [
+        "first-timer-faq"
+      ],
+      "origin": "seed",
+      "visual": "Relatable, non-athletic member in a towel, smiling.",
+      "priority": 27
+    },
+    {
+      "id": "collab-local-face",
+      "kind": "hook",
+      "name": "Known Local Face (Collab Post)",
+      "formats": [
+        "reel",
+        "carousel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "\"[Local name/club] tried [Numa thing] for the first time\"",
+      "examples": [
+        "A Mobile run club's first post-run plunge at Numa.",
+        "Our neighbors from down the street take on Numa Nights."
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "Remedy Place growth tied to celebrity and word of mouth (Kim Kardashian's ice bath post, unpaid per the founder). Bathhouse and SweatHouz volume comes from creators. Collab posts reach both audiences"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "without disclosure if the partner gets free sessions (FTC Endorsement Guides). If it underperforms: run the same idea as the partner's Story takeover.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "The recognizable person or group logo/jersey, mid-plunge.",
+      "pillars": [
+        "collective_collabs",
+        "community"
+      ],
+      "series": [
+        "meet_the_collective"
+      ],
+      "owner_signal": "worked",
+      "priority": 28
+    },
+    {
+      "id": "beat-sync-original-sound",
+      "kind": "hook",
+      "name": "Plunge on the Beat (licensed or original sound)",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Plunge or steam cut synced to a beat in licensed library music, or to the real splash. Never a trending or popular song.",
+      "examples": [
+        "The drop = the plunge.",
+        "Listen for the splash."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R1_Hooks.md #30 (trend audio, observed) rewritten per docs/research/REVIEW.md music rule"
+        ],
+        "notes": "R1's evidence is for trending audio, which Numa can't use; the licensed-music version is untested.",
+        "confidence": "low"
+      },
+      "status": "candidate",
+      "when_not": "When the only fitting track is a trending song (business accounts use licensed or original sound only).",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Person poised at the plunge edge, ready to drop on the beat.",
+      "priority": 29
+    },
+    {
+      "id": "slide2-rehook",
+      "kind": "hook",
+      "name": "Second Cover Slide",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Slide 2 is a standalone hook: \"[Bold claim about the experience] \"",
+      "examples": [
+        "This is the 48° part. Breathe first.",
+        "Here's what happens when you walk in."
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "Instagram \"will often give that carousel a second chance and automatically move to that second piece of media\" (Mosseri"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "never skip it. If slide 2 must be a \"Step 1\" slide, restructure. If it underperforms: swap slides 1 and 2 and repost later as a Trial Reel-style video version.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "A different shot type from slide 1 (if 1 is a room, 2 is a face).",
+      "priority": 30
+    },
+    {
+      "id": "poll-first-frame",
+      "kind": "hook",
+      "name": "Story Poll Opener",
+      "formats": [
+        "story"
+      ],
+      "goals": [
+        "conversion",
+        "reach"
+      ],
+      "template": "\"[Binary question]?\" + poll sticker on frame 1",
+      "examples": [
+        "Hot person or cold person?",
+        "Sauna before or after work?"
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "context. Frame-1 Story exit is 23.8% (Socialinsider). Interactive stickers give a tap reason. Pattern"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "daily. Poll fatigue sets in. If it underperforms: use a quiz sticker (\"How hot is our sauna?\") with the answer on frame 2.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Split hot/cold image with the poll centered.",
+      "priority": 31
     },
     {
       "id": "struct-myth-vs-fact",
       "kind": "structure",
-      "name": "Myth vs fact",
-      "formats": ["reel", "trial_reel"],
-      "goals": ["reach", "saves"],
-      "pillars": ["education"],
-      "series": ["ask_the_dpt"],
-      "templates": ["myth_vs_fact"],
-      "template": "Myth on screen -> 'Not quite' -> what's actually true about the experience -> one way to try it -> share line.",
-      "beats": ["myth", "turn", "the real experience", "how to try it", "share line", "outro"],
-      "length_s": [30, 60],
-      "examples": ["'You have to love the cold.' Most people don't, and they still come back.", "Send this to the friend who says they could never."],
+      "name": "Myth vs Fact",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "saves",
+        "reach"
+      ],
+      "template": "Hook -> Myth 1 -> Myth 2 -> Myth 3 -> Payoff + send line -> Loop tail",
+      "examples": [
+        "Three things people get wrong before their first Numa visit.",
+        "Send this to the friend who keeps saying 'one day.'"
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["spec p.35 (template library)", "research/4-mobile-competitor-audit.md (myth-busting, inference)"],
-        "confidence": "low"
+        "sources": [
+          "Sends weighted for unconnected reach (**OS**, Mosseri January 2025). Numbered-list structure (**PC**). Myths must be about the *experience*, not physiology; \"myth: cold plunges speed recovery\" framed either way is a health claim needing RCT-level substantiation (**OS**, FTC 2022"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
-      "status": "testing",
-      "priority": 2,
-      "when_not": "When the fact would be a health claim.",
-      "try_instead": ["struct-modality-explainer"],
-      "origin": "seed"
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Skip rate above your median (or ~50%+) means the hook is abstract; open on the strongest myth said straight to camera, with text in frame 1. Retention cliff after myth 1 means the myths are too similar; reorder so the most surprising comes second. Saves fine but sends under ~5 per 1K means there's no \"person\" to send it to; name the recipient (\"your gym-averse partner\").",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        20.0,
+        40.0
+      ],
+      "beats": [
+        "Hook (0–2 s): Text: \"First visit myths \". Host walks into frame at the plunge, mid-motion.",
+        "Myth 2 (9–16 s): Guest sitting by the plunge, chatting.",
+        "Payoff + send line (24–30 s): Text overlay of the send line over the entry door.",
+        "Loop tail (30–32 s): Final frame matches the opening walk-in so it loops."
+      ],
+      "templates": [
+        "myth_vs_fact"
+      ],
+      "series": [
+        "ask_the_dpt"
+      ],
+      "pillars": [
+        "education"
+      ],
+      "priority": 1
     },
     {
-      "id": "struct-first-plunge",
+      "id": "struct-relatable-pov-send-to-sketch",
       "kind": "structure",
-      "name": "First Plunge coaching",
-      "formats": ["reel", "trial_reel"],
-      "goals": ["reach"],
-      "pillars": ["community"],
-      "series": ["first_plunge"],
-      "templates": ["member_story"],
-      "template": "Nervous at the edge -> the guide's voice -> the first seconds in the cold -> the laugh or exhale -> 'Send this to the friend who could never.'",
-      "beats": ["edge", "guide", "in the cold", "reaction", "share line", "outro"],
-      "length_s": [30, 60],
-      "examples": ["Breathe out slow. You've got this.", "Send this to the friend who 'could never.'"],
-      "needs": "Consent List for everyone on camera.",
+      "name": "Relatable POV \"Send-to\" sketch",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Hook -> Escalation -> Turn -> Send line",
+      "examples": [
+        "POV: you brought your 'I don't do wellness' friend to Numa Nights.",
+        "Send to the friend you're bringing next time."
+      ],
       "evidence": {
-        "level": "observed",
-        "sources": ["research/4-mobile-competitor-audit.md (First Plunge reactions, built for sends)", "research/1-content-benchmarks.md (first-timer UGC)", "spec p.25"],
-        "confidence": "medium"
+        "level": "measured",
+        "sources": [
+          "Sends per reach is a top signal (**OS**). Short loops drive rewatches, and replays count as views and watch time (**OS**, Instagram help definitions). Sketch performance in local wellness is unmeasured (**AN**). Cast staff or friends who have consented. If the \"friend\" is staff, don't present it as "
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
       "status": "testing",
-      "priority": 3,
-      "when_not": "Without consent, or when the person is uncomfortable on camera.",
-      "try_instead": ["struct-class-spotlight"],
-      "origin": "seed"
+      "when_not": "Failure signs and fix: High views but sends under ~5 per 1K means the premise is funny but not targetable; make the friend archetype more specific. Skip rate high means the opening frame reads as an ad; open on a face and the reaction, not the logo or the building.",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        10.0,
+        20.0
+      ],
+      "beats": [
+        "Hook (0–2 s): Text: \"POV: you dragged your 'I don't do wellness' friend to Numa Nights\". Friend with arms crossed at the door.",
+        "Send line (13–16 s): Text: \"Send to the friend you're bringing next time.\""
+      ],
+      "templates": [
+        "member_story"
+      ],
+      "pillars": [
+        "community",
+        "offers_events"
+      ],
+      "priority": 2
+    },
+    {
+      "id": "struct-first-timer-reaction",
+      "kind": "structure",
+      "name": "First-Timer Reaction",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Hook -> Setup -> Moment 1 -> Moment 2 (peak) -> Verdict -> Send line + disclosure",
+      "examples": [
+        "I've never done any of this. Okay.",
+        "Send to your plunge buddy."
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "Authenticity is consistently ranked first in what consumers want from brands; Sprout's 2022 Index found 39% want real customer testimonials or demos (**LS** survey). The FTC requires disclosure of material connections (a comped session) and bars outcome claims in testimonials without substantiation "
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "Failure signs and fix: Drop at 8–12 s (setup too long) means you should cut straight from the hook to the sauna and move the plan into on-screen text. Low completion means the peak comes too late; move the plunge countdown to ~12–15 s. Profile visits fine but no follows means the bio doesn't say what Numa is or where it is; fix the bio line and pin this Reel.",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        25.0,
+        45.0
+      ],
+      "beats": [
+        "Hook (0–3 s): Text: \"First time at Numa (real guest, unscripted)\". Close-up on a nervous face.",
+        "Setup (3–8 s): Quick walkthrough, three cuts.",
+        "Moment 1 (8–18 s): Steam, close-ups, real reaction.",
+        "Moment 2 (peak) (18–28 s): Hold for the reaction, with no cut at the climax.",
+        "Send line + disclosure (36–40 s): Text: \"Send to your plunge buddy\" plus \"Sam received a complimentary session.\""
+      ],
+      "templates": [
+        "member_story"
+      ],
+      "series": [
+        "first_plunge"
+      ],
+      "pillars": [
+        "community"
+      ],
+      "owner_signal": "worked",
+      "priority": 3
+    },
+    {
+      "id": "struct-explainer",
+      "kind": "structure",
+      "name": "Explainer",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "saves"
+      ],
+      "template": "Hook -> Arrival -> Block 1 -> Block 2 -> Block 3 -> Save line -> Safety line",
+      "examples": [
+        "Here's exactly what your first visit at Numa looks like.",
+        "Save this so you know the flow before you come."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "Socialinsider's 45–60 s bracket leads on engagement rate and median views (**LS**, H1 2026). Buffer's reach data shows little difference below 90 s (**LS**). \"Time-stamped walkthrough\" is practitioner-recommended for saves (**PC**). Describe the process, not effects (**OS**, FTC"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Saves under ~3 per 1K means it reads as a promo, not a reference; add specifics like times, what to bring and price. Steep slope at 20–30 s means you're narrating what viewers can already see; cut words and let the visuals carry (target ~2.3 wps). High skip rate means \"here's what happens\" is generic; lead with a surprising detail (\"no phones for 60 minutes\").",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        30.0,
+        60.0
+      ],
+      "beats": [
+        "Block 1 (12–24 s): Sauna interior, timer on the wall, clock at 0:20.",
+        "Block 2 (24–36 s): Plunge; text \"optional.\"",
+        "Save line (46–52 s): Text overlay plus booking cue.",
+        "Safety line (52–55 s): \"Unsure if heat/cold is right for you? Check with your healthcare provider.\""
+      ],
+      "templates": [
+        "modality_explainer"
+      ],
+      "series": [
+        "ask_the_dpt"
+      ],
+      "pillars": [
+        "education"
+      ],
+      "priority": 4
     },
     {
       "id": "struct-transformation",
       "kind": "structure",
-      "name": "Transformation or reveal (signature)",
-      "formats": ["reel"],
-      "goals": ["reach"],
-      "pillars": ["local_seasonal", "community"],
-      "templates": ["transformation"],
-      "template": "Tease the result -> the before -> the work -> the wipe on the turn -> the finished space in use -> outro.",
-      "beats": ["hook", "before", "work", "turn", "after", "outro"],
-      "length_s": [30, 45],
-      "examples": ["Same corner, two months apart.", "And then this."],
-      "needs": "A true before/after pair from the same angle; never bodies or skin.",
+      "name": "Transformation",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Hook (\"after\" first) -> Rewind -> Process montage -> Return to \"after\" -> Send line",
+      "examples": [
+        "Same Tuesday. Different evening.",
+        "Send to your 6 pm-chaos coworker."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["spec p.34 rule 6", "skills/numa-scriptwriter/templates.json transformation"],
-        "confidence": "low"
+        "sources": [
+          "Before/after transformations are a top practitioner format (**PC**). For a wellness business, the \"transformation\" must be the *schedule or setting*, not a body, symptom, mood disorder or performance metric. Before/after body or health claims require RCT-level substantiation (**OS**, FTC 2022). \"Cal"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
-      "status": "testing",
-      "priority": 4,
-      "when_not": "Before/after of bodies, skin or results (claims policy).",
-      "try_instead": ["struct-behind-the-scenes"],
-      "origin": "seed"
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Low average watch time (under ~50% of length) means the montage lacks progression; order shots so each is clearly \"next.\" Replays low means the end frame doesn't match the start; reshoot the end to match. Comments asking \"does it help with X?\" means don't answer with outcomes in comments either; reply \"Here's what a session includes,\" then link the FAQ.",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        15.0,
+        30.0
+      ],
+      "beats": [
+        "Rewind (2–5 s): Rewind effect to a chaotic commute, laptop, phone buzzing.",
+        "Process montage (5–20 s): 6–8 cuts on a ~2–3 s rhythm, each a sensory detail (door, steam, splash, pour).",
+        "Return to \"after\" (20–24 s): Matches the opening frame, so it loops.",
+        "Send line (24–27 s): Text: \"Send to your 6 pm-chaos coworker.\""
+      ],
+      "templates": [
+        "transformation"
+      ],
+      "priority": 5
     },
     {
-      "id": "struct-event-teaser",
+      "id": "struct-day-in-the-life",
       "kind": "structure",
-      "name": "Event teaser",
-      "formats": ["reel", "trial_reel", "story"],
-      "goals": ["conversion", "reach"],
-      "pillars": ["offers_events"],
-      "templates": ["event_teaser"],
-      "template": "A detail of the night -> the name and date -> what you'll do there -> how to come.",
-      "beats": ["detail", "name and date", "what happens", "how to come", "outro"],
-      "length_s": [15, 30],
-      "examples": ["Numa Nights. This Friday.", "Candles, breath and the sauna. Come see."],
-      "evidence": {
-        "level": "observed",
-        "sources": ["spec p.34 rule 7", "research/1-content-benchmarks.md (teaser hooks travel in the niche)"],
-        "confidence": "low"
-      },
-      "status": "testing",
-      "priority": 5,
-      "when_not": "On a closure day, or without a confirmed date.",
-      "try_instead": ["struct-event-recap"],
-      "origin": "seed"
-    },
-    {
-      "id": "struct-event-recap",
-      "kind": "structure",
-      "name": "Event recap",
-      "formats": ["reel", "carousel", "story"],
-      "goals": ["reach"],
-      "pillars": ["offers_events", "community"],
-      "templates": ["event_recap"],
-      "template": "The best moment first -> the room filling -> two or three faces (consent) -> 'See you at the next one.'",
-      "beats": ["peak moment", "the room", "faces", "next date", "outro"],
-      "length_s": [20, 45],
-      "examples": ["That was Numa Nights.", "See you at the next one."],
+      "name": "Day-in-the-Life",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Hook -> Morning -> Midday twist -> Evening -> Close",
+      "examples": [
+        "Early morning: I open Numa. Here's the whole day.",
+        "Follow for more of the behind-the-counter stuff."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["spec p.34 rule 7", "research/4-mobile-competitor-audit.md (event recaps drive shares, inference)"],
+        "sources": [
+          "Likes matter more for connected (follower) reach (**OS**). Day-in-the-life drives follows and community (**PC**). Sprout's 2025 Index puts authenticity and relatability at the top of what consumers want (**LS** survey). This is -risk on FTC grounds; keep staff opinions about the *job and space*"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win).",
         "confidence": "low"
       },
-      "status": "testing",
-      "priority": 6,
-      "when_not": "More than 2 days after the event.",
-      "try_instead": ["struct-behind-the-scenes"],
-      "origin": "seed"
-    },
-    {
-      "id": "struct-offer-promo",
-      "kind": "structure",
-      "name": "Offer promo, experience first",
-      "formats": ["reel", "carousel", "image"],
-      "goals": ["conversion"],
-      "pillars": ["offers_events"],
-      "templates": ["offer_promo"],
-      "template": "The experience (no price) -> what a first visit looks like -> the offer and its link last.",
-      "beats": ["experience", "first visit", "offer", "link", "outro"],
-      "length_s": [20, 45],
-      "examples": ["Your first month at NUMA: sauna, plunge, breath.", "Try a month with Discover NUMA, $49."],
-      "needs": "The offer and price come from brand.json offerings.offers; a needs_katie price is never stated.",
-      "evidence": {
-        "level": "opinion",
-        "sources": ["spec p.34 (at most one sales reel a week)", "research/4-mobile-competitor-audit.md (lead with the $49 Discover NUMA month)"],
-        "confidence": "low"
-      },
-      "status": "testing",
-      "priority": 7,
-      "when_not": "In an Ask the DPT reel, or a second time in the same week.",
-      "try_instead": ["carousel-first-visit", "offer-first-timer-reassurance"],
-      "origin": "seed"
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Good watch time but follows under ~1 per 1K reached means there's no series promise; brand it \"Host Diaries, ep. 3\" and pin a series highlight. Drop at the midday section means the cleaning montage runs too long; cap it at 6 s.",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        30.0,
+        60.0
+      ],
+      "beats": [
+        "Hook (0–3 s): Text: \"Day in the life: Numa host\". Keys turning in the door.",
+        "Morning (3–15 s): Timestamps on screen (6:30, 7:15, 9:00): heating the sauna, setting out towels, the first regulars.",
+        "Midday twist (15–25 s): Fast-paced clean montage.",
+        "Close (40–48 s): Host waving with the lights dimming; text \"Follow for the BTS.\""
+      ],
+      "templates": [
+        "behind_the_scenes"
+      ],
+      "pillars": [
+        "community",
+        "collective_collabs"
+      ],
+      "priority": 6
     },
     {
       "id": "struct-behind-the-scenes",
       "kind": "structure",
-      "name": "Behind the scenes",
-      "formats": ["reel", "story"],
-      "goals": ["reach"],
-      "pillars": ["community", "collective_collabs"],
-      "templates": ["behind_the_scenes"],
-      "template": "Before opening -> the prep, in hands and details -> the first guest -> soft local CTA.",
-      "beats": ["before", "prep", "first guest", "cta", "outro"],
-      "length_s": [20, 45],
-      "examples": ["Before the doors open.", "Midtown Mobile. See you in there."],
-      "evidence": {
-        "level": "observed",
-        "sources": ["research/1-content-benchmarks.md (behind-the-scenes in Bathhouse's top videos)"],
-        "confidence": "low"
-      },
-      "status": "testing",
-      "priority": 8,
-      "when_not": "On closure days.",
-      "try_instead": ["struct-class-spotlight"],
-      "origin": "seed"
-    },
-    {
-      "id": "struct-founder-why",
-      "kind": "structure",
-      "name": "Founder: why we started",
-      "formats": ["reel"],
-      "goals": ["reach", "conversion"],
-      "pillars": ["community"],
-      "templates": ["founder_message"],
-      "template": "One honest line about why NUMA exists -> the space -> the people -> an invitation, not a pitch.",
-      "beats": ["why", "space", "people", "invitation", "outro"],
-      "length_s": [30, 60],
-      "examples": ["We started Numa because we needed it.", "Less noise. More presence."],
+      "name": "Behind the Scenes",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "saves",
+        "reach"
+      ],
+      "template": "Hook -> Steps -> Payoff -> Save line",
+      "examples": [
+        "You'll never see this part of Numa.",
+        "This is how we reset the space between sessions."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["brand.json voice.site_lines", "spec p.35 (founder message template)"],
-        "confidence": "low"
+        "sources": [
+          "Process and BTS content is practitioner-favoured for trust (**PC**). Make hygiene claims only if they're literally true and documented. Avoid \"sterile\" or \"germ-free\" unless substantiated (**OS**, FTC general substantiation principle"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
       "status": "candidate",
-      "priority": 9,
-      "when_not": "More than once a month; it loses weight with repetition.",
-      "try_instead": ["struct-behind-the-scenes"],
-      "origin": "seed"
+      "when_not": "Failure signs and fix: Skip rate high means the overhead opener is too slow; open mid-action (a towel snap). Saves low with good watch time means the content is watchable but not useful; add a \"what you'll find in your room\" checklist overlay at the end.",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        15.0,
+        35.0
+      ],
+      "beats": [
+        "Hook (0–2 s): Text: \"What happens in the 15 min between sessions\". Overhead time-lapse start.",
+        "Payoff (22–27 s): Clean, empty, lit room, held for 2 s.",
+        "Save line (27–30 s): Text: \"Save this for when you book: we reset every room, every time.\""
+      ],
+      "templates": [
+        "behind_the_scenes"
+      ],
+      "pillars": [
+        "community",
+        "collective_collabs",
+        "local_seasonal"
+      ],
+      "priority": 7
     },
     {
-      "id": "struct-seasonal-local",
+      "id": "struct-founder-story",
       "kind": "structure",
-      "name": "Seasonal or local moment",
-      "formats": ["reel", "trial_reel"],
-      "goals": ["reach"],
-      "pillars": ["local_seasonal"],
-      "series": ["too_hot_for_a_diy_plunge"],
-      "templates": ["seasonal_holiday"],
-      "template": "The weather or moment -> how NUMA fits it -> one sendable line.",
-      "beats": ["moment", "NUMA in it", "share line", "outro"],
-      "length_s": [15, 45],
-      "examples": ["Mardi Gras weekend? Here's your quiet hour.", "Send this to whoever's melting in this heat."],
-      "evidence": {
-        "level": "observed",
-        "sources": ["research/1-content-benchmarks.md (seasonal/weather hooks, Bathhouse)", "spec p.33-34"],
-        "confidence": "low"
-      },
-      "status": "testing",
-      "priority": 10,
-      "when_not": "When the moment has passed (a recap of the season a week late).",
-      "try_instead": ["struct-modality-explainer"],
-      "origin": "seed"
-    },
-    {
-      "id": "struct-class-spotlight",
-      "kind": "structure",
-      "name": "Class or collab spotlight",
-      "formats": ["reel", "trial_reel"],
-      "goals": ["reach"],
-      "pillars": ["community", "collective_collabs"],
-      "series": ["meet_the_collective"],
-      "templates": ["class_spotlight"],
-      "template": "The room's energy -> the person leading it -> what a class feels like -> collab credit -> share line.",
-      "beats": ["energy", "who leads", "what it feels like", "credit", "outro"],
-      "length_s": [30, 60],
-      "examples": ["Sweat there, recover here.", "Meet the guide behind Tuesday's breath class."],
-      "evidence": {
-        "level": "observed",
-        "sources": ["research/1-content-benchmarks.md (the category's largest numbers come from collab and creator posts)", "spec p.33-34 (Meet the Collective, collabs)"],
-        "confidence": "low"
-      },
-      "status": "testing",
-      "priority": 11,
-      "when_not": "When the partner hasn't agreed to the collab post.",
-      "try_instead": ["struct-behind-the-scenes"],
-      "origin": "seed"
-    },
-    {
-      "id": "struct-guided-practice",
-      "kind": "structure",
-      "name": "Guided breath practice (Regulate)",
-      "formats": ["reel"],
-      "goals": ["saves", "reach"],
-      "pillars": ["education"],
-      "series": ["regulate"],
-      "templates": ["modality_explainer"],
-      "template": "Invite to stop -> one breath pattern counted on screen -> do it together -> 'Save this for later.'",
-      "beats": ["invite", "pattern", "together", "save line", "outro"],
-      "length_s": [45, 60],
-      "examples": ["Put your phone down after this one. Breathe with us.", "Save this for later today."],
+      "name": "Founder Story",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Hook -> Context -> Turning point -> What Numa is now -> Callback -> CTA",
+      "examples": [
+        "We started Numa because we needed it.",
+        "Less noise. More presence."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["research/4-mobile-competitor-audit.md (Regulate series)", "spec p.25"],
-        "confidence": "low"
+        "sources": [
+          "Absolute seconds watched matter, so a 60–90 s story is not penalized if retained (**OS**, Mosseri). Buffer finds 90–179 s Reels get slightly more reach against baseline (**LS**). Socialinsider shows engagement steady from 30 s to 3 min (**LS**). Founder content is mainly a follow and affinity play ("
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
-      "status": "testing",
-      "priority": 12,
-      "when_not": "Never with breath-holding in or near water (brand.json claims.safety_line.also).",
-      "try_instead": ["struct-modality-explainer"],
-      "origin": "seed"
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Steep drop at 10–20 s means the backstory comes before stakes; move the turning point earlier and trim the context to 8 s. Average watch time under ~15 s on a 60 s Reel means you should cut to 40 s or split into a 2-part series. Profile visits but low follows means the bio needs a clear \"what / where / book\" line.",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        45.0,
+        90.0
+      ],
+      "beats": [
+        "Context (3–15 s): B-roll of the founder's past routine. Cut every 3–4 s.",
+        "Turning point (15–35 s): Empty-unit footage, first build days, photos.",
+        "What Numa is now (35–55 s): Faces of regulars (with consent), event lights.",
+        "Callback (55–62 s): Kettle on the shelf; it closes the loop on the hook.",
+        "CTA (62–68 s): Text: date plus \"link in bio.\""
+      ],
+      "templates": [
+        "founder_message"
+      ],
+      "pillars": [
+        "community"
+      ],
+      "priority": 8
     },
     {
-      "id": "carousel-comparison",
-      "kind": "carousel",
-      "name": "This vs that",
-      "formats": ["carousel"],
-      "goals": ["saves"],
-      "pillars": ["education"],
-      "template": "Cover question -> one slide per option (what it is, what it feels like) -> the honest difference -> save line.",
-      "beats": ["cover", "option A", "option B", "option C", "difference", "save"],
-      "slides": [5, 7],
-      "examples": ["Sauna vs red light: what's different?", "Red light is light, not heat."],
+      "id": "struct-offer-promo",
+      "kind": "structure",
+      "name": "Offer Promo",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "conversion"
+      ],
+      "template": "Hook -> What's included -> Proof (non-health) -> CTA -> Terms",
+      "examples": [
+        "Your first month at Numa: Discover Numa, $49.",
+        "One time, no commitment. It ends on its own."
+      ],
       "evidence": {
         "level": "measured",
-        "sources": ["research/1-content-benchmarks.md (Socialinsider: below 50K followers carousels earn slightly more engagement and saves; Q3 2026 carousel ER 0.50% vs Reels 0.48%)", "spec p.9, p.33"],
-        "notes": "The carousel advantage is measured across industries; this template is opinion.",
-        "confidence": "medium"
+        "sources": [
+          "Promotional and offer content gets lower organic distribution than value content, and contest or giveaway promotion limits recommendations (**OS**, creator FAQ). Meta's engagement-bait definition exempts \"a specific call to action,\" so a keyword DM tied to receiving times is defensible, but how it's"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
       "status": "testing",
-      "priority": 1,
-      "when_not": "When the comparison would need outcome claims about the body.",
-      "try_instead": ["carousel-protocol-steps"],
-      "origin": "seed"
+      "when_not": "Failure signs and fix: Reach mostly followers and low non-follower reach is expected; boost or pair with an S1/S2 Reel the same week. Link clicks low with good watch time means the CTA is buried; repeat it in text and the caption's first line, and use a DM keyword. Skip rate very high means it opens like an ad; open on a guest moment, not a price card.",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        12.0,
+        25.0
+      ],
+      "beats": [
+        "Hook (0–2 s): Text: \"First-timer pass: [price] this week\". The real space, in motion.",
+        "What's included (2–10 s): Three quick cuts of each element.",
+        "Proof (non-health) (10–14 s): Booking calendar screen recording.",
+        "CTA (14–20 s): Text: \"Link in bio · DM 'FIRST'\".",
+        "Terms (20–22 s): Text: \"New guests only. Ends Sunday.\""
+      ],
+      "templates": [
+        "offer_promo"
+      ],
+      "pillars": [
+        "offers_events"
+      ],
+      "priority": 9
     },
     {
-      "id": "carousel-protocol-steps",
-      "kind": "carousel",
-      "name": "Your first session, step by step",
-      "formats": ["carousel"],
-      "goals": ["saves"],
-      "pillars": ["education"],
-      "template": "Cover -> steps 1-4 (what to bring, the circuit, the cold, the rest) -> safety line -> save line.",
-      "beats": ["cover", "step 1", "step 2", "step 3", "step 4", "safety", "save"],
-      "slides": [5, 8],
-      "examples": ["Your first contrast session, step by step.", "Talk to your doctor first if you have a heart, blood pressure or breathing condition."],
+      "id": "struct-event-teaser",
+      "kind": "structure",
+      "name": "Event Teaser",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Hook -> Reveal 1–3 -> Social proof -> Send line + CTA",
+      "examples": [
+        "Numa Nights is back. Here's what's different.",
+        "Save the date and send it to your plus-one."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["research/1-content-benchmarks.md (carousels for protocols and comparisons)", "brand.json claims.safety_line"],
-        "confidence": "low"
-      },
-      "status": "testing",
-      "priority": 2,
-      "when_not": "Never quote the website's dosing line (blocked until counsel clears it).",
-      "try_instead": ["carousel-comparison", "carousel-first-visit"],
-      "origin": "seed"
-    },
-    {
-      "id": "carousel-myth-fact",
-      "kind": "carousel",
-      "name": "Myth / fact pairs",
-      "formats": ["carousel"],
-      "goals": ["saves", "reach"],
-      "pillars": ["education"],
-      "template": "Cover -> 3 myth/fact slides -> what to try -> save line.",
-      "beats": ["cover", "myth 1", "myth 2", "myth 3", "try it", "save"],
-      "slides": [5, 7],
-      "examples": ["'You have to love the cold.' Most people don't.", "'Sauna is only for winter.' Not on the Gulf Coast."],
-      "evidence": {
-        "level": "opinion",
-        "sources": ["schemas/carousel.schema.json myth_fact component", "spec p.35"],
-        "confidence": "low"
+        "sources": [
+          "Sends dominate unconnected reach (**OS**). Metricool finds ~65% of a Reel's views land in the first 72 hours (**LS**), so post teasers 5–10 days out and again at 48 hours. Event teasers are a practitioner staple (**PC**"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
       "status": "candidate",
-      "priority": 3,
-      "when_not": "When the facts drift into health outcomes.",
-      "try_instead": ["carousel-comparison"],
-      "origin": "seed"
+      "when_not": "Failure signs and fix: Sends fine but RSVPs low means the CTA path is broken; put the RSVP in the bio's first link and a Story link sticker the same day. Low reach means the teaser is too similar to the last event's; change the first frame and hook line, since repetition drives skips (**PC**).",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        15.0,
+        30.0
+      ],
+      "beats": [
+        "Hook (0–2 s): Text: \"Numa Nights · [date] · 3 things are new\". Lights flicker on in a dark room.",
+        "Reveal 1–3 (2–17 s): One cut per reveal plus a 1-s teaser detail (no full reveal).",
+        "Social proof (17–21 s): Text: \"Last one: [X] guests, sold out\" (only if true). Crowd glimpse from the last event.",
+        "Send line + CTA (21–26 s): Text: \"Send to your Numa Nights +1 · RSVP link in bio\"."
+      ],
+      "templates": [
+        "event_teaser"
+      ],
+      "pillars": [
+        "offers_events"
+      ],
+      "priority": 10
     },
     {
-      "id": "carousel-first-visit",
-      "kind": "carousel",
-      "name": "First visit: what to expect (offer last)",
-      "formats": ["carousel"],
-      "goals": ["conversion", "saves"],
-      "pillars": ["offers_events", "education"],
-      "template": "Cover -> what to bring -> what happens -> who guides you -> the offer slide -> link slide.",
-      "beats": ["cover", "bring", "what happens", "guides", "offer", "cta"],
-      "slides": [5, 7],
-      "examples": ["New here? Here's your first visit.", "Bring a swimsuit and a towel. We'll do the rest."],
+      "id": "struct-event-recap",
+      "kind": "structure",
+      "name": "Event Recap",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "saves",
+        "conversion",
+        "reach"
+      ],
+      "template": "Hook -> Arc -> Wind-down -> Next date",
+      "examples": [
+        "Numa Nights in 30 seconds.",
+        "See you at the next one."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["research/1-content-benchmarks.md (carousels for pricing and conversion)", "research/4-mobile-competitor-audit.md (first-timer reassurance)"],
+        "sources": [
+          "Recap formats are practitioner-standard (**PC**). Use original footage only; reposting already-posted Reels or watermarked clips reduces recommendation (**OS**). Get consent for identifiable guests, and quote guests only on the experience"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "Failure signs and fix: Big skip rate means the opener is a wide establishing shot; use the single most emotional close-up. Watch time drops mid-way means the montage has no arc; restructure into arrival, peak, wind-down. Low sends means there's no forward date; always end with the next event.",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        20.0,
+        40.0
+      ],
+      "beats": [
+        "Hook (0–2 s): Best single moment first (laughter at the plunge, the DJ drop). Text: \"You missed this (Numa Nights recap)\".",
+        "Arc (2–25 s): 10–14 cuts at ~1.5–2.5 s, in arrival peak wind-down order.",
+        "Wind-down (25–30 s): Candles, empty cups, slow shot.",
+        "Next date (30–34 s): Text: \"Next Numa Nights: [date] · RSVP in bio\"."
+      ],
+      "templates": [
+        "event_recap"
+      ],
+      "pillars": [
+        "offers_events",
+        "community"
+      ],
+      "owner_signal": "worked",
+      "priority": 11
+    },
+    {
+      "id": "struct-checklist-how-to-prepare",
+      "kind": "structure",
+      "name": "Checklist / How-to-prepare",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "saves"
+      ],
+      "template": "Hook -> List -> Save line -> Safety line",
+      "examples": [
+        "What to bring to your first Numa visit.",
+        "Save this for the night before."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "Saves come from reference-style utility (**PC**). Carousels out-engage Reels per viewer (Buffer, **LS**), so also publish this as a carousel and cross-link. Dash Social's wellness saves-per-reach (~7.6 per 1K, derived) is relatively , which suggests wellness audiences do save (**LS**, derived"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win).",
+        "confidence": "high"
+      },
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Saves under ~3 per 1K means the items are obvious; add Numa-specific details (only amenities brand.json lists). Rewatches high but saves low means it's too fast to read; slow each item to 3–4 s.",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        15.0,
+        30.0
+      ],
+      "beats": [
+        "Hook (0–2 s): Text: \"First visit packing list \". A bag dumped onto a bench.",
+        "List (2–20 s): Each item placed in frame with a or text pop.",
+        "Save line (20–24 s): Text overlay.",
+        "Safety line (24–26 s): \"Questions about heat/cold for you? Check with your healthcare provider.\""
+      ],
+      "templates": [
+        "modality_explainer"
+      ],
+      "pillars": [
+        "education"
+      ],
+      "priority": 12
+    },
+    {
+      "id": "struct-micro-ritual-loop",
+      "kind": "structure",
+      "name": "Micro-Ritual Loop",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Hook / whole thing -> Action -> Seamless loop",
+      "examples": [
+        "The 9-second Numa moment."
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "Replays are included in views and watch time (**OS**, Instagram definitions). Socialinsider shows sub-30 s Reels have the lowest median views (4,700) and engagement (0.28%) (**LS**), so loops are a supporting format, not the backbone.  risk for FTC"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win).",
         "confidence": "low"
       },
       "status": "testing",
-      "priority": 4,
-      "when_not": "In a week that already has its one sales post.",
-      "try_instead": ["struct-offer-promo"],
-      "origin": "seed"
+      "when_not": "Failure signs and fix: Average watch time below the Reel's length (under ~100%) means the loop isn't seamless; match the first and last frames and the audio. Reach low means it's too ambient to hook; add movement and a curiosity text line in frame 1.",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        7.0,
+        12.0
+      ],
+      "beats": [
+        "Hook / whole thing (0–3 s): Steam rolling off the water at the plunge edge. Text: \"the sound of Thursday night at Numa\".",
+        "Seamless loop (7–9 s): Last frame equals the first frame."
+      ],
+      "templates": [
+        "modality_explainer"
+      ],
+      "series": [
+        "regulate"
+      ],
+      "pillars": [
+        "education",
+        "local_seasonal"
+      ],
+      "priority": 13
+    },
+    {
+      "id": "struct-comparison-which-one-is-your-vibe",
+      "kind": "structure",
+      "name": "Comparison \"Which one is your vibe?",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Hook -> Profile 1 -> Profile 2 -> Profile 3 -> Send line",
+      "examples": [
+        "Sauna person or plunge person?",
+        "Tag the friend who's the other one."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "Identity and personality content drives sends (**PC**). The engagement-bait line is crossed by unrelated asks (\"comment YES\"), while a genuine question is allowed (**OS**, Meta definition). Traits must be personality jokes, never physiological benefits (\"plunge person recovers faster\" is a claim"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Comments high but sends low means the types aren't relatable outside Numa's regulars; make them universal (introvert, adrenaline, social). Drop between types means each vignette runs too long; cap at 6 s and add a beat change in each.",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        15.0,
+        30.0
+      ],
+      "beats": [
+        "Profile 1 (2–9 s): Sauna character vignette.",
+        "Profile 2 (9–16 s): Plunge vignette.",
+        "Send line (23–27 s): Text overlay."
+      ],
+      "templates": [
+        "modality_explainer"
+      ],
+      "pillars": [
+        "education",
+        "community"
+      ],
+      "priority": 14
+    },
+    {
+      "id": "struct-reply-to-comment-faq",
+      "kind": "structure",
+      "name": "Reply-to-Comment FAQ",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "saves"
+      ],
+      "template": "Hook -> Answer -> Boundary line -> Close",
+      "examples": [
+        "Do I need to know what I'm doing? Answering your question.",
+        "No. A guide walks you through it."
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "Instagram's creator FAQ recommends replying to comments. Buffer data scientist Julian Winternheimer's fixed-effects analysis of 700,000+ Instagram posts from ~68,000 accounts found that \"posts where creators replied to comments saw about 21% higher engagement on average — even after controlling for "
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "Failure signs and fix: Skip rate high means the question isn't broadly relevant; choose the question asked most often. Saves low means the answer is vague; add numbers (times, prices, steps).",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        20.0,
+        45.0
+      ],
+      "beats": [
+        "Hook (0–3 s): Instagram comment-reply sticker on screen plus host face.",
+        "Answer (3–25 s): Cut to the relevant zones; text keywords.",
+        "Boundary line (25–30 s): Host to camera; text repeats it.",
+        "Close (30–35 s): Text: \"Ask us anything about your first visit\"."
+      ],
+      "templates": [
+        "modality_explainer"
+      ],
+      "series": [
+        "ask_the_dpt"
+      ],
+      "pillars": [
+        "education"
+      ],
+      "priority": 15
+    },
+    {
+      "id": "struct-local-guide",
+      "kind": "structure",
+      "name": "Local Guide",
+      "formats": [
+        "reel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Hook -> Stop 1 -> Stop 2 = Numa -> Stop 3 -> Send line",
+      "examples": [
+        "A slow Thursday in Midtown: 3 stops.",
+        "Send this to whoever you're spending Thursday with."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "Local identity and itinerary formats are practitioner-endorsed for sends (**PC**). Collab posts reach both audiences (**PC**; Instagram notes Insights don't yet fully support collab posts). If partners pay or barter, disclose the material connection (**OS**, Endorsement Guides"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Reach mostly outside the city means the location isn't clear early enough; name the neighborhood in frame 1 and add a location tag. Sends fine but no bookings means Numa's stop isn't concrete; add a time slot and price.",
+      "try_instead": [],
+      "origin": "seed",
+      "length_s": [
+        25.0,
+        45.0
+      ],
+      "beats": [
+        "Hook (0–3 s): Text: \"[Neighborhood] slow-night plan \". Street-level walking shot.",
+        "Stop 1 (3–12 s): Their space (with permission; collab-tag them).",
+        "Stop 2 = Numa (12–25 s): Numa experience cuts.",
+        "Stop 3 (25–33 s): Third partner.",
+        "Send line (33–38 s): Text plus addresses in the caption."
+      ],
+      "templates": [
+        "seasonal_holiday"
+      ],
+      "series": [
+        "too_hot_for_a_diy_plunge"
+      ],
+      "pillars": [
+        "local_seasonal",
+        "community"
+      ],
+      "priority": 16
+    },
+    {
+      "id": "carousel-your-first-visit-step-by-step",
+      "kind": "carousel",
+      "name": "Your First Visit, Step by Step",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "conversion"
+      ],
+      "template": "Cover: a real photo of the entrance + 'What your first visit to Numa looks like' -> Standalone rehook: 'No experience needed.' -> Who greets you -> What to wear and bring -> What happens in the sauna and at the plunges (the plunge is optional) -> After: questions, no pressure -> Discover Numa, details in the caption",
+      "examples": [
+        "What your first visit to Numa actually looks like.",
+        "No experience needed. Here's the whole visit."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "Educational/what-to-expect content is what consumers most want (Sprout Q1 2026, 40%). Studio vendors cite first-visit anxiety as a conversion barrier (Anecdotal"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Low swipe-through from slide 1 to 2 put a person in the cover photo and shorten the headline to 8 words. Lots of saves but no DMs add one line to the last slide: \"Questions? DM us 'first visit' and a real person will answer.\" (Here the word triggers a genuine reply, not bait.)",
+      "try_instead": [],
+      "origin": "seed",
+      "beats": [
+        "Cover: a real photo of the entrance + 'What your first visit to Numa looks like'",
+        "Standalone rehook: 'No experience needed.'",
+        "Who greets you",
+        "What to wear and bring",
+        "What happens in the sauna and at the plunges (the plunge is optional)",
+        "After: questions, no pressure",
+        "Discover Numa, details in the caption"
+      ],
+      "pillars": [
+        "education",
+        "offers_events"
+      ],
+      "priority": 1
+    },
+    {
+      "id": "carousel-what-to-bring",
+      "kind": "carousel",
+      "name": "What to Bring",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "saves",
+        "reach"
+      ],
+      "template": "Cover: 'What to bring to your first Numa visit' -> Bring: swimsuit, water -> What's here (only amenities listed in brand.json) -> Leave at home: the pressure to be good at this -> 'Save this for the night before.'",
+      "examples": [
+        "What to bring to your first Numa visit.",
+        "Save this for the night before."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "Saves are highest on carousels (Socialinsider, Moderate). A save ask fits reference content (Anecdotal"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Saves below your carousel median make it more specific (actual items, actual room temperature).",
+      "try_instead": [],
+      "origin": "seed",
+      "beats": [
+        "Cover: 'What to bring to your first Numa visit'",
+        "Bring: swimsuit, water",
+        "What's here (only amenities listed in brand.json)",
+        "Leave at home: the pressure to be good at this",
+        "'Save this for the night before.'"
+      ],
+      "priority": 2
     },
     {
       "id": "carousel-meet-the-guide",
       "kind": "carousel",
-      "name": "Meet the Collective",
-      "formats": ["carousel"],
-      "goals": ["reach", "saves"],
-      "pillars": ["collective_collabs"],
-      "series": ["meet_the_collective"],
-      "template": "Cover portrait -> who they are -> what they lead -> a quote about the experience -> where to find them.",
-      "beats": ["cover", "who", "what they lead", "quote", "where"],
-      "slides": [4, 6],
-      "examples": ["Meet Joseph: from wood floors to breathwork guide.", "Find his class on the schedule this week."],
-      "needs": "The provider agreed and is on the Consent List; posted as a collab.",
+      "name": "Meet the Guide",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Portrait + 'Meet [name], who guides [session]' -> Candid photo + one line on why they guide -> What their session feels like (experience language) -> A favorite moment at Numa -> Their sessions on the schedule -> 'Come say hi.'",
+      "examples": [
+        "Meet Joseph, one of our breathwork guides.",
+        "Come say hi."
+      ],
       "evidence": {
-        "level": "opinion",
-        "sources": ["research/4-mobile-competitor-audit.md (Meet the Collective series)", "spec p.33"],
-        "confidence": "low"
+        "level": "observed",
+        "sources": [
+          "Faces lift likes and comments (Georgia Tech, Moderate). Content from front-line employees is wanted by 16% of consumers (Sprout Q1 2026"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
-      "status": "candidate",
-      "priority": 5,
-      "when_not": "Counselors only describe their work within their licence; no mental-health outcome lines.",
-      "try_instead": ["struct-class-spotlight"],
-      "origin": "seed"
+      "status": "testing",
+      "when_not": "Failure signs and fix: Likes below baseline the photo is too posed. Use an in-session candid as the cover. Avoid credentials-as-claims (e.g., \"heals injuries\").",
+      "try_instead": [],
+      "origin": "seed",
+      "beats": [
+        "Portrait + 'Meet [name], who guides [session]'",
+        "Candid photo + one line on why they guide",
+        "What their session feels like (experience language)",
+        "A favorite moment at Numa",
+        "Their sessions on the schedule",
+        "'Come say hi.'"
+      ],
+      "pillars": [
+        "collective_collabs",
+        "community"
+      ],
+      "series": [
+        "meet_the_collective"
+      ],
+      "priority": 3
     },
     {
-      "id": "photo-space-detail",
-      "kind": "photo",
-      "name": "The space, one detail",
-      "formats": ["image"],
-      "goals": ["reach", "saves"],
-      "pillars": ["community", "local_seasonal"],
-      "template": "One warm, still detail (steam, a candle, the plunge surface) with at most one short line.",
-      "examples": ["Quiet heat.", "Tuesday, 6 pm, sauna bench."],
+      "id": "carousel-three-myths-about-starting",
+      "kind": "carousel",
+      "name": "Three Myths About Starting",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Cover: '3 things people think before their first visit (that aren't true)' -> Myth 1 about the experience -> Myth 2 about the experience -> Myth 3 about the experience -> What a first visit really looks like -> Save line",
+      "examples": [
+        "You don't have to love the cold.",
+        "You don't need to plunge on day one."
+      ],
       "evidence": {
         "level": "measured",
-        "sources": ["research/1-content-benchmarks.md (Metricool 2026: Reels reach 212% more people than single images; Socialinsider: images lowest engagement)"],
-        "notes": "Measured that single images reach least; use them for followers and grid rhythm, not discovery.",
-        "confidence": "medium"
+        "sources": [
+          "Sends are a named ranking signal, especially for non-followers (Mosseri, Strong"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
-      "status": "candidate",
-      "priority": 1,
-      "when_not": "As the week's discovery post; a reel does that better.",
-      "try_instead": ["photo-announcement"],
-      "origin": "seed"
+      "status": "testing",
+      "when_not": "Failure signs and fix: Shares/sends near zero make the CTA name a specific person (\"the friend you'd come with\"). Avoid physiological claims.",
+      "try_instead": [],
+      "origin": "seed",
+      "beats": [
+        "Cover: '3 things people think before their first visit (that aren't true)'",
+        "Myth 1 about the experience",
+        "Myth 2 about the experience",
+        "Myth 3 about the experience",
+        "What a first visit really looks like",
+        "Save line"
+      ],
+      "priority": 4
     },
     {
-      "id": "photo-announcement",
-      "kind": "photo",
-      "name": "Announcement card",
-      "formats": ["image", "story"],
-      "goals": ["conversion"],
-      "pillars": ["offers_events"],
-      "template": "A real photo of the space with the date or news as one line; details in the caption.",
-      "examples": ["Numa Nights. Friday.", "Holiday hours are in the caption."],
+      "id": "carousel-a-week-at-numa",
+      "kind": "carousel",
+      "name": "A Week at Numa",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "conversion"
+      ],
+      "template": "Cover: 'Not sure where to start? Start here.' -> The week at a glance -> One session type per slide: what it is, who it's for -> 'Best first sessions: weekdays' (never send new people to Saturday mornings)",
+      "examples": [
+        "A week at Numa, day by day.",
+        "Pick your night."
+      ],
       "evidence": {
-        "level": "opinion",
-        "sources": ["research/4-mobile-competitor-audit.md (static images or event graphics about 15% of the mix)"],
-        "confidence": "low"
+        "level": "observed",
+        "sources": [
+          "Educational content about services is the #1 thing consumers want (Sprout). Carousels with more slides tend to get more reach (Socialinsider, Moderate"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
-      "status": "candidate",
-      "priority": 2,
-      "when_not": "When a 15-30 s atmosphere reel could carry the same news.",
-      "try_instead": ["struct-event-teaser"],
-      "origin": "seed"
+      "status": "testing",
+      "when_not": "Failure signs and fix: People drop off mid-carousel cut to 6 slides; merge similar classes.",
+      "try_instead": [],
+      "origin": "seed",
+      "beats": [
+        "Cover: 'Not sure where to start? Start here.'",
+        "The week at a glance",
+        "One session type per slide: what it is, who it's for",
+        "'Best first sessions: weekdays' (never send new people to Saturday mornings)"
+      ],
+      "priority": 5
     },
     {
-      "id": "photo-people-moment",
-      "kind": "photo",
-      "name": "People mid-laugh",
-      "formats": ["image"],
-      "goals": ["reach"],
-      "pillars": ["community"],
-      "template": "A candid moment between people (consent list only), no text or one short line.",
-      "examples": ["After class, nobody wants to leave.", "Same time next week?"],
-      "needs": "Everyone recognisable is on the Consent List.",
+      "id": "carousel-behind-the-scenes-before-we-open",
+      "kind": "carousel",
+      "name": "Behind the Scenes: Before We Open",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Real photos in order: lights on, sauna heating, plunges ready, first guest -> Last slide: when to come",
+      "examples": [
+        "Before we open: stones heating, plunges ready.",
+        "The part nobody sees."
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "Behind-the-scenes content is wanted by 19% of consumers (26% of Gen Z) (Sprout Q1 2026). Photo-led carousels suit wellness (Rival IQ H&B photo finding, Moderate"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "Failure signs and fix: Low reach add a trending-licensed song so the post is eligible for the Reels tab (Mosseri, Strong). Low likes pick more human moments over empty-room shots.",
+      "try_instead": [],
+      "origin": "seed",
+      "beats": [
+        "Real photos in order: lights on, sauna heating, plunges ready, first guest",
+        "Last slide: when to come"
+      ],
+      "priority": 6
+    },
+    {
+      "id": "carousel-member-stories",
+      "kind": "carousel",
+      "name": "Member Stories",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Member photo (yes on record) + 'Why [first name] keeps coming back' -> How they found Numa -> Their first visit, in their words (experience only) -> What they look forward to -> Soft invitation",
+      "examples": [
+        "My favorite hour of the week.",
+        "I came for the sauna, I stay for the people."
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "16 CFR 255.2 (Strong). Testimonials must be real, from real customers, and unedited in meaning (16 CFR 465, Strong"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "Failure signs and fix: A member mentions pain, sleep, anxiety, weight or \"healing\" don't publish that line, even as a quote. Low engagement lead with a candid photo, not a quote card.",
+      "try_instead": [],
+      "origin": "seed",
+      "beats": [
+        "Member photo (yes on record) + 'Why [first name] keeps coming back'",
+        "How they found Numa",
+        "Their first visit, in their words (experience only)",
+        "What they look forward to",
+        "Soft invitation"
+      ],
+      "owner_signal": "worked",
+      "pillars": [
+        "community"
+      ],
+      "priority": 7
+    },
+    {
+      "id": "carousel-the-space-tour",
+      "kind": "carousel",
+      "name": "The Space Tour",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Real photos: entrance, sauna, cold plunges, red light, Flow Space -> One line each about how it feels -> Save line",
+      "examples": [
+        "The space tour: sauna, plunges, red light, Flow Space.",
+        "Save this for your first visit."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["spec p.35 (photos: people mid-laugh)"],
-        "confidence": "low"
+        "sources": [
+          "Practical, specific info drives saves (Anecdotal). 3:4 frames fill the grid (Strong"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
       "status": "candidate",
-      "priority": 3,
-      "when_not": "Without consent; photo_post.py blurs or refuses faces otherwise.",
-      "try_instead": ["photo-space-detail"],
-      "origin": "seed"
+      "when_not": "Failure signs and fix: Many profile visits but few bookings add a final \"how to book\" slide.",
+      "try_instead": [],
+      "origin": "seed",
+      "beats": [
+        "Real photos: entrance, sauna, cold plunges, red light, Flow Space",
+        "One line each about how it feels",
+        "Save line"
+      ],
+      "priority": 8
+    },
+    {
+      "id": "carousel-intro-offer-explained-honestly",
+      "kind": "carousel",
+      "name": "Intro Offer, Explained Honestly",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "conversion"
+      ],
+      "template": "'Your first month at Numa: Discover Numa' with a real photo -> What's included (from brand.json offerings.offers only) -> It ends on its own: one time, no commitment -> How to book (link in bio)",
+      "examples": [
+        "Discover Numa, explained honestly.",
+        "One time, no commitment. It ends on its own."
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "Clear negative-option disclosure (ROSCA and state laws, Strong). Bona fide regular price (16 CFR 233.1, Strong"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "Failure signs and fix: Many likes but few link taps or DMs the offer is buried. Put the price on the cover and the terms on slide 2. Comments asking \"what's the catch?\" move the renewal terms to slide 2.",
+      "try_instead": [],
+      "origin": "seed",
+      "beats": [
+        "'Your first month at Numa: Discover Numa' with a real photo",
+        "What's included (from brand.json offerings.offers only)",
+        "It ends on its own: one time, no commitment",
+        "How to book (link in bio)"
+      ],
+      "pillars": [
+        "offers_events"
+      ],
+      "priority": 9
+    },
+    {
+      "id": "carousel-ask-numa",
+      "kind": "carousel",
+      "name": "Ask Numa",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Cover: 'Your questions, answered' -> Real questions from DMs, one per slide (safety answers: 'talk to your doctor') -> 'Ask us anything'",
+      "examples": [
+        "Ask Numa: your questions, answered.",
+        "Send us the next one."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "Educational content is preferred (Sprout). Specific DM-driven questions are relevant to your own audience (Anecdotal"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Few DMs end with a specific prompt (\"What would you want to know before your first class?\").",
+      "try_instead": [],
+      "origin": "seed",
+      "beats": [
+        "Cover: 'Your questions, answered'",
+        "Real questions from DMs, one per slide (safety answers: 'talk to your doctor')",
+        "'Ask us anything'"
+      ],
+      "priority": 10
+    },
+    {
+      "id": "carousel-community-moments",
+      "kind": "carousel",
+      "name": "Community Moments",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Real photos from an event or a normal week, brief captions -> Last slide: the next event date",
+      "examples": [
+        "This month at Numa.",
+        "Thanks for showing up."
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "Community content is the #2 type consumers want (27%, Sprout). Photo-dump carousels with more slides tend toward more reach (Socialinsider, Moderate"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "Failure signs and fix: Low completion cut to the 8 best photos and put a group shot first.",
+      "try_instead": [],
+      "origin": "seed",
+      "beats": [
+        "Real photos from an event or a normal week, brief captions",
+        "Last slide: the next event date"
+      ],
+      "priority": 11
+    },
+    {
+      "id": "carousel-slow-down-sunday",
+      "kind": "carousel",
+      "name": "Slow Down Sunday",
+      "formats": [
+        "carousel"
+      ],
+      "goals": [
+        "saves"
+      ],
+      "template": "Cover: 'A 5-minute pause for Sunday evening' -> Simple non-medical steps: sit, notice your breath, lights low -> 'Save it for next Sunday.'",
+      "examples": [
+        "Slow down Sunday.",
+        "Take a deep breath. Save this for later."
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "Save behavior on reference carousels (Moderate). Health claims need scientific substantiation (FTC Health Products Guidance, Strong), so frame this as an experience, not an effect"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "Failure signs and fix: Saves drop over weeks rotate formats (audio Reel version) and vary the practice.",
+      "try_instead": [],
+      "origin": "seed",
+      "beats": [
+        "Cover: 'A 5-minute pause for Sunday evening'",
+        "Simple non-medical steps: sit, notice your breath, lights low",
+        "'Save it for next Sunday.'"
+      ],
+      "priority": 12
+    },
+    {
+      "id": "photo-guide-portrait",
+      "kind": "photo",
+      "name": "Guide Portrait",
+      "formats": [
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Eye-level, natural window light, the guide in the studio with props softly visible; a genuine expression, not a pose.",
+      "examples": [
+        "This is Fallon. She guides breathwork.",
+        "Say hi next time you're in."
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "Faces +38% likes, +32% comments (Georgia Tech, Moderate"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "Failure signs and fix: Lower likes per reach than your photo median swap the posed shot for an in-action candid.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Eye-level, natural window light, the guide in the studio with props softly visible; a genuine expression, not a pose.",
+      "priority": 1
+    },
+    {
+      "id": "photo-class-in-motion",
+      "kind": "photo",
+      "name": "Class in Motion",
+      "formats": [
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "A wide shot from the back corner, mixed bodies and ages (all consenting), soft blur of movement; no one singled out.",
+      "examples": [
+        "Tuesday evening. Some nights it's a full room.",
+        "It always feels like ours."
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "Rival IQ shows photos lead in Health & Beauty (Moderate"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "Failure signs and fix: Comments about \"everyone looks so fit\" broaden who's pictured. Representation affects who feels welcome.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "A wide shot from the back corner, mixed bodies and ages (all consenting), soft blur of movement; no one singled out.",
+      "owner_signal": "worked",
+      "priority": 2
+    },
+    {
+      "id": "photo-the-empty-room",
+      "kind": "photo",
+      "name": "The Empty Room",
+      "formats": [
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Golden-hour light across the floor, mats laid out, plants; shoot straight on with a symmetrical frame.",
+      "examples": [
+        "Quiet before the first session.",
+        "Your spot is ready."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "Anecdotal (aesthetic posts tend to get likes but rarely sends"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Likes fine but no profile visits add a practical line (session time, \"first visits welcome\").",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Golden-hour light across the floor, mats laid out, plants; shoot straight on with a symmetrical frame.",
+      "priority": 3
+    },
+    {
+      "id": "photo-detail-texture",
+      "kind": "photo",
+      "name": "Detail / Texture",
+      "formats": [
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Close-up of steam, cedar, a candle; shallow depth of field.",
+      "examples": [
+        "Cedar, steam, quiet.",
+        "Take a deep breath."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "Anecdotal"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Consistently the lowest-reach type turn details into carousel slides instead.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "Close-up of steam, cedar, a candle; shallow depth of field.",
+      "priority": 4
+    },
+    {
+      "id": "photo-behind-the-scenes",
+      "kind": "photo",
+      "name": "Behind the Scenes",
+      "formats": [
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "The owner cleaning mats, a guide planning a sequence on paper, deliveries arriving; candid.",
+      "examples": [
+        "Before the doors open.",
+        "The part nobody sees."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "Behind-the-scenes demand is 19% overall, 26% for Gen Z (Sprout Q1 2026"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "Failure signs and fix: Low engagement add a human in the frame; empty BTS reads as clutter.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "The owner cleaning mats, a guide planning a sequence on paper, deliveries arriving; candid.",
+      "priority": 5
+    },
+    {
+      "id": "photo-testimonial-as-experience-portrait",
+      "kind": "photo",
+      "name": "Testimonial-as-Experience Portrait",
+      "formats": [
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "The member in the space (consented), a short quote in the caption (not on the image), focused on belonging or routine.",
+      "examples": [
+        "My favorite hour of the week.",
+        "Calm in the chaos."
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "16 CFR 255.2 and 255.5, 16 CFR 465 (Strong"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "Failure signs and fix: Any quote implying symptom relief reject it. If it's ever unclear whether something was given, disclose.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "The member in the space (consented), a short quote in the caption (not on the image), focused on belonging or routine.",
+      "owner_signal": "worked",
+      "priority": 6
+    },
+    {
+      "id": "photo-welcome-desk-first-hello",
+      "kind": "photo",
+      "name": "Welcome Desk / First Hello",
+      "formats": [
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "The front-desk person mid-smile handing over a mat; the entrance visible.",
+      "examples": [
+        "First visit? We'll show you around.",
+        "Come as you are."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "Same reassurance logic as C1 (Anecdotal"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "Failure signs and fix: No DMs add a direct line: \"Nervous? DM us first. A real person answers.\"",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "The front-desk person mid-smile handing over a mat; the entrance visible.",
+      "priority": 7
+    },
+    {
+      "id": "photo-offer-photo",
+      "kind": "photo",
+      "name": "Offer Photo",
+      "formats": [
+        "image"
+      ],
+      "goals": [
+        "conversion"
+      ],
+      "template": "A real photo of the space or a person with one short line; the offer and its details go in the caption. Never a designed flyer or poster.",
+      "examples": [
+        "New here? Discover Numa is in the caption.",
+        "One time, no commitment."
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "Price and renewal clarity (Strong legal). Single images get the least reach (Buffer), so use this as a reminder, not the main offer vehicle"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "testing",
+      "when_not": "Failure signs and fix: Low reach expected. Move the offer into a carousel (C9) or Reel, and use this only in Stories or the highlight.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "A warm people photo with minimal or no text overlay; the offer goes in the first caption line.",
+      "pillars": [
+        "offers_events"
+      ],
+      "owner_signal": "flopped",
+      "priority": 8
+    },
+    {
+      "id": "photo-neighborhood-local-context",
+      "kind": "photo",
+      "name": "Neighborhood / Local Context",
+      "formats": [
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "The Numa storefront with the street, a collaboration with a local café (if paid or bartered, disclose), a seasonal street scene.",
+      "examples": [
+        "Dauphin St, Midtown Mobile.",
+        "Your neighborhood sauna."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "Anecdotal. Location tags help local search (folklore, untested"
+        ],
+        "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
+      },
+      "status": "candidate",
+      "when_not": "Failure signs and fix: If a partner gets free classes for posting about Numa, their post needs \"#ad\" or \"Paid partnership,\" per FTC Disclosures 101.",
+      "try_instead": [],
+      "origin": "seed",
+      "visual": "The Numa storefront with the street, a collaboration with a local café (if paid or bartered, disclose), a seasonal street scene.",
+      "priority": 9
     },
     {
       "id": "offer-first-month",
       "kind": "offer",
-      "name": "Try a month (Discover NUMA)",
-      "formats": ["reel", "carousel", "image", "story"],
-      "goals": ["conversion"],
-      "pillars": ["offers_events"],
+      "name": "Try a month (Discover Numa)",
+      "formats": [
+        "reel",
+        "carousel",
+        "image",
+        "story"
+      ],
+      "goals": [
+        "conversion"
+      ],
+      "pillars": [
+        "offers_events"
+      ],
       "template": "Experience first, then: \"Try a month with {offer name}, {price}.\" Link in bio and caption.",
-      "examples": ["Try a month with Discover NUMA, $49.", "Your first month: Discover NUMA."],
+      "examples": [
+        "Try a month with Discover Numa, $49.",
+        "Your first month: Discover Numa."
+      ],
       "needs": "brand.json offerings.offers price status is not needs_katie.",
       "evidence": {
         "level": "opinion",
-        "sources": ["research/4-mobile-competitor-audit.md (lead with the $49 Discover NUMA month as a pinned reel and highlight)"],
+        "sources": [
+          "research/4-mobile-competitor-audit.md (lead with the $49 Discover NUMA month as a pinned reel and highlight)"
+        ],
         "confidence": "low"
       },
       "status": "testing",
       "priority": 1,
       "when_not": "Twice in a week, or inside Ask the DPT.",
-      "try_instead": ["offer-first-timer-reassurance"],
+      "try_instead": [
+        "offer-first-timer-reassurance"
+      ],
       "origin": "seed"
     },
     {
       "id": "offer-first-timer-reassurance",
       "kind": "offer",
       "name": "First-timer reassurance",
-      "formats": ["reel", "carousel", "story"],
-      "goals": ["conversion"],
-      "pillars": ["offers_events", "community"],
+      "formats": [
+        "reel",
+        "carousel",
+        "story"
+      ],
+      "goals": [
+        "conversion"
+      ],
+      "pillars": [
+        "offers_events",
+        "community"
+      ],
       "template": "Name the worry -> a guide is with you -> the offer as the easy first step.",
-      "examples": ["Never plunged before? A guide walks you through it.", "Nervous about the cold? Everyone is, at first."],
+      "examples": [
+        "Never plunged before? A guide walks you through it.",
+        "Nervous about the cold? Everyone is, at first."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["research/4-mobile-competitor-audit.md (first-plunge coaching; first-visit reassurance)"],
+        "sources": [
+          "research/4-mobile-competitor-audit.md (first-plunge coaching; first-visit reassurance)"
+        ],
         "confidence": "low"
       },
       "status": "candidate",
       "priority": 2,
       "when_not": "When the week's sales post is already used.",
-      "try_instead": ["offer-first-month"],
+      "try_instead": [
+        "offer-first-month"
+      ],
       "origin": "seed"
     },
     {
       "id": "offer-seasonal-window",
       "kind": "offer",
       "name": "Seasonal offer window",
-      "formats": ["reel", "carousel", "image"],
-      "goals": ["conversion"],
-      "pillars": ["offers_events", "local_seasonal"],
+      "formats": [
+        "reel",
+        "carousel",
+        "image"
+      ],
+      "goals": [
+        "conversion"
+      ],
+      "pillars": [
+        "offers_events",
+        "local_seasonal"
+      ],
       "template": "The season's reason to start now -> the existing offer -> its link.",
-      "examples": ["New year, new routine: start with Discover NUMA.", "Summer heat? Start your first month inside."],
+      "examples": [
+        "New year, new routine: start with Discover Numa.",
+        "Summer heat? Start your first month inside."
+      ],
       "needs": "Only existing offers from brand.json; never invent a discount.",
       "evidence": {
         "level": "opinion",
-        "sources": ["research/4-mobile-competitor-audit.md (seasonal offers: January cold start, Mardi Gras, summer heat, hurricane-season calm)"],
+        "sources": [
+          "research/4-mobile-competitor-audit.md (seasonal offers: January cold start, Mardi Gras, summer heat, hurricane-season calm)"
+        ],
         "confidence": "low"
       },
       "status": "candidate",
       "priority": 3,
       "when_not": "Outside the calendar window it names.",
-      "try_instead": ["offer-first-month"],
+      "try_instead": [
+        "offer-first-month"
+      ],
       "origin": "seed"
     },
     {
       "id": "cta-send-to-friend",
       "kind": "cta",
       "name": "Send this to the friend who...",
-      "formats": ["reel", "trial_reel", "carousel", "image"],
-      "goals": ["reach"],
+      "formats": [
+        "reel",
+        "trial_reel",
+        "carousel",
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
       "template": "\"Send this to the friend who {specific trait}.\"",
-      "examples": ["Send this to the friend who 'could never.'", "Send this to the friend who needs a reset."],
+      "examples": [
+        "Send this to the friend who 'could never.'",
+        "Send this to the friend who needs a reset."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["research/1-content-benchmarks.md (Mosseri, Jan 2025: sends matter slightly more for non-follower reach, official)", "brand.json voice.share_line_example", "spec p.8"],
+        "sources": [
+          "research/1-content-benchmarks.md (Mosseri, Jan 2025: sends matter slightly more for non-follower reach, official)",
+          "brand.json voice.share_line_example",
+          "spec p.8"
+        ],
         "notes": "Sends as a ranking signal is official; that a share line raises sends is opinion.",
         "confidence": "medium"
       },
       "status": "testing",
       "priority": 1,
       "when_not": "On a sales post, where it competes with the offer link.",
-      "try_instead": ["cta-tag-partner"],
+      "try_instead": [
+        "cta-tag-partner"
+      ],
       "origin": "seed"
     },
     {
       "id": "cta-save-for-later",
       "kind": "cta",
       "name": "Save this for...",
-      "formats": ["reel", "carousel", "image"],
-      "goals": ["saves"],
+      "formats": [
+        "reel",
+        "carousel",
+        "image"
+      ],
+      "goals": [
+        "saves"
+      ],
       "template": "\"Save this for {the moment it's useful}.\"",
-      "examples": ["Save this for your first visit.", "Save this for the next hot afternoon."],
+      "examples": [
+        "Save this for your first visit.",
+        "Save this for the next hot afternoon."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["skills/numa-scriptwriter/SKILL.md (education CTA style)", "research/1-content-benchmarks.md (carousels for saves)"],
+        "sources": [
+          "skills/numa-scriptwriter/SKILL.md (education CTA style)",
+          "research/1-content-benchmarks.md (carousels for saves)"
+        ],
         "confidence": "low"
       },
       "status": "testing",
       "priority": 2,
       "when_not": "When the post has nothing worth coming back to.",
-      "try_instead": ["cta-send-to-friend"],
+      "try_instead": [
+        "cta-send-to-friend"
+      ],
       "origin": "seed"
     },
     {
       "id": "cta-tag-partner",
       "kind": "cta",
       "name": "Tag who you're bringing",
-      "formats": ["reel", "trial_reel", "carousel", "image"],
-      "goals": ["reach"],
+      "formats": [
+        "reel",
+        "trial_reel",
+        "carousel",
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
       "template": "\"Tag who you're bringing.\"",
-      "examples": ["Tag who you're bringing.", "Tag your plunge partner."],
+      "examples": [
+        "Tag who you're bringing.",
+        "Tag your plunge partner."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["research/4-mobile-competitor-audit.md (first-plunge reactions: 'tag who you're bringing')"],
+        "sources": [
+          "research/4-mobile-competitor-audit.md (first-plunge reactions: 'tag who you're bringing')"
+        ],
         "confidence": "low"
       },
       "status": "candidate",
       "priority": 3,
       "when_not": "On education posts with no social moment.",
-      "try_instead": ["cta-send-to-friend"],
+      "try_instead": [
+        "cta-send-to-friend"
+      ],
       "origin": "seed"
     },
     {
       "id": "cta-soft-local",
       "kind": "cta",
       "name": "Soft local invitation",
-      "formats": ["reel", "trial_reel", "image", "story"],
-      "goals": ["reach", "conversion"],
+      "formats": [
+        "reel",
+        "trial_reel",
+        "image",
+        "story"
+      ],
+      "goals": [
+        "reach",
+        "conversion"
+      ],
       "template": "\"{Neighbourhood}. See you in there.\"",
-      "examples": ["Midtown Mobile. See you in there.", "Dauphin St. Doors open early."],
+      "examples": [
+        "Midtown Mobile. See you in there.",
+        "Dauphin St. Doors open early."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["skills/numa-scriptwriter/SKILL.md (awareness CTA style)"],
+        "sources": [
+          "skills/numa-scriptwriter/SKILL.md (awareness CTA style)"
+        ],
         "confidence": "low"
       },
       "status": "testing",
       "priority": 4,
       "when_not": "On a closure day (it invites people in).",
-      "try_instead": ["cta-send-to-friend"],
+      "try_instead": [
+        "cta-send-to-friend"
+      ],
       "origin": "seed"
     },
     {
       "id": "growth-trial-reels",
       "kind": "growth",
       "name": "Trial Reels as hook tests",
-      "formats": ["trial_reel"],
-      "goals": ["reach"],
+      "formats": [
+        "trial_reel"
+      ],
+      "goals": [
+        "reach"
+      ],
       "template": "Test one new hook a week as a Trial Reel; compare trials only with other trials; promote a winning hook to the grid.",
-      "examples": ["Trial: 'Sauna season in Mobile is open.' vs last week's trial median."],
+      "examples": [
+        "Trial: 'Sauna season in Mobile is open.' vs last week's trial median."
+      ],
       "evidence": {
         "level": "measured",
-        "sources": ["research/1-content-benchmarks.md (Instagram, Jun 2025: of creators who tried Trial Reels, 40% posted more and 80% of those saw more non-follower reach; official, narrow)", "spec p.9"],
+        "sources": [
+          "research/1-content-benchmarks.md (Instagram, Jun 2025: of creators who tried Trial Reels, 40% posted more and 80% of those saw more non-follower reach; official, narrow)",
+          "spec p.9"
+        ],
         "notes": "Official but narrow claim; Trial Reels don't affect the ranking of standard Reels.",
         "confidence": "medium"
       },
       "status": "testing",
       "priority": 1,
       "when_not": "For posts that must reach followers on a date (event teasers).",
-      "try_instead": ["growth-collab-posts"],
+      "try_instead": [
+        "growth-collab-posts"
+      ],
       "origin": "seed"
     },
     {
       "id": "growth-cadence",
       "kind": "growth",
       "name": "4-5 feed posts a week, never a dark week",
-      "formats": ["reel", "carousel", "image"],
-      "goals": ["reach"],
+      "formats": [
+        "reel",
+        "carousel",
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
       "template": "Plan 4-5 feed posts every week; batch-film before busy seasons so no week goes dark.",
-      "examples": ["This week: five feed posts, one Trial Reel, Stories daily."],
+      "examples": [
+        "This week: five feed posts, one Trial Reel, Stories daily."
+      ],
       "evidence": {
         "level": "measured",
-        "sources": ["research/1-content-benchmarks.md (Buffer 2.1M posts: 3-5 a week roughly doubles weekly follower growth vs 1-2; zero-post weeks fall below the account's norm; correlational)", "spec p.9"],
+        "sources": [
+          "research/1-content-benchmarks.md (Buffer 2.1M posts: 3-5 a week roughly doubles weekly follower growth vs 1-2; zero-post weeks fall below the account's norm; correlational)",
+          "spec p.9"
+        ],
         "confidence": "medium"
       },
       "status": "testing",
       "priority": 2,
       "when_not": "Never skip it; lower effort before lower cadence.",
-      "try_instead": ["growth-trial-reels"],
+      "try_instead": [
+        "growth-trial-reels"
+      ],
       "origin": "seed"
     },
     {
       "id": "growth-collab-posts",
       "kind": "growth",
       "name": "Collab posts with partners",
-      "formats": ["reel", "carousel"],
-      "goals": ["reach"],
+      "formats": [
+        "reel",
+        "carousel"
+      ],
+      "goals": [
+        "reach"
+      ],
       "template": "Co-post with a partner studio or provider as a collab ('Sweat there, recover here'); never repost their content.",
-      "examples": ["Sweat there, recover here.", "Meet the Collective: this month, our massage partner."],
+      "examples": [
+        "Sweat there, recover here.",
+        "Meet the Collective: this month, our massage partner."
+      ],
       "evidence": {
         "level": "observed",
-        "sources": ["research/1-content-benchmarks.md (the category's largest numbers come from creators and collab posts, not brand feeds)", "spec p.9 (originality: others' content only as collab posts)", "spec p.34 rule 4"],
+        "sources": [
+          "research/1-content-benchmarks.md (the category's largest numbers come from creators and collab posts, not brand feeds)",
+          "spec p.9 (originality: others' content only as collab posts)",
+          "spec p.34 rule 4"
+        ],
         "confidence": "medium"
       },
       "status": "testing",
       "priority": 3,
       "when_not": "When the partner hasn't agreed, or the content is theirs alone (that's a repost).",
-      "try_instead": ["growth-trial-reels"],
+      "try_instead": [
+        "growth-trial-reels"
+      ],
       "origin": "seed"
     },
     {
       "id": "growth-keyword-captions",
       "kind": "growth",
       "name": "Searchable local captions",
-      "formats": ["reel", "carousel", "image"],
-      "goals": ["reach"],
+      "formats": [
+        "reel",
+        "carousel",
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
       "template": "Open the caption with a plain searchable phrase; 3-5 local hashtags.",
-      "examples": ["Cold plunge in Mobile, AL.", "Sauna near Midtown Mobile."],
+      "examples": [
+        "Cold plunge in Mobile, AL.",
+        "Sauna near Midtown Mobile."
+      ],
       "evidence": {
         "level": "opinion",
-        "sources": ["research/4-mobile-competitor-audit.md (keyword captions over hashtag stuffing; the name field is indexed)", "brand.json captions.opening_rule"],
+        "sources": [
+          "research/4-mobile-competitor-audit.md (keyword captions over hashtag stuffing; the name field is indexed)",
+          "brand.json captions.opening_rule"
+        ],
         "confidence": "low"
       },
       "status": "testing",
       "priority": 4,
       "when_not": "Never stuff keywords into the hook itself.",
-      "try_instead": ["growth-collab-posts"],
+      "try_instead": [
+        "growth-collab-posts"
+      ],
       "origin": "seed"
     },
     {
       "id": "growth-original-only",
       "kind": "growth",
       "name": "Original content only",
-      "formats": ["reel", "trial_reel", "carousel", "image"],
-      "goals": ["reach"],
-      "template": "Everything is NUMA's own footage; other people's content appears only as a collab post.",
-      "examples": ["Filmed at NUMA, Dauphin St."],
+      "formats": [
+        "reel",
+        "trial_reel",
+        "carousel",
+        "image"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Everything is Numa's own footage; other people's content appears only as a collab post.",
+      "examples": [
+        "Filmed at Numa, Dauphin St."
+      ],
       "evidence": {
         "level": "measured",
-        "sources": ["research/1-content-benchmarks.md (Mosseri, Apr 30 2026: accounts that mainly share content they didn't create aren't recommended to non-followers; official)", "spec p.9"],
+        "sources": [
+          "research/1-content-benchmarks.md (Mosseri, Apr 30 2026: accounts that mainly share content they didn't create aren't recommended to non-followers; official)",
+          "spec p.9"
+        ],
         "confidence": "high"
       },
       "status": "testing",
       "priority": 5,
       "when_not": "Never break it.",
-      "try_instead": ["growth-collab-posts"],
+      "try_instead": [
+        "growth-collab-posts"
+      ],
       "origin": "seed"
     }
   ]

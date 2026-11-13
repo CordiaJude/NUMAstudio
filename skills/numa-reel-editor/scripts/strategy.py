@@ -99,11 +99,8 @@ POST_TYPES = ("reel", "trial_reel", "carousel", "image", "story")
 FEED_TYPES = ("reel", "carousel", "image")
 VIDEO_TYPES = ("reel", "trial_reel", "story")
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-PULL_HOURS = {"48h": 48, "72h": 72, "7d": 168}
-LAST_PULL_HOURS = 168
+PULL_HOURS = {"22h": 22, "48h": 48, "72h": 72, "7d": 168, "14d": 336, "30d": 720}
 EVIDENCE_ORDER = {"opinion": 0, "observed": 1, "measured": 2, "numa": 3}
-DIMS_A = ("post_type", "type_weekday")
-DIMS_B = ("weekday", "hour_band", "pillar", "series", "hook", "structure", "offer_week")
 STRUCTURE_KINDS = ("structure", "carousel", "photo")
 KIND_FOR_ROW = {"reel": "reel", "trial_reel": "trial_reel", "carousel": "carousel", "image": "image", "stories": "story"}
 ROW_KIND_FOR_TYPE = {"reel": "reel", "trial_reel": "trial_reel", "carousel": "carousel", "image": "image", "story": "stories"}
@@ -126,16 +123,6 @@ def parse_day(text: str | None, what: str) -> date:
         return date.fromisoformat(str(text).strip())
     except ValueError:
         raise nc.UsageError(f"{what} must be YYYY-MM-DD, got {text!r}") from None
-
-
-def phi(x: float) -> float:
-    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
-
-
-def pct(mean: float) -> str:
-    """A score difference as a plain percentage vs NUMA's median."""
-    v = math.exp(mean) - 1.0
-    return f"{abs(v) * 100:.0f}% {'better' if v >= 0 else 'worse'}"
 
 
 def norm_text(s: Any) -> str:
@@ -286,7 +273,7 @@ def playbook_problems(pb: dict) -> tuple[list[str], list[str]]:
 # posts from the metrics store
 # ---------------------------------------------------------------------------
 def load_store(path: str | None) -> dict:
-    """metrics.json, read tolerantly (pattern_ids / strategy_arm tags may be present)."""
+    """metrics.json, read tolerantly (pattern_ids / strategy_arm / boosted tags may be present)."""
     if not path:
         return {"reels": {}}
     p = Path(path).expanduser()
@@ -302,70 +289,91 @@ def hour_band_of(hour: int, bands: dict) -> str:
     for name, b in bands.items():
         if b["hours"][0] <= hour <= b["hours"][1]:
             return name
-    best = min(bands, key=lambda n: min(abs(hour - bands[n]["hours"][0]), abs(hour - bands[n]["hours"][1])))
-    return best
+    return min(bands, key=lambda n: min(abs(hour - bands[n]["hours"][0]), abs(hour - bands[n]["hours"][1])))
 
 
-def derived(m: dict, length: Any, ptype: str) -> dict:
-    """Raw and computed metric values of one pull (missing ones absent)."""
+def rates(m: dict, length: Any, ptype: str) -> dict:
+    """Per-reach rates of one pull (R6: rates, not counts); missing ones absent."""
+    v = {k: float(x) for k, x in m.items() if isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)}
     out: dict[str, float] = {}
-    for k, v in m.items():
-        if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v):
-            out[k] = float(v)
-    reach = out.get("reach")
-    for src, dst in (("shares", "sends_per_1k_reach"), ("saves", "saves_per_1k_reach"),
-                     ("profile_visits", "profile_visits_per_1k"), ("follows", "follows_per_1k"),
-                     ("link_clicks", "link_clicks_per_1k")):
-        if src in out and reach and reach > 0:
-            out[dst] = out[src] / reach * 1000.0
-    if ptype in VIDEO_TYPES:
-        if "avg_watch_time_ms" in out:
-            out["avg_watch_time_s"] = out["avg_watch_time_ms"] / 1000.0
-            if isinstance(length, (int, float)) and length > 0:
-                out["retention"] = out["avg_watch_time_s"] / float(length)
-        if "skip_rate" in out:
-            out["skip_rate"] = out["skip_rate"] / 100.0 if out["skip_rate"] > 1.0 else out["skip_rate"]
-    else:
-        for k in ("avg_watch_time_ms", "avg_watch_time_s", "retention", "skip_rate"):
-            out.pop(k, None)
-    if "views" not in out and "reach" in out:
-        out["views_or_reach"] = out["reach"]
-    elif "views" in out:
-        out["views_or_reach"] = out["views"]
+    reach = v.get("reach")
+    if reach is not None:
+        out["reach"] = reach
+    if reach and reach > 0:
+        for src, dst in (("shares", "sends"), ("saves", "saves"), ("follows", "follows"),
+                         ("profile_visits", "profile_visits"), ("link_clicks", "link_clicks")):
+            if src in v:
+                out[dst] = v[src] / reach
+        if "views" in v:
+            out["views_per_reach"] = v["views"] / reach
+    if v.get("link_clicks") is not None and v.get("profile_visits"):
+        out["link_taps_per_visit"] = v["link_clicks"] / v["profile_visits"]
+    if ptype in VIDEO_TYPES and "avg_watch_time_ms" in v and isinstance(length, (int, float)) and length > 0:
+        out["watch_through"] = v["avg_watch_time_ms"] / 1000.0 / float(length)
+    for k in ("views", "likes", "comments", "shares", "saves", "skip_rate", "avg_watch_time_ms", "profile_visits", "follows", "link_clicks"):
+        if k in v:
+            out[f"raw_{k}"] = v[k]
+    if "skip_rate" in v and ptype in VIDEO_TYPES:
+        out["raw_skip_rate"] = v["skip_rate"] / 100.0 if v["skip_rate"] > 1.0 else v["skip_rate"]
     return out
 
 
+def configured_pull_hours() -> list[int]:
+    hours = nc.config_value("instagram.insight_pulls_hours", [48, 72, 168]) or [48, 72, 168]
+    return sorted(int(h) for h in hours)
+
+
 def judge_state(post_type: str, pulls: dict, age_h: float | None, win: dict) -> tuple[str, str | None, float]:
-    """(status, pull label, weight): status pending | provisional | final."""
-    labels = [lb for lb in pulls if lb in PULL_HOURS] or list(pulls)
+    """(status, pull label, weight): pending | provisional | final (policies.judging, R7)."""
+    labels = sorted((lb for lb in pulls if lb in PULL_HOURS), key=lambda x: PULL_HOURS[x])
     if not labels:
         return "pending", None, 0.0
-    if post_type == "story":
-        lb = sorted(labels, key=lambda x: PULL_HOURS.get(x, 0))[-1]
-        return "final", lb, 1.0
-    if age_h is not None and age_h < win["ignore_before_hours"]:
+    if age_h is not None and age_h < float(win["ignore_before_hours"]):
         return "pending", None, 0.0
-    final_at = min(float(win["final_hours"]), LAST_PULL_HOURS)
-    ordered = sorted(labels, key=lambda x: PULL_HOURS.get(x, 0))
-    finals = [lb for lb in ordered if PULL_HOURS.get(lb, 0) >= final_at]
+    if post_type == "story":       # Story insights live 24 h: whatever was captured is final
+        return "final", labels[-1], 1.0
+    final_at = min(float(win["final_hours"]), float(max(configured_pull_hours())))
+    finals = [lb for lb in labels if PULL_HOURS[lb] >= final_at]
     if finals:
         return "final", finals[0], 1.0
-    provs = [lb for lb in ordered if PULL_HOURS.get(lb, 0) >= float(win["provisional_hours"])]
+    provs = [lb for lb in labels if PULL_HOURS[lb] >= float(win["provisional_hours"])]
     if provs:
         return "provisional", provs[-1], float(win["provisional_weight"])
     return "pending", None, 0.0
+
+
+def holiday_dates(pb: dict, year: int) -> set[date]:
+    """Holiday weeks excluded from decisions (R6 section 8): policy windows plus the Mon-Sun week of each calendar holiday."""
+    out: set[date] = set()
+    for w in pb["policies"]["learning"]["holiday_windows"]:
+        fm, fd = (int(x) for x in w["from"].split("-"))
+        tm, td = (int(x) for x in w["to"].split("-"))
+        start = date(year, fm, fd)
+        end = date(year if (tm, td) >= (fm, fd) else year + 1, tm, td)
+        out |= {start + timedelta(days=i) for i in range((end - start).days + 1)}
+        prev_start = date(year - 1, fm, fd)
+        prev_end = date(year - 1 if (tm, td) >= (fm, fd) else year, tm, td)
+        out |= {prev_start + timedelta(days=i) for i in range((prev_end - prev_start).days + 1)}
+    for m in pb["calendar"]["holidays"]:
+        if not m.get("possible_closure"):
+            continue
+        for mon in range(1, 13):
+            for d in moment_days(m, year, mon):
+                wk = d - timedelta(days=d.weekday())
+                out |= {wk + timedelta(days=i) for i in range(7)}
+    return out
 
 
 def collect_posts(store: dict, pb: dict, today: date) -> list[dict]:
     pol = pb["policies"]
     bands = pol["hour_bands"]["bands"]
     now = datetime.combine(today, datetime.max.time()).replace(microsecond=0)
-    half_life = float(pol["learning"]["half_life_days"])
     hooks_by_type: dict[str, str] = {}
     for p in pb["patterns"].values():
         if p["kind"] == "hook":
             for ht in p.get("hook_types", []):
                 hooks_by_type.setdefault(ht, p["id"])
+    holidays: dict[int, set[date]] = {}
     posts = []
     for pid in sorted(store["reels"]):
         raw = store["reels"][pid]
@@ -373,7 +381,9 @@ def collect_posts(store: dict, pb: dict, today: date) -> list[dict]:
             continue
         tags = raw.get("tags") or {}
         ptype = mstore.post_type_of(raw)
-        win = pol["judging"].get(ptype) or pol["judging"].get("reel")
+        collab = tags.get("collab") is True
+        win = (pol.get("judging_cohorts") or {}).get("collab") if collab else None
+        win = win or pol["judging"].get(ptype) or pol["judging"]["reel"]
         posted = None
         if tags.get("posting_time"):
             try:
@@ -393,204 +403,156 @@ def collect_posts(store: dict, pb: dict, today: date) -> list[dict]:
         structure = next((x for x in pids if pb["patterns"].get(x, {}).get("kind") in STRUCTURE_KINDS), None)
         if structure is None and arm.get("structure"):
             structure = arm["structure"]
-        sales = arm.get("goal") == "conversion" or tags.get("pillar") == "offers_events" and arm.get("goal") != "reach"
-        goal = arm.get("goal") if arm.get("goal") in ("reach", "saves", "conversion") else None
-        if goal is None:
-            goal = "conversion" if tags.get("pillar") == "offers_events" else pol["post_types"].get(ptype, {}).get("default_goal", "reach")
-            if ptype == "story":
-                goal = "reach"
+        others = [x for x in pids if pb["patterns"].get(x, {}).get("kind") in ("cta", "offer", "growth")]
+        sales = arm.get("goal") == "conversion" or (tags.get("pillar") == "offers_events" and arm.get("goal") != "reach")
+        flags = []
+        if posted is not None:
+            hol = holidays.setdefault(posted.year, holiday_dates(pb, posted.year))
+            if posted.date() in hol:
+                flags.append("holiday")
+        if tags.get("boosted") is True:
+            flags.append("boosted")
+        if collab:
+            flags.append("collab")
         post = {
             "id": pid, "post_type": ptype, "tags": tags, "title": tags.get("title") or tags.get("slug") or pid,
-            "posted": posted, "status": status, "pull": label, "judge_weight": jw,
+            "posted": posted, "age_h": age_h, "status": status, "pull": label, "judge_weight": jw, "window": win,
             "weekday": WEEKDAYS[posted.weekday()] if posted else None,
             "hour_band": hour_band_of(posted.hour, bands) if posted else None,
             "pillar": tags.get("pillar") or arm.get("pillar"), "series": tags.get("series") or arm.get("series"),
-            "hook": hook, "structure": structure, "pattern_ids": pids, "goal": goal, "sales": bool(sales),
+            "hook": hook, "structure": structure, "others": others, "pattern_ids": pids, "sales": bool(sales),
             "offer_week": week_of_month(posted.date()) if posted and sales else None,
-            "mode": arm.get("mode"), "length": tags.get("length"),
-            "decay": 0.5 ** (max(0.0, age_h / 24.0) / half_life) if age_h is not None else 1.0,
-            "values": derived(pulls[label]["metrics"], tags.get("length"), ptype) if label else {},
-            "all_pulls": {k: derived(v["metrics"], tags.get("length"), ptype) for k, v in pulls.items()},
+            "mode": arm.get("mode"), "length": tags.get("length"), "flags": flags, "collab": collab,
+            "january": bool(posted and posted.month == 1),
+            "pulls": {k: rates(v["metrics"], tags.get("length"), ptype) for k, v in pulls.items()},
         }
+        post["values"] = post["pulls"].get(label, {}) if label else {}
         posts.append(post)
+    posts.sort(key=lambda p: (p["posted"] or datetime.min, p["id"]))
     return posts
 
 
 # ---------------------------------------------------------------------------
-# scoring
+# scoring (R6): per-reach rates, log2 index vs the trailing same-format median, composite S, win = S > 0
 # ---------------------------------------------------------------------------
-COMPONENT_VALUE = {
-    "views": "views_or_reach", "sends": "sends_per_1k_reach", "saves": "saves_per_1k_reach", "skip": "skip_rate",
-    "retention": "retention", "profile_visits": "profile_visits_per_1k", "follows": "follows_per_1k",
-    "link_clicks": "link_clicks_per_1k",
+COMPONENTS = ("reach", "sends", "saves", "follows", "watch_through", "views_per_reach", "profile_visits",
+              "link_clicks", "link_taps_per_visit")
+EXCEPTION_COMPONENT = {
+    "saves": "saves", "shares": "sends", "skip_rate": "watch_through", "avg_watch_time_s": "watch_through",
+    "retention": "watch_through", "views": "reach", "reach": "reach", "follows": "follows",
+    "profile_visits": "profile_visits", "link_clicks": "link_clicks",
 }
 
 
-def excluded_components(post: dict, win: dict) -> set[str]:
-    """Components whose metric exception makes them not final yet at this pull."""
-    if post["status"] != "provisional":
-        return set()
-    hours = PULL_HOURS.get(post["pull"] or "", 0)
-    out = set()
-    for metric, ex in (win.get("exceptions") or {}).items():
-        if hours < min(float(ex["final_hours"]), LAST_PULL_HOURS) or hours < float(ex["provisional_hours"]):
-            for comp, names in COMPONENT_METRICS.items():
-                if metric in names:
-                    out.add(comp)
-    return out
+def component_value(post: dict, comp: str) -> float | None:
+    """A component's rate at the pull that judges it: a metric exception (R7) has its own window."""
+    label = post["pull"]
+    if not label:
+        return None
+    hours = PULL_HOURS[label]
+    ex = None
+    for metric, w in (post["window"].get("exceptions") or {}).items():
+        if EXCEPTION_COMPONENT.get(metric) == comp:
+            ex = w
+    if ex is None:
+        return post["pulls"][label].get(comp)
+    if hours < float(ex["provisional_hours"]):
+        return None                                   # not readable yet (e.g. saves before 7 d)
+    upto = min(float(ex["final_hours"]), float(hours))
+    for lb in sorted(post["pulls"], key=lambda x: -PULL_HOURS.get(x, 0)):
+        if PULL_HOURS.get(lb, 0) <= upto and comp in post["pulls"][lb]:
+            return post["pulls"][lb][comp]
+    return None
 
 
-def baseline_pool(post: dict, judged: list[dict], window_days: int, min_posts: int, same_type: bool) -> list[dict]:
-    if post["posted"] is not None:
-        lo = post["posted"] - timedelta(days=window_days)
-        pool = [q for q in judged if q["posted"] is None or lo <= q["posted"] <= post["posted"]]
+def baseline(post: dict, judged: list[dict], pol: dict, pooled: bool) -> list[dict]:
+    """The trailing last-N same-format (or pooled feed) posts, each at least min_age_days old (R6 section 2)."""
+    b = pol["scoring"]["baseline"]
+    n, min_age, min_posts = int(b["window_posts"]), float(b["min_age_days"]) * 24.0, int(b["min_posts"])
+    earlier = [q for q in judged if q is not post and q["posted"] is not None and post["posted"] is not None
+               and q["posted"] < post["posted"]]
+    if pooled:
+        cohort = [q for q in earlier if q["post_type"] in FEED_TYPES and not q["collab"]]
+    elif post["collab"]:
+        cohort = [q for q in earlier if q["collab"]]
+        if len(cohort) < min_posts:
+            cohort = [q for q in earlier if q["post_type"] == post["post_type"]]
     else:
-        pool = list(judged)
-    if same_type:
-        same = [q for q in pool if q["post_type"] == post["post_type"]]
-        if len(same) >= min_posts:
-            return same
-        if post["post_type"] == "trial_reel":
-            trials = [q for q in judged if q["post_type"] == "trial_reel"]
-            if len(trials) >= min_posts:
-                return trials
-    feedish = [q for q in pool if q["post_type"] in FEED_TYPES] if post["post_type"] in FEED_TYPES else pool
-    if len(feedish) >= min_posts:
-        return feedish
-    return pool if len(pool) >= min_posts else list(judged)
+        cohort = [q for q in earlier if q["post_type"] == post["post_type"] and not q["collab"]]
+    aged = [q for q in cohort if q["age_h"] is not None and q["age_h"] >= min_age]
+    for pool in (aged, cohort):
+        if len(pool) >= min_posts:
+            return pool[-n:]
+    return []
 
 
-def median_of(pool: list[dict], key: str, pull: str | None) -> float | None:
-    vals = []
-    for q in pool:
-        v = (q["all_pulls"].get(pull) or {}).get(key) if pull else None
-        if v is None:
-            v = q["values"].get(key)
-        if v is not None:
-            vals.append(v)
-    return statistics.median(vals) if vals else None
+def log2_index(value: float, med: float, clip: float) -> float:
+    if med <= 0 and value <= 0:
+        return 0.0
+    eps = max(1e-9, 0.01 * med)
+    return max(-clip, min(clip, math.log2((value + eps) / (med + eps))))
 
 
-def component_z(comp: str, value: float, med: float, cap: float, skip_unit: float) -> float:
-    if comp == "skip":
-        z = (med - value) / skip_unit
-    else:
-        eps = max(1e-6, 0.05 * abs(med))
-        z = math.log((value + eps) / (med + eps))
-    return max(-cap, min(cap, z))
-
-
-def weighted_score(post: dict, pool: list[dict], weights: dict, sc_pol: dict, skip: set[str]) -> tuple[float | None, dict]:
+def weighted(post: dict, pool: list[dict], weights: dict, clip: float, substitute: str | None) -> tuple[float | None, dict]:
     parts: dict[str, float] = {}
-    total_w = 0.0
-    acc = 0.0
+    acc = tw = 0.0
     for comp, w in weights.items():
-        if w <= 0 or comp in skip:
+        if w <= 0:
             continue
-        key = COMPONENT_VALUE[comp]
-        v = post["values"].get(key)
-        if v is None:
+        c = comp
+        if comp == "watch_through" and post["post_type"] not in VIDEO_TYPES and substitute:
+            c = substitute                            # carousels/images: views per reach in place of watch-through
+        v = component_value(post, c)
+        vals = [x for x in (component_value(q, c) for q in pool) if x is not None]
+        if v is None or not vals:
             continue
-        med = median_of(pool, key, post["pull"])
-        if med is None:
-            continue
-        z = component_z(comp, v, med, float(sc_pol["winsor_log_cap"]), float(sc_pol["skip_unit"]))
-        parts[comp] = round(z, 4)
-        acc += w * z
-        total_w += w
-    if total_w == 0:
-        return None, parts
-    return acc / total_w, parts
+        s = log2_index(v, statistics.median(vals), clip)
+        parts[c] = round(s, 4)
+        acc += w * s
+        tw += w
+    return (acc / tw if tw else None), parts
 
 
 def score_posts(posts: list[dict], pb: dict) -> list[dict]:
-    """Adds score (goal, per-type baseline) and pooled_score to every judged post."""
+    """Composite S per post (same-format baseline), a pooled S (feed baseline, for formats) and the goal scores."""
     pol = pb["policies"]
-    sc_pol = pol["scoring"]
+    scp = pol["scoring"]
+    clip = float(scp["index_clip_log2"])
+    sub = scp.get("static_watch_substitute")
     judged = [p for p in posts if p["status"] in ("provisional", "final")]
-    wd, mn = int(sc_pol["baseline"]["window_days"]), int(sc_pol["baseline"]["min_posts"])
     for p in posts:
-        p["score"] = p["pooled_score"] = None
-        p["components"] = {}
+        p.update({"score": None, "pooled_score": None, "win": None, "pooled_win": None, "components": {}, "goal_scores": {}})
         if p not in judged:
             continue
-        win = pol["judging"].get(p["post_type"]) or pol["judging"]["reel"]
-        skip = excluded_components(p, win)
-        pool = baseline_pool(p, judged, wd, mn, same_type=True)
-        if len(pool) < 2:
-            p["score_note"] = "no baseline yet (fewer than 2 judged posts)"
+        pool = baseline(p, judged, pol, pooled=False)
+        if not pool:
+            p["score_note"] = "baseline still building (fewer than 3 earlier posts of this format)"
             continue
-        weights = dict(sc_pol["goal_weights"][p["goal"]])
-        s, parts = weighted_score(p, pool, weights, sc_pol, skip)
-        if s is None and p["goal"] == "conversion":
-            s, parts = weighted_score(p, pool, dict(sc_pol["goal_weights"]["reach"]), sc_pol, skip)
-            p["score_note"] = "no conversion metrics tracked; scored on reach"
-        p["score"] = round(s, 4) if s is not None else None
-        p["components"] = parts
+        s, parts = weighted(p, pool, scp["composite"], clip, sub)
         if s is None:
             p["score_note"] = "no metric to score"
             nc.warn(f"post {p['id']}: no metric to score; left out of learning")
-        if p["post_type"] in FEED_TYPES:
-            ppool = [q for q in baseline_pool(p, judged, wd, mn, same_type=False) if q["post_type"] in FEED_TYPES]
-            if len(ppool) >= 2:
-                ps, _ = weighted_score(p, ppool, dict(sc_pol["pooled_weights"]), sc_pol, skip)
-                p["pooled_score"] = round(ps, 4) if ps is not None else None
+            continue
+        p["score"], p["components"] = round(s, 4), parts
+        p["win"] = s > float(scp["win_above"])
+        for goal, w in scp["goals"].items():
+            g, _ = weighted(p, pool, w, clip, sub)
+            if g is not None:
+                p["goal_scores"][goal] = round(g, 4)
+        if p["post_type"] in FEED_TYPES and not p["collab"]:
+            ppool = baseline(p, judged, pol, pooled=True)
+            if ppool:
+                pw = {k: v for k, v in scp["composite"].items() if k != "watch_through"}
+                ps, _ = weighted(p, ppool, pw, clip, sub)
+                if ps is not None:
+                    p["pooled_score"] = round(ps, 4)
+                    p["pooled_win"] = ps > float(scp["win_above"])
     return posts
 
 
 # ---------------------------------------------------------------------------
-# Bayesian additive model
+# learning (R6): discounted Beta-Bernoulli arms, one factored variable each
 # ---------------------------------------------------------------------------
-class Additive:
-    """y = sum over dims of beta[dim][level] + noise, fitted by backfitting with Normal priors."""
-
-    def __init__(self, dims: tuple[str, ...], prior, sigma2: float):
-        self.dims = dims
-        self.prior = prior            # (dim, level) -> (mean, strength)
-        self.sigma2 = sigma2
-        self.post: dict[str, dict[str, tuple[float, float, float]]] = {d: {} for d in dims}
-
-    def fit(self, obs: list[tuple[dict, float, float]]) -> "Additive":
-        levels: dict[str, set] = {d: set() for d in self.dims}
-        for lv, _, _ in obs:
-            for d in self.dims:
-                if lv.get(d) is not None:
-                    levels[d].add(lv[d])
-        beta = {d: {v: self.prior(d, v)[0] for v in sorted(levels[d])} for d in self.dims}
-        wsum = {d: {v: 0.0 for v in levels[d]} for d in self.dims}
-        for _ in range(25):
-            for d in self.dims:
-                acc = {v: 0.0 for v in levels[d]}
-                ws = {v: 0.0 for v in levels[d]}
-                for lv, y, w in obs:
-                    v = lv.get(d)
-                    if v is None:
-                        continue
-                    r = y - sum(beta[o][lv[o]] for o in self.dims if o != d and lv.get(o) is not None)
-                    acc[v] += w * r
-                    ws[v] += w
-                for v in sorted(levels[d]):
-                    m0, n0 = self.prior(d, v)
-                    beta[d][v] = (n0 * m0 + acc[v]) / (n0 + ws[v]) if (n0 + ws[v]) > 0 else m0
-                wsum[d] = ws
-        tw = sum(w for _, _, w in obs)
-        if tw >= 8:
-            resid = sum(w * (y - sum(beta[d][lv[d]] for d in self.dims if lv.get(d) is not None)) ** 2 for lv, y, w in obs)
-            k = 5.0
-            self.sigma2 = max(0.04, (k * self.sigma2 + resid) / (k + tw))
-        for d in self.dims:
-            for v in levels[d]:
-                m0, n0 = self.prior(d, v)
-                self.post[d][v] = (beta[d][v], self.sigma2 / max(1e-9, n0 + wsum[d][v]), wsum[d][v])
-        return self
-
-    def get(self, dim: str, level: Any) -> tuple[float, float, float]:
-        if level in self.post.get(dim, {}):
-            return self.post[dim][level]
-        m0, n0 = self.prior(dim, level)
-        return m0, self.sigma2 / max(1e-9, n0), 0.0
-
-
 STATIC_SUFFIX = "@static"
 
 
@@ -600,112 +562,122 @@ def hook_key(pid: str, post_type: str) -> str:
 
 
 def status_key(pb: dict, pid: str) -> str:
-    """The posterior that decides a pattern's status: video for hooks used on video, else the static one."""
     p = pb["patterns"][pid]
     if p["kind"] == "hook" and not set(p["formats"]) & set(VIDEO_TYPES):
         return f"{pid}{STATIC_SUFFIX}"
     return pid
 
 
-def pattern_prior(pb: dict, pid: str) -> tuple[float, float]:
-    lp = pb["policies"]["learning"]
-    pid = pid.split("@")[0]
-    p = pb["patterns"].get(pid)
-    if p is None:
-        return 0.0, float(lp["prior_strength"]["opinion"])
-    lvl = p["evidence"]["level"]
-    strength = float(lp["prior_strength"].get(lvl, lp["prior_strength"]["opinion"])) if lvl != "numa" else float(lp["prior_strength"]["measured"])
-    return float(lp.get("evidence_prior_mean", {}).get(lvl, 0.0)), strength
+def owner_signals(pb: dict) -> dict[str, str]:
+    """Owner results (REVIEW.md; STATE owner_priors from setup) outrank research priors."""
+    out = {pid: p["owner_signal"] for pid, p in pb["patterns"].items() if p.get("owner_signal")}
+    for op in pb["state"].get("owner_priors", []):
+        out[op["target"]] = op["signal"]
+    return out
 
 
-def make_prior(pb: dict):
-    pol = pb["policies"]
-    lp = pol["learning"]
-    strength = lp["prior_strength"]
-    pe = pol.get("prior_evidence", {})
-    imported: dict[str, float] = {}
-    for pr in pb["state"].get("priors", []):
-        if pr["dimension"] == "feed_share":
-            seed = float(pol["feed_mix"][pr["level"]]["prior"]) if pr["level"] in pol["feed_mix"] else 0.0
-            tilt = 0.1 * math.log((pr["value"] + 0.05) / (seed + 0.05))
-            imported[pr["level"]] = max(-0.1, min(0.1, tilt))
+def arm_prior(pb: dict, var: str, level: str) -> tuple[float, float]:
+    """Beta prior (alpha, beta) for an arm: owners' data > measured > observed > opinion; never below Beta(1,1)."""
+    pr = pb["policies"]["learning"]["prior"]
+    owners = owner_signals(pb)
+    base = level.split("@")[0]
+    sig = owners.get(base) if var in ("hook", "structure", "pattern") else owners.get(f"{var}:{level}")
+    if sig:
+        t = float(pr["numa"]["tries"])
+        rate = float(pr["numa"].get(sig, 0.75 if sig == "worked" else 0.25))
+        return 1.0 + t * rate, 1.0 + t * (1 - rate)
+    if var in ("hook", "structure", "pattern") and base in pb["patterns"]:
+        lvl = pb["patterns"][base]["evidence"]["level"]
+        cfg = pr.get(lvl if lvl != "numa" else "measured", pr["opinion"])
+        t, rate = float(cfg["tries"]), float(cfg.get("win_rate", 0.5))
+        return 1.0 + t * rate, 1.0 + t * (1 - rate)
+    tilt = float((pb["policies"].get("prior_means") or {}).get(var, {}).get(level, 0.0))
+    t = float(pr["opinion"]["tries"])
+    return 1.0 + t * (0.5 + tilt), 1.0 + t * (0.5 - tilt)
 
-    def prior(dim: str, level: Any) -> tuple[float, float]:
-        if dim in ("hook", "structure"):
-            return pattern_prior(pb, str(level))
-        if dim == "type_weekday":
-            return 0.0, float(strength["interaction"])
-        means = pol["prior_means"].get(dim, {})
-        lvl = (pe.get(dim) or {}).get("level", "opinion")
-        n0 = float(strength.get(lvl, strength["opinion"]))
-        m = float(means.get(str(level), 0.0))
-        if dim == "post_type":
-            m += imported.get(str(level), 0.0)
-        return m, n0
-    return prior
+
+def post_arms(p: dict) -> list[tuple[str, str, str]]:
+    """(variable, level, outcome key) for every factored arm a post updates."""
+    out: list[tuple[str, str, str]] = []
+    trial = p["post_type"] == "trial_reel"
+    pre = "trial:" if trial else ""
+    if p["post_type"] in FEED_TYPES and p["pooled_win"] is not None:
+        out.append(("format", p["post_type"], "pooled"))
+        if p["weekday"]:
+            out.append(("format_day", f"{p['post_type']}|{p['weekday']}", "pooled"))
+    if p["hook"]:
+        out.append(("hook", pre + hook_key(p["hook"], p["post_type"]), "win"))
+    if p["structure"]:
+        out.append(("structure", pre + p["structure"], "win"))
+    for x in p["others"]:
+        out.append(("pattern", pre + x, "win"))
+    if not trial:
+        for var, lv in (("pillar", p["pillar"]), ("series", p["series"]), ("weekday", p["weekday"]),
+                        ("band", p["hour_band"]), ("offer_week", p["offer_week"])):
+            if lv:
+                out.append((var, lv, "win"))
+    return out
 
 
 def fit_models(posts: list[dict], pb: dict) -> dict:
+    """Discounted Beta posteriors per arm (gamma per new judged post) plus undiscounted decision records."""
     lp = pb["policies"]["learning"]
-    s2 = float(lp["noise_sd"]) ** 2
-    prior = make_prior(pb)
-    obs_a, obs_b = [], []
-    for p in posts:
-        w = p["judge_weight"] * p["decay"]
-        if w <= 0:
-            continue
-        if p["pooled_score"] is not None and p["post_type"] in FEED_TYPES:
-            lv = {"post_type": p["post_type"], "type_weekday": f"{p['post_type']}|{p['weekday']}" if p["weekday"] else None}
-            obs_a.append((lv, p["pooled_score"], w))
-        if p["score"] is not None:
-            lv = {"weekday": p["weekday"], "hour_band": p["hour_band"], "pillar": p["pillar"],
-                  "series": p["series"], "hook": hook_key(p["hook"], p["post_type"]) if p["hook"] else None,
-                  "structure": p["structure"], "offer_week": p["offer_week"]}
-            obs_b.append((lv, p["score"], w))
-    a = Additive(DIMS_A, prior, s2).fit(obs_a)
-    b = Additive(DIMS_B, prior, s2).fit(obs_b)
-    # every tagged pattern of any kind: a simple Normal posterior on the per-type score
-    pats: dict[str, dict] = {}
-    for pid in pb["patterns"]:
-        m0, n0 = pattern_prior(pb, pid)
-        keys = [pid, f"{pid}{STATIC_SUFFIX}"] if pb["patterns"][pid]["kind"] == "hook" else [pid]
-        for key in keys:
-            pats[key] = {"acc": 0.0, "w": 0.0, "n": 0, "m0": m0, "n0": n0, "kind": pb["patterns"][pid]["kind"]}
-    for p in posts:
-        if p["score"] is None:
-            continue
-        w = p["judge_weight"] * p["decay"]
-        ids = set(p["pattern_ids"]) | {x for x in (p["hook"], p["structure"]) if x}
-        for pid in ids:
-            key = hook_key(pid, p["post_type"]) if pb["patterns"].get(pid, {}).get("kind") == "hook" else pid
-            if key in pats:
-                pats[key]["acc"] += w * p["score"]
-                pats[key]["w"] += w
-                pats[key]["n"] += 1
-    pattern_post = {}
-    for pid, s in pats.items():
-        kind = s["kind"]
-        if kind == "hook" and pid in b.post["hook"]:
-            mean, var, weff = b.post["hook"][pid]
-        elif kind in STRUCTURE_KINDS and pid in b.post["structure"]:
-            mean, var, weff = b.post["structure"][pid]
-        else:
-            mean = (s["n0"] * s["m0"] + s["acc"]) / (s["n0"] + s["w"])
-            var, weff = b.sigma2 / (s["n0"] + s["w"]), s["w"]
-        sd = math.sqrt(var)
-        pattern_post[pid] = {"mean": mean, "var": var, "n": s["n"], "weight": weff, "prob_better": phi(mean / sd) if sd > 0 else 0.5}
+    gamma = float(lp["discount"])
+    excluded = set(lp["exclude_from_decisions"])
+    ev: dict[tuple[str, str], list[float]] = {}
+    records: dict[tuple[str, str], list[dict]] = {}
+    cohort: dict[str, list[dict]] = {}
     judged = [p for p in posts if p["status"] in ("provisional", "final") and p["score"] is not None]
+    for p in judged:
+        for k in ev:
+            ev[k][0] *= gamma
+            ev[k][1] *= gamma
+        p["excluded"] = sorted(set(p["flags"]) & excluded)
+        if p["collab"]:
+            cohort.setdefault("collab", []).append(p)
+        if p["excluded"]:
+            continue
+        w = p["judge_weight"]
+        for var, lv, kind in post_arms(p):
+            won = p["pooled_win"] if kind == "pooled" else p["win"]
+            s = p["pooled_score"] if kind == "pooled" else p["score"]
+            if won is None:
+                continue
+            e = ev.setdefault((var, lv), [0.0, 0.0])
+            e[0 if won else 1] += w
+            records.setdefault((var, lv), []).append({"post": p["id"], "date": p["posted"].date().isoformat() if p["posted"] else None,
+                                                      "S": s, "win": bool(won), "final": p["status"] == "final",
+                                                      "january": p["january"]})
+    arms: dict[tuple[str, str], dict] = {}
+    for key in set(ev) | set(records):
+        a0, b0 = arm_prior(pb, *key)
+        wa, wb = ev.get(key, [0.0, 0.0])
+        arms[key] = {"alpha": a0 + wa, "beta": b0 + wb, "records": records.get(key, [])}
+        arms[key]["mean"] = arms[key]["alpha"] / (arms[key]["alpha"] + arms[key]["beta"])
     n = len(judged)
-    lam = min(1.0, n / float(lp["data_led_after_posts"]))
-    return {"A": a, "B": b, "patterns": pattern_post, "lambda": lam, "judged": n,
+    return {"arms": arms, "cohorts": cohort, "lambda": min(1.0, n / float(lp["data_led_after_posts"])), "judged": n,
             "final": sum(p["status"] == "final" for p in judged), "provisional": sum(p["status"] == "provisional" for p in judged)}
+
+
+def arm(fits: dict, pb: dict, var: str, level: str) -> dict:
+    """An arm's posterior (its prior when NUMA has no data on it yet)."""
+    if (var, level) in fits["arms"]:
+        return fits["arms"][(var, level)]
+    a0, b0 = arm_prior(pb, var, level)
+    return {"alpha": a0, "beta": b0, "records": [], "mean": a0 / (a0 + b0)}
+
+
+def decision_stats(records: list[dict], january: bool = True) -> dict:
+    rec = [r for r in records if r["final"] and (january or not r["january"])]
+    s = [r["S"] for r in rec]
+    return {"tries": len(rec), "wins": sum(r["win"] for r in rec),
+            "median_index": round(2 ** statistics.median(s), 4) if s else None, "records": rec}
 
 
 def analyse(store_path: str | None, pb: dict, today: date) -> tuple[list[dict], dict]:
     posts = collect_posts(load_store(store_path), pb, today)
     score_posts(posts, pb)
     return posts, fit_models(posts, pb)
-
 
 # ---------------------------------------------------------------------------
 # calendar
@@ -785,46 +757,31 @@ def month_moments(pb: dict, year: int, month: int) -> list[dict]:
 # month plan
 # ---------------------------------------------------------------------------
 class Draws:
-    """Thompson draws for one week: one value per (model, dim, level), drawn in a fixed order."""
+    """Thompson draws from the arms' Beta posteriors, one per arm per week, drawn in a fixed order (determinism)."""
 
     def __init__(self, fits: dict, pb: dict, rng):
         self.fits, self.pb, self.rng = fits, pb, rng
-        self.temper = float(pb["policies"]["learning"]["exploit_variance_scale"])
-        self.cache: dict[tuple, float] = {}
+        self.cache: dict[tuple[str, str], float] = {}
 
-    def a(self, dim: str, level: str) -> float:
-        return self._draw("A", dim, level, self.temper)
-
-    def b(self, dim: str, level: str) -> float:
-        return self._draw("B", dim, level, self.temper)
-
-    def _draw(self, model: str, dim: str, level: str, inflate: float) -> float:
-        key = (model, dim, level, inflate)
+    def beta(self, var: str, level: str) -> float:
+        key = (var, level)
         if key not in self.cache:
-            mean, var, _ = self.fits[model].get(dim, level)
-            self.cache[key] = float(self.rng.normal(mean, math.sqrt(var * inflate)))
+            a = arm(self.fits, self.pb, var, level)
+            self.cache[key] = float(self.rng.beta(a["alpha"], a["beta"]))
         return self.cache[key]
 
-    def pattern(self, pid: str, inflate: float = 1.0) -> float:
-        key = ("P", pid, inflate)
-        if key not in self.cache:
-            st = self.fits["patterns"].get(pid) or {"mean": 0.0, "var": 0.25}
-            self.cache[key] = float(self.rng.normal(st["mean"], math.sqrt(st["var"] * inflate)))
-        return self.cache[key]
+    def informed(self, var: str, level: str) -> float:
+        """A draw for an arm NUMA has data on; the prior mean for one it hasn't (no churn from pure prior noise)."""
+        a = arm(self.fits, self.pb, var, level)
+        return self.beta(var, level) if a["records"] else a["mean"]
 
     def prime(self) -> None:
-        """Draw every level used by the planner up front, in sorted order (determinism)."""
-        bands = self.pb["policies"]["hour_bands"]["bands"]
         for t in FEED_TYPES:
-            self.a("post_type", t)
+            self.beta("format", t)
             for wd in WEEKDAYS:
-                self.a("type_weekday", f"{t}|{wd}")
-        for wd in WEEKDAYS:
-            self.b("weekday", wd)
-        for bnd in sorted(bands):
-            self.b("hour_band", bnd)
+                self.beta("format_day", f"{t}|{wd}")
         for w in ("w1", "w2", "w3", "w4", "w5"):
-            self.b("offer_week", w)
+            self.beta("offer_week", w)
 
 
 def default_type(row: dict) -> str:
@@ -881,6 +838,49 @@ def compat_plan(plan: dict) -> dict:
     return {**plan, "rows": rows}
 
 
+def closure_items(items: list, where: str) -> dict[date, str]:
+    """Closure dates from a list of 'YYYY-MM-DD', {date, name} or {start, end, closed, what} (brand.json closures.known)."""
+    out: dict[date, str] = {}
+    for it in items:
+        if isinstance(it, dict) and ("start" in it or "end" in it):
+            if it.get("closed") is False:
+                continue                      # open with shorter hours: not a closure
+            a = sc.parse_date(it.get("start") or it.get("end"), where)
+            b = sc.parse_date(it.get("end") or it.get("start"), where)
+            for i in range((b - a).days + 1):
+                out[a + timedelta(days=i)] = str(it.get("what") or it.get("name") or "closed")
+        elif isinstance(it, dict):
+            out[sc.parse_date(it.get("date"), where)] = str(it.get("name") or it.get("what") or "closed")
+        else:
+            out[sc.parse_date(it, where)] = "closed"
+    return out
+
+
+def closure_dates(path: str | None) -> dict[date, str]:
+    """brand.json closures.known plus a closures file (JSON list / {"closures": [...]} or CSV with a Date column)."""
+    known = nc.brand_value("closures.known")
+    out = closure_items(known if isinstance(known, list) else [], "brand.json closures.known")
+    if path:
+        p = Path(path).expanduser()
+        if not p.exists():
+            raise nc.UserError(f"closures file not found: {p}")
+        if p.suffix.lower() == ".csv":
+            import csv
+            import io
+            reader = csv.DictReader(io.StringIO(p.read_text(encoding="utf-8-sig")))
+            key = next((k for k in (reader.fieldnames or []) if k and k.strip().lower() == "date"), None)
+            if key is None:
+                raise nc.UserError(f"closures file {p}: needs a Date column")
+            out.update(closure_items([r[key] for r in reader if (r.get(key) or "").strip()], f"closures file {p}"))
+        else:
+            data = nc.read_json(p, "closures file")
+            data = data.get("closures") if isinstance(data, dict) else data
+            if not isinstance(data, list):
+                raise nc.UserError(f"closures file {p}: expected a list of dates or {{\"closures\": [...]}}")
+            out.update(closure_items(data, f"closures file {p}"))
+    return out
+
+
 def read_events(path: str | None) -> list[dict]:
     if not path:
         return []
@@ -921,16 +921,9 @@ class Planner:
             dr = Draws(self.fits, self.pb, rng)
             dr.prime()
             week_draws[wk] = dr
-            ds = weeks[wk]
-            roles = {d: sc.DEFAULT_WEEK[d.weekday()]["slot"] for d in ds}
-            why: dict[date, list[str]] = {d: [] for d in ds}
-            if len(ds) == 7 and lam > 0:
-                roles, notes = self.assign_days(ds, dr, lam, stick)
-                for d, n in notes.items():
-                    why[d].append(n)
-            for d in ds:
-                r = make_row(d, roles[d], self.month)
-                r["strategy"] = {"why": why[d], "week": wk.isoformat()}
+            for d in weeks[wk]:     # weekdays follow the default week (spec p.34); time is a blocked rotation (R6)
+                r = make_row(d, sc.DEFAULT_WEEK[d.weekday()]["slot"], self.month)
+                r["strategy"] = {"why": [], "week": wk.isoformat()}
                 rows.append(r)
         by_date = {r["date"]: r for r in rows}
         for r in rows:
@@ -954,27 +947,6 @@ class Planner:
                 "rows": rows}
         plan["_draws"] = week_draws
         return plan
-
-    def assign_days(self, ds: list[date], dr: Draws, lam: float, stick: float) -> tuple[dict, dict]:
-        default = {d: sc.DEFAULT_WEEK[d.weekday()]["slot"] for d in ds}
-        feed_n = int(self.pol["cadence"]["feed_per_week"]["value"])
-        score = {d: lam * dr.b("weekday", WEEKDAYS[d.weekday()]) + (stick if default[d] in ROLE_ORDER else 0.0) for d in ds}
-        feed = sorted(sorted(ds, key=lambda d: (-score[d], d))[:feed_n])
-        rest = [d for d in ds if d not in feed]
-        tscore = {d: lam * dr.b("weekday", WEEKDAYS[d.weekday()]) + (stick if default[d] == "trial_reel" else 0.0) for d in rest}
-        trial = sorted(rest, key=lambda d: (-tscore[d], d))[0]
-        roles = {d: ROLE_ORDER[i] for i, d in enumerate(feed)}
-        roles[trial] = "trial_reel"
-        for d in rest:
-            if d != trial:
-                roles[d] = "stories"
-        notes = {}
-        for d in ds:
-            if roles[d] != default[d]:
-                notes[d] = (f"{WEEKDAYS[d.weekday()]} moved from {default[d].replace('_', ' ')} to {roles[d].replace('_', ' ')}: "
-                            f"NUMA's {WEEKDAYS[d.weekday()]} posts draw {score[d] - (stick if default[d] in ROLE_ORDER else 0):+.2f} "
-                            f"(data-led share {lam:.0%})")
-        return roles, notes
 
     def place_events(self, rows: list[dict]) -> None:
         cal = self.pb["calendar"]["events"]
@@ -1019,7 +991,7 @@ class Planner:
                 continue
             dr = week_draws[wk]
             default_offer = (d.day - 1) // 7 % 2 == 0
-            s = lam * dr.b("offer_week", week_of_month(d)) + (stick if default_offer else 0.0) + (0.03 if r["date"] in offer_windows else 0.0)
+            s = lam * dr.informed("offer_week", week_of_month(d)) + (stick if default_offer else 0.0) + (0.03 if r["date"] in offer_windows else 0.0)
             ranked.append((s, d, r))
         ranked.sort(key=lambda x: (-x[0], x[1]))
         k = max(0, min(hi, max(lo, round(len(sales_rows) / 2)), len(sales_rows) - 2, len(ranked)))
@@ -1033,7 +1005,7 @@ class Planner:
                 win = [m["name"] for m in self.moments if m["offer"] and r["date"] in m["dates"]]
                 r["strategy"]["why"].append(f"Offer placed in {week_of_month(d)} of the month"
                                             + (f" ({', '.join(win)})" if win else "")
-                                            + f"; offer-week draw {week_draws[sc.monday_of(d)].b('offer_week', week_of_month(d)):+.2f}")
+                                            + f"; offer-week win-rate draw {week_draws[sc.monday_of(d)].informed('offer_week', week_of_month(d)):.2f}")
                 continue
             r.update({"pillar": "collective_collabs", "goal": "community", "template": "class_spotlight", "sales": False,
                       "post": "Collab reel"})
@@ -1097,7 +1069,7 @@ class Planner:
             if not over or not under:
                 return
             src = max(over, key=lambda p: share[p] - target[p])
-            pillar_mean = {p: self.fits["B"].get("pillar", p)[0] for p in under}
+            pillar_mean = {p: arm(self.fits, self.pb, "pillar", p)["mean"] - 0.5 for p in under}
             dst = max(under, key=lambda p: (target[p] - share[p]) + lam * pillar_mean[p])
             seen: dict[str, int] = {}
             extras = []
@@ -1116,9 +1088,10 @@ class Planner:
 
     def type_score(self, dr: Draws, row: dict, t: str, lam: float, stick: float) -> float:
         wd = row["weekday"]
-        return lam * (dr.a("post_type", t) + dr.a("type_weekday", f"{t}|{wd}")) + (stick if t == default_type(row) else 0.0)
+        return lam * (dr.informed("format", t) + dr.informed("format_day", f"{t}|{wd}")) + (stick if t == default_type(row) else 0.0)
 
     def assign_types(self, rows: list[dict], week_draws: dict, lam: float, stick: float) -> None:
+        """Format by goal (R6 test order 3): Thompson draws on the format arms (pooled wins vs the feed median)."""
         mix = self.pol["feed_mix"]
         for wk, dr in sorted(week_draws.items()):
             feed = [r for r in rows if r["strategy"]["week"] == wk.isoformat() and r["kind"] in ("reel", "carousel", "image")]
@@ -1148,63 +1121,87 @@ class Planner:
                 trial = dict(current)
                 trial[id(r)] = t
                 vals = list(trial.values())
-                nonreel = sum(v != "reel" for v in vals)
-                if nonreel > max_nonreel or vals.count("carousel") > max_car or vals.count("image") > max_img or vals.count("carousel") < min_car:
+                if (sum(v != "reel" for v in vals) > max_nonreel or vals.count("carousel") > max_car
+                        or vals.count("image") > max_img or vals.count("carousel") < min_car):
                     continue
                 current = trial
                 changed.add(id(r))
                 old = default_type(r)
                 set_type(r, t)
+                fa = arm(self.fits, self.pb, "format", t)
                 r["strategy"]["why"].append(
-                    f"Type {old} -> {t}: NUMA's {t} posts on {r['weekday']}s draw {gain + stick:+.2f} "
-                    f"above a {old} here (pooled score vs the feed median; data-led share {lam:.0%}, needs > {stick:.2f})")
+                    f"Type {old} -> {t}: {t}s beat the feed median in {fa['mean']:.0%} of NUMA's posts (posterior), "
+                    f"{r['weekday']} draw gain {gain + stick:+.2f} > stickiness {stick:.2f} (data-led share {lam:.0%})")
+
+    def time_plan(self) -> tuple[str, list[str], str]:
+        """Blocked time-slot rotation outside the bandit (R6 section 6): (best band, rotation, reason)."""
+        ts = self.lp["time_slots"]
+        bands = self.pol["hour_bands"]["bands"]
+        default = self.pol["hour_bands"]["default"]
+        rot = [b for b in ts["rotation"] if b in bands] or [default]
+        stats = {b: decision_stats(arm(self.fits, self.pb, "band", b)["records"]) for b in bands}
+        best, why = default, f"{default.replace('_', ' ')} is the default (spec p.34) until a slot wins"
+        d = stats[default]
+        for b in rot:
+            s = stats[b]
+            if b == default or s["tries"] < ts["min_posts_each"] or d["tries"] < ts["min_posts_each"] or not d["median_index"]:
+                continue
+            ratio = s["median_index"] / d["median_index"]
+            if ratio >= float(ts["min_ratio"]) and (best == default or s["median_index"] > stats[best]["median_index"]):
+                best = b
+                why = (f"{b.replace('_', ' ')} beat {default.replace('_', ' ')} by {ratio:.2f}x over {s['tries']} and "
+                       f"{d['tries']} posts (needs {ts['min_ratio']}x over {ts['min_posts_each']} each)")
+        return best, rot, why
 
     def assign_hours(self, rows: list[dict], week_draws: dict, lam: float) -> None:
         bands = self.pol["hour_bands"]["bands"]
         default = self.pol["hour_bands"]["default"]
-        means = self.pol["prior_means"].get("hour_band", {})
+        best, rot, why = self.time_plan()
+        weeks = sorted({r["strategy"]["week"] for r in rows})
         for r in rows:
-            dr = week_draws[date.fromisoformat(r["strategy"]["week"])]
-            if r["kind"] == "stories" or lam <= 0:
-                band = default
-                r["strategy"]["why"].append(f"Hour: {band.replace('_', ' ')} ({bands[band]['post_at']} Central), the default"
-                                            + (" for Stories" if r["kind"] == "stories" else " until NUMA's own data leads"))
+            w = weeks.index(r["strategy"]["week"])
+            if r["kind"] == "stories":
+                band, note = default, "the Stories default"
+            elif best == default:
+                band = rot[w % len(rot)]
+                note = f"blocked rotation week {w + 1} ({' / '.join(x.replace('_', ' ') for x in rot)}); {why}"
             else:
-                sc_b = {b: float(means.get(b, 0.0)) + lam * (dr.b("hour_band", b) - float(means.get(b, 0.0))) for b in sorted(bands)}
-                band = max(sorted(sc_b), key=lambda b: (sc_b[b], b == default))
-                r["strategy"]["why"].append(f"Hour: {band.replace('_', ' ')} ({bands[band]['post_at']} Central) scored {sc_b[band]:+.2f} "
-                                            f"vs {sc_b.get(default, 0):+.2f} for {default.replace('_', ' ')} (data-led share {lam:.0%})")
+                band = best if (w % 4 != 3 or len(rot) < 2) else next(b for b in rot if b != best)
+                note = why + ("" if band == best else "; one week in four keeps rotating to watch the others")
             r["hour_band"] = band
             r["post_time"] = bands[band]["post_at"]
+            r["strategy"]["why"].append(f"Hour: {band.replace('_', ' ')} ({bands[band]['post_at']} Central): {note}")
 
     # -- patterns ----------------------------------------------------------
     def pattern_slots(self, plan: dict) -> None:
         import numpy as np
         rng = np.random.default_rng(self.seed + 7919)
         rows = plan["rows"]
-        budget = float(self.lp["exploration_budget"])
-        infl = float(self.lp["explore_variance_inflation"])
-        cap = float(self.lp["max_pattern_share_week"])
-        hooky = [r for r in rows if r["kind"] in ("reel", "trial_reel", "carousel", "image")]
-        n_explore = int(round(budget * len(hooky)))
-        explore: list[dict] = [r for r in hooky if r["kind"] == "trial_reel"][:n_explore]
-        others = [r for r in hooky if r not in explore and not (r.get("sales") or r.get("event_role") or r.get("signature") or r.get("collab"))]
-        order = list(rng.permutation(len(others))) if others else []
-        for i in order:
-            if len(explore) >= n_explore:
-                break
-            explore.append(others[int(i)])
-        explore_ids = {id(r) for r in explore}
-        diag_bonus = self.diagnosis_bonus()
-        used_week: dict[str, dict[str, int]] = {}
-        week_n: dict[str, int] = {}
-        for r in hooky:
-            week_n[r["strategy"]["week"]] = week_n.get(r["strategy"]["week"], 0) + 1
+        feed = [r for r in rows if r["kind"] in ("reel", "carousel", "image")]
+        n_explore = int(round(float(self.lp["explore_share"]) * len(feed)))
+        protected = [r for r in feed if not (r.get("sales") or r.get("event_role") or r.get("signature") or r.get("collab"))]
+        order = [v for v in self.lp["test_order"] if v in ("hook", "structure", "cta")] or ["hook"]
+        cycle = [order[0], order[1 % len(order)], order[0], order[2 % len(order)]]
+        tested: dict[int, str] = {}
+        for i, j in enumerate(list(rng.permutation(len(protected)))[:n_explore] if protected else []):
+            tested[id(protected[int(j)])] = cycle[i % len(cycle)]
+        for r in rows:
+            if r["kind"] == "trial_reel":
+                tested[id(r)] = "hook"        # Trial Reels test hooks, on top of the explore share (trial-only pool)
+        cap = float(self.lp["max_pattern_share_month"])
+        hook_rows = [r for r in rows if r["kind"] in ("reel", "trial_reel", "carousel", "image")]
+        limit = max(1, int(math.floor(cap * len(hook_rows) + 1e-9)))
+        used: dict[str, int] = {}
+        week_used: dict[tuple[str, str], int] = {}
+        diag = self.diagnosis_bonus()
         draws = plan["_draws"]
         for r in rows:
-            mode = "explore" if id(r) in explore_ids else ("rule" if (r.get("event_role") or r.get("signature") or r.get("sales")
-                                                                      or r["kind"] == "stories") else "exploit")
+            var = tested.get(id(r))
+            rule = bool(r.get("event_role") or r.get("signature") or r.get("sales") or r["kind"] == "stories")
+            mode = "explore" if var else ("rule" if rule else "exploit")
             r["strategy"]["mode"] = mode
+            if var:
+                r["strategy"]["tests"] = var
             wk = r["strategy"]["week"]
             dr = draws[date.fromisoformat(wk)]
             ptype = KIND_FOR_ROW[r["kind"]]
@@ -1212,39 +1209,32 @@ class Planner:
             r["strategy"]["goal"] = goal
             chosen: list[str] = []
             if ptype != "story":
-                limit = max(1, int(math.floor(cap * week_n.get(wk, 1) + 1e-9)))
-                hook = self.pick(r, dr, "hook", ptype, goal, mode, infl, diag_bonus, used_week.setdefault(wk, {}), limit)
+                hook = self.pick(r, dr, "hook", ptype, goal, var == "hook", diag, used, limit, week_used)
                 if hook:
-                    used_week[wk][hook] = used_week[wk].get(hook, 0) + 1
+                    used[hook] = used.get(hook, 0) + 1
+                    week_used[(wk, hook)] = week_used.get((wk, hook), 0) + 1
                     chosen.append(hook)
-                st = self.pick_structure(r, dr, ptype, goal, mode, infl, diag_bonus)
+                st = self.pick_structure(r, dr, ptype, goal, var == "structure", diag)
                 if st:
                     chosen.append(st)
                     tmpl = self.pb["patterns"][st].get("templates") or []
                     if r["kind"] in ("reel", "trial_reel") and tmpl and not (r.get("event_role") or r.get("signature") or r.get("sales")):
                         r["template"] = tmpl[0]
-                kind = "offer" if r.get("sales") else "cta"
-                extra = self.pick(r, dr, kind, ptype, goal, mode, infl, diag_bonus, {}, 99)
+                extra = self.pick(r, dr, "offer" if r.get("sales") else "cta", ptype, goal, var == "cta", diag, {}, 99, {})
                 if extra:
                     chosen.append(extra)
             r["pattern_ids"] = chosen
             r["strategy"]["hook"] = next((x for x in chosen if self.pb["patterns"][x]["kind"] == "hook"), None)
             r["strategy"]["structure"] = next((x for x in chosen if self.pb["patterns"][x]["kind"] in STRUCTURE_KINDS), None)
             d = date.fromisoformat(r["date"])
-            arm = {"type": ptype, "pillar": r.get("pillar"), "series": r.get("series"), "day": r["weekday"],
-                   "band": r.get("hour_band"), "hook": r["strategy"]["hook"], "structure": r["strategy"]["structure"],
-                   "offer_week": week_of_month(d) if r.get("sales") or r.get("event_role") == "teaser" else None,
-                   "goal": goal, "mode": mode, "plan": plan["month"]}
-            r["strategy_arm"] = format_arm(arm)
-            moms = [m["id"] for m in self.moments if r["date"] in m["dates"] and (m["group"] != "monthly")]
+            arm_tag = {"type": ptype, "pillar": r.get("pillar"), "series": r.get("series"), "day": r["weekday"],
+                       "band": r.get("hour_band"), "hook": r["strategy"]["hook"], "structure": r["strategy"]["structure"],
+                       "offer_week": week_of_month(d) if r.get("sales") or r.get("event_role") == "teaser" else None,
+                       "goal": goal, "mode": mode, "plan": plan["month"]}
+            r["strategy_arm"] = format_arm(arm_tag)
+            moms = [m["id"] for m in self.moments if r["date"] in m["dates"] and m["group"] != "monthly"]
             if moms:
                 r["moments"] = moms
-
-    def pkey(self, pid: str, ptype: str) -> str:
-        return hook_key(pid, ptype) if self.pb["patterns"][pid]["kind"] == "hook" else pid
-
-    def pstat(self, pid: str, ptype: str) -> dict:
-        return self.fits["patterns"].get(self.pkey(pid, ptype)) or {}
 
     def row_goal(self, r: dict) -> str:
         if r.get("sales") or r.get("event_role") == "teaser" or r.get("goal") == "offer":
@@ -1260,95 +1250,114 @@ class Planner:
             key = dg.get("series") or dg["post_type"]
             for row in dg["rows"]:
                 for pid in row.get("try_patterns", []):
-                    out[(key, pid)] = 0.15
+                    out[(key, pid)] = 0.08
         return out
 
-    def eligible(self, kind_set: tuple[str, ...], ptype: str, mode: str) -> list[dict]:
+    def pattern_arm(self, pid: str, ptype: str) -> tuple[str, str]:
+        kind = self.pb["patterns"][pid]["kind"]
+        pre = "trial:" if ptype == "trial_reel" else ""
+        if kind == "hook":
+            return "hook", pre + hook_key(pid, ptype)
+        if kind in STRUCTURE_KINDS:
+            return "structure", pre + pid
+        return "pattern", pre + pid
+
+    def pstat(self, pid: str, ptype: str) -> dict:
+        a = arm(self.fits, self.pb, *self.pattern_arm(pid, ptype))
+        return {**a, **decision_stats(a["records"])}
+
+    def candidates(self, kinds: tuple[str, ...], ptype: str, r: dict) -> list[dict]:
         fmt = {ptype, "reel"} if ptype == "trial_reel" else {ptype}
-        pats = [p for p in self.pb["patterns"].values() if p["kind"] in kind_set and p["status"] != "retired"
+        pats = [p for p in self.pb["patterns"].values() if p["kind"] in kinds and p["status"] != "retired"
                 and fmt & set(p["formats"])]
-        want = ("testing", "candidate") if mode == "explore" else ("proven", "testing")
-        pick = [p for p in pats if p["status"] in want]
-        if mode != "explore":
-            # exploit what NUMA has data on; untried patterns wait for exploration slots (cold start: all untried)
-            tried = [p for p in pick if p["status"] == "proven" or self.pstat(p["id"], ptype).get("n", 0) > 0]
-            if len(tried) >= 2:
-                pick = tried
-        return sorted(pick or pats, key=lambda p: p["id"])
+        fit = [p for p in pats if not p.get("pillars") or r.get("pillar") in p["pillars"]]
+        return sorted(fit or pats, key=lambda p: p["id"])
 
     def fit_bonus(self, p: dict, r: dict, goal: str, diag: dict) -> float:
         b = 0.0
-        if p.get("pillars") and r.get("pillar") not in p["pillars"]:
-            b -= 0.25
         if p.get("series") and r.get("series") in p["series"]:
-            b += 0.15
+            b += 0.08
         if goal not in p["goals"]:
-            b -= 0.05
+            b -= 0.04
         for m in self.moments:
             if r["date"] in m["dates"] and p["id"] in m.get("hooks", []):
-                b += 0.05
+                b += 0.04
         if r.get("event_role") == "teaser" and p["id"] in self.pb["calendar"]["events"].get("teaser_hooks", []):
             b += 0.3
         b += diag.get((r.get("series") or KIND_FOR_ROW[r["kind"]], p["id"]), 0.0)
-        if self.pstat(p["id"], KIND_FOR_ROW[r["kind"]]).get("n", 0) == 0 and p.get("priority"):
-            b += 0.2 * max(0, 6 - int(p["priority"])) / 5.0   # test-first rank while a pattern has no NUMA data
+        if not self.pstat(p["id"], KIND_FOR_ROW[r["kind"]])["records"] and p.get("priority"):
+            b += 0.05 * max(0, 6 - int(p["priority"])) / 5.0   # test-first rank while NUMA has no data on it
         return b
 
-    def pick(self, r: dict, dr: Draws, kind: str, ptype: str, goal: str, mode: str, infl: float, diag: dict,
-             used: dict, limit: int) -> str | None:
-        pats = self.eligible((kind,), ptype, mode)
+    def choose(self, r: dict, dr: Draws, pats: list[dict], ptype: str, goal: str, explore: bool, diag: dict,
+               penalty: dict[str, float]) -> tuple[str, str] | None:
+        """Exploit: the best posterior mean among proven arms (else tried, else all). Explore: Thompson over 3-5 arms."""
         if not pats:
             return None
-        inflate = infl if mode == "explore" else float(self.lp["exploit_variance_scale"])
-        scored = []
-        for p in pats:
-            if used.get(p["id"], 0) >= limit:
-                continue
-            s = dr.pattern(self.pkey(p["id"], ptype), inflate) + self.fit_bonus(p, r, goal, diag)
-            if mode == "explore":
-                n = self.pstat(p["id"], ptype).get("n", 0)
-                s += 0.3 / (1 + n)   # explore slots try what NUMA has least data on first
-            scored.append((s, p["id"]))
-        if not scored:
-            return None
+        if explore:
+            pool = [p for p in pats if p["status"] != "proven"] or pats
+            lo, hi = self.lp["arms_per_variable"]
+            ranked = sorted(pool, key=lambda p: (-(self.pstat(p["id"], ptype)["mean"] + self.fit_bonus(p, r, goal, diag)), p["id"]))
+            pool = ranked[:max(int(lo), int(hi))]
+            scored = []
+            for p in pool:
+                st = self.pstat(p["id"], ptype)
+                s = dr.beta(*self.pattern_arm(p["id"], ptype)) + self.fit_bonus(p, r, goal, diag) - penalty.get(p["id"], 0.0)
+                s += 0.1 / (1 + st["tries"] + len(st["records"]))   # explore what NUMA has least data on
+                scored.append((s, p["id"]))
+            mode = f"explore: Thompson draw over {len(pool)} arms"
+        else:
+            proven = [p for p in pats if p["status"] == "proven"]
+            tried = [p for p in pats if self.pstat(p["id"], ptype)["records"]]
+            pool = proven or (tried if len(tried) >= 2 else pats)
+            scored = [(self.pstat(p["id"], ptype)["mean"] + self.fit_bonus(p, r, goal, diag) - penalty.get(p["id"], 0.0), p["id"])
+                      for p in pool]
+            mode = "exploit: best posterior " + ("among proven patterns" if proven else "so far")
         scored.sort(key=lambda x: (-x[0], x[1]))
-        best = scored[0][1]
-        st = self.pstat(best, ptype)
-        r["strategy"]["why"].append(
-            f"{kind.capitalize()}: {best} ({self.pb['patterns'][best]['status']}, {st.get('n', 0)} NUMA posts, "
-            f"{pct(st.get('mean', 0.0))} than median so far; {mode})")
+        return scored[0][1], mode
+
+    def describe(self, pid: str, ptype: str) -> str:
+        st = self.pstat(pid, ptype)
+        mi = f", median {st['median_index']:.2f}x" if st["median_index"] else ""
+        return (f"{pid} ({self.pb['patterns'][pid]['status']}, {st['tries']} final tries, {st['wins']} wins{mi}; "
+                f"P(beats median) {st['mean']:.0%})")
+
+    def pick(self, r: dict, dr: Draws, kind: str, ptype: str, goal: str, explore: bool, diag: dict,
+             used: dict, limit: int, week_used: dict) -> str | None:
+        pats = [p for p in self.candidates((kind,), ptype, r) if used.get(p["id"], 0) < limit]
+        penalty = {p["id"]: 0.05 * week_used.get((r["strategy"]["week"], p["id"]), 0) for p in pats}   # keep exploit varied
+        got = self.choose(r, dr, pats, ptype, goal, explore, diag, penalty)
+        if not got:
+            return None
+        best, how = got
+        r["strategy"]["why"].append(f"{kind.capitalize()}: {self.describe(best, ptype)}; {how}")
         return best
 
-    def pick_structure(self, r: dict, dr: Draws, ptype: str, goal: str, mode: str, infl: float, diag: dict) -> str | None:
+    def pick_structure(self, r: dict, dr: Draws, ptype: str, goal: str, explore: bool, diag: dict) -> str | None:
         fixed = None
         if r.get("event_role") == "teaser":
             fixed = self.pb["calendar"]["events"].get("teaser_structure")
         elif r.get("event_role") == "recap":
             fixed = self.pb["calendar"]["events"].get("recap_structure")
         elif r.get("signature"):
-            fixed = "struct-transformation"
+            fixed = self.pb["calendar"]["events"].get("signature_structure")
         elif r.get("sales"):
-            fixed = {"reel": "struct-offer-promo", "carousel": "carousel-first-visit", "image": "struct-offer-promo"}.get(ptype)
+            fixed = (self.pb["calendar"]["events"].get("offer_structures") or {}).get(ptype)
         if fixed and fixed in self.pb["patterns"] and self.pb["patterns"][fixed]["status"] != "retired":
             r["strategy"]["why"].append(f"Structure: {fixed} (rule: {r.get('event_role') or ('signature' if r.get('signature') else 'sales')} slot)")
             return fixed
         kinds = {"reel": ("structure",), "trial_reel": ("structure",), "carousel": ("carousel",), "image": ("photo",)}[ptype]
-        pats = [p for p in self.eligible(kinds, ptype, mode) if p["id"] != "struct-transformation"
-                and not (p["id"].startswith("struct-event") or p["id"] == "struct-offer-promo")]
+        reserved = set((self.pb["calendar"]["events"].get("offer_structures") or {}).values()) | {
+            self.pb["calendar"]["events"].get(k) for k in ("teaser_structure", "recap_structure", "signature_structure")}
+        pats = [p for p in self.candidates(kinds, ptype, r) if p["id"] not in reserved]
         if r.get("series"):
             ser = [p for p in pats if r["series"] in (p.get("series") or [])]
             pats = ser or [p for p in pats if not p.get("series")] or pats
-        if r.get("pillar"):
-            pil = [p for p in pats if not p.get("pillars") or r["pillar"] in p["pillars"]]
-            pats = pil or pats
-        if not pats:
+        got = self.choose(r, dr, pats, ptype, goal, explore, diag, {})
+        if not got:
             return None
-        inflate = infl if mode == "explore" else float(self.lp["exploit_variance_scale"])
-        scored = sorted(((dr.pattern(p["id"], inflate) + self.fit_bonus(p, r, goal, diag), p["id"]) for p in pats),
-                        key=lambda x: (-x[0], x[1]))
-        best = scored[0][1]
-        st = self.pstat(best, ptype)
-        r["strategy"]["why"].append(f"Structure: {best} ({self.pb['patterns'][best]['status']}, {st.get('n', 0)} NUMA posts; {mode})")
+        best, how = got
+        r["strategy"]["why"].append(f"Structure: {self.describe(best, ptype)}; {how}")
         return best
 
 
@@ -1356,8 +1365,7 @@ def month_plan(pb: dict, fits: dict, month_text: str, seed: int | None, events: 
                posts: list[dict], diagnoses: list[dict]) -> tuple[dict, list[dict]]:
     year, month = sc.parse_month(month_text)
     seed = int(seed) if seed is not None else year * 100 + month
-    base = {"closures": [], "rows": []}
-    closures = sc.closure_dates(base, closures_file)
+    closures = closure_dates(closures_file)
     planner = Planner(pb, fits, year, month, seed, events, closures, posts, diagnoses)
     lam = fits["lambda"]
     tried = []
@@ -1383,9 +1391,10 @@ def month_plan(pb: dict, fits: dict, month_text: str, seed: int | None, events: 
         "seed": seed, "data_led_share": round(lam, 4), "data_led_share_used": round(tried[-1], 4),
         "judged_posts": fits["judged"], "final_posts": fits["final"], "provisional_posts": fits["provisional"],
         "rules_overrode_bandit": overridden,
-        "formula": "data-led share = min(1, judged posts / policies.learning.data_led_after_posts); "
-                   "a slot moves when share x (Thompson draw difference) > stickiness",
-        "exploration_budget": planner.lp["exploration_budget"],
+        "formula": "data-led share = min(1, judged posts / policies.learning.data_led_after_posts); a feed slot changes "
+                   "format when share x (Beta win-rate draw difference) > stickiness; patterns are Thompson-sampled from day one",
+        "explore_share": planner.lp["explore_share"],
+        "time_slot": planner.time_plan()[2],
         "explore_slots": sum(r.get("strategy", {}).get("mode") == "explore" for r in plan["rows"]),
         "pattern_slots": sum(bool(r.get("pattern_ids")) for r in plan["rows"]),
         "moments": planner.moments,
@@ -1401,39 +1410,52 @@ def month_plan(pb: dict, fits: dict, month_text: str, seed: int | None, events: 
 # ---------------------------------------------------------------------------
 # diagnosis
 # ---------------------------------------------------------------------------
+DIAG_VALUE = {
+    "views": lambda v: v.get("raw_views"), "reach": lambda v: v.get("reach"), "likes": lambda v: v.get("raw_likes"),
+    "comments": lambda v: v.get("raw_comments"), "saves": lambda v: v.get("raw_saves"), "shares": lambda v: v.get("raw_shares"),
+    "avg_watch_time_s": lambda v: v["raw_avg_watch_time_ms"] / 1000.0 if "raw_avg_watch_time_ms" in v else None,
+    "skip_rate": lambda v: v.get("raw_skip_rate"), "retention": lambda v: v.get("watch_through"),
+    "sends_per_1k_reach": lambda v: v["sends"] * 1000.0 if "sends" in v else None,
+    "saves_per_1k_reach": lambda v: v["saves"] * 1000.0 if "saves" in v else None,
+    "profile_visits": lambda v: v.get("profile_visits"), "follows": lambda v: v.get("follows"),
+    "link_clicks": lambda v: v.get("link_clicks"),
+}
+
+
 def diagnose_post(p: dict, pb: dict, judged: list[dict]) -> list[dict]:
-    pol = pb["policies"]["scoring"]
-    pool = baseline_pool(p, judged, int(pol["baseline"]["window_days"]), int(pol["baseline"]["min_posts"]), same_type=True)
-    vals = dict(p["values"])
-    if isinstance(p.get("length"), (int, float)):
-        vals["length"] = float(p["length"])
-    if p["score"] is not None:
-        vals["score"] = p["score"]
-    if "skip_rate" in vals:
-        med = median_of([q for q in pool if q["post_type"] in ("reel", "trial_reel")], "skip_rate", p["pull"])
-        if med is not None:
-            vals["skip_rate_vs_median"] = vals["skip_rate"] - med
-    key_of = {"sends_per_1k_reach": "sends_per_1k_reach", "saves_per_1k_reach": "saves_per_1k_reach", "views": "views_or_reach"}
+    """Diagnosis rows whose conditions all hold, against NUMA's same-format trailing median (R3 table)."""
+    pool = baseline(p, judged, pb["policies"], pooled=False) or [q for q in judged if q["post_type"] == p["post_type"] and q is not p]
+
+    def value(q: dict, m: str) -> float | None:
+        if m == "length":
+            return float(q["length"]) if isinstance(q.get("length"), (int, float)) else None
+        if m == "score":
+            return q.get("score")
+        if m == "skip_rate_vs_median":
+            own = q["values"].get("raw_skip_rate")
+            meds = [x["values"].get("raw_skip_rate") for x in pool if x["values"].get("raw_skip_rate") is not None]
+            return own - statistics.median(meds) if own is not None and meds else None
+        f = DIAG_VALUE.get(m)
+        return f(q["values"]) if f else None
+
     out = []
     for row in pb["diagnosis"]:
-        if p["post_type"] not in row["post_types"]:
-            continue
-        if row.get("sales_only") and not p["sales"]:
+        if p["post_type"] not in row["post_types"] or (row.get("sales_only") and not p["sales"]):
             continue
         ok = True
         for c in row["when"]:
-            m = c["metric"]
-            v = vals.get(key_of.get(m, m), vals.get(m))
+            v = value(p, c["metric"])
             if v is None:
                 ok = False
                 break
             if c["ref"] == "value":
                 ref = c["x"]
             else:
-                med = median_of(pool, key_of.get(m, m), p["pull"])
-                if med is None:
+                vals = [x for x in (value(q, c["metric"]) for q in pool) if x is not None]
+                if not vals:
                     ok = False
                     break
+                med = statistics.median(vals)
                 ref = med * c["x"] if c["ref"] == "median_ratio" else med + c["x"]
             if not ((v < ref) if c["op"] == "<" else (v > ref)):
                 ok = False
@@ -1445,11 +1467,11 @@ def diagnose_post(p: dict, pb: dict, judged: list[dict]) -> list[dict]:
 
 
 def recent_diagnoses(posts: list[dict], pb: dict) -> list[dict]:
-    """The latest judged post per series (or post type) that underperformed, with its matching diagnosis rows."""
-    thr = float(pb["policies"]["learning"]["underperform_score"])
+    """The latest judged post per series (or post type) whose S is below log2(underperform_index), with its diagnosis rows."""
+    thr = math.log2(float(pb["policies"]["learning"]["underperform_index"]))
     judged = [p for p in posts if p["status"] in ("provisional", "final")]
     latest: dict[str, dict] = {}
-    for p in sorted(judged, key=lambda q: (q["posted"] or datetime.min, q["id"])):
+    for p in judged:
         latest[p["series"] or p["post_type"]] = p
     out = []
     for key in sorted(latest):
@@ -1458,85 +1480,148 @@ def recent_diagnoses(posts: list[dict], pb: dict) -> list[dict]:
             rows = diagnose_post(p, pb, judged)
             if rows:
                 out.append({"post": p["id"], "title": p["title"], "post_type": p["post_type"], "series": p["series"],
-                            "score": p["score"], "rows": rows})
+                            "score": p["score"], "index": round(2 ** p["score"], 3), "rows": rows})
     return out
 
 
 # ---------------------------------------------------------------------------
-# learn
+# learn (R6 section 5 decision rules)
 # ---------------------------------------------------------------------------
-DIM_LABEL = {"post_type": "{v} posts", "type_weekday": "{a}s on {b}s", "weekday": "posting on {v}s",
-             "hour_band": "posting in the {v}", "pillar": "{v} content", "series": "the {v} series",
-             "offer_week": "offers in week {v} of the month", "hook": "the {v} hook", "structure": "the {v} structure"}
+VAR_LABEL = {"format": "{v} posts", "format_day": "{a}s on {b}s", "weekday": "posting on {v}s", "band": "posting in the {v}",
+             "pillar": "{v} content", "series": "the {v} series", "offer_week": "offers in week {v} of the month"}
 
 
-def level_text(dim: str, level: str) -> str:
-    if dim == "type_weekday":
+def level_text(var: str, level: str) -> str:
+    if var == "format_day":
         a, b = level.split("|")
-        return DIM_LABEL[dim].format(a=a.replace("_", " "), b=b)
-    v = level.replace("_", " ")
-    if dim == "offer_week":
-        v = level.lstrip("w")
-    return DIM_LABEL[dim].format(v=v)
+        return VAR_LABEL[var].format(a=a.replace("_", " "), b=b)
+    v = level.lstrip("w") if var == "offer_week" else level.replace("_", " ")
+    return VAR_LABEL[var].format(v=v)
 
 
 def insights(fits: dict, pb: dict) -> tuple[list[str], list[str]]:
-    th = pb["policies"]["learning"]["insight"]
+    """'Do more of / Do less of' lines: arms with enough final tries and a clear win rate and median index."""
+    ins = pb["policies"]["learning"].get("insight") or {"min_tries": 4, "min_win_rate": 0.65, "max_win_rate": 0.35}
+    up = float(pb["policies"]["learning"]["promote"]["min_median_index"])
+    down = float(pb["policies"]["learning"]["retire"]["max_median_index"])
     more, less = [], []
-    for model, dims in (("A", DIMS_A), ("B", DIMS_B)):
-        for dim in dims:
-            if dim in ("hook", "structure"):
-                continue
-            for level, (mean, var, w) in sorted(fits[model].post[dim].items()):
-                if w < th["min_n"] or level is None:
-                    continue
-                sd = math.sqrt(var)
-                pb_ = phi(mean / sd) if sd > 0 else 0.5
-                base = "the feed median" if model == "A" else "NUMA's median"
-                if mean >= th["min_effect"] and pb_ >= th["min_prob"]:
-                    more.append(f"{level_text(dim, level).capitalize()}: about {pct(mean)} than {base} over {w:.0f} weighted posts.")
-                elif mean <= -th["min_effect"] and 1 - pb_ >= th["min_prob"]:
-                    less.append(f"{level_text(dim, level).capitalize()}: about {pct(mean)} than {base} over {w:.0f} weighted posts.")
-    for pid, st in sorted(fits["patterns"].items()):
-        if st["n"] < th["min_n"]:
+    for (var, level), a in sorted(fits["arms"].items()):
+        st = decision_stats(a["records"])
+        if st["tries"] < ins["min_tries"] or not st["median_index"]:
             continue
-        name = pb["patterns"][pid.split("@")[0]]["name"] + (" on carousels and images" if pid.endswith(STATIC_SUFFIX) else "")
-        if st["mean"] >= th["min_effect"] and st["prob_better"] >= th["min_prob"]:
-            more.append(f"{name} ({pid}): about {pct(st['mean'])} than NUMA's median over {st['n']} posts.")
-        elif st["mean"] <= -th["min_effect"] and 1 - st["prob_better"] >= th["min_prob"]:
-            less.append(f"{name} ({pid}): about {pct(st['mean'])} than NUMA's median over {st['n']} posts.")
+        rate = st["wins"] / st["tries"]
+        if var in VAR_LABEL:
+            label = level_text(var, level).capitalize()
+            base = "the feed median" if var in ("format", "format_day") else "NUMA's median"
+        else:
+            pid = level.split(":")[-1].split("@")[0]
+            if pid not in pb["patterns"]:
+                continue
+            label = pb["patterns"][pid]["name"] + (" (Trial Reels)" if level.startswith("trial:") else "") + \
+                (" on carousels and images" if level.endswith(STATIC_SUFFIX) else "") + f" ({pid})"
+            base = "NUMA's median"
+        line = f"{label}: beat {base} in {st['wins']} of {st['tries']} posts, median {st['median_index']:.2f}x."
+        if rate >= ins["min_win_rate"] and st["median_index"] >= up:
+            more.append(line)
+        elif rate <= ins["max_win_rate"] and st["median_index"] <= down:
+            less.append(line)
+    collab = [p for p in fits["cohorts"].get("collab", []) if p["score"] is not None and p["status"] == "final"]
+    if len(collab) >= ins["min_tries"]:
+        wins = sum(bool(p["win"]) for p in collab)
+        line = f"Collab posts (their own cohort): beat the collab median in {wins} of {len(collab)}."
+        (more if wins / len(collab) >= ins["min_win_rate"] else less if wins / len(collab) <= ins["max_win_rate"] else []).append(line)
     return more, less
+
+
+def months_after(d: date, months: float) -> date:
+    m = d.month - 1 + int(months)
+    y = d.year + m // 12
+    m = m % 12 + 1
+    return date(y, m, min(d.day, calendar.monthrange(y, m)[1])) + timedelta(days=int(round((months % 1) * 30)))
+
+
+def decide(p: dict, a: dict, lp: dict) -> tuple[str | None, str | None, dict]:
+    """(new status, reason, stats) for one pattern's main-pool arm, per R6 section 5."""
+    cur = p["status"]
+    st = decision_stats(a["records"])
+    no_jan = decision_stats(a["records"], january=False)
+    pro, fast, ret, dem = lp["promote"], lp["fast_track"], lp["retire"], lp["demote"]
+    name = p["name"]
+
+    def promotes(s: dict) -> str | None:
+        if s["tries"] >= pro["min_tries"] and s["wins"] >= pro["min_wins"] and (s["median_index"] or 0) >= pro["min_median_index"]:
+            return (f"{name} beat NUMA's median in {s['wins']} of {s['tries']} posts with a median of {s['median_index']:.2f}x "
+                    f"(promote at {pro['min_wins']:g} of {pro['min_tries']:g} and {pro['min_median_index']}x); promoted to the exploit slots.")
+        first = s["records"][:int(fast["first"])]
+        if len(first) >= fast["first"]:
+            w = sum(r["win"] for r in first)
+            mi = 2 ** statistics.median(r["S"] for r in first)
+            if w >= fast["min_wins"] and mi >= fast["min_median_index"]:
+                return (f"{name} won {w} of its first {len(first)} posts with a median of {mi:.2f}x (fast track); "
+                        f"promoted, re-checked at 10 tries.")
+        return None
+
+    if cur in ("candidate", "testing"):
+        why = promotes(no_jan)
+        if why:
+            return "proven", why, st
+        if promotes(st):
+            return None, (f"{name} would be promoted, but some wins are from January; it must win again in "
+                          f"February-March first (R6: January wins are provisional)."), st
+    if cur in ("candidate", "testing", "proven") and st["median_index"] is not None and st["median_index"] <= ret["max_median_index"]:
+        for rule in ret["rules"]:
+            if st["tries"] >= rule["min_tries"] and st["wins"] <= rule["max_wins"]:
+                return "retired", (f"{name} beat NUMA's median in only {st['wins']} of {st['tries']} posts, median "
+                                   f"{st['median_index']:.2f}x; retired for {lp['retired_months']:g} months."), st
+    if cur == "proven" and st["tries"] >= dem["last"]:
+        last = st["records"][-int(dem["last"]):]
+        w = sum(r["win"] for r in last)
+        mi = 2 ** statistics.median(r["S"] for r in last)
+        if w <= dem["max_wins"] or mi < dem["min_median_index"]:
+            return "testing", (f"{name} won {w} of its last {len(last)} posts (median {mi:.2f}x); back to testing "
+                               f"(fatigue check)."), st
+    if cur == "candidate" and a["records"]:
+        return "testing", f"{name} was used for the first time; now testing.", st
+    return None, None, st
 
 
 def learn(pb: dict, fits: dict, today: date) -> tuple[dict, list[dict]]:
     st = copy.deepcopy(pb["state"])
     lp = pb["policies"]["learning"]
-    pro, ret, dem = lp["promote"], lp["retire"], lp["demote"]
     changes: list[dict] = []
     for pid in sorted(pb["patterns"]):
         p = pb["patterns"][pid]
-        s = fits["patterns"].get(status_key(pb, pid))
-        if not s or s["n"] == 0:
+        ov = st["status_overrides"].get(pid) or {}
+        if p["status"] == "retired" and ov.get("status") == "retired" and not ov.get("reentered"):
+            since = date.fromisoformat(ov["since"])
+            if today >= months_after(since, float(lp["retired_months"])):
+                why = f"{p['name']} was retired on {ov['since']}; after {lp['retired_months']:g} months it re-enters testing once."
+                st["status_overrides"][pid] = {"status": "testing", "since": today.isoformat(), "why": why, "reentered": True}
+                changes.append({"date": today.isoformat(), "action": "reenter", "target": pid, "from": "retired", "to": "testing", "why": why})
             continue
-        cur, new, why = p["status"], None, None
-        n, mean, prob = s["n"], s["mean"], s["prob_better"]
-        if cur in ("candidate", "testing") and n >= pro["min_n"] and mean >= pro["min_effect"] and prob >= pro["min_prob"]:
-            new, why = "proven", (f"{p['name']} beat NUMA's median by about {pct(mean).split()[0]} over {n} posts "
-                                  f"({prob:.0%} likely better); promoted, the plan now uses it in exploit slots.")
-        elif cur in ("candidate", "testing", "proven") and n >= ret["min_n"] and mean <= -ret["min_effect"] and 1 - prob >= ret["min_prob"]:
-            new, why = "retired", (f"{p['name']} trailed NUMA's median by about {pct(mean).split()[0]} over {n} posts "
-                                   f"({1 - prob:.0%} likely worse); retired, it won't be planned again.")
-        elif cur == "proven" and n >= dem["min_n"] and prob < dem["min_prob"]:
-            new, why = "testing", (f"{p['name']} no longer beats NUMA's median ({prob:.0%} likely better over {n} posts); "
-                                   f"back to testing.")
-        elif cur == "candidate":
-            new, why = "testing", f"{p['name']} was used for the first time ({n} post{'s' if n != 1 else ''}); now testing."
-        if new and new != cur:
-            st["status_overrides"][pid] = {"status": new, "since": today.isoformat(), "why": why, "n": n,
-                                           "mean": round(mean, 4), "prob_better": round(prob, 4)}
-            action = {"proven": "promote", "retired": "retire", "testing": "demote" if cur == "proven" else "start_testing"}[new]
-            changes.append({"date": today.isoformat(), "action": action, "target": pid, "from": cur, "to": new, "why": why,
-                            "n": n, "mean": round(mean, 4), "prob_better": round(prob, 4)})
+        key = status_key(pb, pid)
+        var = "hook" if p["kind"] == "hook" else ("structure" if p["kind"] in STRUCTURE_KINDS else "pattern")
+        a = fits["arms"].get((var, key))
+        if not a:
+            continue
+        new, why, s = decide(p, a, lp)
+        if why and not new:
+            if not any(c.get("target") == pid and c["action"] == "hold" and c["why"] == why for c in st.get("changelog", [])[-50:]):
+                changes.append({"date": today.isoformat(), "action": "hold", "target": pid, "from": p["status"], "to": p["status"], "why": why})
+            continue
+        if new and new != p["status"]:
+            entry = {"status": new, "since": today.isoformat(), "why": why, "tries": s["tries"], "wins": s["wins"]}
+            if s["median_index"] is not None:
+                entry["median_index"] = s["median_index"]
+            if ov.get("reentered"):
+                entry["reentered"] = True
+            st["status_overrides"][pid] = entry
+            action = {"proven": "promote", "retired": "retire", "testing": "demote" if p["status"] == "proven" else "start_testing"}[new]
+            ch = {"date": today.isoformat(), "action": action, "target": pid, "from": p["status"], "to": new, "why": why,
+                  "tries": s["tries"], "wins": s["wins"]}
+            if s["median_index"] is not None:
+                ch["median_index"] = s["median_index"]
+            changes.append(ch)
     more, less = insights(fits, pb)
     st["insights"] = {"date": today.isoformat(), "judged_posts": fits["judged"], "data_led_share": round(fits["lambda"], 4),
                       "do_more": more, "do_less": less}
@@ -1548,7 +1633,7 @@ def learn(pb: dict, fits: dict, today: date) -> tuple[dict, list[dict]]:
 def changelog_text(changes: list[dict], st: dict, fits: dict) -> str:
     lines = [f"Strategy update {st['updated']} ({fits['judged']} posts judged: {fits['final']} final, "
              f"{fits['provisional']} provisional; data-led share {fits['lambda']:.0%})"]
-    lines.append("What changed:" if changes else "What changed: nothing yet (not enough posts to move any pattern).")
+    lines.append("What changed:" if changes else "What changed: nothing yet (no pattern has enough posts to move).")
     lines += [f"- {c['why']}" for c in changes]
     lines.append("Do more of:")
     lines += [f"- {x}" for x in st["insights"]["do_more"]] or ["- (nothing clear yet)"]
@@ -1569,10 +1654,12 @@ FIELD_ALIASES = [
     (r"^id\s*,\s*name$", "id_name"), (r"^id$", "id"), (r"^(pattern\s+)?name$|^tactic$|^structure$|^template name$", "name"),
     (r"^format|^applies to", "formats"), (r"example|share/save line", "examples"),
     (r"^template|fill[- ]in|^how to do it", "template"), (r"^visual", "visual"), (r"^best use|^goal|^use for", "goal"),
+    (r"^effort|^impact", "expected"),
     (r"^evidence", "evidence"), (r"^sources?$|^links?$", "sources"), (r"^expected effect|^expected impact", "expected"),
     (r"^when not|^avoid", "when_not"), (r"try instead|if it underperforms|what to do if|^fix", "try_instead"),
-    (r"beat|outline|slide-by-slide|slides", "beats"), (r"^length", "length"), (r"^confidence", "confidence"),
-    (r"^rule$", "rule"), (r"how to (test|verify|measure)", "how_to_test"), (r"failure", "failure"),
+    (r"beat|outline|slide-by-slide|^slides", "beats"), (r"^length", "length"), (r"^confidence", "confidence"),
+    (r"^rule$", "rule"), (r"how to (test|verify|measure)|^measure", "how_to_test"), (r"failure", "failure"),
+    (r"^composition", "visual"), (r"^how for", "template"), (r"^when to use", "when_use"),
 ]
 METRIC_ALIASES = [
     (r"skip", "skip_rate"), (r"average watch|watch time|avg watch", "avg_watch_time_s"), (r"retention", "retention"),
@@ -1631,31 +1718,50 @@ def parse_tables(text: str) -> list[tuple[list[str], list[list[str]], str]]:
     return out
 
 
+ITEM_BOLD = re.compile(r"^\s*\*\*([A-Z]{1,2}\d{1,2})\s*[\u2014\u2013-]\s*(.+?)\*\*\s*$")
+ITEM_NUM = re.compile(r"^\s*(\d+)[.)]\s+\*\*(.+?)\*\*\s*(.*)$")
+
+
 def parse_blocks(text: str) -> list[dict]:
-    """Heading- or numbered-item-delimited blocks of 'Field: value' lines."""
+    """Blocks of 'Field: value' lines: each heading, '**C1 - Name**' line or '1. **Name**' item starts one.
+
+    A block keeps the last level-1/2 heading as its section, and the rows of any table inside it (beat tables).
+    """
     blocks: list[dict] = []
     cur: dict | None = None
     section = ""
     last_key = None
+    in_table = False
     for ln in text.splitlines():
         if ln.strip().startswith("|"):
+            if cur is not None:
+                cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+                if all(re.fullmatch(r":?-{2,}:?", c) for c in cells if c):
+                    continue
+                if in_table:
+                    cur.setdefault("_rows", []).append(cells)
+                else:
+                    cur["_header"] = [kebab(c).replace("-", "_") for c in cells]
+                in_table = True
             continue
-        h = re.match(r"^\s*#{1,6}\s+(.*)$", ln)
-        item = re.match(r"^\s*(\d+)[.)]\s+\*\*(.+?)\*\*\s*(.*)$", ln)
+        in_table = False
+        h = re.match(r"^\s*(#{1,6})\s+(.*)$", ln)
+        item = ITEM_BOLD.match(ln) or ITEM_NUM.match(ln)
         if h or item:
             if cur:
                 blocks.append(cur)
-            title = (h.group(1) if h else item.group(2)).strip().strip("*").strip()
-            if h and not re.search(r"[:`]|\b[a-z0-9]+-[a-z0-9]+\b", title) and len(title.split()) > 6:
-                section = title
-            cur = {"_title": title, "_section": section, "_fields": {}}
             if h:
-                section = section if len(title.split()) <= 6 and re.search(r"[a-z]+-[a-z]+", title) else title
+                title = h.group(2).strip().strip("*").strip()
+                if len(h.group(1)) <= 2:
+                    section = title
+            else:
+                title = f"{item.group(1)} \u2014 {item.group(2)}" if item.re is ITEM_BOLD else item.group(2)
+            cur = {"_title": title.strip().strip("*").strip(), "_section": section, "_fields": {}}
             last_key = None
             continue
         if cur is None:
             continue
-        m = re.match(r"^\s*[-*•]?\s*\*{0,2}([A-Za-z][\w /(),&'-]{0,48}?)\*{0,2}\s*[:—–]\s*\*{0,2}\s*(.*)$", ln)
+        m = re.match(r"^\s*[-*\u2022]?\s*\*{0,2}([A-Za-z][\w /(),&'+\u2192-]{0,48}?)\*{0,2}\s*[:\u2014\u2013]\s*\*{0,2}\s*(.*)$", ln)
         key = field_key(m.group(1)) if m else None
         if m and key:
             val = m.group(2).strip()
@@ -1664,7 +1770,7 @@ def parse_blocks(text: str) -> list[dict]:
                 cur["_fields"][key].append(val)
             last_key = key
             continue
-        sub = re.match(r"^\s{2,}[-*•]\s+(.*)$|^\s*[-*•]\s+[\"“'](.*)$", ln)
+        sub = re.match(r"^\s{2,}[-*\u2022]\s+(.*)$|^\s*[-*\u2022]\s+[\"\u201c'](.*)$", ln)
         if sub and last_key:
             cur["_fields"][last_key].append((sub.group(1) or sub.group(2) or "").strip())
     if cur:
@@ -1686,7 +1792,14 @@ def split_examples(vals: list[str]) -> list[str]:
 
 def parse_evidence(text: str, fname: str, sources: list[str]) -> dict:
     t = text.lower()
-    level = next((lv for lv in ("measured", "observed", "opinion") if lv in t), "measured" if "official" in t else "opinion")
+    words = sorted((t.find(lv), lv) for lv in ("measured", "observed", "opinion") if lv in t)
+    if words:
+        level = words[0][1]
+    else:
+        codes = [("opinion", r"\[p\]|\bpc\b|anecdot|practitioner"), ("observed", r"\[c\]|\ban\b|moderate|case stud"),
+                 ("measured", r"\[o\]|\[m\]|\bos\b|\bls\b|official|strong")]
+        present = [lv for lv, pat in codes if re.search(pat, t)]
+        level = present[0] if present else "opinion"   # the weakest evidence present: patterns sit on measured mechanics
     srcs = URL.findall(text) + [s for v in sources for s in (URL.findall(v) or [v.strip()]) if s.strip()]
     rest = URL.sub("", text).strip(" -:;,.")
     rest = re.sub(r"\b(measured|observed|opinion|official|high|medium|low)\b(\s+confidence)?", "", rest, flags=re.I)
@@ -1722,20 +1835,25 @@ def parse_goals(text: str) -> list[str]:
     return out or ["reach"]
 
 
+def research_number(fname: str) -> str | None:
+    m = re.match(r"^R(\d)\b", Path(fname).name.upper().replace("_", " ").replace("-", " "))
+    return m.group(1) if m else None
+
+
 def kind_for(fname: str, block: dict, forced: str | None) -> str | None:
     if forced:
         return forced
+    n = research_number(fname)
+    if n in ("1", "3", "5"):
+        return {"1": "hook", "3": "structure", "5": "growth"}[n]
     ctx = f"{block['_section']} {block['_title']}".lower()
-    up = Path(fname).name.upper()
     if "carousel" in ctx:
         return "carousel"
     if "photo" in ctx or "single" in ctx or "image" in ctx:
         return "photo"
-    if "offer" in ctx and "R4" in up:
+    if "offer" in ctx:
         return "offer"
-    m = re.match(r"^R(\d)\b", up.replace("_", " ").replace("-", " "))
-    n = m.group(1) if m else None
-    return {"1": "hook", "3": "structure", "4": "carousel", "5": "growth"}.get(n or "", None)
+    return "carousel" if n == "4" else None
 
 
 def metric_from_text(text: str) -> str | None:
@@ -1762,7 +1880,7 @@ class Importer:
         self.st = copy.deepcopy(pb["state"])
         self.st.setdefault("judging", {})
         self.ids = set(pb["patterns"])
-        self.names = {norm_text(p["name"]): pid for pid, p in pb["patterns"].items()}
+        self.names = {(p["kind"], norm_text(p["name"])): pid for pid, p in pb["patterns"].items()}
         self.report: dict[str, list] = {"added": [], "merged": [], "rejected": [], "rules": [], "diagnosis": [],
                                         "priors": [], "judging": []}
 
@@ -1967,24 +2085,31 @@ class Importer:
             self.add_rule(" ".join(f["rule"]), " ".join(f.get("evidence", [])), " ".join(f.get("sources", [])),
                           " ".join(f.get("confidence", [])), " ".join(f.get("how_to_test", [])), fname, b["_section"])
             return
-        if not ({"template", "examples"} & set(f)) and "id_name" not in f:
+        rows = b.get("_rows") or []
+        if not ({"template", "examples", "beats"} & set(f)) and "id_name" not in f and not rows:
             return
         kind = kind_for(fname, b, self.forced)
         if kind is None:
             self.reject(f"{fname} '{b['_title'][:40]}'", "can't tell the pattern kind (name the file R1..R5 or pass --kind)")
             return
-        pid, name = None, None
-        if "id_name" in f:
-            parts = [x.strip().strip("`*") for x in f["id_name"][0].split(",", 1)]
-            pid, name = parts[0], parts[1] if len(parts) > 1 else parts[0]
-        pid = pid or (f.get("id") or [None])[0]
-        name = name or (f.get("name") or [None])[0] or re.sub(r"^\s*[\d.)]+\s*", "", b["_title"]).strip("`* ")
-        name = re.sub(r"^(id\s*[:=]\s*)", "", name or "", flags=re.I).strip() or "Imported pattern"
-        title_id = re.search(r"`?\b([a-z0-9]+(?:-[a-z0-9]+)+)\b`?", b["_title"])
-        pid = kebab((pid or "").strip("`") or (title_id.group(1) if title_id else "") or name)
+        pid, name = self.ident(b, kind)
         if not pid:
             self.reject(f"{fname} '{b['_title'][:40]}'", "no id or name")
             return
+        hdr = b.get("_header") or []
+        if rows and "beat" in hdr:
+            col = {h: i for i, h in enumerate(hdr)}
+            said = [r[col["said"]] for r in rows if "said" in col and len(r) > col["said"]]
+            f.setdefault("examples", []).extend(x for x in said if re.search(r"[\"\u201c]", x))
+            f.setdefault("beats", []).extend(
+                f"{r[col['beat']]} ({r[col['seconds']]} s): {r[col['shown']] if 'shown' in col and len(r) > col['shown'] else ''}".strip()
+                for r in rows if len(r) > max(col.get("beat", 0), col.get("seconds", 0)))
+            if not f.get("template"):
+                f["template"] = [" -> ".join(r[col["beat"]] for r in rows if len(r) > col["beat"])]
+        if not f.get("template") and f.get("beats"):
+            f["template"] = [" -> ".join(re.split(r"\s*\u00b7\s*", " ".join(f["beats"])))]
+        if f.get("failure"):
+            f.setdefault("when_not", []).append("Failure signs and fix: " + " ".join(f["failure"]))
         where = f"{fname} pattern {pid}"
         examples = split_examples(f.get("examples", []))
         good, bad = [], []
@@ -2000,7 +2125,7 @@ class Importer:
             return
         good_ex = [ex for ex, _ in good][:6]
         ev = parse_evidence(" ".join(f.get("evidence", [])) + " " + " ".join(f.get("confidence", [])), fname, f.get("sources", []))
-        existing = pid if pid in self.ids else self.names.get(norm_text(name))
+        existing = pid if pid in self.ids else self.names.get((kind, norm_text(name)))
         if existing:
             self.merge(existing, good_ex, ev, fname)
             return
@@ -2019,7 +2144,7 @@ class Importer:
         if try_text and not tries:
             when_not += f" If it underperforms: {try_text}"
         pat: dict[str, Any] = {"id": pid, "kind": kind, "name": name[:120], "formats": fmts,
-                               "goals": parse_goals(" ".join(f.get("goal", []) + f.get("expected", []))),
+                               "goals": parse_goals(" ".join(f.get("goal", []))),
                                "template": template[:600], "examples": good_ex, "evidence": ev, "status": "candidate",
                                "when_not": when_not[:600], "try_instead": tries, "origin": "research", "added": self.today.isoformat()}
         if f.get("visual"):
@@ -2031,10 +2156,33 @@ class Importer:
             pat["beats"] = [x[:200] for x in f["beats"]][:12]
         self.st["patterns"] = [p for p in self.st["patterns"] if p["id"] != pid] + [pat]
         self.ids.add(pid)
-        self.names[norm_text(name)] = pid
+        self.names[(kind, norm_text(name))] = pid
         self.report["added"].append(pid)
         self.log("import", pid, f"New candidate {kind} pattern '{name}' from {fname} ({ev['level']} evidence); "
                  f"it will be tried in exploration slots.")
+
+    def ident(self, b: dict, kind: str) -> tuple[str | None, str]:
+        """(id, name) from 'id, name' fields, an 'id: `x` · name: Y' title, or a 'C1 - Name' title (id = kind prefix + name)."""
+        f = b["_fields"]
+        title = b["_title"]
+        if "id_name" in f:
+            parts = [x.strip().strip("`*") for x in f["id_name"][0].split(",", 1)]
+            return kebab(parts[0]), parts[1] if len(parts) > 1 else parts[0]
+        m = re.search(r"id:\s*`?([a-z0-9]+(?:-[a-z0-9]+)*)`?\s*[\u00b7|,;]\s*name:\s*(.+)$", title)
+        if m:
+            return kebab(m.group(1)), m.group(2).strip().strip("`*\"")
+        if f.get("id"):
+            return kebab(f["id"][0].strip("`")), (f.get("name") or [f["id"][0]])[0]
+        m = re.match(r"^\s*(?:[A-Z]{1,2}\d{1,2}|\d+[.)]?)\s*[\u2014\u2013-]\s*(.+)$", title)
+        name = (m.group(1) if m else re.sub(r"^\s*[\d.)]+\s*", "", title)).strip()
+        quoted = re.match(r"^[\"\u201c](.+?)[\"\u201d]", name)
+        name = quoted.group(1) if quoted else re.split(r":\s*[\"\u201c]", name)[0]
+        name = re.sub(r"\s*\(.*?\)\s*$", "", name).strip(" `*\"") or "Imported pattern"
+        title_id = re.search(r"`([a-z0-9]+(?:-[a-z0-9]+)+)`", title)
+        if title_id:
+            return title_id.group(1), name
+        prefix = {"structure": "struct-", "carousel": "carousel-", "photo": "photo-", "growth": "growth-", "offer": "offer-"}.get(kind, "")
+        return kebab(prefix + name, 48), name
 
     def merge(self, pid: str, examples: list[str], ev: dict, fname: str) -> None:
         # Research only adds sources and safe examples: status, evidence level and NUMA's results are never changed.
@@ -2075,27 +2223,36 @@ def build_brief(plan: dict, pb: dict, posts: list[dict], fits: dict, week: date,
     use, avoid = [], []
     for pid in sorted(pb["patterns"]):
         p = pb["patterns"][pid]
-        s = fits["patterns"].get(status_key(pb, pid)) or {"n": 0, "mean": 0.0, "prob_better": 0.5}
+        var = "hook" if p["kind"] == "hook" else ("structure" if p["kind"] in STRUCTURE_KINDS else "pattern")
+        a = arm(fits, pb, var, status_key(pb, pid))
+        s = decision_stats(a["records"])
         if p["status"] == "retired":
             avoid.append({"id": pid, "kind": p["kind"], "reason": (pb["state"]["status_overrides"].get(pid) or {}).get("why", "Retired.")})
         elif p["status"] == "proven":
             use.append({"id": pid, "kind": p["kind"], "status": "proven",
-                        "reason": f"About {pct(s['mean'])} than NUMA's median over {s['n']} posts."})
+                        "reason": f"Beat NUMA's median in {s['wins']} of {s['tries']} final posts"
+                                  + (f", median {s['median_index']:.2f}x." if s["median_index"] else ".")})
     planned = sorted({pid for s in slots for pid in s["pattern_ids"]})
     for pid in planned:
         if all(u["id"] != pid for u in use):
             p = pb["patterns"][pid]
-            s = fits["patterns"].get(status_key(pb, pid)) or {"n": 0}
+            var = "hook" if p["kind"] == "hook" else ("structure" if p["kind"] in STRUCTURE_KINDS else "pattern")
+            s = decision_stats(arm(fits, pb, var, status_key(pb, pid))["records"])
             use.append({"id": pid, "kind": p["kind"], "status": p["status"],
-                        "reason": f"Planned this week ({p['status']}, {s.get('n', 0)} NUMA posts so far)."})
+                        "reason": f"Planned this week ({p['status']}, {s['tries']} final NUMA posts so far)."})
     experiments = []
     for s in slots:
         if s["mode"] == "explore":
-            experiments.append({"date": s["date"], "post_type": s["post_type"], "testing": s["pattern_ids"],
-                                "compare_with": "other Trial Reels" if s["post_type"] == "trial_reel" else f"NUMA's {s['post_type']} median",
-                                "metric": "skip_rate, sends_per_1k_reach" if s["post_type"] in ("reel", "trial_reel") else "saves_per_1k_reach"})
+            row = next(r for r in rows if r["date"] == s["date"] and r["kind"] == s["kind"])
+            var = (row.get("strategy") or {}).get("tests", "hook")
+            tested = [x for x in s["pattern_ids"] if pb["patterns"].get(x, {}).get("kind") in
+                      {"hook": ("hook",), "structure": STRUCTURE_KINDS, "cta": ("cta", "offer")}.get(var, ("hook",))]
+            experiments.append({"date": s["date"], "post_type": s["post_type"], "testing": tested or s["pattern_ids"],
+                                "compare_with": "other Trial Reels (trial-only pool)" if s["post_type"] == "trial_reel"
+                                else f"NUMA's last {pb['policies']['scoring']['baseline']['window_posts']} {s['post_type']}s",
+                                "metric": "composite S (win = S > 0)"})
     prov = [{"id": p["id"], "title": p["title"], "post_type": p["post_type"], "pull": p["pull"], "weight": p["judge_weight"],
-             "final_after_hours": (pb["policies"]["judging"].get(p["post_type"]) or {}).get("final_hours")}
+             "final_after_hours": p["window"]["final_hours"]}
             for p in posts if p["status"] == "provisional"]
     pending = [p["id"] for p in posts if p["status"] == "pending"]
     more, less = insights(fits, pb)
@@ -2107,11 +2264,11 @@ def build_brief(plan: dict, pb: dict, posts: list[dict], fits: dict, week: date,
         reasoning.append("Planning rules overrode part of the bandit's choice this month (see each slot's why).")
     reasoning += [f"Do more: {x}" for x in more[:4]] + [f"Do less: {x}" for x in less[:4]]
     for d in diag:
-        reasoning.append(f"{d['title']} underperformed ({pct(d['score'])} than median): {d['rows'][0]['fix']}")
+        reasoning.append(f"{d['title']} underperformed ({d['index']:.2f}x NUMA's median): {d['rows'][0]['fix']}")
     target = nc.brand_value("positioning.content_mix", {}) or {}
     suggested = {}
     for pil, share in target.items():
-        mean, _, w = fits["B"].get("pillar", pil)
+        mean = arm(fits, pb, "pillar", pil)["mean"] - 0.5
         suggested[pil] = float(share) * math.exp(max(-0.5, min(0.5, mean)) * fits["lambda"])
     tot = sum(suggested.values()) or 1.0
     suggested = {k: round(max(float(target[k]) - 0.05, min(float(target[k]) + 0.05, v / tot)), 3) for k, v in suggested.items()}
@@ -2124,8 +2281,22 @@ def build_brief(plan: dict, pb: dict, posts: list[dict], fits: dict, week: date,
                      "trial_reels": counts.get("trial_reel", 0), "suggested_pillar_mix": suggested},
              "slots": slots, "use_patterns": use, "avoid_patterns": avoid, "experiments": experiments,
              "diagnoses": diag, "do_more": more, "do_less": less, "changes": changes, "reasoning": reasoning,
+             "guardrails": guardrails(mon, sun, plan),
              "rules_note": "Planning rules (claims, consent, budget, events, closures, one sales post a week) override this brief."}
     return brief
+
+
+def guardrails(mon: date, sun: date, plan: dict) -> list[str]:
+    """What the brief may never propose (REVIEW.md): only brand.json offers, no invented codes, boosts or partners."""
+    offers = [o.get("name") for o in (nc.brand_value("offerings.offers", []) or []) if isinstance(o, dict) and o.get("name")]
+    lines = [f"Offers: only those in brand.json offerings.offers ({', '.join(offers) or 'none recorded'}); never invent an offer, "
+             "discount, code, paid boost or partnership.",
+             "Don't send new people to Saturday mornings (often full); point them to weekdays.",
+             "Nothing that invites people in on a closure day."]
+    closed = [c for c in plan.get("closures", []) if mon.isoformat() <= str(c.get("date") if isinstance(c, dict) else c) <= sun.isoformat()]
+    if closed:
+        lines.append("Closed this week: " + ", ".join(f"{c['date']} ({c.get('name') or 'closed'})" if isinstance(c, dict) else str(c) for c in closed))
+    return lines
 
 
 def brief_markdown(b: dict) -> str:
@@ -2145,6 +2316,7 @@ def brief_markdown(b: dict) -> str:
     out += ["", "## Why", ""] + [f"- {x}" for x in b["reasoning"]]
     if b.get("strategist_notes"):
         out += ["", "## Strategist notes", "", b["strategist_notes"]]
+    out += ["", "## Guardrails", ""] + [f"- {g}" for g in b.get("guardrails", [])]
     out += ["", b["rules_note"], ""]
     return "\n".join(out)
 
@@ -2279,6 +2451,9 @@ def main(argv: list[str] | None = None) -> int:
         for f in args.files:
             imp.run_file(Path(f).expanduser())
         imp.st["updated"] = today.isoformat()
+        for key in ("judging", "judging_cohorts"):
+            if not imp.st.get(key):
+                imp.st.pop(key, None)
         write_state(args.state, imp.st)
         rep = imp.report
         if args.json:

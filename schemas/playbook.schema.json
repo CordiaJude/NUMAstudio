@@ -72,17 +72,20 @@
             "type": "string",
             "minLength": 1
           },
-          "n": {
+          "reentered": {
+            "type": "boolean"
+          },
+          "tries": {
             "type": "number",
             "minimum": 0
           },
-          "mean": {
-            "type": "number"
-          },
-          "prob_better": {
+          "wins": {
             "type": "number",
-            "minimum": 0,
-            "maximum": 1
+            "minimum": 0
+          },
+          "median_index": {
+            "type": "number",
+            "minimum": 0
           }
         }
       }
@@ -179,6 +182,36 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/change"
+      }
+    },
+    "judging_cohorts": {
+      "$ref": "#/$defs/policies/properties/judging_cohorts"
+    },
+    "owner_priors": {
+      "type": "array",
+      "description": "State only: the owners' own results recorded at setup (T19). target is a pattern id or post_type:<type>; they count more than research priors.",
+      "items": {
+        "type": "object",
+        "required": [
+          "target",
+          "signal",
+          "why"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "type": "string"
+          },
+          "signal": {
+            "enum": [
+              "worked",
+              "flopped"
+            ]
+          },
+          "why": {
+            "type": "string"
+          }
+        }
       }
     }
   },
@@ -448,6 +481,13 @@
         "needs": {
           "type": "string",
           "description": "A precondition (consent, an offer that exists in brand.json, a true before/after pair)."
+        },
+        "owner_signal": {
+          "enum": [
+            "worked",
+            "flopped"
+          ],
+          "description": "What the owners' own posts showed before the system (REVIEW.md): this prior counts more than research."
         }
       }
     },
@@ -714,19 +754,20 @@
             },
             "evidence": {
               "$ref": "#/$defs/evidence"
+            },
+            "signature_structure": {
+              "$ref": "#/$defs/id"
+            },
+            "offer_structures": {
+              "type": "object",
+              "propertyNames": {
+                "$ref": "#/$defs/post_type"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/id"
+              }
             }
           }
-        }
-      }
-    },
-    "valued": {
-      "type": "object",
-      "required": [
-        "evidence"
-      ],
-      "properties": {
-        "evidence": {
-          "$ref": "#/$defs/evidence"
         }
       }
     },
@@ -740,8 +781,7 @@
         "offers",
         "scoring",
         "judging",
-        "learning",
-        "prior_means"
+        "learning"
       ],
       "additionalProperties": false,
       "properties": {
@@ -906,38 +946,34 @@
         "scoring": {
           "type": "object",
           "required": [
-            "judge_pulls",
             "baseline",
-            "winsor_log_cap",
-            "skip_unit",
-            "goal_weights",
-            "pooled_weights",
+            "index_clip_log2",
+            "composite",
+            "goals",
+            "win_above",
             "evidence"
           ],
           "additionalProperties": false,
           "properties": {
-            "judge_pulls": {
-              "type": "array",
-              "minItems": 1,
-              "items": {
-                "enum": [
-                  "48h",
-                  "72h",
-                  "7d"
-                ]
-              }
+            "rates": {
+              "type": "string"
             },
             "baseline": {
               "type": "object",
               "required": [
-                "window_days",
+                "window_posts",
+                "min_age_days",
                 "min_posts"
               ],
               "additionalProperties": false,
               "properties": {
-                "window_days": {
+                "window_posts": {
                   "type": "integer",
-                  "minimum": 7
+                  "minimum": 3
+                },
+                "min_age_days": {
+                  "type": "number",
+                  "minimum": 0
                 },
                 "min_posts": {
                   "type": "integer",
@@ -945,36 +981,29 @@
                 }
               }
             },
-            "winsor_log_cap": {
+            "index_clip_log2": {
               "type": "number",
               "exclusiveMinimum": 0
             },
-            "skip_unit": {
-              "type": "number",
-              "exclusiveMinimum": 0
+            "composite": {
+              "$ref": "#/$defs/weights"
             },
-            "goal_weights": {
+            "static_watch_substitute": {
+              "enum": [
+                "views_per_reach"
+              ]
+            },
+            "goals": {
               "type": "object",
-              "required": [
-                "reach",
-                "saves",
-                "conversion"
-              ],
-              "additionalProperties": false,
-              "properties": {
-                "reach": {
-                  "$ref": "#/$defs/weights"
-                },
-                "saves": {
-                  "$ref": "#/$defs/weights"
-                },
-                "conversion": {
-                  "$ref": "#/$defs/weights"
-                }
+              "additionalProperties": {
+                "$ref": "#/$defs/weights"
               }
             },
-            "pooled_weights": {
-              "$ref": "#/$defs/weights"
+            "win_above": {
+              "type": "number"
+            },
+            "bookings": {
+              "type": "string"
             },
             "evidence": {
               "$ref": "#/$defs/evidence"
@@ -983,130 +1012,429 @@
         },
         "learning": {
           "type": "object",
+          "additionalProperties": false,
           "required": [
-            "prior_strength",
-            "half_life_days",
-            "data_led_after_posts",
-            "noise_sd",
-            "exploration_budget",
-            "explore_variance_inflation",
-            "stickiness",
-            "max_pattern_share_week",
+            "discount",
+            "explore_share",
+            "arms_per_variable",
+            "test_order",
+            "prior",
             "promote",
+            "fast_track",
             "retire",
             "demote",
-            "evidence",
-            "exploit_variance_scale"
+            "max_pattern_share_month",
+            "retired_months",
+            "exclude_from_decisions",
+            "holiday_windows",
+            "january_confirm_months",
+            "data_led_after_posts",
+            "stickiness",
+            "underperform_index",
+            "time_slots",
+            "evidence"
           ],
-          "additionalProperties": false,
           "properties": {
-            "prior_strength": {
+            "discount": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "explore_share": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.5
+            },
+            "trial_reels_on_top": {
+              "type": "boolean"
+            },
+            "arms_per_variable": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "test_order": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "hook",
+                  "structure",
+                  "format",
+                  "cta",
+                  "time"
+                ]
+              }
+            },
+            "prior": {
               "type": "object",
               "required": [
+                "numa",
                 "measured",
                 "observed",
-                "opinion",
-                "interaction"
+                "opinion"
               ],
               "additionalProperties": false,
               "properties": {
+                "numa": {
+                  "type": "object",
+                  "required": [
+                    "tries"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "tries": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "win_rate": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "worked": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flopped": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  }
+                },
                 "measured": {
-                  "type": "number",
-                  "minimum": 0
+                  "type": "object",
+                  "required": [
+                    "tries"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "tries": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "win_rate": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "worked": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flopped": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  }
                 },
                 "observed": {
-                  "type": "number",
-                  "minimum": 0
+                  "type": "object",
+                  "required": [
+                    "tries"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "tries": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "win_rate": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "worked": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flopped": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  }
                 },
                 "opinion": {
+                  "type": "object",
+                  "required": [
+                    "tries"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "tries": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "win_rate": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "worked": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flopped": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  }
+                }
+              }
+            },
+            "promote": {
+              "type": "object",
+              "required": [
+                "min_tries",
+                "min_wins",
+                "min_median_index"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "min_tries": {
                   "type": "number",
                   "minimum": 0
                 },
-                "interaction": {
+                "min_wins": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "min_median_index": {
                   "type": "number",
                   "minimum": 0
                 }
               }
             },
-            "evidence_prior_mean": {
+            "fast_track": {
               "type": "object",
-              "additionalProperties": {
-                "type": "number"
-              },
-              "description": "Cold-start tilt for a pattern by its evidence level, in score units."
+              "required": [
+                "first",
+                "min_wins",
+                "min_median_index"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "first": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "min_wins": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "min_median_index": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
             },
-            "half_life_days": {
+            "retire": {
+              "type": "object",
+              "required": [
+                "rules",
+                "max_median_index"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "rules": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "min_tries",
+                      "max_wins"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "min_tries": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "max_wins": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    }
+                  }
+                },
+                "max_median_index": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            },
+            "demote": {
+              "type": "object",
+              "required": [
+                "last",
+                "max_wins",
+                "min_median_index"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "last": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "max_wins": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "min_median_index": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            },
+            "max_pattern_share_month": {
               "type": "number",
-              "exclusiveMinimum": 0
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "retired_months": {
+              "type": "number",
+              "minimum": 0
+            },
+            "exclude_from_decisions": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "holiday",
+                  "boosted",
+                  "collab"
+                ]
+              }
+            },
+            "holiday_windows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "pattern": "^\\d{2}-\\d{2}$"
+                  },
+                  "to": {
+                    "type": "string",
+                    "pattern": "^\\d{2}-\\d{2}$"
+                  }
+                }
+              }
+            },
+            "january_confirm_months": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12
+              }
             },
             "data_led_after_posts": {
               "type": "integer",
-              "minimum": 1
-            },
-            "noise_sd": {
-              "type": "number",
-              "exclusiveMinimum": 0
-            },
-            "exploration_budget": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 0.5
-            },
-            "explore_variance_inflation": {
-              "type": "number",
               "minimum": 1
             },
             "stickiness": {
               "type": "number",
               "minimum": 0
             },
-            "max_pattern_share_week": {
+            "underperform_index": {
               "type": "number",
-              "exclusiveMinimum": 0,
-              "maximum": 1
+              "minimum": 0
             },
-            "underperform_score": {
-              "type": "number"
-            },
-            "promote": {
-              "$ref": "#/$defs/threshold"
-            },
-            "retire": {
-              "$ref": "#/$defs/threshold"
-            },
-            "demote": {
-              "$ref": "#/$defs/threshold"
-            },
-            "insight": {
-              "$ref": "#/$defs/threshold"
+            "time_slots": {
+              "type": "object",
+              "required": [
+                "rotation",
+                "min_posts_each",
+                "min_ratio"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "rotation": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "min_posts_each": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "min_ratio": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
             },
             "evidence": {
               "$ref": "#/$defs/evidence"
             },
-            "exploit_variance_scale": {
-              "type": "number",
-              "exclusiveMinimum": 0,
-              "maximum": 1,
-              "description": "Exploit slots and slot structure (type, day, hour, offer week) draw from the posterior with its variance times this (tempered Thompson sampling); explore slots use explore_variance_inflation."
+            "insight": {
+              "type": "object",
+              "required": [
+                "min_tries",
+                "min_win_rate",
+                "max_win_rate"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "min_tries": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "min_win_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "max_win_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
             }
           }
         },
         "prior_means": {
           "type": "object",
-          "description": "Cold-start tilts per dimension level, in score units (about ln of the ratio to NUMA's median).",
+          "description": "Cold-start tilts of the prior win rate (0.5 + tilt) per dimension level.",
           "additionalProperties": {
             "type": "object",
             "additionalProperties": {
               "type": "number",
-              "minimum": -0.5,
-              "maximum": 0.5
+              "minimum": -0.25,
+              "maximum": 0.25
             }
           }
         },
-        "prior_evidence": {
+        "judging_cohorts": {
           "type": "object",
+          "description": "Windows for cohorts that override the post type's (collab / reshared posts).",
+          "propertyNames": {
+            "enum": [
+              "collab"
+            ]
+          },
           "additionalProperties": {
-            "$ref": "#/$defs/evidence"
+            "$ref": "#/$defs/window"
           }
         }
       }
@@ -1165,43 +1493,20 @@
       "minProperties": 1,
       "propertyNames": {
         "enum": [
-          "views",
+          "reach",
           "sends",
           "saves",
-          "skip",
-          "retention",
-          "profile_visits",
           "follows",
-          "link_clicks"
+          "watch_through",
+          "profile_visits",
+          "link_clicks",
+          "link_taps_per_visit",
+          "views_per_reach"
         ]
       },
       "additionalProperties": {
         "type": "number",
         "minimum": 0
-      }
-    },
-    "threshold": {
-      "type": "object",
-      "required": [
-        "min_n",
-        "min_effect",
-        "min_prob"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "min_n": {
-          "type": "number",
-          "minimum": 0
-        },
-        "min_effect": {
-          "type": "number",
-          "minimum": 0
-        },
-        "min_prob": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1
-        }
       }
     },
     "rule": {
@@ -1298,7 +1603,9 @@
             "import",
             "merge",
             "reject",
-            "insight"
+            "insight",
+            "reenter",
+            "hold"
           ]
         },
         "target": {
@@ -1321,17 +1628,17 @@
           "type": "string",
           "minLength": 1
         },
-        "n": {
+        "tries": {
           "type": "number",
           "minimum": 0
         },
-        "mean": {
-          "type": "number"
-        },
-        "prob_better": {
+        "wins": {
           "type": "number",
-          "minimum": 0,
-          "maximum": 1
+          "minimum": 0
+        },
+        "median_index": {
+          "type": "number",
+          "minimum": 0
         }
       }
     },
@@ -1381,6 +1688,10 @@
         },
         "evidence": {
           "$ref": "#/$defs/evidence"
+        },
+        "long_tail_audit_hours": {
+          "type": "number",
+          "exclusiveMinimum": 0
         }
       }
     },
@@ -1447,6 +1758,10 @@
             "additionalProperties": {
               "$ref": "#/$defs/window"
             }
+          },
+          "long_tail_audit_hours": {
+            "type": "number",
+            "exclusiveMinimum": 0
           }
         }
       }

@@ -966,7 +966,10 @@ its Chromium (`pip install -r requirements.txt`, then
 - `validate`: carousel.json against `schemas/carousel.schema.json`, every text
   field + caption + hashtags through `claims_scan` (fail = ERROR, warn = WARN),
   offer prices from brand.json (`needs_katie` price = ERROR), photos exist,
-  2-10 slides (outside config `formats` carousel `count`: WARN).
+  every character inside `assets/fonts/carousel_charset.json` (the bundled
+  fonts' common cmap; else ERROR naming the character), no emoji, "Numa" never
+  "NUMA" (the `offer` lookup key excepted), 2-10 slides (outside config
+  `formats` carousel `count`: WARN).
 - `build`: writes `ROOT/project/canvas.json` (boards `Main.dc.html`,
   `Slide02.dc.html`, ... 1080x1350, 80 px apart in one row, a sticky with the
   posting date and caption; `designSystems` record when `--design-system`) and
@@ -982,47 +985,62 @@ its Chromium (`pip install -r requirements.txt`, then
   overrides), images `/_blob/<id>` from `DIR/<id>.<ext>` (where the Artifact
   read saves an asset) or `DIR/_blob/`. Slides in reading order (rows top to
   bottom, left to right); every board must be 1080x1350. Google Fonts links are
-  served from the bundled Fraunces/Inter; another family = ERROR. The rendered
+  served from the bundled Hanken Grotesk / Nunito Sans (stand-ins for Domaine
+  Sans Text Light / Avenir Next); another family = ERROR. `NUMA_BRAND_FONTS=DIR`
+  (`display.<woff2|woff|otf|ttf>`, `body.<...>`) serves Numa's own font files
+  under those family names in both modes. The rendered
   text is claims-scanned (Katie may have edited it). `--list-blobs` prints
   `<id>\t<file|MISSING>` and exits 0. Default slug: `slugify(canvas title)`.
 - `spec`: the fallback; same checks, rendering `assets/carousel/<component>.html`
   (identical slide markup to the `.dc.html`, so the same pixels).
 - Checks per slide (ERROR, exit 1): 1080x1350 at (0,0), page not larger; every
-  font used is loaded (no system fallback); not blank/near-uniform (< 0.3% of
+  font used is loaded (no system fallback); the charset/emoji/"Numa" rules on the
+  rendered text; not blank/near-uniform (< 0.3% of
   pixels differ from the background); no text box overflowing (scroll size
   beyond the box by more than 0.3 em, or text outside the slide); no
   `[PRICE]` placeholder (a `$` amount that is not a brand.json price: WARN);
-  JPG quality 92 (>= 90 checked), 4:4:4, sRGB ICC embedded.
+  JPG quality 92 (>= 90 checked), 4:4:4, sRGB ICC embedded. WARN: a text-led
+  slide whose content fills < 60% of the band between header and footer
+  (`fill`).
 - Writes `OUT/<slug>_carousel_NN.jpg|png` (01, 02, ... as photo_post.py; old ones of the
   slug removed first), `OUT/carousel_sheet.jpg` (contact sheet) and
   `report.json` `design_render`: `{"mode": "canvas|spec", "source", "slug",
   "ok", "files", "sheet", "slides": [{"n", "file", "board"|"component",
-  "title"?, "ok", "errors", "warnings", "fonts", "text"}], "errors",
+  "title"?, "ok", "errors", "warnings", "fonts", "fill", "text"}], "errors",
   "warnings"}`. Exit 1 on any ERROR (the slides are still written to LOOK at).
 
 **carousel.json** (`schemas/carousel.schema.json`; usually `JOB/work/carousel.json`):
 ```json
 {"schema_version": 1, "slug": "2026-12-08-sauna-vs-red-light",
- "title": "NUMA Carousel · 2026-12-08 · Sauna vs red light", "date": "2026-12-08",
+ "title": "Numa Carousel · 2026-12-08 · Sauna vs red light", "date": "2026-12-08",
  "topic": "Ask the DPT: sauna vs red light", "caption": "Sauna vs red light in Mobile, AL: ...",
  "hashtags": ["#MobileAL"],
  "slides": [
-   {"component": "cover", "fields": {"kicker": "Ask the DPT", "title": "Sauna vs red light: what's *different*?", "subtitle": "..."}},
+   {"component": "cover_photo", "photo": "skills/numa-reel-editor/assets/brand-photos/sauna-logo.jpg",
+    "fields": {"kicker": "Ask the DPT", "title": "Sauna vs red light: what's *different*?"}},
    {"component": "photo", "photo": "skills/numa-reel-editor/assets/brand-photos/red-light.jpg", "photo_position": "50% 38%",
     "fields": {"kicker": "Red light", "caption": "Red light is *light*, not heat."}},
-   {"component": "offer", "fields": {"kicker": "New here?", "title": "Your first month", "offer": "Discover NUMA", "cta": "discover.numawellness.org"}},
+   {"component": "offer", "photo": "skills/numa-reel-editor/assets/brand-photos/cold-plunge.jpg",
+    "fields": {"kicker": "New here?", "title": "Your first month", "offer": "Discover NUMA", "cta": "discover.numawellness.org"}},
    {"component": "cta", "fields": {"title": "Feel the difference.", "button": "discover.numawellness.org"}}],
  "canvas": {"url": "https://claude.ai/artifact/<id>",
             "blobs": {"skills/numa-reel-editor/assets/brand-photos/red-light.jpg": "/_blob/<id>", "wordmark": "/_blob/<id>"}}}
 ```
-Components and fields (required, *optional*): `cover` kicker, title, *subtitle*;
-`point` kicker, number, title, body; `stat` kicker, stat (<= 8 chars), label,
-*body*, *source*; `myth_fact` kicker, myth, fact; `quote` kicker, quote, name,
-*role*; `steps` kicker, title, step1-3, *step4*; `offer` kicker, title, offer
-(a brand.json offer/session name; price and its note come from brand.json),
-cta, *details*; `photo` kicker, caption (+ slide `photo`, *`photo_position`*,
-*`photo_alt`*); `cta` title, button, *body* (wordmark added). Text: `\n` line
-break, `*word*` italic cedar-ember emphasis; text fits are measured at render.
+Components and fields (required, *optional*). Photo-led (slide `photo`
+required, *`photo_position`*, *`photo_alt`*): `cover_photo` kicker, title;
+`photo` kicker, caption; `quote` kicker, quote, name, *role* (only over that
+member's photo); `offer` kicker, title, offer (a brand.json offer/session name;
+price and its note come from brand.json; shown as "Discover Numa · $49 one
+month"), cta, *details*. Text-led: `cover` kicker, title, *subtitle*; `point`
+kicker, number, title, body; `stat` kicker, stat (<= 8 chars), label, *body*,
+*source*; `myth_fact` kicker, myth, fact; `faq` kicker, question, answer;
+`steps` kicker, title, step1-3, *step4*; `cta` title, button, *body* (wordmark
+added). Text: `\n` line break, `*word*` emphasis (medium weight, gold
+underline); fits are measured at render. Palette roles (bg, ink, accent, panel,
+rule, tint) map to brand.json `palette.value` keys light, dark_teal, tan_gold,
+beige, blue, light_blue (`design_render.PALETTE_ROLES`, with the owners' hex
+values until those keys exist). The library is generated by
+`tools/gen_carousel_components.py` (never edit the .html files by hand).
 
 ### strategy.py [T18]
 ```

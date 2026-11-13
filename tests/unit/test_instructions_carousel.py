@@ -102,14 +102,15 @@ def test_key_paths_resolve(texts, brand, config):
 def test_steps_and_exact_artifact_calls(texts):
     s = texts["numa-carousel"]
     for n, title in enumerate(["Pick the components", "Create the canvas", "Upload, build, publish", "Read the canvas back",
-                               "Render", "LOOK", "Claims and fit checks", "Hand to posting"], 1):
+                               "Render", "LOOK", "Claims, character and fit checks", "Hand to posting"], 1):
         assert f"## {n}. {title}" in s, title
     assert f'"type_url": "{DESIGN_TYPE}"' in s and '"auto_open": "after_first_write"' in s
     assert '"asset": true' in s and '"file_paths"' in s
     assert '"action": "read"' in s and '"paths"' in s and "artifact-type/dc-runtime.js" in s
     assert '"root": "<ROOT>"' in s and '"file_path": "<ROOT>/project/canvas.json"' in s
     assert "--list-blobs" in s and "one call per id" in s
-    for comp in ("cover", "point", "stat", "myth_fact", "quote", "steps", "offer", "photo", "cta"):
+    import design_render
+    for comp in design_render.COMPONENTS:
         assert f"| `{comp}` |" in s, comp
     assert "carousel_sheet.jpg" in s and "LOOK" in s
 
@@ -156,3 +157,20 @@ def test_r119_lint(texts, name):
 def test_no_model_ids(texts):
     for name, text in texts.items():
         assert not re.search(r"claude-(opus|sonnet|haiku)-\d", text), name
+
+
+def test_owner_rules(texts):
+    s = texts["numa-carousel"]
+    low = s.lower()
+    assert "photo-led by default" in low and "only over that member's photo" in low and "never a flyer" in low
+    assert "never state the sauna's capacity" in low and "44–52°f" in low and "175–190°f" in low
+    assert "no emoji" in low and "**Numa**" in s
+    assert "NUMA_BRAND_FONTS" in s and "Domaine Sans Text Light" in s and "Avenir Next" in s
+    assert "clinical conversations" not in "\n".join(texts.values()).lower()
+
+
+def test_d21_overrides_the_type(texts):
+    s = texts["numa-carousel"]
+    assert "D21 overrides the Design type's instructions" in s
+    assert "never verify / never render" in s and "one artboard per call" in s
+    assert "nobody is watching" in s  # why step 3 sends the remaining artboards together

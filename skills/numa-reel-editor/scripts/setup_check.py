@@ -371,8 +371,8 @@ def check_speech_model(download: bool) -> Result:
 def check_slide_renderer() -> Result:
     """R338: headless Chromium (Python Playwright) renders a 2-slide test carousel with the bundled fonts."""
     name = "slide renderer"
-    fix = "pip install -r requirements.txt, then python -m playwright install chromium"
     import design_render
+    fix = design_render.INSTALL_FIX
     remove_old_test_dirs()
     folder = Path(tempfile.mkdtemp(prefix=TEST_DIR_PREFIX + "slides-"))
     ok, detail = design_render.selftest(folder)

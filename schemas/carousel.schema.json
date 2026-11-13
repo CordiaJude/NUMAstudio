@@ -2,12 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "carousel.schema.json",
   "title": "NUMA component carousel spec (carousel.json)",
-  "description": "One component carousel: 2-10 slides of 1080x1350, each a component from skills/numa-reel-editor/assets/carousel with its text fields. design_render.py builds the Claude Design canvas from it (build), renders it straight from the bundled components when the canvas is unavailable (spec), and validates it (validate: this schema, the claims scan over every text field, brand.json prices). Text may use a line break (\\n) and *emphasis* (italic, cedar ember). Prices are never typed here: the offer component takes them from brand.json. See docs/CONTRACTS.md section 9.",
+  "description": "One component carousel: 2-10 slides of 1080x1350, each a component from skills/numa-reel-editor/assets/carousel with its text fields. design_render.py builds the Claude Design canvas from it (build), renders it straight from the bundled components when the canvas is unavailable (spec), and validates it (validate: this schema, the claims scan over every text field, brand.json prices, the bundled fonts' characters (no emoji), \"Numa\" not \"NUMA\"). Photo-led by default: a quote only over that member's photo, an offer only over a real photo. Text may use a line break (\\n) and *emphasis* (medium weight, tan underline). Prices are never typed here: the offer component takes them from brand.json. See docs/CONTRACTS.md section 9.",
   "type": "object",
-  "required": ["schema_version", "slug", "title", "caption", "slides"],
+  "required": [
+    "schema_version",
+    "slug",
+    "title",
+    "caption",
+    "slides"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {
+      "const": 1
+    },
     "slug": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
@@ -19,100 +27,581 @@
       "maxLength": 120,
       "description": "Canvas title, e.g. \"NUMA Carousel · 2026-12-08 · Sauna vs red light\"."
     },
-    "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Posting date."},
-    "topic": {"type": "string", "maxLength": 200},
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "Posting date."
+    },
+    "topic": {
+      "type": "string",
+      "maxLength": 200
+    },
     "caption": {
       "type": "string",
       "minLength": 1,
       "maxLength": 2200,
       "description": "Instagram caption for the post (claims-scanned with the slides)."
     },
-    "hashtags": {"type": "array", "items": {"type": "string", "pattern": "^#[A-Za-z0-9_]+$"}, "maxItems": 5},
-    "slides": {"type": "array", "minItems": 2, "maxItems": 10, "items": {"$ref": "#/$defs/slide"}},
+    "hashtags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^#[A-Za-z0-9_]+$"
+      },
+      "maxItems": 5
+    },
+    "slides": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 10,
+      "items": {
+        "$ref": "#/$defs/slide"
+      }
+    },
     "canvas": {
       "type": "object",
       "additionalProperties": false,
       "description": "Filled in by the designer: the canvas link and the /_blob/<id> url of each uploaded image.",
       "properties": {
-        "url": {"type": "string", "pattern": "^https://claude\\.ai/(code/)?artifact/[A-Za-z0-9_-]+$"},
+        "url": {
+          "type": "string",
+          "pattern": "^https://claude\\.ai/(code/)?artifact/[A-Za-z0-9_-]+$"
+        },
         "blobs": {
           "type": "object",
           "description": "Image -> uploaded asset url. Keys: a slide's `photo` string exactly as written, and \"wordmark\".",
-          "additionalProperties": {"type": "string", "pattern": "^/_blob/[A-Za-z0-9_.-]+$"}
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^/_blob/[A-Za-z0-9_.-]+$"
+          }
         }
       }
     }
   },
   "$defs": {
-    "line": {"type": "string", "minLength": 1, "maxLength": 60, "pattern": "^[^\\n]*$"},
-    "text": {"type": "string", "minLength": 1, "maxLength": 320},
+    "line": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60,
+      "pattern": "^[^\\n]*$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 320
+    },
     "slide": {
       "type": "object",
-      "required": ["component", "fields"],
+      "required": [
+        "component",
+        "fields"
+      ],
       "additionalProperties": false,
       "properties": {
-        "component": {"enum": ["cover", "point", "stat", "myth_fact", "quote", "steps", "offer", "photo", "cta"]},
-        "fields": {"type": "object"},
-        "photo": {"type": "string", "minLength": 1, "description": "Photo file: absolute, or relative to carousel.json's folder, or to the plugin root."},
-        "photo_position": {"type": "string", "pattern": "^\\d{1,3}% \\d{1,3}%$", "description": "CSS object-position, e.g. \"50% 30%\" (default \"50% 50%\")."},
-        "photo_alt": {"type": "string", "maxLength": 200},
-        "note": {"type": "string", "maxLength": 300, "description": "Why this slide; not rendered."}
+        "component": {
+          "enum": [
+            "cover",
+            "cover_photo",
+            "photo",
+            "point",
+            "stat",
+            "myth_fact",
+            "faq",
+            "steps",
+            "quote",
+            "offer",
+            "cta"
+          ]
+        },
+        "fields": {
+          "type": "object"
+        },
+        "photo": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Photo file (cover_photo, photo, quote: that member's own photo, offer): absolute, or relative to carousel.json's folder, or to the plugin root."
+        },
+        "photo_position": {
+          "type": "string",
+          "pattern": "^\\d{1,3}% \\d{1,3}%$",
+          "description": "CSS object-position, e.g. \"50% 30%\" (default \"50% 50%\")."
+        },
+        "photo_alt": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Why this slide; not rendered."
+        }
       },
       "allOf": [
-        {"if": {"properties": {"component": {"const": "photo"}}}, "then": {"required": ["photo"]},
-         "else": {"not": {"anyOf": [{"required": ["photo"]}, {"required": ["photo_position"]}, {"required": ["photo_alt"]}]}}},
-        {"if": {"properties": {"component": {"const": "cover"}}}, "then": {"properties": {"fields": {"$ref": "#/$defs/fields_cover"}}}},
-        {"if": {"properties": {"component": {"const": "point"}}}, "then": {"properties": {"fields": {"$ref": "#/$defs/fields_point"}}}},
-        {"if": {"properties": {"component": {"const": "stat"}}}, "then": {"properties": {"fields": {"$ref": "#/$defs/fields_stat"}}}},
-        {"if": {"properties": {"component": {"const": "myth_fact"}}}, "then": {"properties": {"fields": {"$ref": "#/$defs/fields_myth_fact"}}}},
-        {"if": {"properties": {"component": {"const": "quote"}}}, "then": {"properties": {"fields": {"$ref": "#/$defs/fields_quote"}}}},
-        {"if": {"properties": {"component": {"const": "steps"}}}, "then": {"properties": {"fields": {"$ref": "#/$defs/fields_steps"}}}},
-        {"if": {"properties": {"component": {"const": "offer"}}}, "then": {"properties": {"fields": {"$ref": "#/$defs/fields_offer"}}}},
-        {"if": {"properties": {"component": {"const": "photo"}}}, "then": {"properties": {"fields": {"$ref": "#/$defs/fields_photo"}}}},
-        {"if": {"properties": {"component": {"const": "cta"}}}, "then": {"properties": {"fields": {"$ref": "#/$defs/fields_cta"}}}}
+        {
+          "if": {
+            "properties": {
+              "component": {
+                "enum": [
+                  "cover_photo",
+                  "photo",
+                  "quote",
+                  "offer"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "photo"
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "photo"
+                  ]
+                },
+                {
+                  "required": [
+                    "photo_position"
+                  ]
+                },
+                {
+                  "required": [
+                    "photo_alt"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "component": {
+                "const": "cover"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "$ref": "#/$defs/fields_cover"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "component": {
+                "const": "cover_photo"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "$ref": "#/$defs/fields_cover_photo"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "component": {
+                "const": "photo"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "$ref": "#/$defs/fields_photo"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "component": {
+                "const": "point"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "$ref": "#/$defs/fields_point"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "component": {
+                "const": "stat"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "$ref": "#/$defs/fields_stat"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "component": {
+                "const": "myth_fact"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "$ref": "#/$defs/fields_myth_fact"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "component": {
+                "const": "faq"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "$ref": "#/$defs/fields_faq"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "component": {
+                "const": "steps"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "$ref": "#/$defs/fields_steps"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "component": {
+                "const": "quote"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "$ref": "#/$defs/fields_quote"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "component": {
+                "const": "offer"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "$ref": "#/$defs/fields_offer"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "component": {
+                "const": "cta"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "$ref": "#/$defs/fields_cta"
+              }
+            }
+          }
+        }
       ]
     },
     "fields_cover": {
-      "type": "object", "additionalProperties": false, "required": ["kicker", "title"],
-      "properties": {"kicker": {"$ref": "#/$defs/line"}, "title": {"$ref": "#/$defs/text"}, "subtitle": {"$ref": "#/$defs/text"}}
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kicker",
+        "title"
+      ],
+      "properties": {
+        "kicker": {
+          "$ref": "#/$defs/line"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "subtitle": {
+          "$ref": "#/$defs/text"
+        }
+      }
     },
-    "fields_point": {
-      "type": "object", "additionalProperties": false, "required": ["kicker", "number", "title", "body"],
-      "properties": {"kicker": {"$ref": "#/$defs/line"}, "number": {"type": "string", "pattern": "^[0-9A-Za-z]{1,2}$"},
-                     "title": {"$ref": "#/$defs/text"}, "body": {"$ref": "#/$defs/text"}}
-    },
-    "fields_stat": {
-      "type": "object", "additionalProperties": false, "required": ["kicker", "stat", "label"],
-      "properties": {"kicker": {"$ref": "#/$defs/line"}, "stat": {"type": "string", "minLength": 1, "maxLength": 8},
-                     "label": {"$ref": "#/$defs/text"}, "body": {"$ref": "#/$defs/text"}, "source": {"$ref": "#/$defs/text"}}
-    },
-    "fields_myth_fact": {
-      "type": "object", "additionalProperties": false, "required": ["kicker", "myth", "fact"],
-      "properties": {"kicker": {"$ref": "#/$defs/line"}, "myth": {"$ref": "#/$defs/text"}, "fact": {"$ref": "#/$defs/text"}}
-    },
-    "fields_quote": {
-      "type": "object", "additionalProperties": false, "required": ["kicker", "quote", "name"],
-      "properties": {"kicker": {"$ref": "#/$defs/line"}, "quote": {"$ref": "#/$defs/text"}, "name": {"$ref": "#/$defs/line"},
-                     "role": {"$ref": "#/$defs/text"}}
-    },
-    "fields_steps": {
-      "type": "object", "additionalProperties": false, "required": ["kicker", "title", "step1", "step2", "step3"],
-      "properties": {"kicker": {"$ref": "#/$defs/line"}, "title": {"$ref": "#/$defs/text"}, "step1": {"$ref": "#/$defs/text"},
-                     "step2": {"$ref": "#/$defs/text"}, "step3": {"$ref": "#/$defs/text"}, "step4": {"$ref": "#/$defs/text"}}
-    },
-    "fields_offer": {
-      "type": "object", "additionalProperties": false, "required": ["kicker", "title", "offer", "cta"],
-      "properties": {"kicker": {"$ref": "#/$defs/line"}, "title": {"$ref": "#/$defs/text"},
-                     "offer": {"type": "string", "minLength": 1, "maxLength": 60, "description": "An offer or session name from brand.json offerings.offers[] / offerings.sessions[]; the price comes from there."},
-                     "details": {"$ref": "#/$defs/text"}, "cta": {"$ref": "#/$defs/text"}}
+    "fields_cover_photo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kicker",
+        "title"
+      ],
+      "properties": {
+        "kicker": {
+          "$ref": "#/$defs/line"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        }
+      }
     },
     "fields_photo": {
-      "type": "object", "additionalProperties": false, "required": ["kicker", "caption"],
-      "properties": {"kicker": {"$ref": "#/$defs/line"}, "caption": {"$ref": "#/$defs/text"}}
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kicker",
+        "caption"
+      ],
+      "properties": {
+        "kicker": {
+          "$ref": "#/$defs/line"
+        },
+        "caption": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "fields_point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kicker",
+        "number",
+        "title",
+        "body"
+      ],
+      "properties": {
+        "kicker": {
+          "$ref": "#/$defs/line"
+        },
+        "number": {
+          "type": "string",
+          "pattern": "^[0-9A-Za-z]{1,2}$"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "body": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "fields_stat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kicker",
+        "stat",
+        "label"
+      ],
+      "properties": {
+        "kicker": {
+          "$ref": "#/$defs/line"
+        },
+        "stat": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8
+        },
+        "label": {
+          "$ref": "#/$defs/text"
+        },
+        "body": {
+          "$ref": "#/$defs/text"
+        },
+        "source": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "fields_myth_fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kicker",
+        "myth",
+        "fact"
+      ],
+      "properties": {
+        "kicker": {
+          "$ref": "#/$defs/line"
+        },
+        "myth": {
+          "$ref": "#/$defs/text"
+        },
+        "fact": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "fields_faq": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kicker",
+        "question",
+        "answer"
+      ],
+      "properties": {
+        "kicker": {
+          "$ref": "#/$defs/line"
+        },
+        "question": {
+          "$ref": "#/$defs/text"
+        },
+        "answer": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "fields_steps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kicker",
+        "title",
+        "step1",
+        "step2",
+        "step3"
+      ],
+      "properties": {
+        "kicker": {
+          "$ref": "#/$defs/line"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "step1": {
+          "$ref": "#/$defs/text"
+        },
+        "step2": {
+          "$ref": "#/$defs/text"
+        },
+        "step3": {
+          "$ref": "#/$defs/text"
+        },
+        "step4": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "fields_quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kicker",
+        "quote",
+        "name"
+      ],
+      "properties": {
+        "kicker": {
+          "$ref": "#/$defs/line"
+        },
+        "quote": {
+          "$ref": "#/$defs/text",
+          "description": "The member's own words, verbatim; the slide's photo is that member (consent list)."
+        },
+        "name": {
+          "$ref": "#/$defs/line"
+        },
+        "role": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "fields_offer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kicker",
+        "title",
+        "offer",
+        "cta"
+      ],
+      "properties": {
+        "kicker": {
+          "$ref": "#/$defs/line"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "offer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "An offer or session name from brand.json offerings.offers[] / offerings.sessions[]; the price comes from there."
+        },
+        "details": {
+          "$ref": "#/$defs/text"
+        },
+        "cta": {
+          "$ref": "#/$defs/text"
+        }
+      }
     },
     "fields_cta": {
-      "type": "object", "additionalProperties": false, "required": ["title", "button"],
-      "properties": {"title": {"$ref": "#/$defs/text"}, "body": {"$ref": "#/$defs/text"}, "button": {"$ref": "#/$defs/line"}}
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "button"
+      ],
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "body": {
+          "$ref": "#/$defs/text"
+        },
+        "button": {
+          "$ref": "#/$defs/line"
+        }
+      }
     }
   }
 }

@@ -1,30 +1,31 @@
 {
-  "_readme": "Single source of truth for the brand. Every skill, agent and script reads this file (scripts via numa_common.load_brand()). Most entries are facts: {\"value\": ..., \"status\": ..., \"source\": ..., \"note\": ...}. Prefer values whose status is 'confirmed'; never present a 'needs_katie' value as fact in public copy. When Katie answers the setup questions (/brand-setup), update the value and set status to 'confirmed'. Asset and font paths are relative to the plugin root. Operational numbers (model tiers, Higgsfield prices and budget, Instagram API version, render targets, schedule) live in config/studio.json, not here.",
+  "_readme": "Single source of truth for the brand. Every skill, agent and script reads this file (scripts via numa_common.load_brand()). Most entries are facts: {\"value\": ..., \"status\": ..., \"source\": ..., \"note\": ...}. Prefer values whose status is 'confirmed'; never present a 'needs_katie' value as fact in public copy. The owners answered the setup questions on 2026-11-13 (docs/QUESTIONS_FOR_KATIE.md lists what is still open); their answers override research and earlier defaults (DECISIONS D25). The business name is \"Numa\" in every user-facing text; \"NUMA\" survives only in the plugin's own names (numa-studio, Drive folder and file names). People data (staff, providers, members, consent) is private: it lives in STATE/people.json (schemas/people.schema.json), never here; this file names only roles plus the co-founders. Asset and font paths are relative to the plugin root. Operational numbers (model tiers, Higgsfield prices and budget, Instagram API version, render targets, schedule) live in config/studio.json, not here.",
   "_status_legend": {
-    "confirmed": "Katie (or the brief) confirmed it; use freely.",
-    "from_website": "Taken from numawellness.org or NUMA's own channels; use, Katie confirms at setup.",
+    "confirmed": "The owners (setup answers) or the brief confirmed it; use freely.",
+    "from_website": "Taken from numawellness.org or Numa's own channels; use, the owners confirm at setup.",
     "research": "Found by the Mobile audit or public research; use carefully, Katie confirms at setup.",
-    "needs_katie": "Unknown or a stand-in default; the value may be null. Asked once at setup; never state it as fact.",
-    "bundled": "A file shipped in the plugin; NUMA owns brand files.",
+    "needs_katie": "Unknown, open or not confirmed; the value may be null or a stand-in default. Never state it as fact. docs/QUESTIONS_FOR_KATIE.md names who answers it.",
+    "bundled": "A file shipped in the plugin; Numa owns brand files.",
     "generated": "Written fresh for each reel; the value is an example."
   },
   "schema_version": 2,
   "business": {
     "name": {
       "value": {
-        "full": "NUMA Wellness Collective",
-        "short": "NUMA",
-        "with_city": "NUMA Wellness Collective, Mobile, Alabama"
+        "full": "Numa Wellness Collective",
+        "short": "Numa",
+        "with_city": "Numa Wellness Collective, Mobile, Alabama",
+        "free_track": "The Numa Reset",
+        "paid_trial": "Discover Numa"
       },
       "status": "confirmed",
-      "source": "spec p.22",
-      "note": "Always spell the short name NUMA in captions and on-screen text (a misspelling fails the Critic's hard gate). Event and app names keep their own spelling (Numa Nights, the 'Numa Wellness Collective' iOS app)."
+      "source": "owners' setup answers, 2026-11-13 (Q1)",
+      "note": "Always \"Numa\", never \"NUMA\", in captions, on-screen text, slides, voiceover scripts and hashtags (claims_scan rule name_casing; the Critic's hard gate). Full name: Numa Wellness Collective. The free track is always \"The Numa Reset\". The plugin's own name (numa-studio) and Drive folder and file names keep their spelling."
     },
     "name_usage": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54 Q1",
-      "note": "When to write NUMA, Numa, or NUMA Wellness Collective."
+      "value": "Write \"Numa\" (short) or \"Numa Wellness Collective\" (full); never \"NUMA\". Offer names: \"Discover Numa\" (never Discover Pass or Explore Numa) and \"The Numa Reset\".",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q1)"
     },
     "website": {
       "value": "https://numawellness.org",
@@ -35,22 +36,34 @@
       "value": [
         {
           "name": "Scott Moore",
-          "role": "founder and owner"
+          "role": "co-founder and owner; counselor (through Kolibri); records the voiceovers"
         },
         {
           "name": "Katie Moore",
           "credentials": "DPT",
-          "role": "co-founder; physical therapist, 15+ years; certified in red light therapy for healthcare professionals and mindfulness-based pain relief; on-camera expert for Ask the DPT"
+          "role": "co-founder; physical therapist, 15+ years; certified in red light therapy for healthcare professionals and mindfulness-based pain relief; possible on-camera expert for Ask the DPT (open, Q45)"
         }
       ],
-      "status": "research",
-      "source": "spec p.23",
-      "note": "Never turn Katie's credential into a promise of results (claims rule 3)."
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q7); credentials from spec p.23",
+      "note": "Never turn Katie's credential into a promise of results (claims rule education)."
     },
     "founding_story": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54 Q8"
+      "value": {
+        "quotes": [
+          "We started Numa because we needed it.",
+          "Numa actually started out of our own burnout story."
+        ],
+        "opened": "2025-11-01",
+        "building": "a restored building",
+        "built": "The owners built their own sauna and plunges.",
+        "hardest_build_moment": "the construction and permit delays",
+        "hardest_moment_this_year": "seeing the gaps in our leadership as business owners",
+        "practice": "It has been a moment by moment practice of what we preach: doing the hard thing so we can change and grow."
+      },
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q8)",
+      "note": "Tell it as the owners' own story; the founders are the only people named."
     },
     "location": {
       "value": {
@@ -60,83 +73,148 @@
         "state": "AL",
         "zip": "36604",
         "area": "Midtown",
-        "district": "Old Dauphin Way Historic District"
+        "district": "Old Dauphin Way Historic District",
+        "landmarks": "Midtown Mobile, across from Soul Caffeine and next to Via, on Dauphin Street"
       },
-      "status": "research",
-      "source": "spec p.23, p.56 Q42"
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q2), owners' setup answers, 2026-11-13 (Q42)",
+      "note": "The historic district name is from research."
     },
     "facility": {
       "value": {
-        "sauna": "Custom 14-person Finnish sauna",
+        "sauna": "Finnish sauna the owners built themselves (capacity not confirmed: never state a number)",
         "cold_plunge_tubs": 4,
         "also": [
           "red light",
           "breathwork",
-          "yoga"
+          "yoga",
+          "Flow Space",
+          "collective providers under one roof: counseling, massage, facials"
+        ],
+        "not_confirmed": [
+          "robes",
+          "a tea lounge",
+          "60-minute sessions"
         ]
       },
-      "status": "research",
-      "source": "spec p.23, p.56 Q42"
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q8), owners' setup answers, 2026-11-13 (Q9), owners' setup answers, 2026-11-13 (Q42); docs/research/REVIEW.md",
+      "note": "Use only the amenities listed here. Sauna and plunge sessions are 30 minutes."
     },
     "temperatures": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.56 Q42",
-      "note": "Plunge and sauna temperatures."
+      "value": {
+        "cold_plunge_f": [
+          44,
+          52
+        ],
+        "sauna_f": [
+          175,
+          190
+        ],
+        "say": [
+          "Our plunges are kept at 44 to 52°F.",
+          "Our sauna runs 175 to 190°F."
+        ],
+        "never_state": [
+          "34°F (a rare dip has happened; never state it)"
+        ]
+      },
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q42)",
+      "note": "Fahrenheit. claims_scan flags 34° and warns on plunge numbers under 44°."
     },
     "hours": {
       "value": {
-        "summary": "Opens 5:30 AM Monday to Thursday",
-        "regular": null
+        "summary": "Mon, Tue, Wed, Fri 5:30am-6:30pm; Thu 6:00am-6:30pm; Sat 8:00am-11:30am; closed Sunday",
+        "regular": {
+          "mon": [
+            "05:30",
+            "18:30"
+          ],
+          "tue": [
+            "05:30",
+            "18:30"
+          ],
+          "wed": [
+            "05:30",
+            "18:30"
+          ],
+          "thu": [
+            "06:00",
+            "18:30"
+          ],
+          "fri": [
+            "05:30",
+            "18:30"
+          ],
+          "sat": [
+            "08:00",
+            "11:30"
+          ],
+          "sun": null
+        },
+        "class_gap": {
+          "start": "13:30",
+          "end": "15:30",
+          "note": "No classes 1:30 to 3:30pm daily."
+        },
+        "under_review": true
       },
-      "status": "research",
-      "source": "spec p.24 (per a directory listing), p.54 Q3",
-      "note": "Full regular hours unknown until Katie answers."
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q3), owners' setup answers, 2026-11-13 (Q42)",
+      "note": "Opening hours are under review: a change may come after the Mindbody data is pulled. Check this fact before printing hours in a post. Thursday opens at 6:00am, not 5:30am."
     },
     "phone": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "research/4-mobile-competitor-audit.md (developer kit; directory listings); spec p.24, p.50, p.56 Q43",
-      "candidates": [
-        "251-289-1758",
-        "251-310-3656",
-        "251-423-8238"
-      ],
-      "note": "Directory listings show three numbers. Katie picks one; then use it everywhere (Instagram, Google Business Profile, Facebook, Mindbody, website). Never print a candidate."
+      "value": "251-310-3656",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q43)",
+      "note": "One number everywhere: Instagram, Google Business Profile, Facebook, Mindbody, website."
     },
     "booking": {
       "value": {
         "platforms": [
           "Mindbody",
-          "the NUMA app"
+          "the Numa Wellness Collective app"
         ],
+        "system": "Mindbody",
         "trial_page": "https://discover.numawellness.org",
-        "trial_page_title": "Discover NUMA: One Month for $49"
+        "trial_page_title": "Discover Numa: One Month for $49"
       },
-      "status": "research",
-      "source": "spec p.24"
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q3), owners' setup answers, 2026-11-13 (Q36); spec p.24",
+      "note": "Mindbody is the booking system (confirmed). Calls to action use the bio link (business.cta_link), not the trial page."
     },
     "cta_link": {
-      "value": "https://discover.numawellness.org",
-      "status": "research",
-      "source": "spec p.24, p.56 Q36",
-      "note": "Q36: Discover NUMA page, the app, or the link in bio."
+      "value": "https://linktr.ee/numawc",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q5), owners' setup answers, 2026-11-13 (Q36)",
+      "note": "The one bio link (Discover Numa and The Numa Reset). Captions say \"link in bio\". Check the link works before an offer post: a launch once got zero signups because the bio link was broken (Q40)."
     },
     "instagram_name_field": {
-      "value": "NUMA | Sauna + Cold Plunge Mobile AL",
+      "value": "Numa | Sauna + Cold Plunge Mobile AL",
       "status": "research",
       "source": "spec p.50 (account fixes; Instagram search reads the name field)"
     },
     "bio_draft": {
-      "value": "Guided contrast therapy + breathwork in Midtown Mobile · 14-person Finnish sauna · 4 cold plunges · red light · yoga · $49 first month",
+      "value": "Guided contrast therapy + breathwork in Midtown Mobile · Finnish sauna · 4 cold plunges · red light · yoga · Discover Numa: one month for $49",
       "status": "research",
-      "source": "spec p.50",
-      "note": "Along these lines, with the Dauphin St address, a Book button and a link to discover.numawellness.org."
+      "source": "spec p.50; owners' answers",
+      "note": "Along these lines, with the Dauphin St address, a Book button and the bio link linktr.ee/numawc. No sauna capacity (not confirmed)."
     },
     "account_owners": {
+      "value": {
+        "instagram_and_facebook": "the Numa Wellness account, owned by Scott Moore and the person who posts to social (Emma)",
+        "drive_google_business_higgsfield": null
+      },
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q33)",
+      "note": "Who owns the Drive, Google Business Profile and Higgsfield accounts is not stated; ask Jude."
+    },
+    "sauna_capacity": {
       "value": null,
       "status": "needs_katie",
-      "source": "spec p.54-57 Q33"
+      "source": "owners' setup answers, 2026-11-13 (Q42)",
+      "note": "The research's \"14-person\" sauna is not confirmed: never state a capacity (claims_scan rule sauna_capacity flags \"14-person\")."
     }
   },
   "socials": {
@@ -165,7 +243,13 @@
     "instagram_account": {
       "value": null,
       "status": "needs_katie",
-      "source": "spec p.54-57 Q32"
+      "source": "owners' setup answers, 2026-11-13 (Q32)",
+      "note": "Open: Business or Creator account, the Facebook Page link, and who the admin is (ask Scott or Emma). /numa-setup step 3 reads the account type."
+    },
+    "publishing_tool": {
+      "value": "Meta Business Suite (Instagram and Facebook)",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q32)"
     }
   },
   "voice": {
@@ -194,7 +278,7 @@
     },
     "site_themes": {
       "value": [
-        "The site describes NUMA as a screen-free space (a description, not a quoted line)."
+        "The site describes Numa as a screen-free space (a description, not a quoted line)."
       ],
       "status": "from_website",
       "source": "spec p.24"
@@ -206,45 +290,132 @@
     },
     "community_word": {
       "value": "members",
-      "status": "needs_katie",
-      "source": "spec p.55 Q21",
-      "note": "Default until Katie answers (members, community, the collective)."
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q21)",
+      "note": "Use one of voice.people_words; default \"members\"."
     },
     "emoji": {
-      "value": "0-2 per caption, earthy only",
-      "status": "needs_katie",
-      "source": "spec p.55 Q22",
-      "note": "Default until Katie answers (yes, a few, or none)."
+      "value": "none",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q22)",
+      "note": "No emojis anywhere: captions, on-screen text, slides, Stories. claims_scan rule no_emoji flags any emoji."
     },
     "words_always": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.55 Q20"
+      "value": [
+        "take a deep breath",
+        "calm in the chaos",
+        "show up",
+        "rhythm",
+        "return to yourself",
+        "Visit Passes"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q20)"
     },
     "words_never": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.55 Q20"
+      "value": [
+        "NUMA",
+        "credits",
+        "Explore Numa",
+        "Discover Pass",
+        "cheap",
+        "heal",
+        "treats",
+        "cures"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q20)",
+      "note": "All are claims_scan rules (name_casing, wrong_offer_name, credits_word, cheap_word, heals, treats, cures)."
     },
     "dislikes": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.55 Q19"
+      "value": [
+        "quote cards",
+        "designed flyers and posters",
+        "salesy lines",
+        "fear or pressure",
+        "shaming",
+        "anything that makes Numa the hero (the member is the hero)",
+        "\"optimized\" talk"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q19)",
+      "note": "Member words go in the caption or over a real photo of that member, never as a standalone text card."
     },
     "music_taste": {
       "value": null,
       "status": "needs_katie",
-      "source": "spec p.55 Q23"
+      "source": "owners' setup answers, 2026-11-13 (Q23)",
+      "note": "Open: ask Emma. Never trending or popular songs (posting.music_rule)."
     },
     "inspiration_accounts": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q18"
+      "value": [
+        {
+          "account": "The Home Spruce (Instagram)",
+          "why": "simple, clear messaging",
+          "suggested_by": "a business adviser"
+        }
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q18)",
+      "note": "Videos and real people perform best for Numa. Open: more examples from Emma or Jodie."
     },
     "off_limits_topics": {
+      "value": [
+        "anything that treats, heals, cures or prevents a condition",
+        "promised results",
+        "red light \"restores elasticity\" (\"supports\" or \"improves\" is fine)",
+        "the sauna clears alcohol",
+        "the cold plunge lowers inflammation",
+        "a service \"is\" HSA/FSA eligible",
+        "comparisons to competitors"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q24)",
+      "note": "All are claims_scan rules."
+    },
+    "people_words": {
+      "value": [
+        "members",
+        "our people",
+        "the movement",
+        "the collective"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q21)"
+    },
+    "words_ok": {
+      "value": [
+        "transformation",
+        "transformative",
+        "journey"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q20)",
+      "note": "Allowed now, in the experience sense only, never as a promised result."
+    },
+    "offer_word": {
+      "value": "offer",
+      "status": "needs_katie",
+      "source": "owners' setup answers, 2026-11-13 (Q20)",
+      "note": "Open: \"offer\" or \"deal\"? Doc 03 says \"offer\"; use \"offer\" until the owners answer."
+    },
+    "voiceover_by": {
+      "value": "Scott Moore",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q28)",
+      "note": "Scott records the voiceovers."
+    },
+    "clone_allowed": {
+      "value": false,
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q28)",
+      "note": "No cloned voices, of anyone."
+    },
+    "generic_ai_allowed": {
       "value": null,
       "status": "needs_katie",
-      "source": "spec p.54-57 Q24"
+      "source": "plugin open question (owners' answers do not cover it)",
+      "note": "Unknown: may a generic, non-cloned AI voice read the lines when Scott hasn't recorded? Until answered, no AI voice: the fallback is music plus on-screen text (DECISIONS D25)."
     }
   },
   "offerings": {
@@ -256,155 +427,407 @@
         "red light",
         "yoga"
       ],
-      "status": "from_website",
-      "source": "spec p.22"
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q4); spec p.22"
     },
     "formats": {
       "value": [
         "classes",
         "Flow Space",
-        "1-on-1s",
-        "memberships"
+        "private sessions",
+        "memberships",
+        "Visit Passes"
       ],
-      "status": "from_website",
-      "source": "spec p.22"
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q4)"
     },
     "sessions": {
       "value": [
         {
-          "name": "NUMA Experience",
-          "minutes": 60,
-          "guidance": "fully guided",
-          "what": "breathwork, hot/cold and mindfulness",
+          "name": "Visit Pass",
+          "minutes": null,
+          "guidance": null,
+          "what": "a single visit",
           "price": {
-            "value": null,
-            "status": "needs_katie"
-          }
-        },
-        {
-          "name": "Free Flow",
-          "minutes": 45,
-          "guidance": "lightly guided",
-          "what": null,
-          "price": {
-            "value": 30,
+            "value": 25,
             "currency": "USD",
-            "unit": "drop-in",
-            "status": "research"
+            "display": "$25",
+            "member_value": 20,
+            "member_display": "$20 members",
+            "unit": "per visit",
+            "status": "confirmed"
           }
         },
         {
-          "name": "Contrast Flow",
-          "minutes": [
-            30,
-            60
-          ],
-          "guidance": "self-guided",
-          "what": null,
+          "name": "Sauna Session",
+          "minutes": 30,
+          "guidance": null,
+          "what": "sauna only",
           "price": {
-            "value": null,
-            "status": "needs_katie"
+            "value": 25,
+            "currency": "USD",
+            "display": "$25",
+            "unit": "30 min",
+            "status": "confirmed"
           }
         },
         {
-          "name": "Audio-guided circuit",
-          "minutes": 60,
-          "guidance": "audio-guided",
-          "what": "a 60-minute audio-guided circuit",
+          "name": "Cold Plunge Session",
+          "minutes": 30,
+          "guidance": null,
+          "what": "cold plunge only",
           "price": {
-            "value": null,
-            "status": "needs_katie"
+            "value": 25,
+            "currency": "USD",
+            "display": "$25",
+            "unit": "30 min",
+            "status": "confirmed"
           }
         },
         {
-          "name": "Sauna-only session",
+          "name": "Experience Pass",
           "minutes": null,
           "guidance": null,
           "what": null,
           "price": {
-            "value": null,
-            "status": "needs_katie"
+            "value": 55,
+            "currency": "USD",
+            "display": "$55",
+            "member_value": 40,
+            "member_display": "$40 members",
+            "unit": "per pass",
+            "status": "confirmed"
           }
         },
         {
-          "name": "Plunge-only session",
+          "name": "Biohack AM or PM",
           "minutes": null,
           "guidance": null,
           "what": null,
           "price": {
-            "value": null,
-            "status": "needs_katie"
+            "value": 45,
+            "currency": "USD",
+            "display": "$45",
+            "member_value": 35,
+            "member_display": "$35 members",
+            "unit": "per session",
+            "status": "confirmed"
           }
         },
         {
-          "name": "Embodiment Flow Yoga",
+          "name": "Personalized Yoga + Mind-Body Integration",
           "minutes": null,
-          "guidance": null,
-          "what": "yoga class",
+          "guidance": "private",
+          "what": "private session",
           "price": {
-            "value": null,
-            "status": "needs_katie"
+            "value": 100,
+            "currency": "USD",
+            "display": "$100",
+            "unit": "private",
+            "status": "confirmed"
+          }
+        },
+        {
+          "name": "Breathwork Coaching 1:1",
+          "minutes": null,
+          "guidance": "private",
+          "what": "private session",
+          "price": {
+            "value": 150,
+            "currency": "USD",
+            "display": "$150",
+            "unit": "private",
+            "status": "confirmed"
+          }
+        },
+        {
+          "name": "Numa Private",
+          "minutes": null,
+          "guidance": "private",
+          "what": "private session",
+          "price": {
+            "value": 175,
+            "currency": "USD",
+            "display": "$175",
+            "unit": "private",
+            "status": "confirmed"
+          }
+        },
+        {
+          "name": "Couples Private Space Access",
+          "minutes": null,
+          "guidance": "private",
+          "what": "private session",
+          "price": {
+            "value": 195,
+            "currency": "USD",
+            "display": "$195",
+            "unit": "private",
+            "status": "confirmed"
+          }
+        },
+        {
+          "name": "Group Breathwork",
+          "minutes": null,
+          "guidance": "private group",
+          "what": "private group session",
+          "price": {
+            "value": 250,
+            "currency": "USD",
+            "display": "$250",
+            "unit": "group",
+            "status": "confirmed"
+          }
+        },
+        {
+          "name": "Numa Private for Couples",
+          "minutes": null,
+          "guidance": "private",
+          "what": "private session",
+          "price": {
+            "value": 295,
+            "currency": "USD",
+            "display": "$295",
+            "unit": "private",
+            "status": "confirmed"
+          }
+        },
+        {
+          "name": "Numa Private Experience",
+          "minutes": null,
+          "guidance": "private",
+          "what": "private session",
+          "price": {
+            "value": 375,
+            "currency": "USD",
+            "display": "$375",
+            "unit": "private",
+            "status": "confirmed"
           }
         }
       ],
-      "status": "research",
-      "source": "spec p.24 (Mobile audit), p.54 Q4"
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q4)",
+      "note": "Prices exactly as the owners gave them; no price changes planned (Q16). The research's sessions (60-minute Experience, Free Flow $30, Contrast Flow, audio-guided circuit) are not Numa's products: never use them."
     },
     "offers": {
       "value": [
         {
-          "name": "Discover NUMA",
+          "name": "Discover Numa",
           "what": "one month",
+          "role": "the paid door",
           "price": {
             "value": 49,
             "currency": "USD",
             "display": "$49",
-            "status": "from_website"
+            "unit": "one month",
+            "status": "confirmed"
           },
-          "link": "https://discover.numawellness.org",
+          "link": "https://linktr.ee/numawc",
           "details": {
-            "value": null,
-            "status": "needs_katie",
-            "note": "Q5: exactly what's included and how long it lasts."
+            "value": {
+              "length": "one month",
+              "includes": [
+                "3 classes",
+                "3 red light sessions",
+                "unlimited Flow Space"
+              ],
+              "one_time_only": true,
+              "commitment": "none",
+              "renewal": "ends on its own",
+              "sign_up": "the bio link, linktr.ee/numawc"
+            },
+            "status": "confirmed",
+            "source": "owners' setup answers, 2026-11-13 (Q5)",
+            "note": "Say \"ends on its own\"; it never auto-renews. Never call it Discover Pass or Explore Numa."
+          }
+        },
+        {
+          "name": "The Numa Reset",
+          "what": "free breathwork track",
+          "role": "the free door",
+          "price": {
+            "value": 0,
+            "currency": "USD",
+            "display": "Free",
+            "status": "confirmed"
+          },
+          "link": "https://linktr.ee/numawc",
+          "details": {
+            "value": {
+              "what": "a free breathwork track",
+              "sign_up": "the bio link, linktr.ee/numawc"
+            },
+            "status": "confirmed",
+            "source": "owners' setup answers, 2026-11-13 (Q14)"
           }
         }
       ],
-      "status": "from_website",
-      "source": "spec p.22, p.24, p.54 Q5"
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q5), owners' setup answers, 2026-11-13 (Q14)",
+      "note": "Only offers listed in brand.json may be promoted; never invent one (codes, student rates, comment-to-DM bots)."
     },
     "memberships": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54 Q4",
-      "note": "Memberships, class packs, 1-on-1s and what each includes."
+      "value": [
+        {
+          "name": "Foundation Membership",
+          "price": {
+            "value": 99,
+            "currency": "USD",
+            "display": "$99",
+            "unit": "per month",
+            "status": "confirmed"
+          },
+          "includes": [
+            "6 classes",
+            "6 red light sessions",
+            "unlimited Flow Space"
+          ]
+        },
+        {
+          "name": "Practice Membership",
+          "price": {
+            "value": 149,
+            "currency": "USD",
+            "display": "$149",
+            "unit": "per month",
+            "status": "confirmed"
+          },
+          "includes": [
+            "12 classes",
+            "12 red light sessions",
+            "unlimited Flow Space"
+          ]
+        },
+        {
+          "name": "Immersion Membership",
+          "price": {
+            "value": 199,
+            "currency": "USD",
+            "display": "$199",
+            "unit": "per month",
+            "status": "confirmed"
+          },
+          "includes": [
+            "unlimited classes",
+            "unlimited red light",
+            "unlimited Flow Space"
+          ]
+        },
+        {
+          "name": "Single Modality Plan",
+          "price": {
+            "value": 99,
+            "currency": "USD",
+            "display": "$99",
+            "unit": "per month",
+            "status": "confirmed"
+          },
+          "includes": [
+            "one of yoga, breathwork or red light"
+          ],
+          "two_plans": {
+            "value": 149,
+            "currency": "USD",
+            "display": "$149",
+            "unit": "per month, two plans",
+            "status": "confirmed"
+          }
+        },
+        {
+          "name": "R.E.N.E.W. Elevated Foundations",
+          "price": {
+            "value": 97,
+            "currency": "USD",
+            "display": "$97",
+            "unit": "per month, for 6 months",
+            "status": "confirmed"
+          },
+          "includes": [],
+          "provider": "through Numa's partner physician (MD, not employed by Numa)"
+        }
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q4)",
+      "note": "The R.E.N.E.W. provider is named by role only in public data (STATE/people.json has the name)."
     },
     "events": {
       "value": [
         {
           "name": "Numa Nights",
           "details": {
-            "value": null,
+            "value": {
+              "kind": "special event",
+              "frequency": "about once every 4 months",
+              "next_possible": [
+                "2027-02",
+                "2027-06",
+                "2027-10"
+              ]
+            },
             "status": "needs_katie",
-            "note": "Q6: how often, who leads, what happens, next dates."
+            "source": "owners' setup answers, 2026-11-13 (Q6)",
+            "note": "The rhythm is not confirmed: never promise a date until it is in offerings.promotions."
+          }
+        },
+        {
+          "name": "Community Days",
+          "details": {
+            "value": {
+              "kind": "special event",
+              "frequency": "about once every 4 months",
+              "next_possible": [
+                "2027-02",
+                "2027-06",
+                "2027-10"
+              ]
+            },
+            "status": "needs_katie",
+            "source": "owners' setup answers, 2026-11-13 (Q6)",
+            "note": "The rhythm is not confirmed."
           }
         },
         {
           "name": "Clinical Conversations",
           "details": {
-            "value": null,
-            "status": "needs_katie",
-            "note": "Q6: how often, who leads, what happens, next dates."
+            "value": {
+              "state": "cancelled for now",
+              "promote": false
+            },
+            "status": "confirmed",
+            "source": "owners' setup answers, 2026-11-13 (Q6)",
+            "note": "Never promote or mention it (claims_scan rule cancelled_event)."
           }
         }
       ],
-      "status": "from_website",
-      "source": "spec p.22, p.54 Q6"
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q6)"
     },
     "do_not_promote": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.55 Q15",
-      "note": "Anything full (classes at capacity)."
+      "value": [
+        {
+          "what": "Clinical Conversations",
+          "why": "cancelled for now"
+        },
+        {
+          "what": "Merch",
+          "why": "not promoted"
+        },
+        {
+          "what": "Embodied Story Group",
+          "why": "likely on hold"
+        },
+        {
+          "what": "NEWBIE (50% off a first class)",
+          "why": "emails and the front desk only, never public posts"
+        },
+        {
+          "what": "Saturday morning Experience classes to new people",
+          "why": "most often full; point new people to weekday classes"
+        }
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q15), owners' setup answers, 2026-11-13 (Q16)"
     },
     "not_offered": {
       "value": [
@@ -419,109 +842,427 @@
       "note": "Never shown or implied, including in AI shots and outpainted backgrounds."
     },
     "priority_offer": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q14"
+      "value": {
+        "paid_door": "Discover Numa ($49)",
+        "free_door": "The Numa Reset"
+      },
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q14)"
     },
     "upcoming": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q16"
+      "value": "See offerings.promotions (dated, with confirmed and public flags).",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q16)"
     },
     "rates_considered": {
-      "value": null,
+      "value": {
+        "confirmed": "15% off memberships for the groups in offerings.discounts",
+        "open": [
+          "student offer",
+          "over-60 offer"
+        ]
+      },
       "status": "needs_katie",
-      "source": "spec p.54-57 Q50"
+      "source": "owners' setup answers, 2026-11-13 (Q50)",
+      "note": "Never promote an unconfirmed rate."
+    },
+    "visit_pass_bundles": {
+      "value": [
+        {
+          "name": "Visit Pass Bundle (5)",
+          "count": 5,
+          "price": {
+            "value": 125,
+            "currency": "USD",
+            "display": "$125",
+            "status": "confirmed"
+          },
+          "valid_months": 6
+        },
+        {
+          "name": "Visit Pass Bundle (10)",
+          "count": 10,
+          "price": {
+            "value": 220,
+            "currency": "USD",
+            "display": "$220",
+            "status": "confirmed"
+          },
+          "valid_months": 6
+        },
+        {
+          "name": "Visit Pass Bundle (20)",
+          "count": 20,
+          "price": {
+            "value": 380,
+            "currency": "USD",
+            "display": "$380",
+            "status": "confirmed"
+          },
+          "valid_months": 6
+        }
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q4)",
+      "note": "Valid 6 months."
+    },
+    "gift_cards": {
+      "value": "Gift cards in any amount.",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q4)"
+    },
+    "provider_services": {
+      "value": [
+        {
+          "name": "massage",
+          "price": "set by the provider"
+        },
+        {
+          "name": "facials",
+          "price": "set by the provider"
+        },
+        {
+          "name": "counseling",
+          "price": "set by the provider"
+        }
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q4)",
+      "note": "Collective providers price their own services: never state a price for them."
+    },
+    "discounts": {
+      "value": {
+        "memberships_15_percent_off": [
+          "healthcare workers",
+          "veterans",
+          "active military",
+          "police",
+          "firefighters",
+          "EMTs",
+          "teachers",
+          "ministry leaders"
+        ]
+      },
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q50)",
+      "note": "15% off memberships for these groups."
+    },
+    "new_people_rule": {
+      "value": "Don't send new people to Saturday morning Experience classes (most often full); point them to weekday classes.",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q15)"
+    },
+    "price_changes": {
+      "value": "none planned",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q16)"
+    },
+    "promotions": {
+      "value": [
+        {
+          "id": "bring_a_friend",
+          "name": "Bring a friend",
+          "start": null,
+          "end": "2026-11-30",
+          "public": true,
+          "confirmed": true,
+          "details": "Friends who are new to Numa come free, no limit. No thank-you gift for members."
+        },
+        {
+          "id": "newbie",
+          "name": "NEWBIE: 50% off a first class",
+          "start": "2026-12-01",
+          "end": null,
+          "public": false,
+          "confirmed": true,
+          "details": "Emails and the front desk only. Never in a public post (claims_scan rules newbie_code, half_off).",
+          "channels": [
+            "email",
+            "front desk"
+          ]
+        },
+        {
+          "id": "holiday_day_pass",
+          "name": "Holiday Day Pass",
+          "start": "2026-11-23",
+          "end": "2026-12-31",
+          "public": true,
+          "confirmed": true,
+          "details": "$39 ($29 members).",
+          "price": {
+            "value": 39,
+            "currency": "USD",
+            "display": "$39",
+            "member_value": 29,
+            "member_display": "$29 members",
+            "status": "confirmed"
+          }
+        },
+        {
+          "id": "unlimited_weekly_pass",
+          "name": "Unlimited Weekly Pass",
+          "start": "2026-11-23",
+          "end": "2026-12-31",
+          "public": true,
+          "confirmed": true,
+          "details": "$79 ($59 members).",
+          "price": {
+            "value": 79,
+            "currency": "USD",
+            "display": "$79",
+            "member_value": 59,
+            "member_display": "$59 members",
+            "status": "confirmed"
+          }
+        },
+        {
+          "id": "black_friday_gift_card_bonus",
+          "name": "Black Friday Gift Card Bonus",
+          "start": "2026-11-27",
+          "end": "2026-11-30",
+          "public": true,
+          "confirmed": true,
+          "details": "A $25 bonus gift card for every $100 spent at Numa. Counseling doesn't count toward the $100; everything else does.",
+          "open_questions": [
+            "Can the bonus be used on collective provider services (massage, facials)? Scott is checking with the massage provider. Until answered, don't say where the bonus can be used beyond Numa's own services."
+          ]
+        },
+        {
+          "id": "black_friday_membership_bogo",
+          "name": "Black Friday Membership Buy One Get One Free",
+          "start": "2026-11-27",
+          "end": "2026-11-30",
+          "public": true,
+          "confirmed": true,
+          "details": "Only for people buying a membership for the first time. Buy any membership and get a free 1-month membership to give away. The gift can be Discover Numa (ends on its own after one month) or another membership; any other membership has to be cancelled after the month. Details go in the caption or at the front desk.",
+          "hook": "Buy a membership, give a friend a free month.",
+          "open_questions": [
+            "\"Equal or lesser value\" or \"equal or greater\"?",
+            "Who cancels a gifted membership after the month: staff or the friend? (Staff is safer.)"
+          ]
+        },
+        {
+          "id": "super_escape",
+          "name": "Super Escape",
+          "start": null,
+          "end": null,
+          "public": true,
+          "confirmed": true,
+          "details": "Once a month.",
+          "open_questions": [
+            "First Thursday (12/3, 1/7, 2/4) or first Wednesday?"
+          ]
+        },
+        {
+          "id": "holiday_party_rentals",
+          "name": "Holiday party rentals",
+          "start": null,
+          "end": null,
+          "public": true,
+          "confirmed": true,
+          "details": "Holiday party rentals."
+        },
+        {
+          "id": "friday_escape_noon",
+          "name": "Friday Escape moves to 12pm",
+          "start": "2027-01-01",
+          "end": null,
+          "public": true,
+          "confirmed": true,
+          "details": "Friday Escape is at 12pm starting Jan 1."
+        },
+        {
+          "id": "polished_and_prepped",
+          "name": "Polished and Prepped",
+          "start": "2027-01-08",
+          "end": "2027-01-11",
+          "public": true,
+          "confirmed": true,
+          "details": "Fri 1/8 and Mon 1/11.",
+          "dates": [
+            "2027-01-08",
+            "2027-01-11"
+          ]
+        },
+        {
+          "id": "date_night",
+          "name": "Date Night",
+          "start": "2027-01-15",
+          "end": "2027-01-15",
+          "public": true,
+          "confirmed": true,
+          "details": "Fri 1/15."
+        },
+        {
+          "id": "member_appreciation_party",
+          "name": "Member Appreciation Party",
+          "start": "2026-12-01",
+          "end": "2026-12-01",
+          "public": true,
+          "confirmed": false,
+          "details": "To confirm: don't promote until confirmed."
+        },
+        {
+          "id": "winter_solstice",
+          "name": "Winter Solstice (with a breathwork guide)",
+          "start": "2026-12-22",
+          "end": "2026-12-22",
+          "public": true,
+          "confirmed": false,
+          "details": "To confirm: don't promote until confirmed."
+        },
+        {
+          "id": "february_community_event",
+          "name": "February community event",
+          "start": "2027-02",
+          "end": null,
+          "public": true,
+          "confirmed": false,
+          "details": "To confirm: don't promote until confirmed."
+        },
+        {
+          "id": "student_and_over_60_offers",
+          "name": "Student and over-60 offers",
+          "start": null,
+          "end": null,
+          "public": true,
+          "confirmed": false,
+          "details": "To confirm: never promote an unconfirmed rate."
+        }
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q16)",
+      "note": "Only items with confirmed true may be promoted, and only inside their start/end window; public false means never in a public post. Not promoted at all: offerings.do_not_promote. No price changes."
     }
   },
   "team": {
     "collective": {
       "value": [
         {
+          "role": "co-founder",
           "name": "Scott Moore",
-          "org": "Kolibri",
-          "role": "counseling"
+          "also": [
+            "counselor (through Kolibri)",
+            "records voiceovers"
+          ]
         },
         {
-          "name": "LaJuan Humbert",
-          "credentials": "LPC",
-          "role": "counseling"
-        },
-        {
-          "name": "Matt Henson",
-          "credentials": "ALC",
-          "role": "counseling"
-        },
-        {
-          "name": "Kandi Roemhildt",
-          "role": "sports massage"
-        },
-        {
-          "name": "Natalia Lichtenberger",
-          "role": "European facials"
-        },
-        {
-          "name": "Fallon Gleason",
-          "role": "breathwork guide"
-        },
-        {
-          "name": "Joseph Irby",
-          "role": "breathwork guide"
-        },
-        {
+          "role": "co-founder",
           "name": "Katie Moore",
-          "role": "coaching and spiritual direction"
+          "credentials": "DPT"
+        },
+        {
+          "role": "yoga teacher",
+          "count": 1,
+          "collab": true
+        },
+        {
+          "role": "breathwork guide",
+          "count": 2
+        },
+        {
+          "role": "studio staff",
+          "count": 4,
+          "note": "one through December 2026 only"
+        },
+        {
+          "role": "social media (posts to Instagram and Facebook)",
+          "count": 1
+        },
+        {
+          "role": "counselor",
+          "count": 2,
+          "credentials": [
+            "LPC",
+            "ALC"
+          ],
+          "note": "plus Scott Moore through Kolibri"
+        },
+        {
+          "role": "massage therapist",
+          "count": 1,
+          "collab": true
+        },
+        {
+          "role": "esthetician (facials)",
+          "count": 1,
+          "collab": true
+        },
+        {
+          "role": "partner physician (MD)",
+          "count": 1,
+          "note": "a partner, not employed; provides R.E.N.E.W."
         }
       ],
-      "status": "research",
-      "source": "spec p.24, p.56 Q44"
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q7), owners' setup answers, 2026-11-13 (Q44)",
+      "note": "Roles only: the public repo names nobody but the co-founders. Names, on-camera status, collab handles and 'do not feature' flags are in the private STATE/people.json (consent.people_file). Breathwork staff are \"guides\"; only licensed counselors talk about mental health."
     },
     "on_camera": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54 Q7, p.55 Q26",
-      "note": "Who is comfortable being on camera and who may not appear."
+      "value": {
+        "may_appear": [
+          "Scott Moore",
+          "Katie Moore",
+          "instructors and staff",
+          "members who said yes (on record in Doc 04)"
+        ],
+        "never": [
+          "anyone flagged do_not_feature in STATE/people.json",
+          "children (consent.children)"
+        ],
+        "people_file": "STATE/people.json"
+      },
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q7), owners' setup answers, 2026-11-13 (Q26)"
     },
     "filming": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.55 Q29-Q31",
-      "note": "Who films, best batch-shoot times, rooms or moments never to film."
+      "value": {
+        "who": "anyone working in the studio",
+        "device": "the Numa iPhone 14 Pro",
+        "batch_shoot": "Monday to Thursday, 9 to 11am",
+        "tuesday": "a yoga class runs then, so film in the Flow Space",
+        "never_film": "see consent.never_film"
+      },
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q29), owners' setup answers, 2026-11-13 (Q30), owners' setup answers, 2026-11-13 (Q31)"
     },
     "voiceover": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q28"
+      "value": "Scott Moore records voiceovers. No cloned voices.",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q28)",
+      "note": "See voice.voiceover_by, voice.clone_allowed and voice.generic_ai_allowed."
     }
   },
   "positioning": {
     "own_in_mobile": {
       "value": [
-        "A clinician on camera: Katie as the trusted expert (Ask the DPT), within the claims policy.",
-        "The whole-person collective: counselors, massage, facials and guides under one roof; each provider is a recurring feature and a collab partner.",
+        "Breath comes first, and a guide is always nearby (\"You'll never be left alone wondering what to do!\").",
+        "The whole-person collective: counseling, massage and facials under one roof; providers are recurring features and collab partners.",
+        "A real community: most people come because a friend invited them.",
         "Gulf Coast life: Mobile's tap water rarely gets below 70°F, so a home cold plunge is hard; plus Mardi Gras, hurricane season, summer heat and Midtown.",
-        "Audiences nobody targets: healthcare and shift workers, University of South Alabama students and athletes, men, and older adults.",
-        "Consistency: 4-5 good posts a week would make NUMA the most active local recovery account."
+        "Consistency: 4-5 good posts a week would make Numa the most active local recovery account."
       ],
       "status": "research",
-      "source": "spec p.24-25"
+      "source": "spec p.24-25; owners' setup answers, 2026-11-13 (Q9)"
     },
     "target_audiences": {
       "value": [
-        "Healthcare and shift workers (5:30 AM opening)",
-        "University of South Alabama students and athletes",
-        "Men",
-        "Older adults"
+        "Working moms, late 30s to mid 40s, tired and overwhelmed, usually invited by a friend (most often)",
+        "Men and athletes",
+        "Couples",
+        "People who start with yoga",
+        "People who long to change and live differently: slower, more intentional, more aware; in recovery from old ways of being or from athletic performance (want more of; their role in life doesn't matter)"
       ],
-      "status": "research",
-      "source": "spec p.25"
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q10)",
+      "note": "Kids 10 and up come with a parent (10 to 14 with a parent) but never appear on camera (consent.children). Women and younger people don't want to come alone: lead with the bring-a-friend angle and the guide who is always nearby."
     },
     "series": {
       "value": [
         {
           "id": "ask_the_dpt",
           "name": "Ask the DPT",
-          "what": "Katie answers one real question (e.g. \"Sauna vs infrared vs red light: what's different?\"), education only, no sales ask in the same reel",
+          "what": "Katie answers one real question (e.g. \"Sauna vs infrared vs red light: what's different?\"), education only, no sales ask in the same reel. Open (Q45): whether Katie is on camera, the topics, and never-comment topics; until answered, text-on-screen answers.",
           "length_s": [
             45,
             60
@@ -545,7 +1286,7 @@
         {
           "id": "regulate",
           "name": "Regulate",
-          "what": "A guided breath practice viewers can do at their desk, led by Fallon or Joseph",
+          "what": "A guided breath practice viewers can do at their desk, led by a breathwork guide",
           "length_s": [
             45,
             60
@@ -567,35 +1308,60 @@
     "collab_partners": {
       "value": [
         {
-          "name": "Mission Fitness",
-          "handle": "@missionfitnessmobile",
-          "order": 1
+          "name": "AMP",
+          "handle": null,
+          "order": 1,
+          "status": "active partner",
+          "note": "Review the agreement for posting terms before any collab post (open)."
         },
         {
-          "name": "barre3 Mobile",
-          "handle": "@barre3mobile",
-          "order": 2
+          "name": "Collective providers",
+          "handle": null,
+          "order": 2,
+          "status": "active",
+          "note": "The massage therapist (tags Numa and invites Numa as a collaborator), the yoga teacher and the esthetician do collab posts; handles in STATE/people.json."
         },
         {
           "name": "Pure Barre Mobile",
           "handle": "@purebarremobile",
-          "order": 3
-        },
-        {
-          "name": "Run clubs",
-          "handle": null,
-          "order": 4
+          "order": 3,
+          "status": "talked and dropped off passes; nothing more yet"
         },
         {
           "name": "University of South Alabama teams",
           "handle": null,
-          "order": 5
+          "order": 4,
+          "status": "the partnership has ended; follow up with soccer and the other teams"
+        },
+        {
+          "name": "Mission Fitness",
+          "handle": "@missionfitnessmobile",
+          "order": 5,
+          "status": "a Kolibri partner, not a Numa partner: no Numa collab"
+        },
+        {
+          "name": "barre3 Mobile",
+          "handle": "@barre3mobile",
+          "order": 6,
+          "status": "none"
+        },
+        {
+          "name": "Run clubs",
+          "handle": null,
+          "order": 7,
+          "status": "none"
+        },
+        {
+          "name": "CREW",
+          "handle": null,
+          "order": 8,
+          "status": "tried; they didn't take it up"
         }
       ],
-      "status": "research",
-      "source": "research/4-mobile-competitor-audit.md (developer kit; handles); spec p.25, p.56 Q49",
-      "concept": "Sweat there, recover here",
-      "note": "Collab posts, never reposts. Katie confirms partners before any outreach."
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q49)",
+      "note": "Collab posts, never reposts. Only partners with status active are collab-ready.",
+      "concept": "Sweat there, recover here"
     },
     "competitors": {
       "value": [
@@ -624,7 +1390,7 @@
       ],
       "status": "research",
       "source": "research/4-mobile-competitor-audit.md (developer kit; handles, ~913 followers); spec p.11, p.24, p.47",
-      "note": "The Scout logs the last 12 posts of each, monthly."
+      "note": "The Scout logs the last 12 posts of each, monthly. Never compare Numa with any of them in public copy (claims_scan rule competitor_comparison)."
     },
     "content_mix": {
       "value": {
@@ -639,54 +1405,228 @@
       "note": "Starting mix; re-weighted every month from performance data."
     },
     "differentiator": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q9"
+      "value": [
+        "Breath comes first.",
+        "A guide is always nearby (\"You'll never be left alone wondering what to do!\").",
+        "The space feels premium.",
+        "A real community.",
+        "Collective providers (counseling, massage, facials) under one roof."
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q9)"
     },
     "join_reasons": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q11"
+      "value": [
+        "a break from the chaos",
+        "a friend's invite",
+        "the community"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q11)"
     },
     "hesitations": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q11"
+      "value": [
+        "fear of the cold",
+        "not sure the time is worth it",
+        "women and younger people don't want to come alone (men don't have this worry)"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q11)"
     },
     "member_stories": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q12"
+      "value": {
+        "consent_log": "Doc 04 (every story there has a yes on record)",
+        "lead_with": "four members named in STATE/people.json (lead_member_stories)",
+        "limited": "one member is cleared for one existing post only (STATE/people.json)"
+      },
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q12)",
+      "note": "Names stay private; read STATE/people.json at run time."
     },
     "goals_90d": {
-      "value": null,
+      "value": [
+        "memberships",
+        "trials",
+        "fuller events",
+        "followers"
+      ],
       "status": "needs_katie",
-      "source": "spec p.54-57 Q13"
+      "source": "owners' setup answers, 2026-11-13 (Q13)",
+      "note": "Open. Suggested order, following a business adviser's advice to grow Foundation memberships."
     },
     "paid_ads": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q37"
+      "value": "none",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q37)",
+      "note": "No ads (no boosts) until website tracking is set up."
     },
     "past_best_posts": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q39"
+      "value": [
+        {
+          "what": "Recoverymaxxing reel",
+          "views": 13100,
+          "note": "a one-off: don't build a hook family on \"-maxxing\""
+        },
+        {
+          "what": "a collab post with a partner athlete",
+          "views": 10000
+        },
+        {
+          "what": "\"The work you put in\"",
+          "views": 1800
+        },
+        {
+          "what": "event recap (\"What a night\")",
+          "views": 1300
+        },
+        {
+          "what": "member testimony reel",
+          "views": 1100
+        },
+        {
+          "what": "local partner collab",
+          "views": 911
+        },
+        {
+          "what": "a member's first cold plunge, a collab with 4 accounts",
+          "views": null
+        }
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q39)",
+      "note": "What they share: real people on camera, collabs, and lines about what the member walks out with. See positioning.owner_priors."
     },
     "past_flops": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q40"
+      "value": [
+        "the \"Feel Fully Rejuvenated\" graphic",
+        "the Testimony Tuesday quote card",
+        "the Attune Together event poster",
+        "quote cards",
+        "hashtag-only captions",
+        "Athletic Advantage launched to zero signups because the bio link was broken"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q40)"
     },
     "audience_size": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q41"
+      "value": {
+        "followers": 807,
+        "as_of": "2026-08-31",
+        "reach_per_post": [
+          400,
+          700
+        ],
+        "trials_from_instagram": null
+      },
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q41)",
+      "note": "Trials from Instagram can't be counted yet: there's no tracking."
     },
     "ask_the_dpt": {
       "value": null,
       "status": "needs_katie",
-      "source": "spec p.54-57 Q45"
+      "source": "owners' setup answers, 2026-11-13 (Q45)",
+      "note": "Open (Katie): on-camera expert? Topics, and never-comment topics? Until answered, Ask the DPT runs as text-on-screen answers."
+    },
+    "owner_priors": {
+      "value": {
+        "as_of": "2026-11-13",
+        "baseline": {
+          "followers": 807,
+          "followers_as_of": "2026-08-31",
+          "views_per_post": [
+            400,
+            700
+          ]
+        },
+        "weight": "Owner data outweighs research priors; Numa's own measured posts outweigh both as they accumulate.",
+        "favour": [
+          {
+            "id": "real_people",
+            "what": "real people on camera (team and members with a yes)",
+            "evidence": [
+              "member testimony reel 1,100",
+              "a member's first cold plunge (collab with 4 accounts)"
+            ]
+          },
+          {
+            "id": "collabs",
+            "what": "collab posts (providers, partners, members)",
+            "evidence": [
+              "partner athlete collab 10,000",
+              "local partner collab 911"
+            ]
+          },
+          {
+            "id": "walk_out_lines",
+            "what": "lines about what the member walks out with (experience, never outcome)",
+            "evidence": [
+              "\"The work you put in\" 1,800"
+            ]
+          },
+          {
+            "id": "event_recaps",
+            "what": "event recaps",
+            "evidence": [
+              "\"What a night\" 1,300"
+            ]
+          },
+          {
+            "id": "video",
+            "what": "videos over still graphics",
+            "evidence": [
+              "Recoverymaxxing reel 13,100"
+            ]
+          }
+        ],
+        "avoid": [
+          {
+            "id": "graphics",
+            "what": "designed graphics",
+            "evidence": [
+              "\"Feel Fully Rejuvenated\" graphic"
+            ]
+          },
+          {
+            "id": "quote_cards",
+            "what": "quote cards",
+            "evidence": [
+              "Testimony Tuesday quote card"
+            ]
+          },
+          {
+            "id": "posters",
+            "what": "event posters and designed flyers",
+            "evidence": [
+              "Attune Together event poster"
+            ]
+          },
+          {
+            "id": "hashtag_only_captions",
+            "what": "hashtag-only captions",
+            "evidence": [
+              "owners' flop list"
+            ]
+          },
+          {
+            "id": "broken_bio_link",
+            "what": "an offer launch without checking the bio link",
+            "evidence": [
+              "Athletic Advantage: zero signups"
+            ]
+          },
+          {
+            "id": "maxxing_hooks",
+            "what": "a hook family built on \"-maxxing\" (a one-off hit)",
+            "evidence": [
+              "docs/research/REVIEW.md"
+            ]
+          }
+        ]
+      },
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q39), owners' setup answers, 2026-11-13 (Q40), owners' setup answers, 2026-11-13 (Q41)",
+      "note": "Owner priors for the strategy engine (strategy.py / the Strategist): favour[] ids raise a pattern's prior, avoid[] ids lower it or rule it out. Owner data sits above the generic research priors (REVIEW.md)."
     }
   },
   "assets": {
@@ -699,8 +1639,8 @@
     "wordmark_light": {
       "value": null,
       "status": "needs_katie",
-      "source": "spec p.55 Q17",
-      "note": "Light/dark logo versions, if they exist."
+      "source": "owners' setup answers, 2026-11-13 (Q17)",
+      "note": "Every colour version of the logo exists (the designer's files) but none is supplied yet."
     },
     "secondary_mark": {
       "value": "skills/numa-reel-editor/assets/Numa-Phoenix-transparent.png",
@@ -720,31 +1660,79 @@
       "source": "spec p.23",
       "note": "6 professional photos: cold plunge, sauna with logo, breathwork class, red light, mats, people in sauna."
     },
-    "ownership": "Brand files were downloaded from numawellness.org's image CDN; they belong to NUMA (spec p.23).",
+    "ownership": "Brand files were downloaded from numawellness.org's image CDN; they belong to Numa (spec p.23).",
     "logo_credit": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54-57 Q17"
+      "value": "Numa's logo designer (name kept private)",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q17)"
+    },
+    "logo": {
+      "value": {
+        "mark": "phoenix",
+        "wordmark": true,
+        "colour_versions": "every colour version exists",
+        "files_supplied": false
+      },
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q17)",
+      "note": "A phoenix mark and a wordmark. The bundled files are the website copies (wordmark, secondary_mark); ask for the designer's files."
     }
   },
   "palette": {
     "value": {
-      "cedar_ember": "#C8643C",
-      "water_teal": "#5E8C8F",
-      "cream": "#FAF6EE",
+      "dark_teal": "#06272E",
+      "tan_gold": "#CA8B3A",
+      "beige": "#F2EADB",
+      "light_blue": "#C6E2E3",
+      "blue": "#94BBC7",
+      "light": "#FBFAF8",
+      "cedar_ember": "#CA8B3A",
+      "water_teal": "#06272E",
+      "cream": "#F2EADB",
+      "ink": "#06272E",
       "caption_gold": "#F7D6A0",
-      "caption_text": "#FFFFFF",
-      "ink": "#133037"
+      "caption_text": "#FFFFFF"
+    },
+    "names": {
+      "dark_teal": "Dark Teal",
+      "tan_gold": "Tan/Gold",
+      "beige": "Beige",
+      "light_blue": "Light Blue",
+      "blue": "Blue",
+      "light": "Light"
+    },
+    "official": [
+      "dark_teal",
+      "tan_gold",
+      "beige",
+      "light_blue",
+      "blue",
+      "light"
+    ],
+    "aliases": {
+      "cedar_ember": "tan_gold",
+      "water_teal": "dark_teal",
+      "cream": "beige",
+      "ink": "dark_teal"
+    },
+    "derived": {
+      "caption_gold": "A light tint of Tan/Gold for the gold italic caption line over video (spec p.19 #F7D6A0); kept for legibility on dark footage.",
+      "caption_text": "White caption text over video (spec p.19)."
     },
     "roles": {
       "caption_text": "caption_text",
       "caption_accent": "caption_gold",
       "endcard_subtitle": "caption_gold",
-      "endcard_logo": "caption_text"
+      "endcard_logo": "caption_text",
+      "background_dark": "dark_teal",
+      "background_light": "beige",
+      "accent": "tan_gold",
+      "text_dark": "dark_teal",
+      "text_light": "light"
     },
-    "status": "research",
-    "source": "spec p.19 (white captions, gold #F7D6A0), p.23 (palette)",
-    "note": "Approximate, sampled from photos; confirm official codes with NUMA (Q17)."
+    "status": "confirmed",
+    "source": "owners' setup answers, 2026-11-13 (Q17); caption colours spec p.19",
+    "note": "The six official colours are in 'official'. The old keys (cedar_ember, water_teal, cream, ink) are aliases kept because engine.py, design_render.py and the carousel components read them; each alias holds the same hex as the official colour it names in 'aliases'. New code reads the official names."
   },
   "fonts": {
     "value": {
@@ -753,9 +1741,37 @@
       "caption_italic": "skills/numa-reel-editor/assets/fonts/LiberationSerif-Italic.ttf",
       "license": "skills/numa-reel-editor/assets/fonts/LICENSE"
     },
-    "status": "needs_katie",
-    "source": "spec p.23, p.55 Q17",
-    "note": "Open-licensed stand-in; replace with NUMA's real brand fonts if they have them."
+    "status": "bundled",
+    "source": "owners' setup answers, 2026-11-13 (Q17); spec p.23",
+    "note": "The value is the bundled open-licensed stand-in for reel captions. Numa's brand fonts (brand_fonts) are commercial and are never committed to the repo; local renders use them only if Numa's licensed files are installed on the machine (open question).",
+    "brand_fonts": {
+      "value": [
+        {
+          "name": "Domaine Sans Text Light",
+          "licence": "commercial",
+          "bundled": false
+        },
+        {
+          "name": "Avenir Next",
+          "licence": "commercial",
+          "bundled": false
+        }
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q17)",
+      "note": "Never commit these font files. Whether licensed files exist for local renders is open."
+    },
+    "stand_ins": {
+      "value": {
+        "reel_captions": "Liberation Serif (fonts.value; SIL OFL / GPL+exception, bundled)",
+        "carousel_display": "Hanken Grotesk (SIL OFL, bundled) for Domaine Sans Text Light",
+        "carousel_body": "Nunito Sans (SIL OFL, bundled) for Avenir Next",
+        "licensed_files": "design_render.py renders with the real brand fonts when NUMA_BRAND_FONTS points at a local folder of licensed files"
+      },
+      "status": "bundled",
+      "source": "plugin assets",
+      "note": "Open-licensed stand-ins until licensed brand font files are available."
+    }
   },
   "endcard": {
     "tagline": {
@@ -797,7 +1813,7 @@
         "value": null,
         "status": "needs_katie",
         "source": "spec p.50",
-        "note": "One NUMA community tag."
+        "note": "One Numa community tag (not chosen yet)."
       },
       "never": [
         "#detox",
@@ -808,17 +1824,29 @@
         "#painrelief"
       ],
       "source": "spec p.20, p.50",
-      "note": "3-5 hashtags: the base tags plus one NUMA community tag. Every hashtag is also scanned against claims.banned."
+      "note": "3-5 hashtags: the base tags plus one Numa community tag. Every hashtag is also scanned against claims.banned. Never a hashtag-only caption."
     },
     "disclosure": {
       "value": "Paid or comped creators disclose it in the video and the first line (\"#ad\" or \"I get free sessions\").",
       "status": "research",
       "source": "spec p.22"
+    },
+    "rules": {
+      "value": [
+        "Write a real caption: never hashtags only (a past flop).",
+        "One call to action: the bio link (linktr.ee/numawc), said as \"link in bio\"; check it works before an offer post.",
+        "Lead with what the member walks out with (the experience), never an outcome.",
+        "Member words go in the caption or over a real photo of that member, never on a quote card.",
+        "No emojis.",
+        "Make the member the hero, not Numa; no salesy lines, fear, pressure or shaming; no \"optimized\" talk."
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q19), owners' setup answers, 2026-11-13 (Q22), owners' setup answers, 2026-11-13 (Q36), owners' setup answers, 2026-11-13 (Q40)"
     }
   },
   "transcript_fixes": {
     "_readme": "Speech-to-text corrections applied by fix_transcript.py. Each fix replaces any variant (whole word, case-insensitive unless case_sensitive is true, surrounding punctuation kept) with 'to'. When 'next_words' is set, the fix applies only if the following word is one of them. Phrases in 'protect' are never changed. The shoot-card script, when present, is the truth for spelling and wins over this list.",
-    "source": "spec p.8, p.53 (correction list: NUMA, Katie, Scott, Mobile)",
+    "source": "spec p.8, p.53 (correction list: Numa, Katie, Scott, Mobile); owners' answers Q1",
     "protect": [
       "Numa Nights"
     ],
@@ -832,9 +1860,10 @@
         "case_sensitive": false
       },
       {
-        "to": "NUMA",
+        "to": "Numa",
         "variants": [
-          "Numa",
+          "NUMA",
+          "numa",
           "Nuuma",
           "Nooma",
           "Neuma"
@@ -877,13 +1906,13 @@
     ]
   },
   "claims": {
-    "_readme": "The claims policy as data. claims_scan.py, validate_plan.py and the Critic use it on ALL text: voiceover, on-screen text, captions, hashtags and pinned comments. Patterns are Python regular expressions matched case-insensitively. Before scanning, phrases in 'allow_exact' and matches of 'allow_patterns' are removed (the safety line names 'blood pressure' on purpose; 'treat yourself' and 'a treat' are not medical). Each banned entry has a severity: 'fail' (a banned claim: exit 1, Critic hard gate) or 'warn' (ambiguous or outcome language: a WARN line for review). This policy is general information from research, not legal advice; an advertising lawyer reviews it once before launch.",
-    "source": "spec p.20-22",
+    "_readme": "The claims policy and the brand's word rules as data. claims_scan.py, validate_plan.py and the Critic use it on ALL user-facing text: voiceover, on-screen text, slides, captions, hashtags and pinned comments. Patterns are Python regular expressions matched case-insensitively; a rule that must match case (\"NUMA\") uses a scoped inline flag, (?-i:...). Before scanning, phrases in 'allow_exact' and matches of 'allow_patterns' are removed (the safety line names 'blood pressure' on purpose; 'treat yourself' and 'a treat' are not medical). Each banned entry has a severity: 'fail' (exit 1, Critic hard gate) or 'warn' (a WARN line for review), and an optional kind: claim (health or comparison claim), brand (name and word rules, emojis), fact (a fact Numa must not state), offer (a private or unconfirmed offer in public copy). The owners confirmed the claims list on 2026-11-13 and chose to skip a lawyer's review; this is general information, not legal advice.",
+    "source": "spec p.20-22; owners' setup answers 2026-11-13 (Q1, Q6, Q16, Q20, Q22, Q24, Q42, Q47)",
     "principle": "Sell the experience, never the outcome.",
     "banned": [
       {
         "id": "inflammation",
-        "label": "inflammation",
+        "label": "inflammation (owners: no claim that the cold plunge lowers inflammation)",
         "severity": "fail",
         "patterns": [
           "\\binflamm\\w*"
@@ -927,9 +1956,10 @@
       },
       {
         "id": "heals",
-        "label": "heals (a body, injury or condition)",
+        "label": "heal or heals (owners: never \"heal\")",
         "severity": "fail",
         "patterns": [
+          "\\bheal\\b",
           "\\bheal(s|ed)\\b",
           "\\bheal\\s+(your|the|my|our|their)\\b",
           "\\bheal(ing)?\\s+(\\w+\\s+){0,2}?(pain|aches?|injur\\w*|depression|anxiety|stress|insomnia|sleep|conditions?|symptoms?|diseases?|illness\\w*|inflamm\\w*|arthritis|ptsd|trauma|muscles?|soreness|joints?|headaches?|migraines?|fatigue|burnout|wounds?)\\b"
@@ -971,7 +2001,8 @@
         "severity": "fail",
         "patterns": [
           "\\btreat(s|ed|ing)?\\s+(\\w+\\s+){0,2}?(pain|aches?|injur\\w*|depression|anxiety|stress|insomnia|sleep|conditions?|symptoms?|diseases?|illness\\w*|inflamm\\w*|arthritis|ptsd|trauma|muscles?|soreness|joints?|headaches?|migraines?|fatigue|burnout|wounds?)\\b",
-          "#treat(ment)?s?\\b"
+          "#treat(ment)?s?\\b",
+          "\\b(it|this|that|which|sauna|plunges?|red[ -]?light|breathwork|session|numa)\\s+treats\\b"
         ],
         "applies_to": "all"
       },
@@ -1116,7 +2147,7 @@
       },
       {
         "id": "fda",
-        "label": "\"FDA-approved\" or the FDA logo (\"FDA-cleared\" only when naming the exact device and its exact cleared use)",
+        "label": "\"FDA-approved\" or the FDA logo (\"FDA-cleared\" only when naming the exact device and its exact cleared use, once the clearance is confirmed)",
         "severity": "fail",
         "patterns": [
           "\\bfda[ -]?(approved|cleared)"
@@ -1177,6 +2208,221 @@
           "\\bendorphins?\\b"
         ],
         "applies_to": "all"
+      },
+      {
+        "id": "name_casing",
+        "kind": "brand",
+        "severity": "fail",
+        "label": "the name is \"Numa\", never \"NUMA\" (full name: Numa Wellness Collective)",
+        "rewrite": "Numa",
+        "patterns": [
+          "(?-i:\\bNUMA\\b)",
+          "(?-i:#NUMA)"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "wrong_offer_name",
+        "kind": "brand",
+        "severity": "fail",
+        "label": "the $49 month is \"Discover Numa\", never \"Discover Pass\" or \"Explore Numa\"",
+        "rewrite": "Discover Numa",
+        "patterns": [
+          "\\bdiscover\\s+pass(es)?\\b",
+          "\\bexplore\\s+numa\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "credits_word",
+        "kind": "brand",
+        "severity": "fail",
+        "label": "\"credits\" is a word the owners never use (say classes or Visit Passes)",
+        "rewrite": "Visit Passes",
+        "patterns": [
+          "\\bcredits\\b",
+          "\\bclass\\s+credit\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "cheap_word",
+        "kind": "brand",
+        "severity": "fail",
+        "label": "\"cheap\" is a word the owners never use (state the price instead)",
+        "rewrite": "$49 for your first month",
+        "patterns": [
+          "\\bcheap(er|est|ly|ness)?\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "no_emoji",
+        "kind": "brand",
+        "severity": "fail",
+        "label": "an emoji (the owners want none, anywhere)",
+        "rewrite": "the same line with no emoji",
+        "patterns": [
+          "[\\U0001F000-\\U0001FAFF]",
+          "[\\u2600-\\u27BF]",
+          "[\\u2B00-\\u2BFF]",
+          "[\\u2300-\\u23FF]",
+          "\\uFE0F"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "newbie_code",
+        "kind": "offer",
+        "severity": "fail",
+        "label": "NEWBIE (50% off a first class) is for emails and the front desk only, never public posts",
+        "rewrite": "Discover Numa: one month for $49",
+        "patterns": [
+          "\\bnewbie\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "half_off",
+        "kind": "offer",
+        "severity": "fail",
+        "label": "\"50% off\" is the private NEWBIE offer: never in public posts",
+        "rewrite": "Discover Numa: one month for $49",
+        "patterns": [
+          "\\b50\\s*%\\s*off\\b",
+          "\\b50\\s*percent\\s+off\\b",
+          "\\bhalf[ -]off\\b",
+          "\\bhalf[ -]price\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "sauna_capacity",
+        "kind": "fact",
+        "severity": "fail",
+        "label": "a sauna capacity (\"14-person\" is not confirmed; never state a number)",
+        "rewrite": "our Finnish sauna",
+        "patterns": [
+          "\\b14[ -]?(person|people|seat\\w*)\\b",
+          "\\bfourteen[ -]?(person|people|seat\\w*)\\b",
+          "\\b(sauna|it)\\s+(holds|fits|seats)\\s+(up\\s+to\\s+)?\\d+\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "cancelled_event",
+        "kind": "fact",
+        "severity": "fail",
+        "label": "Clinical Conversations is cancelled: never promote or mention it",
+        "rewrite": "an event or offer listed in brand.json offerings.promotions",
+        "patterns": [
+          "\\bclinical\\s+conversations?\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "plunge_temp_34",
+        "kind": "fact",
+        "severity": "fail",
+        "label": "34° (a rare dip; never state it): plunges are kept at 44 to 52°F",
+        "rewrite": "Our plunges are kept at 44 to 52°F.",
+        "patterns": [
+          "\\b34\\s*(°|º|degrees?\\b|deg\\b)",
+          "\\b34\\s*f\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "plunge_temp_low",
+        "kind": "fact",
+        "severity": "warn",
+        "label": "a temperature under 44°: Numa's plunges are kept at 44 to 52°F (sauna 175 to 190°F)",
+        "patterns": [
+          "\\b(3\\d|4[0-3])\\s*(°|º|degrees?\\b)"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "sauna_alcohol",
+        "kind": "claim",
+        "severity": "fail",
+        "label": "the sauna clears alcohol or a hangover",
+        "patterns": [
+          "\\b(sweat\\w*|sauna\\w*|heat)\\b[^.!?\\n]{0,40}?\\b(alcohol|booze|hangovers?|last\\s+night'?s\\s+drinks?)\\b",
+          "\\b(alcohol|booze|hangovers?)\\b[^.!?\\n]{0,40}?\\b(sweat\\w*|sauna\\w*)\\b",
+          "\\b(clear|clears|clearing|flush|flushes|flushing|process|processes)\\s+(out\\s+)?(the\\s+|your\\s+)?(alcohol|booze)\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "red_light_elasticity",
+        "kind": "claim",
+        "severity": "fail",
+        "label": "red light \"restores elasticity\" (say \"supports\" or \"improves\")",
+        "patterns": [
+          "\\brestor\\w*\\s+(\\w+\\s+){0,3}?elasticity\\b",
+          "\\belasticity\\b[^.!?\\n]{0,20}?\\brestor\\w*"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "hsa_fsa",
+        "kind": "claim",
+        "severity": "fail",
+        "label": "a service \"is\" HSA/FSA eligible (never say it)",
+        "patterns": [
+          "\\b(hsa|fsa)\\b[^.!?\\n]{0,15}?\\b(eligib\\w*|approved|qualif\\w*|covered)\\b",
+          "\\b(eligib\\w*|qualif\\w*)\\s+(for\\s+)?(\\w+\\s+){0,2}?(hsa|fsa)\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "hsa_fsa_mention",
+        "kind": "claim",
+        "severity": "warn",
+        "label": "HSA/FSA mentioned: never say a service is eligible; leave it to the member's plan",
+        "patterns": [
+          "\\b(hsa|fsa)\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "competitor_comparison",
+        "kind": "claim",
+        "severity": "fail",
+        "label": "a comparison with competitors (owners: no comparisons)",
+        "patterns": [
+          "\\b(better|cheaper|colder|hotter|bigger|cleaner|nicer|calmer|cooler)\\s+than\\s+(any|other|the\\s+other|every|most|those)\\s+(\\w+\\s+)?(studios?|gyms?|spas?|places?|saunas?|plunges?|recovery|wellness|cryo\\w*)\\b",
+          "\\b(better|cheaper|colder|hotter|bigger|cleaner|nicer)\\s+than\\s+(the|a|your)\\s+(gym|spa|studio|cryo\\w*)\\b",
+          "\\bunlike\\s+(other|those|the\\s+other|most|every|any)\\s+(\\w+\\s+)?(studios?|gyms?|spas?|places?|saunas?|plunges?|recovery|wellness)\\b",
+          "\\bbeyond\\s+the\\s+plunge\\b",
+          "@beyondtheplunge\\b",
+          "\\bmobile\\s+cryotherapy\\b",
+          "@mobile_cryotherapy\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "superlative",
+        "kind": "claim",
+        "severity": "warn",
+        "label": "a \"best in Mobile\" superlative reads as a comparison; describe the experience instead",
+        "patterns": [
+          "\\b(best|#1|number\\s+one)\\s+(\\w+\\s+){0,2}?in\\s+(mobile|town|alabama|the\\s+gulf)\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "unconfirmed_amenity",
+        "kind": "fact",
+        "severity": "warn",
+        "label": "an amenity Numa hasn't confirmed (robes, a tea lounge, 60-minute sessions)",
+        "patterns": [
+          "\\brobes?\\b",
+          "\\btea\\s+lounge\\b",
+          "\\b60[ -]?min(ute)?\\s+(session|circuit|experience)s?\\b"
+        ],
+        "applies_to": "all"
       }
     ],
     "allow_patterns": [
@@ -1191,27 +2437,31 @@
         "say": [
           "Three minutes of cold. Walk out wide awake.",
           "A challenge that leaves many people feeling energized.",
-          "Pairs well with the sauna for contrast."
+          "Pairs well with the sauna for contrast.",
+          "Our plunges are kept at 44 to 52°F."
         ],
         "never_say": [
           "Reduces inflammation (a 2025 meta-analysis found it rises right after a plunge)",
           "Boosts immunity",
           "Burns fat",
           "Heals injuries",
-          "Treats depression"
+          "Treats depression",
+          "Lowers inflammation (owner-confirmed)"
         ]
       },
       "sauna": {
         "say": [
           "Deep, quiet heat to unwind.",
           "A centuries-old Finnish ritual.",
-          "Relax, breathe, disconnect."
+          "Relax, breathe, disconnect.",
+          "Our sauna runs 175 to 190°F."
         ],
         "never_say": [
           "Detox or sweat out toxins",
           "Burns calories",
           "Lowers blood pressure",
-          "Prevents heart disease or dementia"
+          "Prevents heart disease or dementia",
+          "Clears alcohol or a hangover (owner-confirmed)"
         ]
       },
       "red_light": {
@@ -1223,14 +2473,26 @@
           "Anti-aging, wrinkles, collagen",
           "Heals or reduces inflammation",
           "\"FDA-approved\"",
-          "\"FDA-cleared\" unless it names the exact device and its exact cleared use"
+          "\"FDA-cleared\" unless it names the exact device and its exact cleared use",
+          "Restores elasticity (say \"supports\" or \"improves\")"
         ],
         "device_facts": {
-          "value": null,
-          "status": "needs_katie",
-          "source": "spec p.57 Q46",
-          "note": "Panel make and model, wavelengths, and any FDA clearance (for what exactly)."
-        }
+          "value": {
+            "device": "Block Blu Light Red Light Therapy Panel Elite XL",
+            "make": "Block Blu Light",
+            "model": "Elite XL"
+          },
+          "status": "confirmed",
+          "source": "owners' setup answers, 2026-11-13 (Q46)",
+          "note": "Make and model confirmed. Whether it is FDA-cleared, and for what, is open (fda_clearance).",
+          "fda_clearance": {
+            "value": null,
+            "status": "needs_katie",
+            "source": "owners' setup answers, 2026-11-13 (Q46)",
+            "note": "The waiver says \"FDA-cleared\"; for what exactly is open. Until confirmed, \"FDA-cleared\" fails the scanner even next to the device name."
+          }
+        },
+        "note": "Owners allow \"supports\" or \"improves\"; never \"restores elasticity\"."
       },
       "breathwork": {
         "say": [
@@ -1254,7 +2516,7 @@
       },
       {
         "id": "testimonials",
-        "text": "Testimonials are NUMA's claims. Feature experience (\"my favorite hour of the week\"), never outcomes (\"cured my back pain\"). Never repost or pin a member's health claim."
+        "text": "Testimonials are Numa's claims. Feature experience (\"my favorite hour of the week\"), never outcomes (\"cured my back pain\"). Never repost or pin a member's health claim."
       },
       {
         "id": "education",
@@ -1274,11 +2536,35 @@
       },
       {
         "id": "dosing",
-        "text": "The website's dosing line (\"57 minutes of sauna and 11 of cold a week\") is a health-dosing claim; the Director doesn't use it until counsel clears it."
+        "text": "The \"57 minutes of sauna and 11 of cold a week\" line is owner-approved, but its source isn't recorded yet (Doc 04 science table; owner: Scott). It stays out of posts until claims.dosing_line.blocked is false."
       },
       {
         "id": "ai_disclosure",
         "text": "Any reel with AI-animated people or AI-generated scenes gets Instagram's AI label."
+      },
+      {
+        "id": "no_quote_cards",
+        "text": "No quote cards, designed flyers or posters (Numa's flops). Member words go in the caption or over a real photo of that member."
+      },
+      {
+        "id": "people",
+        "text": "Only Scott, Katie, instructors and staff, and members with a yes on record appear. Lead member stories with the members STATE/people.json names. A recorded \"no\" means never, not even blurred."
+      },
+      {
+        "id": "children",
+        "text": "Children never appear until the owners decide (consent.children)."
+      },
+      {
+        "id": "never_film",
+        "text": "Never film the zones in consent.never_film."
+      },
+      {
+        "id": "no_comparisons",
+        "text": "No comparisons with competitors, named or not."
+      },
+      {
+        "id": "offers_from_brand",
+        "text": "Promote only offers in brand.json, inside their dates and only when confirmed and public; never invent an offer, code or rate."
       }
     ],
     "safety_line": {
@@ -1292,15 +2578,16 @@
     },
     "dosing_line": {
       "text": "57 minutes of sauna and 11 of cold a week",
-      "status": "blocked_until_counsel",
+      "status": "blocked_source_pending",
       "blocked": true,
       "patterns": [
         "\\b57\\s*(min|mins|minutes)\\b[^.!?\\n]{0,40}\\b(sauna|heat|hot)\\b",
         "\\b(sauna|heat|hot)\\b[^.!?\\n]{0,40}\\b57\\s*(min|mins|minutes)\\b",
         "\\b11\\s*(min|mins|minutes)?\\b[^.!?\\n]{0,30}\\b(cold|plunge|ice)\\b[^.!?\\n]{0,20}\\b(a|per|each)\\s+week\\b"
       ],
-      "source": "spec p.22, p.57 Q47",
-      "note": "While 'blocked' is true, scanners treat these patterns as banned. Only an advertising lawyer's OK flips it."
+      "source": "spec p.22; owners' setup answers, 2026-11-13 (Q47)",
+      "note": "Owner-approved, but its source is not recorded yet (add it to the Doc 04 science table; owner: Scott). While 'blocked' is true, scanners treat these patterns as banned. Flip 'blocked' to false only once the source is recorded.",
+      "reason": "source pending (Scott)"
     }
   },
   "consent": {
@@ -1315,34 +2602,75 @@
       ],
       "source": "spec p.49"
     },
-    "default": "No recognizable person appears in a reel, or is sent to AI motion, without an entry on the consent list.",
+    "default": "No recognizable person appears in a post, or is sent to AI motion, without a yes on record (Doc 04 / the Consent List). Each person is asked one at a time before we show them or use their words. A recorded \"no\" means never use, not even blurred.",
     "ai_processing_covered": {
-      "value": null,
+      "value": false,
       "status": "needs_katie",
-      "source": "spec p.57 Q48",
-      "note": "Until the consent form covers AI processing, no member face goes to Higgsfield."
+      "source": "owners' setup answers, 2026-11-13 (Q48)",
+      "note": "The owners' answer covers posting a person's photo or words; it doesn't explicitly cover sending a face to AI motion. Until a person's yes names AI processing, no member face goes to Higgsfield."
     },
     "social_posts_covered": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.57 Q48"
+      "value": true,
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q48)",
+      "note": "Owners: covered: we ask each person before posting their photo or using their words."
     },
     "children": {
       "value": "never",
       "status": "needs_katie",
-      "source": "spec p.55 Q27",
-      "note": "Default: never."
+      "source": "owners' setup answers, 2026-11-13 (Q27)",
+      "note": "Open: never, or only with a parent's yes on record? Until the owners decide: never. Kids 10 and up attend (10 to 14 with a parent); past posts showed kids with a parent's yes."
     },
     "voice_clone": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.49 step 7, p.55 Q28",
-      "note": "Katie's cloned voice only after a recorded sample and written consent noted in the Consent List."
+      "value": false,
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q28)",
+      "note": "No cloned voices (voice.clone_allowed)."
     },
     "release_form": {
-      "value": null,
+      "value": "Each person is asked one at a time; permissions are logged in Doc 04.",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q25)"
+    },
+    "process": {
+      "value": "We ask each person, one at a time, before we show them or use their words. Permissions are logged in Doc 04.",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q25), owners' setup answers, 2026-11-13 (Q48)"
+    },
+    "log": {
+      "value": {
+        "name": "Doc 04",
+        "location": null
+      },
       "status": "needs_katie",
-      "source": "spec p.55 Q25"
+      "source": "owners' setup answers, 2026-11-13 (Q25)",
+      "note": "Where Doc 04 lives is open. Until it is linked, consent.list (the _Plan Consent List) is the machine-readable copy the crew checks."
+    },
+    "people_file": {
+      "value": "STATE/people.json",
+      "status": "confirmed",
+      "source": "DECISIONS D25",
+      "note": "Private (synced to Drive _Plan/people.json, never committed). Shape: schemas/people.schema.json; example with placeholder names: docs/examples/people.example.json."
+    },
+    "who_may_appear": {
+      "value": [
+        "Scott Moore",
+        "Katie Moore",
+        "instructors and staff",
+        "members who said yes (one at a time, on record)"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q7), owners' setup answers, 2026-11-13 (Q26)"
+    },
+    "never_film": {
+      "value": [
+        "counseling rooms when clients are in them, or without the counselor's permission",
+        "bathrooms and locker rooms while people are changing",
+        "the kitchen and breakroom"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q31)",
+      "note": "Rules for shoot cards, the Scout and the Critic."
     }
   },
   "closures": {
@@ -1350,9 +2678,42 @@
     "kind": "Google Sheet or calendar",
     "rule": "Nothing that invites people in is scheduled on a closure day.",
     "known": {
-      "value": null,
-      "status": "needs_katie",
-      "source": "spec p.54 Q3"
+      "value": [
+        {
+          "start": "2026-11-25",
+          "end": "2026-11-27",
+          "closed": true,
+          "what": "Thanksgiving"
+        },
+        {
+          "start": "2026-12-24",
+          "end": "2026-12-25",
+          "closed": true,
+          "what": "Christmas Eve and Christmas Day"
+        },
+        {
+          "start": "2026-12-31",
+          "end": "2026-12-31",
+          "closed": false,
+          "open_until": "12:00",
+          "what": "New Year's Eve: open until 12pm"
+        },
+        {
+          "start": "2027-01-01",
+          "end": "2027-01-01",
+          "closed": true,
+          "what": "New Year's Day"
+        },
+        {
+          "start": "2027-03-26",
+          "end": "2027-03-28",
+          "closed": true,
+          "what": "Good Friday to Easter Sunday"
+        }
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q3)",
+      "note": "The next 6 months as of 2026-11-13. Opening hours are under review (business.hours)."
     },
     "source": "spec p.34, p.49"
   },
@@ -1382,27 +2743,31 @@
   "posting": {
     "auto_post": {
       "value": true,
-      "status": "needs_katie",
-      "source": "spec p.56 Q34",
-      "note": "Default: post automatically. Gated by legal_review_done."
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q34)",
+      "note": "The system posts on its own only after a person approves the post (human_approval_required). Nothing goes out without a person approving it."
     },
     "require_approval": {
-      "value": false,
-      "status": "needs_katie",
-      "source": "spec p.30, p.56 Q34-Q35",
-      "note": "Off-by-default approval switch."
+      "value": true,
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q34), owners' setup answers, 2026-11-13 (Q35)",
+      "note": "The approval switch is on: every post is held until a person approves it (same policy as human_approval_required; DECISIONS D26)."
     },
     "see_first": {
-      "value": [],
-      "status": "needs_katie",
-      "source": "spec p.56 Q35",
-      "note": "Default: none."
+      "value": [
+        "members"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q35)",
+      "note": "Member posts also need the member's own yes (member_yes_required). Every post is held anyway (require_approval)."
     },
     "legal_review_done": {
-      "value": false,
-      "status": "needs_katie",
-      "source": "spec p.2, p.20, p.57 Q51",
-      "note": "An advertising lawyer reviews the claims policy once before auto-posting is switched on."
+      "value": true,
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q51)",
+      "note": "No longer needed: the owners said to skip the advertising lawyer (Q51). No lawyer reviewed the policy. Kept, set true, because post-reel still reads it as a gate; human approval (human_approval_required) replaces it.",
+      "required": false,
+      "waived": true
     },
     "platforms": [
       "Instagram",
@@ -1413,19 +2778,69 @@
       "value": "late afternoon (Central)",
       "status": "research",
       "source": "spec p.34",
-      "note": "Re-tuned to NUMA's own data after the first 30 reels."
+      "note": "Re-tuned to Numa's own data after the first 30 reels."
     },
     "ai_label_rule": "Switch on Instagram's AI label for any reel with AI-animated people or AI-generated scenes (spec p.22, p.50).",
-    "music_rule": "NUMA posts as a business: never trending or popular songs. Music is Katie's own or licensed, and each reel's sources.txt records the source (spec p.19).",
+    "music_rule": "Numa posts as a business: never trending or popular songs. Music is Numa's own or licensed, and each reel's sources.txt records the source (spec p.19). The music source is open (ask Emma).",
     "digest_destination": {
       "value": null,
       "status": "needs_katie",
-      "source": "spec p.56 Q38"
+      "source": "owners' setup answers, 2026-11-13 (Q38)",
+      "note": "Open: email, text, or the Claude app? Katie and Scott read the digest now; the Studio Manager will later."
     },
     "legal_counsel": {
+      "value": "none: the owners said skip",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q51)"
+    },
+    "human_approval_required": {
+      "value": true,
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q34)",
+      "note": "\"Nothing goes out without a person approving it.\" The approval mechanism is wired in the commands by a later task."
+    },
+    "member_yes_required": {
+      "value": true,
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q35)",
+      "note": "Any post that shows a member needs that member's yes first."
+    },
+    "approver": {
       "value": null,
       "status": "needs_katie",
-      "source": "spec p.54-57 Q51"
+      "source": "plugin open question; DECISIONS D26",
+      "note": "Open: who approves each post, and how (a Sheet checkbox, a reply, or a Meta Business Suite draft)? Default per D26: an Approved status on the plan Sheet row, set by the owners or Emma."
+    },
+    "music_source": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "owners' setup answers, 2026-11-13 (Q23)",
+      "note": "Open: where the music comes from (ask Emma)."
+    },
+    "publishing_tool": {
+      "value": "Meta Business Suite (Instagram and Facebook)",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q32)"
+    },
+    "poster": {
+      "value": "Emma posts to social",
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q7)"
+    },
+    "digest_readers": {
+      "value": [
+        "Katie Moore",
+        "Scott Moore",
+        "the Studio Manager (later)"
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q38)"
+    },
+    "email_tool": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "plugin open question",
+      "note": "Open: which email tool sends member emails (where NEWBIE may appear). Mindbody is the booking system (confirmed)."
     }
   },
   "escalation": {
@@ -1434,7 +2849,7 @@
     "for": [
       "Reconnecting Instagram after a password change (Meta error 190)",
       "Renewing a card on Claude or Higgsfield",
-      "Approving a legal review"
+      "The approval step breaking (posts stuck because the Sheet or a connector fails)"
     ],
     "rule": "Send Jude a one-line message with the exact fix and keep working around the problem (queue posts, save reels to Drive).",
     "source": "spec p.4"

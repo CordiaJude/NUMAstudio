@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://numa-studio.local/schemas/people.schema.json",
+  "title": "Numa Studio STATE/people.json (schema_version 1)",
+  "description": "PRIVATE people and consent data: staff, instructors, providers, partners and members. Lives only in STATE/people.json (synced to Drive _Plan/people.json); never committed to the public plugin repo, which names only roles plus the co-founders. The crew reads it at run time to decide who may appear, whose words may be used, who to tag as a collaborator and whose stories to lead with. Example with placeholder names: docs/examples/people.example.json. See docs/CONTRACTS.md section 6 (brand.json consent.people_file).",
+  "type": "object",
+  "required": ["schema_version", "updated", "source", "consent_log", "people", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "_readme": { "type": "string" },
+    "updated": { "$ref": "#/$defs/date" },
+    "source": { "$ref": "#/$defs/nonempty", "description": "Where the data came from, e.g. the owners' setup answers and their date." },
+    "consent_log": {
+      "type": "object",
+      "required": ["name", "location"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/nonempty", "description": "The owners' consent log, e.g. \"Doc 04\"." },
+        "location": { "type": ["string", "null"], "description": "Drive link or path of the consent log; null while unknown." },
+        "note": { "type": "string" }
+      }
+    },
+    "people": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/person" }
+    },
+    "rules": {
+      "type": "object",
+      "required": ["kids", "lead_member_stories_with", "cleared_for_one_existing_post_only", "do_not_feature"],
+      "additionalProperties": false,
+      "properties": {
+        "kids": { "$ref": "#/$defs/nonempty", "description": "The children rule in force, e.g. \"never until the owners decide\"." },
+        "lead_member_stories_with": { "$ref": "#/$defs/id_list" },
+        "cleared_for_one_existing_post_only": { "$ref": "#/$defs/id_list" },
+        "do_not_feature": { "$ref": "#/$defs/id_list" },
+        "who_may_appear": { "type": "array", "items": { "type": "string" } },
+        "note": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "nonempty": { "type": "string", "minLength": 1 },
+    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+    "id_list": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true },
+    "person": {
+      "type": "object",
+      "required": ["id", "name", "kind", "roles", "on_camera", "do_not_feature", "consent"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "$ref": "#/$defs/nonempty" },
+        "kind": {
+          "enum": ["founder", "staff", "instructor", "provider", "partner", "social", "member", "child", "adviser", "other"],
+          "description": "founder (co-founders), staff (studio staff), instructor (yoga teacher, breathwork guide), provider (collective providers: counseling, massage, facials), partner (not employed: partner physician, partner athletes), social (posts to social media), member, child (under 18; kids never appear until the owners decide), adviser, other."
+        },
+        "roles": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } },
+        "credentials": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } },
+        "on_camera": { "type": ["boolean", "null"], "description": "true: may appear (with the consent below); false: never; null: ask first (treat as no during a run)." },
+        "do_not_feature": { "type": "boolean", "description": "true: never feature this person, even if they are in a shot by chance (crop, swap or skip)." },
+        "collab": { "type": "boolean", "description": "Does collab posts with Numa (invite as collaborator)." },
+        "collab_handle": { "type": ["string", "null"], "pattern": "^@[A-Za-z0-9._]+$" },
+        "collab_note": { "type": "string" },
+        "lead_member_stories": { "type": "boolean", "description": "A member story to lead with (the owners named them)." },
+        "active_until": { "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }], "description": "Last day on the team, if known; don't plan shoots after it." },
+        "consent": {
+          "type": "object",
+          "required": ["status", "scope"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "enum": ["yes", "no", "unknown", "not_needed"], "description": "yes on record, a recorded no (never use, not even blurred), unknown (treat as no), not_needed (the co-founders)." },
+            "scope": { "enum": ["all", "one_existing_post_only", "words_only", "photo_only", "none"], "description": "What the yes covers. one_existing_post_only: may stay in the one post already published; never in new content." },
+            "ai_processing": { "type": ["boolean", "null"], "description": "true only when the yes on record names AI motion (Higgsfield); null = unknown = no." },
+            "parent_yes": { "type": ["boolean", "null"], "description": "For kind child: a parent's yes is on record. Kids still never appear until the owners decide." },
+            "where": { "type": "string", "description": "Where the yes is logged, e.g. Doc 04." },
+            "date": { "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] },
+            "note": { "type": "string" }
+          }
+        },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}
