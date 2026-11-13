@@ -688,3 +688,61 @@ def test_any_frame_count_gives_constant_30fps(plan_factory, tmp_path, n):
     assert len({b - a for a, b in zip(pts, pts[1:])}) == 1
     assert info["streams"][0]["avg_frame_rate"] == "30/1"
     assert engine.segment_starts(range(0, 302), 60, 30) == [0, 60, 120, 180, 240]
+
+
+# --------------------------------------------------------------------------- polish P2
+def _contrast(rgb: np.ndarray) -> float:
+    """WCAG contrast between the text (brightest ink) and the background (median) of a caption region."""
+    c = rgb.astype(np.float64) / 255.0
+    lin = np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+    lum = lin[..., 0] * 0.2126 + lin[..., 1] * 0.7152 + lin[..., 2] * 0.0722
+    text, bg = np.percentile(lum, 99.5), np.median(lum)
+    return (text + 0.05) / (bg + 0.05)
+
+
+@pytest.mark.parametrize("value", [255, 215])
+def test_caption_and_hook_stay_legible_over_a_bright_frame(plan_factory, flat_image, value):
+    src = str(flat_image(value, name=f"bright{value}.png"))
+    p = short_plan(plan_factory, size=[540, 960], leaks=[], endcard=None,
+                   shots=[{"src": src, "look": "none", "t0": 0.0, "t1": 2.0, "z": [1.0, 1.0], "tr": "cut"}])
+    p.pop("endcard")
+    with engine.Renderer(p) as r:
+        f = r.frame(1.2)
+        _, _, x0, y0, x1, y1 = r.caption_boxes[0]
+        cap = f[int(y0):int(y1), int(x0):int(x1)]
+        assert _contrast(cap) >= 4.5, _contrast(cap)
+        blk, _, _ = r._hook
+        h0, h1 = r._hook_ink
+        hook = r.frame(0.0)[int(h0):int(h1), int(blk.x_min):int(blk.x_max)]
+        assert _contrast(hook) >= 4.5, _contrast(hook)
+        assert np.array_equal(f, r.frame(1.2))              # a pure function of the plan and time
+    with engine.Renderer(p) as r2:
+        assert np.array_equal(f, r2.frame(1.2))
+
+
+def test_legibility_leaves_dark_frames_alone(plan_factory, flat_image):
+    src = str(flat_image(28, name="dark.png"))
+    p = short_plan(plan_factory, size=[540, 960], leaks=[],
+                   shots=[{"src": src, "look": "none", "t0": 0.0, "t1": 2.0, "z": [1.0, 1.0], "tr": "cut"}])
+    p.pop("endcard")
+    bare = dict(p, lines=[])
+    with engine.Renderer(p) as r, engine.Renderer(bare) as rb:
+        f, g = r.frame(1.2).astype(int), rb.frame(1.2).astype(int)
+        _, _, x0, y0, x1, y1 = r.caption_boxes[0]
+    pad = 40                                                  # the text's own soft shadow
+    diff = np.abs(f - g).max(axis=2) > 0
+    diff[max(0, int(y0) - pad):int(y1) + pad, max(0, int(x0) - pad):int(x1) + pad] = False
+    assert not diff.any()                                     # no band, no gradient change: only the text
+
+
+def test_render_cache_avoids_cloud_synced_folders(tmp_path, monkeypatch):
+    import tempfile
+    monkeypatch.delenv("NUMA_RENDER_CACHE", raising=False)
+    for name in ("Google Drive", "GoogleDrive", "CloudStorage", "Dropbox", "OneDrive"):
+        out = tmp_path / name / "NUMA" / "Day 01" / "work"
+        assert engine.is_cloud_synced(out)
+        assert engine.cache_root(out) == Path(tempfile.gettempdir())
+    local = tmp_path / "jobs" / "work"
+    assert not engine.is_cloud_synced(local) and engine.cache_root(local) == local
+    monkeypatch.setenv("NUMA_RENDER_CACHE", str(tmp_path / "cache"))
+    assert engine.cache_root(tmp_path / "Dropbox" / "work") == tmp_path / "cache"

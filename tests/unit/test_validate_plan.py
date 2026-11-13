@@ -398,6 +398,19 @@ def test_rule24_missing_words(base):
     assert find(run(p, analysis(words=long)), 24, "WARN", "lines", "captions show 4 and text cards 0 of the 14 words")
 
 
+def test_rule24_counts_only_words_inside_the_reel_and_reports_card_words(base):
+    # 4 captioned words, then 12 words spoken after the 9 s reel ends (the music runs on): nothing missing
+    after = _words([(f"w{i}", 0.3 + i * 0.05) for i in range(4)] + [(f"z{i}", 9.0 + i * 0.2) for i in range(12)])
+    p = base()
+    p["lines"][0]["words"] = [[f"w{i}", round(0.3 + i * 0.05, 2)] for i in range(4)]
+    assert not find(run(p, analysis(words=after)), 24, where="lines")
+    # 6 more words inside the reel, 2 of them on a statement card: 4 captioned + 2 on the card of 10
+    inside = _words([(f"w{i}", 0.3 + i * 0.05) for i in range(4)] + [(f"x{i}", 3.0 + i * 0.3) for i in range(6)])
+    p["cards"] = [{"t0": 3.0, "t1": 5.0, "text": "Breathe *slowly*."}]
+    iss = find(run(p, analysis(words=inside)), 24, "WARN", "lines")
+    assert iss and "captions show 4 and text cards 2 of the 10 words spoken before 9 s" in iss[0].message
+
+
 # ---- rules 25-26: safe area and faces --------------------------------------------------
 def test_rule25_safe_area(base):
     assert find(run(base(caption_y=1800)), 25, "ERROR", "lines[0]", "safe area")

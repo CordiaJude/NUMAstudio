@@ -309,11 +309,15 @@ def hook_for(plan: dict, text: str, duration: float) -> dict:
 
 
 def repeats(a: str, b: str) -> bool:
-    """True when one text repeats the other: equal, one inside the other, or mostly the same words."""
+    """True when one text repeats the other: equal, one inside the other, a whole sentence or clause of
+    two words or more of b inside a, or mostly the same words."""
     na, nb = norm(a), norm(b)
     if not na or not nb:
         return False
     if na == nb or f" {na} " in f" {nb} " or f" {nb} " in f" {na} ":
+        return True
+    parts = [norm(p) for p in re.split(r"[.,;:!?\u2014]+|\s[-\u2013]\s", plain(b))]
+    if any(len(p.split()) >= 2 and f" {p} " in f" {na} " for p in parts):
         return True
     wa = {w for w in na.split() if len(w) > 2}
     wb = {w for w in nb.split() if len(w) > 2}

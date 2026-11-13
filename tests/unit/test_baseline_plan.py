@@ -498,8 +498,9 @@ def test_statement_card_replaces_its_caption(make_job):
         for c in p.get("cards", []):
             if c["style"] == "statement":
                 assert bp._hook_key(c["text"]) not in captions   # no caption repeats a card
-    # whole clauses on cards, never clipped words
-    assert bp.card_text("Katie walked into an empty room in Mobile.", 4) == "Katie walked into an empty room in Mobile."
+    # whole clauses on cards: a whole sentence only up to max_words + 2 (with a WARN), else the first clause
+    assert bp.card_text("Katie walked into an empty room in Mobile.", 6) == "Katie walked into an empty room in Mobile."
+    assert len(bp.card_text("Katie walked into an empty room in Mobile.", 4).split()) <= 4
     assert bp.card_text("Thank you, Mobile, for one whole year of showing up.", 4) == "Thank you."
 
 
@@ -531,3 +532,47 @@ def test_min_shot_seconds_holds_at_most_4_beats_or_peak(make_job):
     plan = build(work, A, duration=35.0, prefs={"min_shot_seconds": 2.0})
     iss = vp.validate(plan, A, {"min_shot_seconds": 2.0})
     assert not [i for i in iss if i.rule in (15, 38)], iss
+
+
+# ---- polish P2 -------------------------------------------------------------------
+@pytest.mark.parametrize("shape", ["voice_music", "music_only"])
+def test_myth_card_never_hides_the_hook_on_frame_zero(make_job, shape):
+    work, A = make_job(shape, duration=60.0)
+    plan = build(work, A, template=bp.load_template("myth_vs_fact"), script=SCRIPT if shape == "music_only" else None)
+    hook = plan["hook"]
+    assert hook["text"] and hook["t1"] >= 1.5
+    cards = plan["cards"]
+    assert [c["text"] for c in cards][:1] == ["MYTH"]
+    cuts = {s["t0"] for s in plan["shots"]}
+    for c in cards:   # a card before hook.t1 must itself show the hook text; MYTH waits for the hook
+        assert c["t0"] >= hook["t1"] or bp._hook_key(c["text"]) in bp._hook_key(hook["text"]), (c, hook)
+        assert c["t0"] in cuts
+    assert errors(vp.validate(plan, A)) == []
+
+
+def test_script_without_duration_ends_after_its_outro(make_job):
+    work, A = make_job("music_only", duration=60.0)
+    script = "Three minutes of cold.\nWalk out wide awake.\nRelax, breathe, disconnect."
+    plan = build(work, A, script=script)
+    last = max(ln["end"] for ln in plan["lines"])
+    assert plan["duration"] == pytest.approx(max(15.0, last + 7.5), abs=0.01) and plan["duration"] < 30
+    assert plan["endcard"]["t"] >= last          # the end card sits inside the music-only outro
+    long_script = "\n".join(f"Line number {i} of a long and careful script for the reel." for i in range(12))
+    long_plan = build(work, A, script=long_script)
+    assert long_plan["duration"] == 60.0         # capped by the audio (and 60 s)
+    work2, A2 = make_job("music_only", duration=40.0)
+    assert build(work2, A2, script=long_script)["duration"] == 40.0
+    assert build(work2, A2, script=script, duration=35.0)["duration"] == 35.0   # --duration still wins
+    assert errors(vp.validate(plan, A)) == []
+
+
+def test_card_text_prefers_a_whole_clause_within_max_words(capsys):
+    # a later whole clause that fits beats an over-long first one
+    assert bp.card_text("Most people think the colder the water the better it works, but it isn't.", 6) \
+        == "But it isn't."
+    assert "WARN" not in capsys.readouterr().err
+    # no clause fits: the first clause up to max_words + 2, with a WARN
+    assert bp.card_text("Start with three minutes in the water.", 5) == "Start with three minutes in the water."
+    assert "no clause" in capsys.readouterr().err
+    # more than 2 over: never the whole clause
+    assert len(bp.card_text("Start slowly with three easy minutes in the cold water today.", 5).split()) <= 5

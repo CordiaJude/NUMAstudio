@@ -34,7 +34,9 @@ improves story order, looks and key words. It is never the final creative plan.
 * End card on the last beats, held 3.5-5 s, over the bundled ripple image.
 * Captions: one sentence per line (2 rows max), 1-2 gold key words per line.
   Music-only material with --script FILE (one sentence per line) gets the
-  script as timed on-screen lines at about 2.3 words a second, on the beats.
+  script as timed on-screen lines at about 2.3 words a second, on the beats;
+  without --duration the reel runs the script plus the music-only outro
+  (config render.outro_music_only_s, end card inside it), 15 s at least.
 * No photos or clips: the bundled brand photos are used.
 * `formats` defaults: an 8-12 s reach cut around the signature moment, 3-5
   story stills, 5-8 carousel slides and a cover, when there is text for them.
@@ -555,7 +557,8 @@ def card_text(text: str, n: int) -> str:
     clauses = [c.split() for c in re.split(r"(?<=[,;:.!?\u2014])\s+|\s-\s", " ".join(words)) if c.strip()]
     for c in clauses:
         if 2 <= len(c) <= n:
-            return _clause_text(c)
+            short = _clause_text(c)
+            return short[:1].upper() + short[1:]   # a later clause starts the card: capitalised
     first = clauses[0] if clauses else words
     if 2 <= len(first) <= min(n + CARD_OVER_WORDS, CARD_MAX_WORDS):
         short = _clause_text(first)
@@ -1036,7 +1039,8 @@ def build_plan(work: Path, A: dict, *, duration: float | None = None, hook: str 
     plan["lines"] = lines
     if card_specs:
         cards, shown = make_cards(card_specs, times, end_t if end_t is not None else D, lines,
-                                  after=float(plan["hook"]["t1"]) if plan.get("hook") else 0.0)
+                                  after=float(plan["hook"]["t1"]) if plan.get("hook") else 0.0,
+                                  hook=plan["hook"]["text"] if plan.get("hook") else None)
         if cards:
             plan["cards"] = cards
         if shown:   # the card is that line's on-screen text (rule 24 counts card words as shown)
@@ -1122,11 +1126,15 @@ def sentence_of(lines: list[dict], line: dict) -> tuple[str, list[dict]]:
 
 
 def make_cards(specs: list, times: list[float], limit: float,
-               lines: list[dict] | None = None, after: float = 0.0) -> tuple[list[dict], list[dict]]:
+               lines: list[dict] | None = None, after: float = 0.0,
+               hook: str | None = None) -> tuple[list[dict], list[dict]]:
     """Text cards for a kinetic-type template: one per text_cards entry, on its beat, starting on a cut.
 
-    after: no card starts before this time (the hook's t1), so the hook text owns frame 0 and the first
-    second (a card on screen hides the hook). Returns (cards, the caption lines that statement cards show)."""
+    after (the hook's t1): a card on screen hides the hook, so a card before it must carry the hook text
+    itself (a statement card of the hook line); any other card (a label like MYTH) starts on the first
+    cut after the hook window, so the hook text is visible from frame 0.
+    Returns (cards, the caption lines that statement cards show)."""
+    hook_key = _hook_key(hook or "")
     cards: list[dict] = []
     shown: list[dict] = []
     cuts = [t for t in times if t < limit - 1e-6]
@@ -1144,7 +1152,10 @@ def make_cards(specs: list, times: list[float], limit: float,
             nc.warn(f"text card for beat {beat!r}: no spoken or script line to show; left out")
             continue
         t0 = 0.0 if start <= 1e-6 else min(cuts, key=lambda c: (abs(c - start), c))
-        if t0 < after - 1e-6:   # the hook owns the opening: start on the first cut after it
+        key = _hook_key(text)
+        carries_hook = bool(key and hook_key and (key == hook_key or f" {key} " in f" {hook_key} "))
+        moved = t0 < after - 1e-6 and not carries_hook
+        if moved:   # the hook owns the opening: start on the first cut after it
             later = [c for c in cuts if c >= after - 1e-6]
             t0 = later[0] if later else after
         nxt = [s for _, (_, s, _, _) in specs[j + 1:] if s > t0 + 0.5]
@@ -1153,6 +1164,10 @@ def make_cards(specs: list, times: list[float], limit: float,
         t1 = min(max(end, t0 + need + 0.6), t0 + 3.5, limit)
         if nxt:
             t1 = min(t1, min(cuts, key=lambda c: (abs(c - nxt[0]), c)))
+        if moved:   # end a moved card on a cut too, so the card after it still starts on one
+            on_cut = [c for c in cuts if t0 + need - 1e-6 <= c <= t1 + 1e-6]
+            if on_cut:
+                t1 = max(on_cut)
         if cards and t0 < cards[-1]["t1"]:
             t0 = cards[-1]["t1"]
         if t1 - t0 < need:
@@ -1230,7 +1245,8 @@ def make_formats(plan: dict, lines: list[dict], sig_t: float | None, story_end: 
 def main(argv: list[str] | None = None) -> int:
     ap = nc.ArgParser(prog="baseline_plan.py", description="Build a valid, beat-synced v2 plan.json from analysis.json.")
     ap.add_argument("work", metavar="WORK_DIR")
-    ap.add_argument("--duration", type=float, metavar="S", help="target length (capped by the audio and 60 s)")
+    ap.add_argument("--duration", type=float, metavar="S", help="target length (capped by the audio and 60 s; default: the audio, or with --script on a "
+                    "music-only reel the script's spoken length plus the 7.5 s outro, at least 15 s)")
     ap.add_argument("--hook", metavar="TEXT", help="hook text on screen from frame 0 (default: the first caption line)")
     ap.add_argument("--subtitle", metavar="TEXT", help="gold end-card sign-off (default: brand.json)")
     ap.add_argument("--seed", type=int, default=0, metavar="N", help="plan seed (grain and leak motion)")

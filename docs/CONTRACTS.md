@@ -76,7 +76,7 @@ unseeded randomness; same inputs give byte-identical outputs. Idempotent:
 re-running a stage overwrites its own outputs and never corrupts inputs.
 
 **Environment variables.** `NUMA_BRAND` (another brand.json), `NUMA_CONFIG`
-(another studio.json), `NUMA_FFMPEG` / `NUMA_FFPROBE` (binaries), `NUMA_RENDER_CACHE` (engine video-frame cache folder; default a hidden temp folder under the plan's out_dir),
+(another studio.json), `NUMA_FFMPEG` / `NUMA_FFPROBE` (binaries), `NUMA_RENDER_CACHE` (engine video-frame cache folder; default a hidden temp folder under the plan's out_dir, or under the system temp folder when out_dir is cloud-synced: path contains "Google Drive", "GoogleDrive", "CloudStorage", "Dropbox" or "OneDrive"),
 `NUMA_DEBUG=1` (tracebacks for unexpected errors).
 
 **Shared helper.** `skills/numa-reel-editor/scripts/numa_common.py`: paths
@@ -423,7 +423,7 @@ rules. `E` = ERROR (exit 1), `W` = WARN. Tolerances: tiling 1 ms; beat 1 frame
 | 21 | Lines overlap (a line's first word before the previous `end`) | W | |
 | 22 | A caption line wraps to 3+ rows (measured with the caption font at 92 px in a 960 px box) | E | R66 |
 | 23 | Line longer than 80 characters | W | |
-| 24 | Caption vs transcript (needs analysis.json): words aligned by sequence; text mismatch after normalizing case/punctuation or appear time off by more than 0.15 s is W; off by more than 0.5 s, or a caption word missing from the transcript, is E | W/E | R84 |
+| 24 | Caption vs transcript (needs analysis.json; only words with `appear` < `duration`): words aligned by sequence; text mismatch after normalizing case/punctuation or appear time off by more than 0.15 s is W; off by more than 0.5 s, or a caption word missing from the transcript, is E; spoken words shown neither as captions nor on statement cards (more than 3 and 10%) is W, reporting both counts | W/E | R84 |
 | 25 | Caption block or hook outside the safe area (top 12%, bottom 10% of the height) | E | R67 |
 | 26 | Caption block overlaps a face box of the shot on screen at that time | W | R68 |
 | 27 | Any text (lines, hook, cards text/sub, endcard tagline/subtitle, formats texts) hits a `fail` claim in brand.json (or the dosing line while blocked); `warn`-severity hits are W | E/W | R128 |
@@ -577,7 +577,7 @@ key and replaces only it, via `numa_common.update_report(out_dir, key, data)`):
                    "nat_bursts": 2, "warnings": []},
   "check_output": {"<file name>": {"ok": true, "errors": [], "warnings": [], "probe": {"...": "media_info fields"}}},
   "qa_frames":    {"dir": "<abs>/critic_frames", "count": 12},
-  "formats":      {"files": ["<abs>", "..."], "warnings": []}
+  "formats":      {"files": ["<abs>", "..."], "warnings": [], "skipped": [{"kind": "reach", "reason": "..."}], "ok": true}
 }
 ```
 
@@ -647,7 +647,11 @@ Reads `WORK/analysis.json`; writes a valid, beat-synced schema_version 2 plan
 to `WORK/plan.json` (or `--out`) with `out_dir = WORK`, brand.json defaults
 (fonts, accent, wordmark, tagline, subtitle), `focus`/`faces` from vision data,
 `prepared_path` sources when present, and `music` filled from the analysis.
-Duration = min(`--duration`, audio, 60).
+Duration = min(`--duration`, audio, 60). A music-only reel with `--script`
+and no `--duration` (and no template) runs the script's caption timing
+(~2.3 words/s, lines on beats) plus the music-only outro (config
+`render.outro_music_only_s.default`, the end card inside it), capped by the
+audio and 60 s, at least 15 s.
 - `--template NAME`: a template or preset id from
   `skills/numa-scriptwriter/templates.json` (unknown name: `ERROR` listing the
   valid ids, exit 1). Applies its default length (when `--duration` is not
@@ -659,8 +663,11 @@ Duration = min(`--duration`, audio, 60).
   transitions (only the template's, whips only when listed), hook style
   (`meta.hook_type`, plus `goal`, `pillar`, `length_class`), `template`, and
   `cards` from `text_cards` when `kinetic_type` is true (a label card is a
-  `number` card, a line card the beat's line shortened to `max_words`; each
-  starts on a cut). Music-only reels with `--script` spread the script lines
+  `number` card, a line card the beat's line shortened to `max_words`: the
+  first whole clause within `max_words`, else the first clause up to 2 words
+  over with a WARN; each starts on a cut). A card that would cover the hook
+  window (before `hook.t1`) starts on the first cut after it unless it shows
+  the hook text itself, so the hook is on screen from frame 0. Music-only reels with `--script` spread the script lines
   across the beats.
 - `--prefs FILE` (prefs.py limits): every numeric limit is applied where the
   material allows (whips, flashes incl. the end card's, leaks and leakfades,
@@ -719,6 +726,15 @@ engine.py PLAN_JSON preview T1 [T2 ...] [--size WxH] [--out FILE]
   gets a rate budget of 0.85 x `render.video.maxrate` with a small VBV buffer so
   every 2 s window stays under the cap. A last segment shorter than 0.5 s joins
   the one before it, so any frame count gives a constant frame rate.
+- Render cache: decoded frames go to a hidden temp folder under `OUT_DIR`
+  (removed after the render), or under `$NUMA_RENDER_CACHE`; when `OUT_DIR` is
+  inside a cloud-synced folder (path contains "Google Drive", "GoogleDrive",
+  "CloudStorage", "Dropbox" or "OneDrive") it defaults to the system temp
+  folder so the sync client never uploads the cache.
+- Text legibility: under each caption line and the hook the engine measures
+  the picture every frame; over a bright region it darkens the band behind
+  the text and deepens the text shadow until white text keeps about 8:1
+  contrast (at least 4.5:1); dark frames are left untouched. Deterministic.
 - Preview: renders the listed times into one grid `OUT_DIR/preview.jpg`
   (5 tiles per row).
 - Reads only the plan, bundled assets/fonts and brand.json defaults (R9).
@@ -788,7 +804,17 @@ Higgsfield Reframe): `<slug>_reach.mp4`, `<slug>_story_<N>.jpg|.mp4`,
 `<slug>_hook_<N>.mp4`, and `<slug>.srt` (from plan `lines`; one cue per line).
 `DIR` defaults to the reel's folder; slug defaults to `plan.meta.slug` or the
 job folder name. Missing `formats` entries get sensible defaults derived from
-the plan. Writes the `formats` section of `report.json`.
+the plan (whole sentences or a whole first clause, never an ellipsis; no two
+carousel slides side by side with the same or a near-duplicate picture; a
+reach-cut caption repeating the new hook in the first 4 s is dropped; a reach
+window lengthened to avoid a tiny last encoder segment is a WARN). Writes the
+`formats` section of `report.json`, with `skipped: [{kind, reason}]`.
+Skipped vs failed: without `--only`, an output this plan cannot make (no
+whole sentences for story/carousel, no new hook text for the reach cut or hook
+variants, no captions or transcript for the .srt, a reel shorter than a reach
+cut) is skipped with a WARN and `ok` stays true; a kind named in `--only` that
+is skipped is an ERROR (exit 1) and `ok` is false. `ok` = every requested
+output was made and passed its check.
 
 ### ledger.py [T7]
 ```

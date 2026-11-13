@@ -439,3 +439,69 @@ def test_cli_usage_and_errors(run_script, tmp_path, job, make_image, make_video,
     numa_common.write_json(plan_path, bad)
     res = run_script("formats.py", plan_path, job.out / "r.mp4", "--only", "story")
     assert res.returncode == 1 and "rule 27" in res.stderr
+
+
+# --------------------------------------------------------------------------- polish P2
+def test_reach_defence_warns_when_it_lengthens_the_window(job, make_image, nc):
+    plan = engine.prepare_plan(year_one_like(job, make_image), job.work)
+    warnings: list[str] = []
+    d, _ = formats.reach_plan(plan, {"t0": 19.09, "t1": 29.16, "hook": "One whole year."}, warnings)
+    assert d["duration"] > 29.16 - 19.09 + 0.01
+    assert any("lengthened" in w and "10.07 s" in w for w in warnings), warnings
+    quiet: list[str] = []
+    formats.reach_plan(plan, {"t0": 0.0, "t1": 10.0, "hook": "One whole year."}, quiet)   # 300 frames: no change
+    assert not any("lengthened" in w for w in quiet)
+
+
+def test_reach_drops_an_early_caption_that_repeats_its_hook():
+    def ln(text, t0):
+        return {"words": [[w, round(t0 + 0.2 * k, 3)] for k, w in enumerate(text.split())], "end": t0 + 1.5}
+    d = {"hook": {"text": "Three minutes. *Wide* awake.", "t1": 2.0},
+         "lines": [ln("You walk out wide awake.", 2.4), ln("Three minutes feels long.", 3.2),
+                   ln("Wide awake.", 5.0), ln("Then it slows.", 6.0)]}
+    out = formats.clear_hook_window(copy.deepcopy(d), formats.REPEAT_WINDOW_S)
+    texts = [formats.line_text(x) for x in out["lines"]]
+    assert texts == ["Wide awake.", "Then it slows."]          # repeats inside the first 4 s are gone
+    assert len(formats.clear_hook_window(copy.deepcopy(d))["lines"]) == 4   # hook variants: unchanged
+    assert formats.repeats("Wide awake.", "You walk out wide awake.")
+    assert formats.repeats("You walk out wide awake.", "Three minutes. Wide awake.")
+    assert not formats.repeats("Then it slows.", "Three minutes. Wide awake.")
+
+
+def test_default_carousel_never_puts_the_same_picture_side_by_side(job, make_image, nc):
+    plan = year_one_like(job, make_image)
+    # shots 2-4 show one photo, a re-saved copy of it and the photo again: a near-duplicate run
+    same = plan["shots"][2]["src"]
+    with Image.open(same) as im:
+        np_im = np.asarray(im).astype(np.int16)
+    copy_path = job.raw / "y2-copy.jpg"
+    Image.fromarray(np.clip(np_im + 6, 0, 255).astype(np.uint8)).save(copy_path, quality=80)
+    plan["shots"][3]["src"] = str(copy_path)
+    plan["shots"][4]["src"] = same
+    plan = engine.prepare_plan(plan, job.work)
+    assert formats.same_picture(plan, 8.0, 12.0) and formats.same_picture(plan, 8.0, 17.0)
+    assert not formats.same_picture(plan, 1.0, 5.0)
+    slides = formats.default_carousel(plan)
+    assert 5 <= len(slides) <= 8
+    for a, b in zip(slides, slides[1:]):
+        assert not formats.same_picture(plan, a["t"], b["t"]), (a, b)
+    assert all("…" not in s["text"] for s in slides)
+
+
+def test_report_lists_skipped_outputs_and_ok_means_requested_succeeded(job, make_image, nc):
+    plan = year_one_like(job, make_image, lines=False)
+    plan_path = job.work / "plan.json"
+    numa_common.write_json(plan_path, plan)
+    sec = formats.run(plan_path, job.out / "year-one_reel.mp4", only=["cover", "srt"], progress=False)
+    assert sec["skipped"] == [{"kind": "srt", "reason": sec["skipped"][0]["reason"]}]
+    assert "no caption lines" in sec["skipped"][0]["reason"]
+    assert sec["ok"] is False and any("srt: requested but skipped" in e for e in sec["errors"])
+    rep = json.loads((job.out / "report.json").read_text())["formats"]
+    assert rep["skipped"] == sec["skipped"] and rep["ok"] is False
+    # not asked for by name: a default that is not possible is skipped, not failed
+    (job.out / "b").mkdir()
+    j = formats.Job(engine.load_plan(plan_path), plan_path, job.out / "year-one_reel.mp4", job.out / "b",
+                    "year-one", False, progress=False)
+    j.skipped = {"reach": "no new hook text", "story": "not enough whole sentences"}
+    sec2 = formats.write_report(j, ["reach", "story", "cover"], {}, [])
+    assert [x["kind"] for x in sec2["skipped"]] == ["reach", "story"] and sec2["ok"] is True and not sec2["errors"]
