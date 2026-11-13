@@ -422,3 +422,75 @@ def test_setup_questions_go_to_jude_only(texts):
     assert "never ask" in t.lower() or "never asked of Katie" in t
     asks = [ln for ln in t.splitlines() if re.search(r"\bask\b", ln, re.I)]
     assert all("Jude" in ln or "never" in ln.lower() or "only" in ln.lower() or "once" in ln.lower() for ln in asks), asks
+
+
+# ---------------------------------------------------------------------------
+# /post-reel: carousels and single photos (R333, R335)
+# ---------------------------------------------------------------------------
+IMAGE_POST_TOOLS = ["INSTAGRAM_POST_IG_USER_MEDIA", "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH",
+                    "INSTAGRAM_CREATE_CAROUSEL_CONTAINER", "INSTAGRAM_GET_IG_USER_CONTENT_PUBLISHING_LIMIT",
+                    "INSTAGRAM_GET_IG_USER_MEDIA", "INSTAGRAM_GET_IG_MEDIA", "FACEBOOK_CREATE_MULTI_PHOTO_POST",
+                    "FACEBOOK_CREATE_PHOTO_POST", "FACEBOOK_LIST_MANAGED_PAGES"]
+
+
+def _section12(texts) -> str:
+    t = texts["post-reel"]
+    start = t.find("## 12. Carousels and single photos")
+    assert start > 0
+    return t[start:]
+
+
+def test_post_reel_describes_all_post_types():
+    fm = frontmatter(CMD["post-reel"])
+    assert "posts reels, carousels and photos" in fm["description"]
+    assert "carousel or photo" in fm["argument-hint"]
+
+
+def test_post_reel_image_tools_and_fields(texts):
+    sec = _section12(texts)
+    for tool in IMAGE_POST_TOOLS:
+        assert re.search(rf"\*\*{tool}\*\*|\b{tool}\b", sec), tool
+    for field in ("`image_url`", "`image_file`", "`is_carousel_item` true", "`alt_text`", "`media_type` CAROUSEL",
+                  "`children`", "`creation_id`", "`caption`", "`photo_urls`", "`page_id`", "`graph_api_version`"):
+        assert field in sec, field
+    # the carousel order: children, then the CAROUSEL parent, then publish
+    car = sec[sec.find("| Carousel (2-10 slides) |"):]
+    car = car[:car.find("\n")]
+    assert car.find("`is_carousel_item` true") < car.find("`media_type` CAROUSEL") < car.find(
+        "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH")
+    single = sec[sec.find("| Single photo (IMAGE) |"):]
+    single = single[:single.find("\n")]
+    assert "no `media_type`" in single and "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH" in single
+
+
+def test_post_reel_image_gates_and_rules(texts, brand, config):
+    sec = _section12(texts)
+    gates = [sec.find(f"`{k}`") for k in ("posting.auto_post.value", "posting.legal_review_done.value",
+                                           "posting.require_approval.value", "posting.see_first.value")]
+    assert all(g >= 0 for g in gates) and gates == sorted(gates)
+    for key in ("instagram.publishing_limit_per_24h", "instagram.container_max_age_hours", "instagram.graph_api_version"):
+        assert f"`{key}`" in sec and resolve(config, key), key
+    for needle in ["counts as **one** post", "same run", "never publish an old container", "AI label",
+                   "Drive public link", "image/jpeg", "Composio file staging", "1,000 characters",
+                   "Status `Posted`", "permalink", "post_type", "metrics.py\" tag", "--post <media_id>",
+                   "Facebook never blocks Instagram", "Meta Business Suite", "Never publish the same carousel or photo twice",
+                   "code 9007", "section 8", "never a question", "STATE/consent_list.json", "--blur-faces",
+                   "photo_post.py\" carousel", "photo_post.py\" single", "LOOK at every slide",
+                   "_carousel_NN.jpg", "read as a number", "Never ask Katie anything"]:
+        assert needle in sec, needle
+    assert "socials.facebook" in sec and resolve(brand, "socials.facebook")
+
+
+def test_post_reel_reel_flow_unchanged(texts):
+    """The reel sections keep their numbers and order; the new section comes last."""
+    t = texts["post-reel"]
+    heads = re.findall(r"^## (\d+)\. ", t, re.M)
+    assert heads == [str(i) for i in range(1, 13)]
+    assert "media_type` = config `instagram.media_type` (REELS)" in t
+
+
+def test_post_reel_post_types_match_metrics():
+    import metrics
+    sec = body(CMD["post-reel"])
+    assert "reel, carousel, image, story, trial_reel" in sec
+    assert tuple("reel, carousel, image, story, trial_reel".split(", ")) == metrics.POST_TYPES

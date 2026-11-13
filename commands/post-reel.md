@@ -1,6 +1,6 @@
 ---
-description: Auto-posting (addition #11) - posts a finished NUMA reel to Instagram through Composio at the best time, then Facebook, with the legal-review gate, the off-by-default approval switch, the AI label, Trial Reels and collab invites, marks the Sheet row Posted and schedules the insight pulls
-argument-hint: "JOB [publish] | queue (JOB = the job folder make-reel step 13 hands over)"
+description: Auto-posting (addition #11) - posts reels, carousels and photos to Instagram through Composio at the best time, then Facebook, with the legal-review gate, the off-by-default approval switch, the AI label, Trial Reels and collab invites, marks the Sheet row Posted and schedules the insight pulls
+argument-hint: "JOB [publish] | queue (JOB = the job folder make-reel step 13 or /build-today hands over: a reel, carousel or photo)"
 model: opus
 ---
 # /post-reel: publish a finished reel
@@ -24,6 +24,8 @@ if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then ex
 Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
 
 `$ARGUMENTS`: `JOB` = stage, then publish at the posting time (section 3); `JOB publish` = publish now (the one-time task from section 3 runs this); `queue` = only drain the queue (section 9). Every run drains the queue first.
+
+**Post type.** A `JOB` whose `out/` holds `SLUG_reel.mp4` is a reel (sections 1-11 as written). A `JOB` without a reel but with carousel slides `out/SLUG_carousel_<N>.jpg` (formats.py: `_1`, `_2`, ...; photo_post.py and Claude Design component carousels: `_01`, `_02`, ...) is a **carousel**, and one with `out/SLUG_photo.jpg` is a **single photo**: both follow section 12, which reuses sections 1, 3, 6, 8 and 9 unchanged.
 
 ## 1. Gates, in this order (brand.json `posting`)
 
@@ -136,3 +138,54 @@ On the first /post-reel run of each week (Monday, Central), post last week's bes
 ## 11. Done means
 
 The reel is live on Instagram with the right settings (label, Trial, collab) and on Facebook or skipped with a reason; the Sheet says `Posted` with the permalink; the tags are in the metrics store; the public link is closed. Or it is staged, held or queued with the reason logged and, only for the cases in section 8 and section 6, one line sent to Jude.
+
+## 12. Carousels and single photos (R333, R335)
+
+Same gates (section 1, in that order: `posting.auto_post.value`, `posting.legal_review_done.value`, the approval switch `posting.require_approval.value`, the `posting.see_first.value` types), same posting time (section 3), same errors and queue (sections 8-9), same AI-label rule (section 6). Never ask Katie anything; a carousel or photo that cannot go out stays "Ready to post" with its files in `Finished/`. For the see-first types, "members" means any slide showing a recognizable person (photo_post.py `faces` > 0 and not `blurred`, or seen when you LOOK at a component slide's photo).
+
+**1. The slides.** Photo carousels are built from a folder of photos, not only from a reel (R333): pick 2-10 photos (the day's Drive `drive.photos` folder, else the media library, else the bundled brand photos), then
+```
+python3 "$S/photo_post.py" carousel "$JOB/raw/photos" --out "$JOB/out" --slug SLUG --texts "$JOB/work/slide_texts.json" --json > "$JOB/work/photo_post.json"
+python3 "$S/photo_post.py" single "$JOB/raw/photos/<best>.jpg" --out "$JOB/out/SLUG_photo.jpg" --text "<short line, *gold* word>" --json > "$JOB/work/photo_post.json"
+```
+Same grade, framing, safe areas and claims rules as the reels (1080x1350 JPG). Faces: `--consent` only after checking `STATE/consent_list.json` (scope covers social posts), `--library "$STATE/media_library.json"` when the library records consent, else `--blur-faces` (failure row F12). Exit 1 is a one-line ERROR with the fix; apply it and run again. LOOK at every slide before posting: detection misses faces lying down or in profile, and any unlisted face means blur or a different photo. Component carousels arrive ready-made (`SLUG_carousel_NN.jpg`); post them as they are. Slide order = the number in the file name, read as a number. Checks per file: JPEG, 1080 wide, 4:5, at most 8 MB (Instagram's image limits); 2-10 slides for a carousel.
+
+**2. Caption and alt text.** Caption from `out/SLUG_copy.txt` exactly as in section 2 step 2 (RECOMMENDED option, first-line rule, 3-5 hashtags, at most 2,200 characters, `claims_scan.py`); no copy file: write it with the numa-caption skill first. Alt text, one per image: LOOK at the slide and write `work/alt_text.json` `{"<file name>": "<alt text>"}`: what the picture shows, then the slide's on-image words verbatim, plain sentences, at most 1,000 characters (the API limit). Scan it with the caption:
+```
+python3 "$S/claims_scan.py" --file "$JOB/work/caption_final.txt" --file "$JOB/work/alt_text.txt" --hashtags "<hashtags>" --json
+```
+(`work/alt_text.txt` = the alt texts, one per line.) Write `POST` with `status: staged`, `post_type` (`carousel` or `image`), the slide list in order and the alt texts.
+
+**3. Public image URLs** (Meta and Facebook fetch each image themselves):
+- **A. Composio file staging (first choice):** INSTAGRAM_POST_IG_USER_MEDIA has an `image_file` field (check COMPOSIO_GET_TOOL_SCHEMAS each run): pass the local JPG and Composio stages a temporary public URL.
+- **B. Drive public link:** share each `Finished/` slide "anyone with the link: viewer", use `https://drive.google.com/uc?export=download&id=<FILE_ID>` and prove it: `curl -sIL "<url>" | grep -i "content-type"` must show `image/jpeg`. Record the file ids in `POST` `public_links` (closed in step 7). Facebook always needs these URLs.
+- Neither: failure row F15 move 1, then section 9.
+
+**4. Limits and containers.** Read the publishing limit first with INSTAGRAM_GET_IG_USER_CONTENT_PUBLISHING_LIMIT (`fields` `quota_usage,config`) plus `STATE/post_log.json`: a carousel counts as **one** post, like a reel or a photo; at or over config `instagram.publishing_limit_per_24h`: queue for tomorrow. Every call sets `graph_api_version` = config `instagram.graph_api_version`. Containers (children and parent alike) live at most config `instagram.container_max_age_hours` (24 h): reuse one from `POST` only when younger and not `ERROR`/`EXPIRED`, and make and publish them in the same run. A container's state: COMPOSIO_PROXY_EXECUTE `GET /<container-id>?fields=status_code`.
+
+| Post | Instagram calls, in order |
+|---|---|
+| Single photo (IMAGE) | 1. **INSTAGRAM_POST_IG_USER_MEDIA** with `image_url` (or `image_file`), `caption`, `alt_text`, and no `media_type` (an image alone is an IMAGE container; the tool's `media_type` list has only REELS, CAROUSEL and STORIES). 2. Status `FINISHED` (images are usually ready at once; else wait 1 minute, up to 5). 3. **INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH** with `creation_id` = the container id. |
+| Carousel (2-10 slides) | 1. One child per slide, in slide order: **INSTAGRAM_POST_IG_USER_MEDIA** with `image_url` (or `image_file`), `is_carousel_item` true, `alt_text` (no caption on children); save each child id in `POST` `children`. 2. Every child `FINISHED`. 3. The parent: **INSTAGRAM_POST_IG_USER_MEDIA** with `media_type` CAROUSEL, `children` = the child ids in slide order, `caption` (no `alt_text`: the parent takes none). When that call is refused, **INSTAGRAM_CREATE_CAROUSEL_CONTAINER** with the same `children` and `caption`. 4. Parent `FINISHED`. 5. **INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH** with `creation_id` = the parent id. |
+
+Then read `permalink` and `timestamp` (COMPOSIO_PROXY_EXECUTE `GET /<media-id>?fields=permalink,timestamp,media_type`); `POST` status `published`.
+
+**5. AI label.** Required when any slide's picture was made or animated by AI (a Higgsfield image, `ai_generated` in its source record). INSTAGRAM_POST_IG_USER_MEDIA has no AI-label field, so section 6 rows 2-3 apply: Claude in Chrome (instagram.com, the same images in order, caption, alt texts under Advanced settings, **AI label** on), else do not post and send Jude section 6's one line naming the carousel. After any post, INSTAGRAM_GET_IG_MEDIA with `fields` `is_ai_generated` records the label state in `POST`.
+
+**6. Retries and duplicates.**
+- Before creating anything and before every publish retry: re-read `POST` (status `published`: stop), then list the latest posts with INSTAGRAM_GET_IG_USER_MEDIA (`fields` `id,caption,media_type,timestamp,permalink`); a `CAROUSEL_ALBUM` or `IMAGE` from the last 24 hours whose caption starts with this caption's first line is this post: record its id and permalink, status `published`, stop. Never publish the same carousel or photo twice.
+- A child container `ERROR`: make that one child again once (fresh public URL); a second `ERROR`: queue the post with Meta's error text. The parent `ERROR` or any child older than 24 h: make every child and the parent again; never publish an old container.
+- Publish says not ready (code 9007): wait 1 minute and retry, up to 5 times, then queue. Error 190, rate limits, 5xx and timeouts: section 8, unchanged.
+
+**7. After posting.**
+1. **Sheet:** the plan row's Status `Posted` and its link column (Reel link) = the permalink.
+2. **Records:** `POST` and `work/delivered.json` `post`: media id, permalink, `posted_at` (Central ISO 8601), `post_type`, child and parent container ids, AI label on/off and how, Facebook result. Append `{"date", "media_id", "slug", "kind": "carousel"|"image"}` to `STATE/post_log.json`.
+3. **Metrics:** write the tags with `post_type` (`carousel` or `image`; metrics.py accepts reel, carousel, image, story, trial_reel) plus title, slug, media_id, permalink, posting_time, series, pillar, hook_type from the plan row, to `STATE/insights/tags_<media_id>.json`, then
+   ```
+   python3 "$S/metrics.py" tag --store "$STATE/metrics.json" --post <media_id> --tags "$STATE/insights/tags_<media_id>.json"
+   ```
+   Pulls follow at 48 h, 72 h and 7 days as for reels; carousels and photos have no watch time or skip rate, and metrics.py and the dashboard show those as blank.
+4. **Facebook mirror** (brand.json `posting.platforms`) to the Page `socials.facebook` (its id from FACEBOOK_LIST_MANAGED_PAGES): a carousel with **FACEBOOK_CREATE_MULTI_PHOTO_POST** (`page_id`, `photo_urls` = the Drive public links in slide order, `message` = the caption); a single photo with **FACEBOOK_CREATE_PHOTO_POST** (`page_id`, `url`, `message`). No Facebook connection: Claude in Chrome, Meta Business Suite > Create post with the same images in order; neither: skip Facebook and add one line to `STATE/digest_notes.json` `heads_ups`. Facebook never blocks Instagram; an AI-labelled post goes to Facebook only where the label can be set.
+5. **Close the public links** from step 3 B.
+6. **Final message:** "Posted: <title> (carousel, 6 slides) · <permalink>" or "Posted: <title> (photo) · <permalink>", plus the Facebook result. A statement, never a question.
+

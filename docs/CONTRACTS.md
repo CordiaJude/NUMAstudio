@@ -923,3 +923,22 @@ shoot card text for one plan row. `check`: enforces the planning rules (no
 topic repeat within 14 days, at most one sales reel a week, nothing inviting
 on closure days, 4-5 feed posts a week, at least one collab and one Meet the
 Collective a month, event teaser/recap windows); exit 1 on violations.
+
+### photo_post.py [T15]
+```
+photo_post.py single PHOTO --out OUT [--text TEXT] [--look warm|none] [--slug S] [--consent] [--library FILE] [--blur-faces] [--json]
+photo_post.py carousel PHOTOS... --out OUT [--texts FILE] [--look warm|none] [--slug S] [--consent] [--library FILE] [--blur-faces] [--json]
+```
+Feed photo posts at 1080x1350 (4:5) rendered by engine.py from a one-shot
+plan (the reels' look, bloom, vignette and grain), framed on vision.py's
+faces/focus. `single`: OUT is the JPG (a folder gets `<slug>_photo.jpg`);
+`--text` is one short line (at most 60 characters, `*gold*` markup, 3 rows
+max) drawn as the engine's hook in the brand serif inside the safe areas,
+with the engine's legibility scrim; it moves to the bottom when an unblurred
+face is under it. `carousel`: 2-10 photos or folders (name order) into OUT as
+`<slug>_carousel_NN.jpg` (01, 02, ...; earlier ones replaced); `--texts` is a
+JSON list or one line per slide. Every text is claims-scanned (banned claim:
+exit 1). Consent: a photo with detected faces needs `--consent` (Consent List
+checked) or a `--library` index entry with consent yes; otherwise exit 1
+unless `--blur-faces`. Deterministic bytes. `--json` prints `{ok, kind, files,
+slides: [{file, src, text, faces, consent, blurred, focus, text_position, upscale}]}`.
