@@ -452,7 +452,11 @@ The validator prints `OK: <n> shots, <duration> s, <w> warnings` on success.
 Schema: `schemas/brand.schema.json` (schema_version 2). One source of truth
 for the brand; every skill, agent and script reads it (`numa_common.load_brand()`
 validates it and checks that every claims pattern compiles). `/brand-setup`
-(T10) rewrites values and sets `status: confirmed`.
+(T10) rewrites values and sets `status: confirmed`. The owners' setup answers
+(2026-11-13) are in it (DECISIONS D25); what is still open is listed in
+`docs/QUESTIONS_FOR_KATIE.md`. The public file names only roles plus the
+co-founders: people and consent data live in the private `STATE/people.json`
+(below).
 
 **Facts.** Uncertain values are `{"value": ..., "status": ..., "source": ..., "note": ...}`.
 Statuses: `confirmed` (Katie or the brief confirmed), `from_website`
@@ -467,31 +471,50 @@ walks and unwraps.
 
 | Section | Contents | Used by |
 |---------|----------|---------|
-| `business` | `name` {full, short, with_city}, `name_usage`, `website`, `founders`, `founding_story`, `location` {address, street, city, state, zip, area, district}, `facility`, `temperatures`, `hours`, `phone` (null + `candidates`), `booking`, `cta_link`, `instagram_name_field`, `bio_draft` | scriptwriter, copywriter, critic |
-| `socials` | `instagram`, `facebook`, `ios_app`, `google_business_profile` | copywriter, scout |
-| `voice` | `description`, `reference_lines`, `site_lines`, `share_line_example`, `community_word`, `emoji`, `words_always`, `words_never`, `dislikes`, `music_taste` | scriptwriter, copywriter |
-| `offerings` | `modalities`, `formats`, `sessions` (each with its own `price` fact), `offers` (Discover NUMA $49), `memberships`, `events`, `do_not_promote`, `not_offered` | scriptwriter, critic, motion |
-| `team` | `collective` (name, role, org, credentials), `on_camera`, `filming` | scriptwriter, plan-month |
-| `positioning` | `own_in_mobile`, `target_audiences`, `series` (id, name, what, length_s, built_for), `collab_partners` (ordered), `competitors`, `content_mix` (sums to 1.0) | plan-month, scout, dashboard |
-| `assets` | `wordmark`, `wordmark_light`, `secondary_mark`, `endcard_background`, `brand_photos_dir` (paths relative to plugin root) | engine, baseline_plan, setup_check (`brand_asset()`) |
-| `palette` | `value` {cedar_ember, water_teal, cream, caption_gold, caption_text}; `roles` {caption_text, caption_accent, endcard_subtitle, endcard_logo} | engine (`brand_color()`, `accent_rgb()`) |
-| `fonts` | `value` {family, caption_regular, caption_italic, license} | engine, validate_plan, formats (`brand_font()`) |
+| `business` | `name` {full "Numa Wellness Collective", short "Numa", with_city, free_track, paid_trial}, `name_usage`, `website`, `founders`, `founding_story`, `location` {address, street, city, state, zip, area, district, landmarks}, `facility`, `sauna_capacity` (null: never state one), `temperatures` {cold_plunge_f [44, 52], sauna_f [175, 190], say, never_state}, `hours` {summary, regular {mon..sun: [open, close] or null}, class_gap, under_review}, `phone`, `booking`, `cta_link` (the bio link), `instagram_name_field`, `bio_draft`, `account_owners` | scriptwriter, copywriter, critic |
+| `socials` | `instagram`, `facebook`, `ios_app`, `google_business_profile`, `instagram_account`, `publishing_tool` | copywriter, scout |
+| `voice` | `description`, `reference_lines`, `site_lines`, `share_line_example`, `community_word`, `people_words`, `emoji` ("none"), `words_always`, `words_ok`, `words_never`, `offer_word`, `dislikes`, `music_taste`, `inspiration_accounts`, `off_limits_topics`, `voiceover_by`, `clone_allowed` (false), `generic_ai_allowed` (null = undecided = no) | scriptwriter, copywriter, motion |
+| `offerings` | `modalities`, `formats`, `sessions` (each with its own `price` {value, currency, display, member_value?, unit, status}), `visit_pass_bundles`, `offers` (Discover Numa $49, The Numa Reset), `memberships`, `gift_cards`, `provider_services`, `discounts`, `events`, `promotions[]` {id, name, start, end, public, confirmed, details, open_questions?}, `do_not_promote`, `new_people_rule`, `not_offered`, `priority_offer`, `rates_considered` | scriptwriter, critic, motion, plan-month |
+| `team` | `collective` (roles only; names only for the co-founders), `on_camera`, `filming`, `voiceover` | scriptwriter, plan-month |
+| `positioning` | `own_in_mobile`, `target_audiences`, `series` (id, name, what, length_s, built_for), `collab_partners` (ordered, with status), `competitors`, `content_mix` (sums to 1.0), `differentiator`, `join_reasons`, `hesitations`, `member_stories`, `goals_90d`, `paid_ads`, `past_best_posts`, `past_flops`, `audience_size`, `owner_priors` {as_of, baseline, favour[] {id, what, evidence}, avoid[] {id, what, evidence}} | plan-month, scout, dashboard, strategist |
+| `assets` | `wordmark`, `wordmark_light`, `secondary_mark`, `endcard_background`, `brand_photos_dir` (paths relative to plugin root), `logo` (phoenix mark + wordmark; files_supplied) | engine, baseline_plan, setup_check (`brand_asset()`) |
+| `palette` | `value` {dark_teal, tan_gold, beige, light_blue, blue, light (the six official colours), cedar_ember, water_teal, cream, ink (aliases holding the same hex), caption_gold, caption_text}; `official`, `names`, `aliases` {alias: official key}, `derived`; `roles` {caption_text, caption_accent, endcard_subtitle, endcard_logo, background_dark, background_light, accent, text_dark, text_light} | engine (`brand_color()`, `accent_rgb()`), design_render |
+| `fonts` | `value` {family, caption_regular, caption_italic, license} (bundled open stand-in), `brand_fonts` (Domaine Sans Text Light, Avenir Next: commercial, never bundled), `stand_ins` | engine, validate_plan, formats (`brand_font()`), design_render |
 | `endcard` | `tagline`, `default_subtitle`, `signoff_examples` | engine, baseline_plan |
 | `captions` | `opening_rule`, `hashtags` {count [3,5], base, community_tag, never}, `disclosure` | copywriter, claims_scan |
 | `transcript_fixes` | `protect` (phrases never changed), `fixes[]` {to, variants, case_sensitive, next_words} | fix_transcript, analyze |
-| `claims` | `banned[]` {id, label, severity `fail`/`warn` (default `fail`), patterns (Python regex, case-insensitive), applies_to "all"}, `allow_exact` and `allow_patterns` (removed before scanning), `modalities` {say, never_say}, `rules[]`, `safety_line` {text, applies_to}, `dosing_line` {text, blocked, patterns} | claims_scan, validate_plan, scriptwriter, critic |
-| `consent` | `list` {location, columns}, `default`, `ai_processing_covered`, `social_posts_covered`, `children`, `voice_clone`, `release_form` | motion, critic, librarian |
+| `claims` | `banned[]` {id, label, severity `fail`/`warn` (default `fail`), kind `claim`/`brand`/`fact`/`offer` (default `claim`), rewrite?, patterns (Python regex, case-insensitive; `(?-i:...)` for a case-sensitive part such as `NUMA`), applies_to "all"}, `allow_exact` and `allow_patterns` (removed before scanning), `modalities` {say, never_say; red_light.device_facts with `fda_clearance`}, `rules[]`, `safety_line` {text, applies_to}, `dosing_line` {text, blocked, reason, patterns} | claims_scan, validate_plan, scriptwriter, critic |
+| `consent` | `list` {location, columns}, `default`, `process`, `log` (Doc 04; location open), `people_file` ("STATE/people.json"), `who_may_appear`, `never_film`, `ai_processing_covered`, `social_posts_covered`, `children` ("never" until the owners decide), `voice_clone` (false), `release_form` | motion, critic, librarian, scriptwriter |
 | `closures` | `location`, `rule`, `known` | plan-month |
 | `drive` | Drive names: `root`, `plan_dir`, `plan_sheet`, `music_library`, `music_naming`, `digests`, `consent_list`, `closures`, `metrics_sheet`, `month_folder`, `day_folder`, `shoot_card`, `photos`, `clips`, `voiceover`, `music`, `finished` | librarian, plan-month |
-| `posting` | `auto_post`, `require_approval`, `see_first`, `legal_review_done` (gates auto-post), `platforms`, `posting_time`, `ai_label_rule`, `music_rule`, `digest_destination` | post-reel, make-reel |
+| `posting` | `auto_post`, `require_approval` (true), `human_approval_required` (true: nothing goes out without a person approving it, D26), `member_yes_required` (true), `approver` (open), `see_first`, `legal_review_done` (legacy gate: value true, `required` false, `waived` true; the owners dropped the lawyer review), `legal_counsel`, `platforms`, `publishing_tool`, `poster`, `posting_time`, `ai_label_rule`, `music_rule`, `music_source`, `digest_destination`, `digest_readers`, `email_tool` | post-reel, make-reel, digest |
 | `escalation` | `contact` (Jude Moore), `never_ask`, `for[]`, `rule` | make-reel, all tasks |
 
 **Claims scanning contract.** Scan every text surface (voiceover script,
-on-screen text, caption, hashtags, pinned comment). First remove each
+on-screen text, slides, caption, hashtags, pinned comment). First remove each
 `allow_exact` phrase and every match of `allow_patterns` (e.g. "treat
 yourself", "a real treat"), then test every `banned[].patterns` and, while
 `dosing_line.blocked` is true, `dosing_line.patterns`, all with
-`re.IGNORECASE`.
+`re.IGNORECASE` (a rule that must match case scopes it off inline,
+`(?-i:\bNUMA\b)`). Besides health claims the list carries the owners' word
+rules: `kind: brand` ("NUMA", "Discover Pass", "Explore Numa", "credits",
+"cheap", any emoji), `kind: fact` (a sauna capacity, 34°, the cancelled
+Clinical Conversations, unconfirmed amenities) and `kind: offer` (NEWBIE or
+"50% off" in public copy). A hit's suggestion is the rule's `rewrite` when it
+has one; otherwise claim rules suggest a modality `say` line.
+
+**People data (`STATE/people.json`, private).** Schema
+`schemas/people.schema.json`; example with placeholder names
+`docs/examples/people.example.json`. Never committed (`.gitignore`: `STATE/`,
+`people.json`); synced to Drive `_Plan/people.json`. `people[]` {id, name, kind
+(founder, staff, instructor, provider, partner, social, member, child, adviser,
+other), roles, credentials?, on_camera (true / false / null = ask first),
+do_not_feature, collab?, collab_handle?, lead_member_stories?, active_until?,
+consent {status yes/no/unknown/not_needed, scope all/one_existing_post_only/
+words_only/photo_only/none, ai_processing?, parent_yes?, where, date}};
+`rules` {kids, lead_member_stories_with, cleared_for_one_existing_post_only,
+do_not_feature, who_may_appear}; `consent_log` {name "Doc 04", location}. A
+recorded `no` means never use, not even blurred; `unknown` means no.
 
 | Severity | Meaning | Script result |
 |----------|---------|---------------|

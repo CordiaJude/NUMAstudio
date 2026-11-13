@@ -600,7 +600,7 @@ def post_arms(p: dict) -> list[tuple[str, str, str]]:
     """(variable, level, outcome key) for every factored arm a post updates."""
     out: list[tuple[str, str, str]] = []
     trial = p["post_type"] == "trial_reel"
-    pre = "trial:" if trial else ""
+    pre = ""       # a Trial Reel is one try for its arms, judged against the trial-only baseline (R6 sections 5, 7)
     if p["post_type"] in FEED_TYPES and p["pooled_win"] is not None:
         out.append(("format", p["post_type"], "pooled"))
         if p["weekday"]:
@@ -1281,7 +1281,7 @@ class Planner:
 
     def pattern_arm(self, pid: str, ptype: str) -> tuple[str, str]:
         kind = self.pb["patterns"][pid]["kind"]
-        pre = "trial:" if ptype == "trial_reel" else ""
+        pre = ""
         if kind == "hook":
             return "hook", pre + hook_key(pid, ptype)
         if kind in STRUCTURE_KINDS:
