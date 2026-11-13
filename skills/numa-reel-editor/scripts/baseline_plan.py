@@ -1230,13 +1230,14 @@ def make_formats(plan: dict, lines: list[dict], sig_t: float | None, story_end: 
         if lo - 1e-6 <= t1 - t0 <= hi + 1e-6:
             out["reach_cut"] = {"t0": r3(t0), "t1": r3(t1), "hook": reach_hook}
     # story stills and carousel slides: whole sentences only (caption lines joined), chosen the way
-    # formats.py chooses its defaults, each measured to fit the caption rows (validate_plan rule 22);
-    # a sentence that cannot fit is left out with a WARN, never written into the plan too long
+    # formats.py chooses its defaults, each measured to fit the caption rows (validate_plan rule 22),
+    # shrinking the still's caption size to a floor if need be (marked _fit_caption so formats.py does
+    # the same when it renders); a sentence that cannot fit is left out with a WARN
     import formats  # noqa: PLC0415 - heavy (engine); only needed here
     for key, make in (("story", formats.default_story), ("carousel", formats.default_carousel)):
         notes: list[str] = []
         try:
-            out[key] = [{"t": r3(e["t"]), "text": e["text"]} for e in make(plan, notes)]
+            out[key] = [{"t": r3(e["t"]), "text": e["text"], formats.FIT_KEY: True} for e in make(plan, notes)]
         except formats.NoDefault:
             pass
         for msg in notes:

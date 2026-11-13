@@ -81,6 +81,10 @@ HOOK_VARIANT_S = (3.0, 5.0, 4.0)      # opening length: min, max, preferred
 STORY_CLIP_DEFAULT_S = 5.0
 SHORT_CAPTION_CHARS = 48              # carousel captions are short
 STORY_TEXT_CHARS = 64                 # a story line: one caption line (rows measured: caption_fit)
+STILL_CAPTION_FLOOR_PX = 64           # a default still's text may shrink to this size (at 1080 wide) to fit
+STILL_CAPTION_STEP_PX = 4             # ... in these steps from the plan's caption size
+SCHEMA_MIN_CAPTION_PX = 40            # plan.schema.json caption_px minimum (plan pixels)
+FIT_KEY = "_fit_caption"              # on a story/carousel entry formats chose: its text may shrink to fit
 HOOK_TEXT_CHARS = 52                  # hook text: 3 rows at most
 MIN_LAST_SEGMENT_S = 0.5              # defence: no tiny final encoder segment (see reach_plan)
 REPEAT_WINDOW_S = 4.0                 # reach cut: no caption repeating the new hook in its first 4 s
@@ -455,7 +459,7 @@ def hook_variant_plan(plan: dict, hv: dict, length: float) -> dict:
     return clear_hook_window(d)
 
 
-def still_plan(plan: dict, t: float, text: str | None) -> dict:
+def still_plan(plan: dict, t: float, text: str | None, fit: bool = False) -> dict:
     """The reel at time t without its hook, captions and end card, plus one line of text."""
     d = _base(plan)
     if text:
@@ -463,10 +467,10 @@ def still_plan(plan: dict, t: float, text: str | None) -> dict:
         n = len(et.hook_words(text))
         appear = max(0.0, t - TEXT_LEAD_S - 0.01 * n)
         d["lines"] = [{"words": text_words(text, appear), "end": r6(min(D, t + 0.5))}]
-    return d
+    return _fit_caption(d, plan, text, fit)
 
 
-def source_still_plan(plan: dict, src: str, text: str | None) -> tuple[dict, float]:
+def source_still_plan(plan: dict, src: str, text: str | None, fit: bool = False) -> tuple[dict, float]:
     """A one-shot plan showing a source photo (or clip) for a carousel slide; returns (plan, frame time)."""
     d = _base(plan)
     dur = 2.0
@@ -483,7 +487,7 @@ def source_still_plan(plan: dict, src: str, text: str | None) -> tuple[dict, flo
     if text:
         n = len(et.hook_words(text))
         d["lines"] = [{"words": text_words(text, t - TEXT_LEAD_S - 0.01 * n), "end": r6(t + 0.5)}]
-    return d, t
+    return _fit_caption(d, plan, text, fit), t
 
 
 def cover_plan(plan: dict, title: str) -> dict:
@@ -494,11 +498,11 @@ def cover_plan(plan: dict, title: str) -> dict:
     return d
 
 
-def story_clip_plan(plan: dict, t: float, text: str, length: float) -> dict:
+def story_clip_plan(plan: dict, t: float, text: str, length: float, fit: bool = False) -> dict:
     d = clip_plan(plan, t, t + length, keep_endcard=False, keep_lines=False)
     n = len(et.hook_words(text))
     d["lines"] = [{"words": text_words(text, 0.0, 0.01), "end": r6(max(0.01 * n, length - 0.5))}]
-    return d
+    return _fit_caption(d, plan, text, fit)
 
 
 # ---------------------------------------------------------------------------
@@ -549,20 +553,60 @@ def sentences(plan: dict) -> list[dict]:
     return out
 
 
-def caption_fit(plan: dict):
-    """A test of whether display text, shown as one caption line of this plan, stays within the caption
-    row limit: measured exactly as validate_plan rule 22 measures it (the plan's caption fonts, caption_px
-    and size, 960 px box at 1080 wide, render.captions.max_rows). Returns text -> bool."""
-    chk = validate_plan.Checker(plan)
+def _rows_fit(plan: dict, text: str, caption_px: float | None) -> bool:
+    """True when text, as one caption line of plan (at caption_px plan pixels, else the plan's own size),
+    stays within render.captions.max_rows, measured exactly as validate_plan rule 22 measures it (the
+    plan's caption fonts and size, 960 px box at 1080 wide)."""
+    probe = dict(plan, caption_px=caption_px) if caption_px else plan
+    chk = validate_plan.Checker(probe)
     chk.size = plan.get("size") or [1080, 1920]   # as Checker.run sets it
-    max_rows = int(chk._cfg("render.captions.max_rows", 2))
+    rows = chk._rows(text_words(text, 0.0))       # rule 22's own measure
+    return rows is None or rows <= int(chk._cfg("render.captions.max_rows", 2))  # None: no font (rule 5)
+
+
+def still_caption_px(plan: dict, text: str) -> tuple[bool, float | None]:
+    """(fits, caption_px) for a still's single line of text: (True, None) when it fits the caption rows at
+    the plan's own caption size; else the largest size, stepping down STILL_CAPTION_STEP_PX (at 1080
+    wide, scaled to the frame width) to STILL_CAPTION_FLOOR_PX, at which rule 22 says it fits in the
+    rows; (False, None) when it does not fit even at the floor."""
+    if not et.hook_words(text):
+        return False, None
+    if _rows_fit(plan, text, None):
+        return True, None
+    W = float((plan.get("size") or [1080, 1920])[0])
+    k = W / 1080.0
+    start = (float(plan["caption_px"]) / k if plan.get("caption_px")
+             else float(nc.config_value("render.captions.font_px", 92)))
+    px = start - STILL_CAPTION_STEP_PX
+    while px >= STILL_CAPTION_FLOOR_PX - 1e-9:
+        cp = round(px * k, 2)
+        if cp < SCHEMA_MIN_CAPTION_PX:
+            break
+        if _rows_fit(plan, text, cp):
+            return True, cp
+        px -= STILL_CAPTION_STEP_PX
+    return False, None
+
+
+def caption_fit(plan: dict):
+    """text -> bool: the text fits a still's caption rows (shrunk to the floor size if need be)."""
+    memo: dict[str, bool] = {}
 
     def fits(text: str) -> bool:
-        if not et.hook_words(text):
-            return False
-        rows = chk._rows(text_words(text, 0.0))   # rule 22's own measure
-        return rows is None or rows <= max_rows   # None: no font to measure with (rule 5 reports it)
+        if text not in memo:
+            memo[text] = still_caption_px(plan, text)[0]
+        return memo[text]
     return fits
+
+
+def _fit_caption(d: dict, plan: dict, text: str | None, fit: bool) -> dict:
+    """Set the derived plan's caption_px so a formats-chosen text fits the caption rows (see
+    still_caption_px); plan-supplied text (fit False) keeps the plan's caption size."""
+    if fit and text:
+        ok, px = still_caption_px(plan, text)
+        if ok and px:
+            d["caption_px"] = px
+    return d
 
 
 def fit_text(text: str, limit: int, fits=None) -> str | None:
@@ -772,8 +816,8 @@ def _note_dropped(kind: str, dropped: list[str], warnings: list[str] | None) -> 
         return
     for text in dropped:
         short = text if len(text) <= 60 else text[:57].rstrip() + "..."
-        msg = (f"{kind}: left out {short!r}: too long for the caption rows and no whole clause of it fits; "
-               f"add formats.{kind} to choose the text")
+        msg = (f"{kind}: left out {short!r}: too long for the caption rows even at {STILL_CAPTION_FLOOR_PX} px "
+               f"and no whole clause of it fits; add formats.{kind} to choose the text")
         if msg not in warnings:
             warnings.append(msg)
 
@@ -798,7 +842,7 @@ def default_story(plan: dict, warnings: list[str] | None = None) -> list[dict]:
             # the frame where the sentence's last line is on screen in full
             t = min(s["last"] + 0.35, s["end"], ce - 0.2)
             t = readable_time(plan, s["last_line"], min(s["end"], ce - 0.2), t)
-            out.append({"t": still_time(plan, t), "text": text})
+            out.append({"t": still_time(plan, t), "text": text, FIT_KEY: True})
             used.add(norm(text))
     shots = _content_shots(plan)
     pool = [fit_text(x, STORY_TEXT_CHARS, fits) for x in (_hook_text(plan), _title(plan)) if x]
@@ -807,7 +851,7 @@ def default_story(plan: dict, warnings: list[str] | None = None) -> list[dict]:
         s = shots[min(len(shots) - 1, (2 * len(out) + 1) * len(shots) // (2 * n))]
         text = pool.pop(0)
         used.add(norm(text))
-        out.append({"t": still_time(plan, _mid(s, ce)), "text": text})
+        out.append({"t": still_time(plan, _mid(s, ce)), "text": text, FIT_KEY: True})
     if len(out) < 3:
         raise NoDefault("not enough whole sentences for a story set (3 needed); add formats.story")
     return sorted(out, key=lambda e: e["t"])
@@ -869,7 +913,7 @@ def default_carousel(plan: dict, warnings: list[str] | None = None) -> list[dict
     out: list[dict] = []
     used: set[str] = set()
     if lead and fit_text(lead, SHORT_CAPTION_CHARS) and fits(lead):
-        out.append({"t": still_time(plan, _mid(shots[0], ce)), "text": lead})
+        out.append({"t": still_time(plan, _mid(shots[0], ce)), "text": lead, FIT_KEY: True})
         used.add(norm(lead))
     sents = [(s, t) for s, t in sentence_texts(plan, SHORT_CAPTION_CHARS, fits=fits, dropped=dropped)
              if s["first"] < ce and norm(t) not in used]
@@ -895,7 +939,7 @@ def default_carousel(plan: dict, warnings: list[str] | None = None) -> list[dict
                   and not _repeats_neighbour(plan, out, c)), None)
         if t is None:
             continue
-        out.append({"t": t, "text": text})
+        out.append({"t": t, "text": text, FIT_KEY: True})
         used.add(norm(text))
     title = _title(plan)
     if len(out) < 5 and title and norm(title) not in used and fit_text(title, SHORT_CAPTION_CHARS) \
@@ -903,7 +947,7 @@ def default_carousel(plan: dict, warnings: list[str] | None = None) -> list[dict
         free = [s for s in shots if all(abs(_mid(s, ce) - o["t"]) > 0.3 for o in out)
                 and not _repeats_neighbour(plan, out, still_time(plan, _mid(s, ce)))]
         if free:
-            out.append({"t": still_time(plan, _mid(free[-1], ce)), "text": title})
+            out.append({"t": still_time(plan, _mid(free[-1], ce)), "text": title, FIT_KEY: True})
     if len(out) < 5:
         raise NoDefault(f"only {len(out)} slide(s) of whole-sentence text for a carousel (5 needed); "
                         f"add formats.carousel")
@@ -1308,15 +1352,16 @@ def render_story(job: Job, fm: dict) -> None:
     clip_s = float(output_cfg("story").get("clip_s", STORY_CLIP_DEFAULT_S))
     D = float(job.plan["duration"])
     for n, st in enumerate(fm["story"], 1):
+        fit = bool(st.get(FIT_KEY))
         if st.get("clip"):
             length = min(clip_s, D)
             t = min(float(st["t"]), D - length)
-            d = check_derived(story_clip_plan(job.plan, t, st["text"], length), f"story {n}", w)
+            d = check_derived(story_clip_plan(job.plan, t, st["text"], length, fit), f"story {n}", w)
             out = job.name("story", n, "mp4")
             job.video(d, [(t, t + length)], "story", out, w)
         else:
             t = still_time(job.plan, st["t"])
-            d = check_derived(still_plan(job.plan, t, st["text"]), f"story {n}", w, still=True)
+            d = check_derived(still_plan(job.plan, t, st["text"], fit), f"story {n}", w, still=True)
             out = job.still(d, t, size, job.name("story", n, "jpg"))
         job.add("story", out)
 
@@ -1326,11 +1371,12 @@ def render_carousel(job: Job, fm: dict) -> None:
     job.clear("carousel", ("jpg",))
     size = carousel_size(job.plan)
     for n, c in enumerate(fm["carousel"], 1):
+        fit = bool(c.get(FIT_KEY))
         if "src" in c:
-            d, t = source_still_plan(job.plan, c["src"], c["text"])
+            d, t = source_still_plan(job.plan, c["src"], c["text"], fit)
         else:
             t = still_time(job.plan, c["t"])
-            d = still_plan(job.plan, t, c["text"])
+            d = still_plan(job.plan, t, c["text"], fit)
         if len(plain(c["text"])) > SHORT_CAPTION_CHARS + 12:
             w.append(f"carousel {n}: caption is {len(plain(c['text']))} characters; carousel captions read best short")
         d = check_derived(d, f"carousel {n}", w, still=True)
