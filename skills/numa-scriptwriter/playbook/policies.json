@@ -84,7 +84,8 @@
       "data_led_after_posts": 30,
       "noise_sd": 0.5,
       "exploration_budget": 0.25,
-      "explore_variance_inflation": 4,
+      "explore_variance_inflation": 1.5,
+      "exploit_variance_scale": 0.25,
       "stickiness": 0.1,
       "max_pattern_share_week": 0.6,
       "underperform_score": -0.15,
@@ -92,7 +93,7 @@
       "retire": {"min_n": 6, "min_effect": 0.15, "min_prob": 0.85},
       "demote": {"min_n": 8, "min_effect": 0.0, "min_prob": 0.5},
       "insight": {"min_n": 3, "min_effect": 0.15, "min_prob": 0.75},
-      "evidence": {"level": "opinion", "sources": ["spec p.34 rule 10 (re-tune mix, lengths and hours after 30 posted reels)", "spec p.8 ('treat observed patterns as things to test, not laws')", "docs/RESEARCH_PROMPTS_PLAYBOOK.md R6 (thresholds to be replaced by research)"], "notes": "Engineering defaults. data-led share = min(1, judged posts / data_led_after_posts). promote: posterior mean >= +min_effect with P(better than median) >= min_prob after min_n posts; retire: mean <= -min_effect with P(worse) >= min_prob; demote a proven pattern to testing when P(better) falls below min_prob after min_n posts. interaction = prior strength of the post_type x weekday cells, so they move only with real data."}
+      "evidence": {"level": "opinion", "sources": ["spec p.34 rule 10 (re-tune mix, lengths and hours after 30 posted reels)", "spec p.8 ('treat observed patterns as things to test, not laws')", "docs/RESEARCH_PROMPTS_PLAYBOOK.md R6 (thresholds to be replaced by research)"], "notes": "Engineering defaults. data-led share = min(1, judged posts / data_led_after_posts). promote: posterior mean >= +min_effect with P(better than median) >= min_prob after min_n posts; retire: mean <= -min_effect with P(worse) >= min_prob; demote a proven pattern to testing when P(better) falls below min_prob after min_n posts. interaction = prior strength of the post_type x weekday cells, so they move only with real data. Exploit draws use the posterior variance x exploit_variance_scale (tempered Thompson sampling) so the explicit exploration budget, not posterior noise, does most of the exploring."}
     },
     "prior_means": {
       "post_type": {"reel": 0.0, "carousel": 0.0, "image": -0.05},

@@ -995,7 +995,8 @@
             "promote",
             "retire",
             "demote",
-            "evidence"
+            "evidence",
+            "exploit_variance_scale"
           ],
           "additionalProperties": false,
           "properties": {
@@ -1081,6 +1082,12 @@
             },
             "evidence": {
               "$ref": "#/$defs/evidence"
+            },
+            "exploit_variance_scale": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "description": "Exploit slots and slot structure (type, day, hour, offer week) draw from the posterior with its variance times this (tempered Thompson sampling); explore slots use explore_variance_inflation."
             }
           }
         },

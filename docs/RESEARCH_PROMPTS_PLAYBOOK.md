@@ -4,14 +4,14 @@ Run each prompt below as a separate **Research** request in the Claude app. Save
 
 Every prompt shares this context (it is already included in each one):
 
-> NUMA Wellness Collective is a contrast-therapy and breathwork studio in Midtown Mobile, Alabama (14-person Finnish sauna, 4 cold plunges, red light, breathwork, yoga; $49 "Discover NUMA" first month; events Numa Nights and Clinical Conversations). Instagram @numawellnessmobile, a small local business account (under 5,000 followers). Competitors nearby are tiny (largest ~3,000 followers). The account posts reels, carousels, single photos and Stories, and runs Trial Reels. All claims must follow FTC rules: sell the experience, never health outcomes.
+> NUMA Wellness Collective is a contrast-therapy and breathwork studio in Midtown Mobile, Alabama (Finnish sauna at 175-190°F, 4 cold plunges at 44-52°F, red light, breathwork, yoga, Flow Space, plus counseling, massage and facials under one roof; $49 "Discover Numa" one-month trial that ends on its own; special events such as Numa Nights about every 4 months). Always write the name "Numa", never "NUMA". Instagram @numawellnessmobile, a small local business account (under 5,000 followers). Competitors nearby are tiny (largest ~3,000 followers). The account posts reels, carousels, single photos and Stories, and runs Trial Reels. All claims must follow FTC rules: sell the experience, never health outcomes.
 
 ---
 
 ## R1: Hooks and openings that stop the scroll
 
 ```
-Context: NUMA Wellness Collective is a contrast-therapy and breathwork studio in Midtown Mobile, Alabama (14-person Finnish sauna, 4 cold plunges, red light, breathwork, yoga; $49 "Discover NUMA" first month; events Numa Nights and Clinical Conversations). Instagram @numawellnessmobile, a small local business account (under 5,000 followers). Competitors nearby are tiny. The account posts reels, carousels, single photos and Stories, and runs Trial Reels. All claims must follow FTC rules: sell the experience, never health outcomes.
+Context: NUMA Wellness Collective is a contrast-therapy and breathwork studio in Midtown Mobile, Alabama (Finnish sauna at 175-190°F, 4 cold plunges at 44-52°F, red light, breathwork, yoga, Flow Space, plus counseling, massage and facials under one roof; $49 "Discover Numa" one-month trial that ends on its own; special events such as Numa Nights about every 4 months). Always write the name "Numa", never "NUMA". Instagram @numawellnessmobile, a small local business account (under 5,000 followers). Competitors nearby are tiny. The account posts reels, carousels, single photos and Stories, and runs Trial Reels. All claims must follow FTC rules: sell the experience, never health outcomes.
 
 Research what makes the first 1-3 seconds of an Instagram Reel (and the first slide of a carousel) stop the scroll for wellness, sauna, cold plunge, breathwork and small local studio accounts in 2025-2026. Use measured studies (Socialinsider, Buffer, Metricool, Later, Hootsuite, Meta/Instagram official statements) and specific account examples with numbers (Bathhouse, SweatHouz, Othership, Remedy Place, local studios). Separate what is measured from what is observed or opinion.
 

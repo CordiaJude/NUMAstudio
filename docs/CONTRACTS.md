@@ -1021,3 +1021,65 @@ Components and fields (required, *optional*): `cover` kicker, title, *subtitle*;
 cta, *details*; `photo` kicker, caption (+ slide `photo`, *`photo_position`*,
 *`photo_alt`*); `cta` title, button, *body* (wordmark added). Text: `\n` line
 break, `*word*` italic cedar-ember emphasis; text fits are measured at render.
+
+### strategy.py [T18]
+```
+strategy.py plan    --month YYYY-MM [--metrics FILE] [--state FILE] [--playbook DIR] [--events FILE] [--closures FILE]
+                    [--seed N] [--today YYYY-MM-DD] [--out FILE] [--json]
+strategy.py learn   --metrics FILE --state FILE [--playbook DIR] [--today YYYY-MM-DD] [--text FILE] [--json]
+strategy.py brief   --plan PLAN_JSON --metrics FILE [--state FILE] [--playbook DIR] [--week YYYY-MM-DD]
+                    [--today YYYY-MM-DD] [--out FILE] [--md FILE] [--notes TXT] [--json]
+strategy.py explain SLOT --plan PLAN_JSON [--json]
+strategy.py diagnose --metrics FILE [--post ID] [--state FILE] [--playbook DIR] [--today YYYY-MM-DD] [--json]
+strategy.py score   --metrics FILE [--state FILE] [--playbook DIR] [--today YYYY-MM-DD] [--json]
+strategy.py import-research FILE... --state FILE [--playbook DIR] [--kind KIND] [--today YYYY-MM-DD] [--json]
+strategy.py validate [--playbook DIR] [--state FILE] [--json]
+strategy.py export  [--playbook DIR] [--state FILE] --out FILE
+```
+The adaptive strategy engine (DECISIONS D23, R344-R350). Reads the playbook
+(`skills/numa-scriptwriter/playbook/{patterns,diagnosis,calendar,policies}.json`,
+`schemas/playbook.schema.json`; never written at run time), the learned state
+`STATE/strategy.json` (same schema, `kind: state`: status overrides, imported
+research, judging windows, changelog, insights) and metrics.py's store (read
+tolerantly: `pattern_ids`/`strategy_arm` tags allowed). Deterministic: the seed
+defaults to YYYYMM; `--today` fixes ages. Judging windows per post type
+(policies `judging`): ignored before `ignore_before_hours`, PROVISIONAL from the
+first pull at/after `provisional_hours` (weight `provisional_weight`), FINAL
+from the pull at/after `final_hours` (7d when later), never counted twice;
+metric `exceptions` drop that metric from a provisional score. `plan` writes a
+MONTH_JSON (shoot_card.py shape; an `image` row is a single-photo feed post)
+whose rows add `post_type`, `post_time` (Central HH:MM), `hour_band`,
+`pattern_ids`, `strategy_arm`, `strategy` {mode exploit|explore|rule, goal,
+why[]} and `moments`, plus a top-level `strategy` summary (data-led share,
+explore slots, violations). It exits 1 when a planning rule fails even with the
+bandit off. `learn` updates statuses (promote/retire/demote/start_testing), the
+dated changelog and Do more/Do less lines; `--text` writes the plain-text
+changelog for the digest. `brief` writes `schemas/strategy_brief.schema.json`.
+`import-research` parses the R1-R7 deep-research outputs (markdown or Google
+Doc text): pattern blocks, "symptom -> cause -> fix" tables, post-type share
+tables, rule tables and the R7 judging-window tables; claims-scans every
+example (a failing example is rejected; a pattern with none left is rejected),
+de-duplicates by id and name, never changes a status or NUMA's own data.
+
+**Pattern tagging contract (plan row -> script.json -> metrics tags).**
+
+| Field | Type | Written by | Read by |
+|---|---|---|---|
+| `pattern_ids` | list of playbook pattern ids (kebab-case), in the order hook, structure, CTA or offer | strategy.py plan (row); Scriptwriter (script.json, the ids actually used) | build-today -> metrics.py tag; strategy.py learn/score |
+| `strategy_arm` | string `type=<post_type>;pillar=<p>;series=<s>;day=<Mon..Sun>;band=<hour band>;hook=<id>;structure=<id>;offer_week=<w1..w5>;goal=<reach\|saves\|conversion>;mode=<exploit\|explore\|rule>;plan=<YYYY-MM>` (keys always in this order; empty value = none) | strategy.py plan; copied unchanged | metrics.py tag (text); strategy.py (`parse_arm`) |
+
+The weekday and hour credited to a post come from its `posting_time` tag (what
+really happened), not from the arm. Posts without these tags are still learned
+from: `hook_type` maps to a hook pattern through the playbook's `hook_types`.
+
+**Strategy brief** (`STATE/strategy_brief.json`, `schemas/strategy_brief.schema.json`):
+`{schema_version 1, kind "strategy_brief", date, week_of (Monday), month,
+data {judged_posts, final_posts, provisional_posts, pending_posts, data_led_share},
+provisional [{id, title, post_type, pull, weight, final_after_hours}], pending [ids],
+mix {feed_posts, post_types, trial_reels, suggested_pillar_mix}, slots [{date,
+weekday, post_type, kind, post_time, hour_band, pillar, series, goal, mode,
+pattern_ids, strategy_arm, event, event_role, sales, why}], use_patterns,
+avoid_patterns, experiments, diagnoses, do_more, do_less, changes, reasoning,
+strategist_notes?, rules_note}`. Written by `strategy.py brief`; the Strategist
+adds only `strategist_notes` (`--notes`). Read by /plan-month, /build-today, the
+Scriptwriter and the Monday digest.
