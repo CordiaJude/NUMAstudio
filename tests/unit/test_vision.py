@@ -47,9 +47,12 @@ def walk_clip(path: Path, *, amp: float, seconds: float = 3.0, fps: int = 30, si
 
 
 def dark_clip(path: Path, seconds: float = 3.0) -> Path:
+    # eq darkens the YUV values it is given: ffmpeg 6 converts the full-range JPEG to limited range
+    # before eq, ffmpeg 7+ keeps full range and the same settings leave the clip too bright to be dark
+    # (mean luma 0.26, not 0.22). Convert to limited range explicitly: the same pixels on every version.
     ffmpeg("-loop", "1", "-i", BRAND / "breathwork-class.jpg", "-f", "lavfi",
            "-i", f"sine=frequency=300:sample_rate=48000:duration={seconds}", "-t", seconds,
-           "-vf", "scale=480:-2,crop=240:320,eq=brightness=-0.3:contrast=0.6,fps=30",
+           "-vf", "scale=480:-2:out_range=tv,format=yuv420p,crop=240:320,eq=brightness=-0.3:contrast=0.6,fps=30",
            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", path)
     return path
 

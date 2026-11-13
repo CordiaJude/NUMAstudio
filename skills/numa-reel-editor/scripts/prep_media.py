@@ -138,9 +138,9 @@ def color_range(path: str) -> str | None:
             data = nc.ffprobe_json(fp)
         except nc.UserError:
             data = {}
-        for st in data.get("streams") or []:
-            if st.get("codec_type") == "video":
-                val = st.get("color_range") or None
+        for stream in data.get("streams") or []:
+            if stream.get("codec_type") == "video":
+                val = stream.get("color_range") or None
                 break
         _RANGE[key] = val
     return _RANGE[key]
@@ -151,7 +151,10 @@ def full_range(info: dict) -> bool:
     color_range pc/jpeg (ffmpeg 7+ writes full range that way, as do some phones)."""
     if str(info.get("pix_fmt") or "").startswith("yuvj"):
         return True
-    rng = info["color_range"] if "color_range" in info else (color_range(info["path"]) if info.get("path") else None)
+    if "color_range" in info:
+        rng = info["color_range"]
+    else:
+        rng = color_range(info["path"]) if info.get("path") else None
     return str(rng or "").lower() in ("pc", "jpeg", "full")
 
 

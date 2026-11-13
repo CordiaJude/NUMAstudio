@@ -296,3 +296,19 @@ def test_opencv_output_is_tagged_limited_range_bt709(tmp_path, gamma):
     if gamma == 1.0:
         y_src, y_out = frame(src, 0.5), frame(out, 0.5)
         assert abs(float(y_src.mean()) - float(y_out.mean())) < 3
+
+
+@pytest.mark.parametrize("rng", ["tv", "pc"])
+def test_clip_luma_reads_real_luma_in_either_range(tmp_path, rng):
+    # a flat 0x404040 grey (luma 64/255) stored limited-range (16-235) or full-range (0-255), the way
+    # ffmpeg 7+ and some phones write full range: yuv420p tagged pc, not a yuvj* pixel format
+    src = tmp_path / f"grey_{rng}.mp4"
+    ffmpeg("-f", "lavfi", "-i", "color=c=0x404040:s=64x64:r=30:d=1",
+           "-vf", f"scale=out_range={rng},format=yuv420p,setparams=range={rng}", "-color_range", rng,
+           "-c:v", "libx264", "-crf", "0", str(src))
+    info = numa_common.media_info(src)
+    assert pm.full_range(info) is (rng == "pc")
+    # ffprobe 6 reports full-range H.264 as yuvj420p, ffprobe 7+ as yuv420p with color_range pc
+    assert pm.full_range({"pix_fmt": "yuv420p", "path": str(src)}) is (rng == "pc")
+    y = pm.clip_luma(str(src), info, 1.0)
+    assert abs(float(y.mean()) - 64 / 255) < 0.01, float(y.mean())
