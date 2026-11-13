@@ -367,13 +367,17 @@ def analyze(log: dict, cfg: dict, now: datetime, days: int | None = None, post_b
     grace = timedelta(minutes=float(st["grace_minutes"]))
     early = timedelta(minutes=float(st["early_minutes"]))
     win_start = now - timedelta(days=days)
-    log_start = parse_when(log["created_at"], tz, "created_at") - early if log.get("created_at") else None
     now_local = now.astimezone(tz)
 
     runs = []
     for r in log["runs"]:
         start, end = _run_times(r, tz)
         runs.append((r, start, end))
+    if log.get("created_at"):
+        log_start = parse_when(log["created_at"], tz, "created_at") - early
+    else:
+        log_start = min((s for _, s, _ in runs), default=None)
+        log_start = log_start - early if log_start else None
 
     problems: list[dict] = []
     notes: list[dict] = []

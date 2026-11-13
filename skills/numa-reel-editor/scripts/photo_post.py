@@ -3,9 +3,9 @@
 
 Usage:
     photo_post.py single PHOTO --out OUT [--text TEXT] [--look warm|none] [--slug S]
-                  [--consent] [--library FILE] [--blur-faces] [--json]
+                  [--consent] [--library FILE] [--blur-faces] [--people-free] [--json]
     photo_post.py carousel PHOTOS... --out OUT [--texts FILE] [--look warm|none] [--slug S]
-                  [--consent] [--library FILE] [--blur-faces] [--json]
+                  [--consent] [--library FILE] [--blur-faces] [--people-free PHOTO ...] [--json]
 
 Every picture is a 1080x1350 (4:5) JPG rendered by engine.py from a one-shot
 plan, so it carries the reels' look: the colour look (``--look``, default warm),
@@ -23,15 +23,27 @@ bloom, vignette and bottom gradient, and the seeded film grain.
   unblurred face is under the top text it moves to the bottom of the safe area.
   Every text is claims-scanned (claims_scan.py): a banned claim is an ERROR,
   a wording warning a WARN.
-* Consent (brand.json ``consent``): a photo with detected faces needs recorded
-  consent, either ``--consent`` (the Director checked STATE/consent_list.json:
-  everyone recognizable in these photos is on it with a scope that covers
-  social posts) or a library.py index (``--library``) recording consent yes for
-  that photo. Without it the run is an ERROR, unless ``--blur-faces``: then
-  every detected face (with a margin for hair and ears) is blurred beyond
-  recognition and the framing follows the rest of the picture. A library
-  entry with consent ``no`` is never overridden by ``--consent``.
-  Detection misses faces (profiles, people lying down): LOOK at the output.
+* People and consent (brand.json ``consent``). Face detection can only ever
+  say yes: finding no face never proves a photo is people-free (backs, people
+  lying down, profiles, small figures). So every photo needs a recorded basis,
+  reported as ``people_basis``:
+    consent           ``--consent``: the Director checked STATE/consent_list.json
+                      (everyone recognizable is on it, scope covers social posts)
+    library_consent   a library.py index (``--library``) records consent yes
+    library_tag_no    the index records people "no" set by ``library.py tag``
+                      (people_source "tag": someone looked at the picture)
+    people_free_flag  ``--people-free``: the Director LOOKED and there are truly
+                      no people (single: the flag; carousel: ``--people-free PHOTO``,
+                      repeatable, a path or file name)
+    blurred           ``--blur-faces`` with detected faces: every detected face
+                      (with a margin for hair and ears) is blurred beyond
+                      recognition and the framing follows the rest of the picture
+  Without one the run is an ERROR. ``--blur-faces`` alone never passes a photo
+  with no detected face (there is nothing to blur, the people may still be
+  there). Faces found on a photo marked people-free (tag or flag) need
+  ``--blur-faces`` or consent. A library entry with consent ``no`` is never
+  overridden by ``--consent`` or ``--people-free``. Detection misses faces:
+  LOOK at the output.
 
 single: OUT is the JPG to write (a folder gets ``<slug>_photo.jpg``).
 carousel: PHOTOS are 2-10 photos, or folders of photos (their images in name
@@ -44,7 +56,7 @@ plain-text file with one line per slide (an empty line = no text).
 ``--slug`` defaults to the photo's (single) or the first folder's or photo's
 (carousel) name. Output is deterministic: the same inputs give the same bytes.
 ``--json`` prints {"ok", "kind", "files", "slides": [{file, src, text, faces,
-consent, blurred, focus, text_position, upscale}]} on stdout.
+consent, people_basis, blurred, focus, text_position, upscale}]} on stdout.
 Exit 1 on an unusable photo, missing consent, a banned claim or text that
 does not fit; exit 2 on usage errors.
 """
@@ -114,11 +126,36 @@ def read_texts(path: str, n: int) -> list[str | None]:
     return [t.strip() if isinstance(t, str) and t.strip() else None for t in texts]
 
 
-def library_consent(path: str | None) -> dict[str, bool]:
+def library_consent(path: str | None) -> dict[str, dict]:
+    """{resolved path: {"consent": True|False|None, "people_no": bool}} from a library.py index.
+
+    people_no is true only for people "no" set by a tag (someone looked); a detector never sets it."""
     if not path:
         return {}
     import baseline_plan
-    return baseline_plan.library_consent(path)
+    data = nc.read_json(Path(path).expanduser().resolve(), "library index")
+    items = data.get("items") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        raise nc.UserError(f"library index {path}: expected an object with an 'items' list")
+    out: dict[str, dict] = {}
+    for it in items:
+        if isinstance(it, dict) and isinstance(it.get("path"), str):
+            people_no = it.get("people") in (False, "no") and it.get("people_source") == "tag"
+            out[str(Path(it["path"]).expanduser().resolve())] = {
+                "consent": baseline_plan._consent_value(it.get("consent")), "people_no": people_no}
+    return out
+
+
+def people_free_set(values: Sequence[str] | None, photos: Sequence[Path]) -> set[Path]:
+    """The carousel photos named by --people-free (a path or a file name); an unknown name is a usage error."""
+    chosen: set[Path] = set()
+    for v in values or []:
+        p = Path(v).expanduser()
+        hits = [q for q in photos if q == p.resolve() or q.name == v]
+        if not hits:
+            raise nc.UsageError(f"--people-free {v}: not one of the carousel's photos")
+        chosen.update(hits)
+    return chosen
 
 
 # ---------------------------------------------------------------------------
@@ -157,29 +194,47 @@ def blur_box(face: Sequence[float]) -> list[float]:
 class Photo:
     """One analysed photo: faces, focus and the consent decision."""
 
-    def __init__(self, path: Path, det, consent_flag: bool, library: dict[str, bool], blur_faces: bool):
+    def __init__(self, path: Path, det, consent_flag: bool, library: dict[str, dict], blur_faces: bool,
+                 people_free: bool = False):
         import cv2
         import vision
         self.path = path
         bgr = vision.read_image(str(path))
         self.h, self.w = bgr.shape[:2]
         self.faces = [list(map(float, b)) for b in (det.detect(bgr) if det.backend else [])]
-        lib = library.get(str(path))
-        if lib is False:
-            self.consent = False           # the library says no: never overridden by --consent
-        elif lib is True or consent_flag:
+        lib = library.get(str(path)) or {}
+        self.blur: list[list[float]] = []
+        self.people_basis: str | None = None
+        n = len(self.faces)
+        if lib.get("consent") is False:
+            self.consent = False           # the library says no: never overridden by --consent / --people-free
+        elif lib.get("consent") is True or consent_flag:
             self.consent = True
+            self.people_basis = "library_consent" if lib.get("consent") is True else "consent"
         else:
             self.consent = None
-        self.blur: list[list[float]] = []
-        if self.faces and self.consent is not True:
-            if not blur_faces:
-                why = "the library records consent no" if self.consent is False else "no recorded consent"
+        if self.people_basis is None:
+            marked_free = "library_tag_no" if lib.get("people_no") else "people_free_flag" if people_free else None
+            if n and blur_faces:
+                self.people_basis = "blurred"
+                self.blur = [blur_box(b) for b in self.faces]
+            elif self.consent is False:
                 raise nc.UserError(
-                    f"{path.name}: {len(self.faces)} face(s) and {why} (brand.json consent). Fix: check "
-                    f"STATE/consent_list.json and pass --consent (or record it with library.py --consent yes), "
-                    f"or pass --blur-faces")
-            self.blur = [blur_box(b) for b in self.faces]
+                    f"{path.name}: the library records consent no" + (f" and {n} face(s) were found" if n else "")
+                    + ". Fix: use a different photo" + (", or pass --blur-faces" if n else ""))
+            elif marked_free and not n:
+                self.people_basis = marked_free
+            elif n:
+                how = " though it is marked people-free" if marked_free else " and no recorded consent"
+                raise nc.UserError(
+                    f"{path.name}: {n} face(s){how} (brand.json consent). Fix: check STATE/consent_list.json and "
+                    f"pass --consent (or record it with library.py --consent yes), or pass --blur-faces")
+            else:
+                raise nc.UserError(
+                    f"{path.name}: no recorded consent and nothing records it as people-free (finding no face "
+                    f"never proves there are no people). Fix: LOOK at it; pass --people-free only when it truly "
+                    f"shows no people (or tag it with library.py --people no), else --consent after checking "
+                    f"STATE/consent_list.json")
         if self.faces and not self.blur:
             self.focus = vision.face_focus(self.faces)
         else:
@@ -202,6 +257,9 @@ def post_plan(ph: Photo, text: str | None, look: str, out_dir: Path, hook_y: flo
         shot["faces"] = ph.faces
         if ph.consent is True:
             shot["consent"] = True
+    elif ph.people_basis in ("consent", "library_consent"):
+        shot["people"] = True
+        shot["consent"] = True
     if ph.blur:
         shot["blur"] = ph.blur
     plan: dict[str, Any] = {"duration": PLAN_DURATION, "size": list(POST_SIZE), "seed": 1, "out_dir": str(out_dir),
@@ -254,6 +312,7 @@ def render_post(ph: Photo, text: str | None, look: str, out: Path, where: str) -
     if up > UPSCALE_WARN:
         nc.warn(f"{where}: {ph.path.name} is {ph.w}x{ph.h}; the post enlarges it {up:.1f}x and may look soft")
     return {"file": str(out), "src": str(ph.path), "text": text, "faces": len(ph.faces), "consent": ph.consent,
+            "people_basis": ph.people_basis,
             "blurred": bool(ph.blur), "focus": ph.focus, "text_position": position, "upscale": round(up, 3)}
 
 
@@ -284,7 +343,7 @@ def cmd_single(args) -> dict:
     text = args.text.strip() if args.text and args.text.strip() else None
     if text:
         check_text(text, "--text")
-    ph = Photo(photo, detector(), args.consent, library_consent(args.library), args.blur_faces)
+    ph = Photo(photo, detector(), args.consent, library_consent(args.library), args.blur_faces, args.people_free)
     out.parent.mkdir(parents=True, exist_ok=True)
     return {"ok": True, "kind": "single", "files": [str(out)],
             "slides": [render_post(ph, text, args.look, out, photo.name)]}
@@ -312,7 +371,9 @@ def cmd_carousel(args) -> dict:
         if t:
             check_text(t, f"slide {i}")
     det, lib = detector(), library_consent(args.library)
-    analysed = [Photo(p, det, args.consent, lib, args.blur_faces) for p in photos]   # every consent check first
+    free = people_free_set(args.people_free, photos)
+    analysed = [Photo(p, det, args.consent, lib, args.blur_faces, p in free)
+                for p in photos]   # every consent check first, before anything is written
     out = Path(args.out).expanduser().resolve()
     if out.exists() and not out.is_dir():
         raise nc.UsageError(f"--out {out}: a carousel goes to a folder")
@@ -337,16 +398,21 @@ def build_parser() -> nc.ArgParser:
         p.add_argument("--slug", help="file-name stem (default: from the photo or folder name)")
         p.add_argument("--consent", action="store_true",
                        help="everyone recognizable in these photos is on the Consent List (checked by the Director)")
-        p.add_argument("--library", metavar="FILE", help="library.py index: consent yes/no per photo path")
+        p.add_argument("--library", metavar="FILE",
+                       help="library.py index: consent yes/no, or people no set by a tag, per photo path")
         p.add_argument("--blur-faces", action="store_true", help="blur faces without recorded consent instead of failing")
         p.add_argument("--json", action="store_true", help="print the JSON report on stdout")
     s = sub.add_parser("single", help="one 1080x1350 photo post")
     s.add_argument("photo", metavar="PHOTO")
     s.add_argument("--text", help=f"short text over the photo (at most {TEXT_MAX_CHARS} characters; *word* = gold)")
+    s.add_argument("--people-free", action="store_true",
+                   help="the Director LOOKED: the photo truly shows no people (detectors cannot prove it)")
     common(s)
     c = sub.add_parser("carousel", help=f"a {CAROUSEL_MIN}-{CAROUSEL_MAX} slide photo carousel")
     c.add_argument("photos", nargs="+", metavar="PHOTOS", help="photos or folders of photos, in slide order")
     c.add_argument("--texts", metavar="FILE", help="one text per slide: JSON list, or one line per slide")
+    c.add_argument("--people-free", action="append", metavar="PHOTO",
+                   help="this photo (path or file name) was LOOKED at and truly shows no people; repeatable")
     common(c)
     return ap
 
@@ -364,8 +430,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         for s in report["slides"]:
             extra = []
-            if s["faces"]:
-                extra.append(f"{s['faces']} face(s) " + ("blurred" if s["blurred"] else "with consent"))
+            extra.append(f"{s['faces']} face(s), people: {s['people_basis']}")
             if s["text"]:
                 extra.append(f"text {s['text_position']}")
             print(f"Wrote {s['file']}" + (f" ({', '.join(extra)})" if extra else ""))
