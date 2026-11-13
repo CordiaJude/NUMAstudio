@@ -43,6 +43,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "skills" / "numa-reel-editor" / "scripts"
+
+
+def whole_sentences(plan: dict) -> int:
+    """Number of complete caption sentences in a plan, by formats.py's own sentence joining."""
+    if str(SCRIPTS) not in sys.path:
+        sys.path.insert(0, str(SCRIPTS))
+    import formats  # noqa: E402  (the scripts folder is not a package)
+    return sum(1 for s in formats.sentences(plan) if s.get("complete"))
 BRAND_PHOTOS = sorted((ROOT / "skills" / "numa-reel-editor" / "assets" / "brand-photos").glob("*.jpg"))
 sys.path.insert(0, str(SCRIPTS))
 
@@ -351,9 +359,13 @@ def _run_case(name: str, root: Path, args, log: list) -> tuple[str, list]:
     wanted = [("reach cut", rf"^{re.escape(slug)}_reach\.mp4$"), ("cover", rf"^{re.escape(slug)}_cover\.jpg$")]
     if P.get("lines"):
         wanted.append(("captions .srt", rf"^{re.escape(slug)}\.srt$"))
-    if len(P.get("lines", [])) >= 4:
-        wanted += [("story set", rf"^{re.escape(slug)}_story_1\.(jpg|mp4)$"),
-                   ("carousel", rf"^{re.escape(slug)}_carousel_1\.jpg$")]
+    # Count whole on-screen sentences the way formats.py does (a sentence may span caption lines):
+    # a Story set needs 3 (one per still), a carousel 5 slides (spec p.46).
+    whole = whole_sentences(P)
+    if whole >= 3:
+        wanted.append(("story set", rf"^{re.escape(slug)}_story_1\.(jpg|mp4)$"))
+    if whole >= 5:
+        wanted.append(("carousel", rf"^{re.escape(slug)}_carousel_1\.jpg$"))
     for kind, pattern in wanted:
         check(any(re.match(pattern, n) for n in produced),
               f"formats: no {kind} in out/ ({'; '.join(fm.get('warnings') or []) or sorted(produced)})")
