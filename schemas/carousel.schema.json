@@ -11,7 +11,7 @@
     "slug": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
-      "description": "File-name stem: slides are <slug>_carousel_<N>.jpg (numa_common.deliverable_name)."
+      "description": "File-name stem: slides are <slug>_carousel_01.jpg, _02, ..."
     },
     "title": {
       "type": "string",

@@ -984,7 +984,7 @@ its Chromium (`pip install -r requirements.txt`, then
   beyond the box by more than 0.3 em, or text outside the slide); no
   `[PRICE]` placeholder (a `$` amount that is not a brand.json price: WARN);
   JPG quality 92 (>= 90 checked), 4:4:4, sRGB ICC embedded.
-- Writes `OUT/<slug>_carousel_<N>.jpg|png` (deliverable_name; old ones of the
+- Writes `OUT/<slug>_carousel_NN.jpg|png` (01, 02, ... as photo_post.py; old ones of the
   slug removed first), `OUT/carousel_sheet.jpg` (contact sheet) and
   `report.json` `design_render`: `{"mode": "canvas|spec", "source", "slug",
   "ok", "files", "sheet", "slides": [{"n", "file", "board"|"component",

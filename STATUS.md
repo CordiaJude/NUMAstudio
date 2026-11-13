@@ -17,7 +17,7 @@
 | T12 Templates/prefs/kinetic/rule41 | ACCEPTED (re-review 5/5 PASS) | 2 | minors logged |
 | T11 Integration | ACCEPTED (re-review 6/6 PASS) | 2 | |
 | T14 Claude Design carousels (v2.1) | IN PROGRESS | 1 | |
-| T15 Photo posts + carousel/image posting (v2.1) | IN PROGRESS | 1 | |
+| T15 Photo posts + carousel/image posting (v2.1) | IN REVIEW | 1 | shared asks: README, config instagram.tags post_type, CONTRACTS metrics → T16 |
 | T16 Planner/shoot cards/build/digest for new post types (v2.1) | PENDING | 0 | |
 
 ## Minor findings (all resolved)

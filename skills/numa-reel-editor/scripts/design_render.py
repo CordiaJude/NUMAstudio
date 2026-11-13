@@ -48,8 +48,8 @@ Checks on every slide (an ERROR fails the run, exit 1):
   slide's text; no "[PRICE]" placeholder left; 2-10 slides (outside config
   formats `carousel` count: WARN); JPG quality >= 90, 4:4:4, sRGB profile embedded.
 
-Output: `OUT/<slug>_carousel_<N>.<jpg|png>` (numa_common.deliverable_name, the
-formats.py names; earlier slides of this slug are removed first), a contact sheet
+Output: `OUT/<slug>_carousel_NN.<jpg|png>` (01, 02, ...: the names photo_post.py
+and /post-reel use; earlier slides of this slug are removed first), a contact sheet
 `OUT/carousel_sheet.jpg` to LOOK at, and the `design_render` section of
 `OUT/report.json`: {"mode", "source", "slug", "ok", "files", "sheet", "slides":
 [{"n", "file", "board"|"component", "ok", "errors", "warnings", "fonts", "text"}],
@@ -776,6 +776,11 @@ def contact_sheet(files: list[Path], out: Path) -> Path | None:
     return path
 
 
+def slide_name(slug: str, n: int, fmt: str) -> str:
+    """<slug>_carousel_01.jpg: the zero-padded carousel name photo_post.py and /post-reel use."""
+    return f"{nc.slugify(slug)}_carousel_{n:02d}.{fmt}"
+
+
 def clear_old(out: Path, slug: str) -> None:
     pat = re.compile(rf"^{re.escape(nc.slugify(slug))}_carousel_\d+\.(jpg|png)$")
     for f in out.iterdir():
@@ -799,7 +804,7 @@ def run_render(jobs: list[dict], browser: Browser, out: Path, slug: str, fmt: st
         if scan_text:
             scan(text, where, slide_probs)
         price_rules(text, where, prices, slide_probs)
-        path = out / nc.deliverable_name(slug, "carousel", job["n"], fmt)
+        path = out / slide_name(slug, job["n"], fmt)
         save_slide(png, path, fmt, where, slide_probs)
         files.append(path)
         probs.errors.extend(slide_probs.errors)
