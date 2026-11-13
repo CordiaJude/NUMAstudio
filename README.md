@@ -137,7 +137,10 @@ does not ship.
 
 1. `python3 -m pytest tests/unit -q` and `python3 tests/run_tests.py`: all green.
 2. `NUMA_TEST_PACK=... python3 tests/golden_year_one.py`: exit 0; Jude rates the reel against the
-   hand-built reference with the comparison sheet and the steps the harness prints.
+   hand-built reference with the comparison sheet and the steps the harness prints. The shipped
+   example plan's caption times match faster-whisper small.en (int8) on the Year One audio; if a
+   new faster-whisper version shifts word times by more than 0.15 s, the "captions in sync as
+   shipped" check fails: re-time the example plan to the new transcript and note it in the CHANGELOG.
 3. Record the golden result and Jude's verdict in CHANGELOG.md under the release.
 4. Bump the version in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` (kept
    equal; `tests/unit/test_release.py` checks), tag `vX.Y.Z`, push.
