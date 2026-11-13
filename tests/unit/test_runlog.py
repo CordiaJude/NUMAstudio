@@ -160,6 +160,7 @@ def test_missed_failed_stuck_and_partial(state, capsys):
     assert kinds[("missed", "build_today", "2026-11-02")]["action"] == "reschedule"
     assert kinds[("stuck", "build_today", "2026-11-04")]["action"] == "late_build"  # noon: a build still posts today
     assert kinds[("stuck", "build_today", "2026-11-04")]["minutes"] == 419
+    assert kinds[("stuck", "build_today", "2026-11-04")]["runs"] == 1 and kinds[("missed", "build_today", "2026-11-02")]["runs"] == 0
     assert kinds[("failed", "dashboard_refresh", "2026-10-31")]["action"] == "skip"
     assert [n["task"] for n in res["notes"]] == ["build_today"]
     assert res["tasks"]["build_today"]["partial"] == 1 and not res["healthy"]

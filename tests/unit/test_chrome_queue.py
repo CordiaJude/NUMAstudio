@@ -49,7 +49,7 @@ def test_add_list_next_done(q):
     listed = q("list", "--json")["items"]
     assert [i["kind"] for i in listed] == ["trial_reel", "competitor_log"]
     nxt = q("next", "--now", "2026-12-10T09:00:00-06:00", "--json")
-    assert nxt["item"]["id"] == a["item"]["id"] and nxt["pending"] == 2
+    assert nxt["item"]["id"] == a["item"]["id"] and nxt["pending"] == 2 and nxt["waiting"] == 0
     done = q("done", a["item"]["id"], "--result", "posted as Trial Reel: https://www.instagram.com/reel/x",
              "--now", "2026-12-10T16:40:00-06:00", "--json")
     assert done["item"]["status"] == "done" and done["item"]["done_at"] == "2026-12-10T22:40:00Z"
@@ -92,8 +92,18 @@ def test_expire_returns_fallbacks_and_requeue_after_expiry(q):
 
 def test_next_skips_past_deadlines_and_none_left(q):
     add(q, deadline="2026-12-10T08:00:00-06:00")
-    assert q("next", "--now", "2026-12-10T09:00:00-06:00", "--json") == {"item": None, "pending": 0}
+    assert q("next", "--now", "2026-12-10T09:00:00-06:00", "--json") == {"item": None, "pending": 0, "waiting": 0}
     assert q("next", "--now", "2026-12-10T09:00:00-06:00").out.strip() == "none"
+
+
+def test_not_before_holds_an_item_back(q):
+    a = q("add", "--kind", "trial_reel", "--payload", '{"job": "J"}', "--not-before", "2026-12-10T16:30:00",
+          "--deadline", "2026-12-10T17:00:00", "--fallback", "Post as a normal reel", "--json")
+    assert a["item"]["not_before"] == "2026-12-10T16:30:00-06:00"
+    assert q("next", "--now", "2026-12-10T09:17:00-06:00", "--json") == {"item": None, "pending": 0, "waiting": 1}
+    assert q("next", "--now", "2026-12-10T16:47:00-06:00", "--json")["item"]["id"] == a["item"]["id"]
+    q("add", "--kind", "ai_label", "--payload", '{"job": "J"}', "--not-before", "2026-12-10T17:00",
+      "--deadline", "2026-12-10T17:00", "--fallback", "x", code=1)
 
 
 def test_fail_keeps_item_pending(q):

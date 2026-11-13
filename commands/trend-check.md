@@ -17,6 +17,12 @@ if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then ex
 
 Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
 
+## Run start and end (R339-R342)
+
+1. **Log the start:** `python3 "$S/runlog.py" start trend_check --state "$STATE"`; keep the printed run id (`RUN_ID`). Sync with Drive: download Drive `drive.plan_dir`/`runlog.json` and `chrome_queue.json` to `STATE/runlog.drive.json` and `STATE/chrome_queue.drive.json` (skip what does not exist yet), then `python3 "$S/runlog.py" merge "$STATE/runlog.drive.json" --state "$STATE"` and `python3 "$S/chrome_queue.py" merge "$STATE/chrome_queue.drive.json" --state "$STATE"`, and upload both files back.
+2. **Environment:** `python3 "$S/ensure_env.py" --json` (a fresh cloud machine installs what is missing; a warm one returns in seconds). Exit 1: send Jude its ERROR line's fix through the escalation channel in `STATE/brand.json` (DECISIONS D19), finish `failed` (step 3) and stop; next Friday catches up.
+3. **Finish, always, also when the run fails or stops early:** `python3 "$S/runlog.py" finish <RUN_ID> --outcome ok --note "<one line>" --state "$STATE"` (`ok` = "Done means" met; `partial` = done with something left out; `failed` = stopped), then merge and upload as in step 1. Lost the id: `--task trend_check`.
+
 ## 1. Weather: the 7-day forecast (planning rule 5, R167)
 
 Look up the National Weather Service 7-day forecast for Mobile, AL (web search and fetch). A weather hook is due when the next 7 days have:
@@ -32,6 +38,8 @@ When one applies, swap next week's Thursday Trial Reel (or the Sunday slot) for 
 ## 2. Trends (R241)
 
 Send the **scout** (agents/scout.md) to look at what is working this week for wellness studios (sauna, cold plunge, breathwork, recovery) and Mobile businesses: **formats, hooks, editing styles and topics, never songs**. It uses Claude in Chrome when Katie's Mac is awake, else web search (failure row F17). It watches the formats that travel in this niche: seasonal and weather hooks, hot/cold contrast, teasers, behind-the-scenes and first-timer reactions.
+
+**Claude in Chrome (R342).** Check first that the `mcp__claude-in-chrome__*` tools are visible and answer a harmless call (read the open tab's title). Visible: drain the queue first (commands/chrome-queue.md sections 2 and 4), then the scout works in Chrome. Not visible: the scout uses web search now; the trend ideas are not queued (next Friday looks again).
 
 Trending audio is off-limits for a business account (brand.json `posting.music_rule`): a trend is used only if its idea works with NUMA's own audio or a Sound Collection track.
 
@@ -53,8 +61,11 @@ The winner is tested as a **Trial Reel** before it reaches the grid. You may slo
 
 ## 5. Competitor log (first Friday of the month)
 
-On the first Friday of a month, the scout also writes the competitor log (agents/scout.md "Competitor log") to `STATE/competitors_YYYY-MM.json` for the dashboard.
+On the first Friday of a month, the scout also writes the competitor log (agents/scout.md "Competitor log") to `STATE/competitors_YYYY-MM.json` for the dashboard. Without Chrome it writes the web-search log now (what web search can see) and the Chrome version is queued for the month; when the Mac is awake before the month ends, commands/chrome-queue.md replaces the file:
+```
+python3 "$S/chrome_queue.py" add --kind competitor_log --payload '{"month": "2026-12"}' --deadline 2026-12-31T23:59:00-06:00 --fallback "Keep the web-search competitor log for 2026-12" --state "$STATE"
+```
 
 ## Done means
 
-The trends file has three ideas and a winner, any weather swap and slotted Trial Reel are in the plan, cards and Sheet, and the heads-ups are noted. Nobody was asked anything.
+The trends file has three ideas and a winner, any weather swap and slotted Trial Reel are in the plan, cards and Sheet, the heads-ups are noted, and the run is finished in the run log. Nobody was asked anything.

@@ -4,283 +4,833 @@
   "title": "NUMA Studio playbook and strategy state",
   "description": "One schema for every playbook file (skills/numa-scriptwriter/playbook/*.json: patterns, diagnosis, calendar, policies), for the learned strategy state (STATE/strategy.json, written by strategy.py learn and import-research) and for the merged playbook strategy.py exports. Each file carries the sections it owns. Evidence levels: measured = a large study or official platform data; observed = account examples; opinion = practitioner advice or inference; numa = NUMA's own results. Statuses: proven = beat NUMA's own median with enough posts; testing = in rotation, still being measured; candidate = not tried on NUMA yet; retired = lost to NUMA's median with enough posts, never planned.",
   "type": "object",
-  "required": ["schema_version", "kind"],
+  "required": [
+    "schema_version",
+    "kind"
+  ],
   "additionalProperties": false,
   "properties": {
-    "_readme": {"type": "string"},
-    "schema_version": {"const": 1},
-    "kind": {"enum": ["patterns", "diagnosis", "calendar", "policies", "state", "merged"]},
-    "updated": {"$ref": "#/$defs/date"},
-    "patterns": {"type": "array", "items": {"$ref": "#/$defs/pattern"}},
-    "diagnosis": {"type": "array", "items": {"$ref": "#/$defs/diagnosis"}},
-    "calendar": {"$ref": "#/$defs/calendar"},
-    "policies": {"$ref": "#/$defs/policies"},
+    "_readme": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "enum": [
+        "patterns",
+        "diagnosis",
+        "calendar",
+        "policies",
+        "state",
+        "merged"
+      ]
+    },
+    "updated": {
+      "$ref": "#/$defs/date"
+    },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pattern"
+      }
+    },
+    "diagnosis": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnosis"
+      }
+    },
+    "calendar": {
+      "$ref": "#/$defs/calendar"
+    },
+    "policies": {
+      "$ref": "#/$defs/policies"
+    },
     "status_overrides": {
       "type": "object",
       "description": "State only: pattern id -> the status NUMA's own data set (learn), with when and why.",
-      "propertyNames": {"$ref": "#/$defs/id"},
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
       "additionalProperties": {
         "type": "object",
-        "required": ["status", "since", "why"],
+        "required": [
+          "status",
+          "since",
+          "why"
+        ],
         "additionalProperties": false,
         "properties": {
-          "status": {"$ref": "#/$defs/status"},
-          "since": {"$ref": "#/$defs/date"},
-          "why": {"type": "string", "minLength": 1},
-          "n": {"type": "number", "minimum": 0},
-          "mean": {"type": "number"},
-          "prob_better": {"type": "number", "minimum": 0, "maximum": 1}
+          "status": {
+            "$ref": "#/$defs/status"
+          },
+          "since": {
+            "$ref": "#/$defs/date"
+          },
+          "why": {
+            "type": "string",
+            "minLength": 1
+          },
+          "n": {
+            "type": "number",
+            "minimum": 0
+          },
+          "mean": {
+            "type": "number"
+          },
+          "prob_better": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
         }
       }
     },
     "rules": {
       "type": "array",
       "description": "Rules imported from deep research (cadence, timing, offers, learning thresholds): kept with their evidence for the Director to read; numbers in them never change the engine on their own.",
-      "items": {"$ref": "#/$defs/rule"}
+      "items": {
+        "$ref": "#/$defs/rule"
+      }
     },
     "judging": {
-      "$ref": "#/$defs/policies/properties/judging",
-      "description": "State only: judging windows imported from research (R6); they replace the seed windows of the same post type."
+      "$ref": "#/$defs/judging",
+      "description": "State only: judging windows imported from research (R6/R7); they replace the seed window of the same post type."
     },
     "priors": {
       "type": "array",
       "description": "State only: research priors imported for a dimension level (e.g. post_type carousel share). Weighed by evidence level, always weaker than NUMA's own data.",
-      "items": {"$ref": "#/$defs/prior"}
+      "items": {
+        "$ref": "#/$defs/prior"
+      }
     },
     "imports": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["date", "file", "added", "merged", "rejected"],
+        "required": [
+          "date",
+          "file",
+          "added",
+          "merged",
+          "rejected"
+        ],
         "additionalProperties": false,
         "properties": {
-          "date": {"$ref": "#/$defs/date"},
-          "file": {"type": "string"},
-          "added": {"type": "integer", "minimum": 0},
-          "merged": {"type": "integer", "minimum": 0},
-          "rejected": {"type": "integer", "minimum": 0}
+          "date": {
+            "$ref": "#/$defs/date"
+          },
+          "file": {
+            "type": "string"
+          },
+          "added": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "merged": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rejected": {
+            "type": "integer",
+            "minimum": 0
+          }
         }
       }
     },
     "insights": {
       "type": "object",
       "description": "State only: the latest 'Do more of / Do less of' lines (plain sentences) for the digest and dashboard.",
-      "required": ["date", "do_more", "do_less"],
+      "required": [
+        "date",
+        "do_more",
+        "do_less"
+      ],
       "additionalProperties": false,
       "properties": {
-        "date": {"$ref": "#/$defs/date"},
-        "judged_posts": {"type": "integer", "minimum": 0},
-        "data_led_share": {"type": "number", "minimum": 0, "maximum": 1},
-        "do_more": {"type": "array", "items": {"type": "string"}},
-        "do_less": {"type": "array", "items": {"type": "string"}}
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "judged_posts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data_led_share": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "do_more": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "do_less": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
-    "changelog": {"type": "array", "items": {"$ref": "#/$defs/change"}}
+    "changelog": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/change"
+      }
+    }
   },
   "$defs": {
-    "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
-    "id": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 60},
-    "status": {"enum": ["proven", "testing", "candidate", "retired"]},
-    "post_type": {"enum": ["reel", "trial_reel", "carousel", "image", "story"]},
-    "goal": {"enum": ["reach", "saves", "conversion"]},
-    "pillar": {"enum": ["education", "community", "local_seasonal", "collective_collabs", "offers_events"]},
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 60
+    },
+    "status": {
+      "enum": [
+        "proven",
+        "testing",
+        "candidate",
+        "retired"
+      ]
+    },
+    "post_type": {
+      "enum": [
+        "reel",
+        "trial_reel",
+        "carousel",
+        "image",
+        "story"
+      ]
+    },
+    "goal": {
+      "enum": [
+        "reach",
+        "saves",
+        "conversion"
+      ]
+    },
+    "pillar": {
+      "enum": [
+        "education",
+        "community",
+        "local_seasonal",
+        "collective_collabs",
+        "offers_events"
+      ]
+    },
     "metric": {
-      "enum": ["views", "reach", "likes", "comments", "saves", "shares", "reposts", "total_interactions",
-               "avg_watch_time_s", "skip_rate", "skip_rate_vs_median", "retention", "sends_per_1k_reach",
-               "saves_per_1k_reach", "profile_visits", "follows", "link_clicks", "length", "score"]
+      "enum": [
+        "views",
+        "reach",
+        "likes",
+        "comments",
+        "saves",
+        "shares",
+        "reposts",
+        "total_interactions",
+        "avg_watch_time_s",
+        "skip_rate",
+        "skip_rate_vs_median",
+        "retention",
+        "sends_per_1k_reach",
+        "saves_per_1k_reach",
+        "profile_visits",
+        "follows",
+        "link_clicks",
+        "length",
+        "score"
+      ]
     },
     "evidence": {
       "type": "object",
-      "required": ["level", "sources"],
+      "required": [
+        "level",
+        "sources"
+      ],
       "additionalProperties": false,
       "properties": {
-        "level": {"enum": ["measured", "observed", "opinion", "numa"]},
-        "sources": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
-        "notes": {"type": "string"},
-        "confidence": {"enum": ["high", "medium", "low"]}
+        "level": {
+          "enum": [
+            "measured",
+            "observed",
+            "opinion",
+            "numa"
+          ]
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "notes": {
+          "type": "string"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        }
       }
     },
     "pattern": {
       "type": "object",
-      "required": ["id", "kind", "name", "formats", "goals", "template", "examples", "evidence", "status", "when_not", "try_instead"],
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "formats",
+        "goals",
+        "template",
+        "examples",
+        "evidence",
+        "status",
+        "when_not",
+        "try_instead"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": {"$ref": "#/$defs/id"},
-        "kind": {"enum": ["hook", "structure", "carousel", "photo", "offer", "cta", "growth"]},
-        "name": {"type": "string", "minLength": 1},
-        "formats": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/post_type"}},
-        "goals": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/goal"}},
-        "pillars": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/pillar"}},
-        "series": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-        "template": {"type": "string", "minLength": 1, "description": "Fill-in-the-blank wording or the beat outline."},
-        "examples": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1},
-                     "description": "Claims-safe NUMA example lines; every one passes claims_scan.py."},
-        "visual": {"type": "string", "description": "Hooks: what must be on screen in frame zero."},
-        "beats": {"type": "array", "items": {"type": "string"}, "description": "Structures and carousels: beat or slide outline."},
-        "length_s": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 1}},
-        "slides": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 1, "maximum": 20}},
-        "templates": {"type": "array", "items": {"type": "string"}, "description": "skills/numa-scriptwriter/templates.json ids this pattern uses."},
-        "hook_types": {"type": "array", "items": {"type": "string"}, "description": "Old metrics hook_type tags (templates.json hook_style) that count as this pattern."},
-        "expected_effect": {"type": "object", "additionalProperties": {"type": "string"}},
-        "evidence": {"$ref": "#/$defs/evidence"},
-        "status": {"$ref": "#/$defs/status"},
-        "priority": {"type": "integer", "minimum": 1, "maximum": 99, "description": "Test-first rank at cold start (1 = first)."},
-        "when_not": {"type": "string", "minLength": 1},
-        "try_instead": {"type": "array", "items": {"$ref": "#/$defs/id"}},
-        "origin": {"enum": ["seed", "research", "numa"]},
-        "added": {"$ref": "#/$defs/date"},
-        "needs": {"type": "string", "description": "A precondition (consent, an offer that exists in brand.json, a true before/after pair)."}
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "hook",
+            "structure",
+            "carousel",
+            "photo",
+            "offer",
+            "cta",
+            "growth"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "formats": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/post_type"
+          }
+        },
+        "goals": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/goal"
+          }
+        },
+        "pillars": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/pillar"
+          }
+        },
+        "series": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "template": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Fill-in-the-blank wording or the beat outline."
+        },
+        "examples": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Claims-safe NUMA example lines; every one passes claims_scan.py."
+        },
+        "visual": {
+          "type": "string",
+          "description": "Hooks: what must be on screen in frame zero."
+        },
+        "beats": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Structures and carousels: beat or slide outline."
+        },
+        "length_s": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "slides": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          }
+        },
+        "templates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "skills/numa-scriptwriter/templates.json ids this pattern uses."
+        },
+        "hook_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Old metrics hook_type tags (templates.json hook_style) that count as this pattern."
+        },
+        "expected_effect": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99,
+          "description": "Test-first rank at cold start (1 = first)."
+        },
+        "when_not": {
+          "type": "string",
+          "minLength": 1
+        },
+        "try_instead": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "origin": {
+          "enum": [
+            "seed",
+            "research",
+            "numa"
+          ]
+        },
+        "added": {
+          "$ref": "#/$defs/date"
+        },
+        "needs": {
+          "type": "string",
+          "description": "A precondition (consent, an offer that exists in brand.json, a true before/after pair)."
+        }
       }
     },
     "condition": {
       "type": "object",
-      "required": ["metric", "op", "ref", "x"],
+      "required": [
+        "metric",
+        "op",
+        "ref",
+        "x"
+      ],
       "additionalProperties": false,
       "properties": {
-        "metric": {"$ref": "#/$defs/metric"},
-        "op": {"enum": ["<", ">"]},
-        "ref": {"enum": ["median_ratio", "median_delta", "value"], "description": "median_ratio: value op x * the post type's median; median_delta: value op median + x; value: value op x."},
-        "x": {"type": "number"}
+        "metric": {
+          "$ref": "#/$defs/metric"
+        },
+        "op": {
+          "enum": [
+            "<",
+            ">"
+          ]
+        },
+        "ref": {
+          "enum": [
+            "median_ratio",
+            "median_delta",
+            "value"
+          ],
+          "description": "median_ratio: value op x * the post type's median; median_delta: value op median + x; value: value op x."
+        },
+        "x": {
+          "type": "number"
+        }
       }
     },
     "diagnosis": {
       "type": "object",
-      "required": ["id", "metric", "post_types", "when", "symptom", "cause", "fix", "evidence"],
+      "required": [
+        "id",
+        "metric",
+        "post_types",
+        "when",
+        "symptom",
+        "cause",
+        "fix",
+        "evidence"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": {"$ref": "#/$defs/id"},
-        "metric": {"$ref": "#/$defs/metric"},
-        "post_types": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/post_type"}},
-        "when": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/condition"}},
-        "symptom": {"type": "string", "minLength": 1},
-        "cause": {"type": "string", "minLength": 1},
-        "fix": {"type": "string", "minLength": 1},
-        "try_patterns": {"type": "array", "items": {"$ref": "#/$defs/id"}},
-        "evidence": {"$ref": "#/$defs/evidence"},
-        "origin": {"enum": ["seed", "research", "numa"]}
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "metric": {
+          "$ref": "#/$defs/metric"
+        },
+        "post_types": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/post_type"
+          }
+        },
+        "when": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/condition"
+          }
+        },
+        "symptom": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cause": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fix": {
+          "type": "string",
+          "minLength": 1
+        },
+        "try_patterns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "origin": {
+          "enum": [
+            "seed",
+            "research",
+            "numa"
+          ]
+        },
+        "sales_only": {
+          "type": "boolean",
+          "description": "Only for sales posts (goal conversion)."
+        }
       }
     },
     "moment": {
       "type": "object",
-      "required": ["id", "name", "when", "what", "evidence"],
+      "required": [
+        "id",
+        "name",
+        "when",
+        "what",
+        "evidence"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": {"$ref": "#/$defs/id"},
-        "name": {"type": "string"},
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string"
+        },
         "when": {
           "type": "object",
           "additionalProperties": false,
           "description": "One of: fixed month-day window (from/to MM-DD), months list, days of month, a holiday rule, or a window around Mardi Gras (Fat Tuesday = Easter Sunday - 47 days).",
           "properties": {
-            "from": {"type": "string", "pattern": "^\\d{2}-\\d{2}$"},
-            "to": {"type": "string", "pattern": "^\\d{2}-\\d{2}$"},
-            "months": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 12}},
-            "days": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 31}},
-            "rule": {"type": "string", "pattern": "^(fixed \\d{2}-\\d{2}|nth-weekday \\d{1,2} -?\\d (mon|tue|wed|thu|fri|sat|sun)|mardi-gras)$"},
-            "offset_days": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer"}}
+            "from": {
+              "type": "string",
+              "pattern": "^\\d{2}-\\d{2}$"
+            },
+            "to": {
+              "type": "string",
+              "pattern": "^\\d{2}-\\d{2}$"
+            },
+            "months": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12
+              }
+            },
+            "days": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 31
+              }
+            },
+            "rule": {
+              "type": "string",
+              "pattern": "^(fixed \\d{2}-\\d{2}|nth-weekday \\d{1,2} -?\\d (mon|tue|wed|thu|fri|sat|sun)|mardi-gras)$"
+            },
+            "offset_days": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer"
+              }
+            }
           }
         },
-        "what": {"type": "string"},
-        "pillar": {"$ref": "#/$defs/pillar"},
-        "offer": {"type": "boolean", "description": "A good window for the week's sales post."},
-        "possible_closure": {"type": "boolean"},
-        "hooks": {"type": "array", "items": {"$ref": "#/$defs/id"}},
-        "examples": {"type": "array", "items": {"type": "string"}},
-        "evidence": {"$ref": "#/$defs/evidence"}
+        "what": {
+          "type": "string"
+        },
+        "pillar": {
+          "$ref": "#/$defs/pillar"
+        },
+        "offer": {
+          "type": "boolean",
+          "description": "A good window for the week's sales post."
+        },
+        "possible_closure": {
+          "type": "boolean"
+        },
+        "hooks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
       }
     },
     "calendar": {
       "type": "object",
-      "required": ["timezone", "monthly", "seasonal", "holidays", "events"],
+      "required": [
+        "timezone",
+        "monthly",
+        "seasonal",
+        "holidays",
+        "events"
+      ],
       "additionalProperties": false,
       "properties": {
-        "timezone": {"const": "America/Chicago"},
-        "monthly": {"type": "array", "items": {"$ref": "#/$defs/moment"}},
-        "seasonal": {"type": "array", "items": {"$ref": "#/$defs/moment"}},
-        "holidays": {"type": "array", "items": {"$ref": "#/$defs/moment"}},
+        "timezone": {
+          "const": "America/Chicago"
+        },
+        "monthly": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/moment"
+          }
+        },
+        "seasonal": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/moment"
+          }
+        },
+        "holidays": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/moment"
+          }
+        },
         "events": {
           "type": "object",
-          "required": ["teaser_days_before", "recap_days_after", "evidence"],
+          "required": [
+            "teaser_days_before",
+            "recap_days_after",
+            "evidence"
+          ],
           "additionalProperties": false,
           "properties": {
-            "teaser_days_before": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 1}},
-            "recap_days_after": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 1}},
-            "teaser_hooks": {"type": "array", "items": {"$ref": "#/$defs/id"}},
-            "recap_structure": {"$ref": "#/$defs/id"},
-            "teaser_structure": {"$ref": "#/$defs/id"},
-            "evidence": {"$ref": "#/$defs/evidence"}
+            "teaser_days_before": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "recap_days_after": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "teaser_hooks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              }
+            },
+            "recap_structure": {
+              "$ref": "#/$defs/id"
+            },
+            "teaser_structure": {
+              "$ref": "#/$defs/id"
+            },
+            "evidence": {
+              "$ref": "#/$defs/evidence"
+            }
           }
         }
       }
     },
     "valued": {
       "type": "object",
-      "required": ["evidence"],
-      "properties": {"evidence": {"$ref": "#/$defs/evidence"}}
+      "required": [
+        "evidence"
+      ],
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      }
     },
     "policies": {
       "type": "object",
-      "required": ["post_types", "cadence", "feed_mix", "hour_bands", "offers", "scoring", "judging", "learning", "prior_means"],
+      "required": [
+        "post_types",
+        "cadence",
+        "feed_mix",
+        "hour_bands",
+        "offers",
+        "scoring",
+        "judging",
+        "learning",
+        "prior_means"
+      ],
       "additionalProperties": false,
       "properties": {
         "judging": {
-          "type": "object",
-          "description": "Judging windows per post type: a post is ignored before its provisional pull, counted at provisional_weight from it, and counted in full (replacing the provisional entry, never twice) from its final pull.",
-          "propertyNames": {"$ref": "#/$defs/post_type"},
-          "minProperties": 1,
-          "additionalProperties": {
-            "type": "object",
-            "required": ["provisional_pull", "final_pull", "provisional_weight", "evidence"],
-            "additionalProperties": false,
-            "properties": {
-              "provisional_pull": {"enum": ["48h", "72h", "7d", "any"]},
-              "final_pull": {"enum": ["48h", "72h", "7d", "any"]},
-              "provisional_weight": {"type": "number", "minimum": 0, "maximum": 1},
-              "origin": {"enum": ["seed", "research", "numa"]},
-              "evidence": {"$ref": "#/$defs/evidence"}
-            }
-          }
+          "$ref": "#/$defs/judging"
         },
         "post_types": {
           "type": "object",
-          "propertyNames": {"$ref": "#/$defs/post_type"},
+          "propertyNames": {
+            "$ref": "#/$defs/post_type"
+          },
           "additionalProperties": {
             "type": "object",
-            "required": ["role", "default_goal", "evidence"],
+            "required": [
+              "role",
+              "default_goal",
+              "evidence"
+            ],
             "additionalProperties": false,
             "properties": {
-              "role": {"type": "string"},
-              "default_goal": {"$ref": "#/$defs/goal"},
-              "evidence": {"$ref": "#/$defs/evidence"}
+              "role": {
+                "type": "string"
+              },
+              "default_goal": {
+                "$ref": "#/$defs/goal"
+              },
+              "evidence": {
+                "$ref": "#/$defs/evidence"
+              }
             }
           }
         },
         "cadence": {
           "type": "object",
-          "required": ["feed_per_week", "trial_per_week", "stories", "evidence"],
+          "required": [
+            "feed_per_week",
+            "trial_per_week",
+            "stories",
+            "evidence"
+          ],
           "additionalProperties": false,
           "properties": {
-            "feed_per_week": {"$ref": "#/$defs/range_value"},
-            "trial_per_week": {"$ref": "#/$defs/range_value"},
-            "stories": {"type": "string"},
-            "never_dark_week": {"type": "boolean"},
-            "evidence": {"$ref": "#/$defs/evidence"}
+            "feed_per_week": {
+              "$ref": "#/$defs/range_value"
+            },
+            "trial_per_week": {
+              "$ref": "#/$defs/range_value"
+            },
+            "stories": {
+              "type": "string"
+            },
+            "never_dark_week": {
+              "type": "boolean"
+            },
+            "evidence": {
+              "$ref": "#/$defs/evidence"
+            }
           }
         },
         "feed_mix": {
           "type": "object",
-          "required": ["reel", "carousel", "image", "evidence"],
+          "required": [
+            "reel",
+            "carousel",
+            "image",
+            "evidence"
+          ],
           "additionalProperties": false,
           "properties": {
-            "reel": {"$ref": "#/$defs/share"},
-            "carousel": {"$ref": "#/$defs/share"},
-            "image": {"$ref": "#/$defs/share"},
-            "evidence": {"$ref": "#/$defs/evidence"}
+            "reel": {
+              "$ref": "#/$defs/share"
+            },
+            "carousel": {
+              "$ref": "#/$defs/share"
+            },
+            "image": {
+              "$ref": "#/$defs/share"
+            },
+            "evidence": {
+              "$ref": "#/$defs/evidence"
+            }
           }
         },
         "hour_bands": {
           "type": "object",
-          "required": ["bands", "evidence"],
+          "required": [
+            "bands",
+            "evidence"
+          ],
           "additionalProperties": false,
           "properties": {
             "bands": {
@@ -288,176 +838,610 @@
               "minProperties": 2,
               "additionalProperties": {
                 "type": "object",
-                "required": ["hours", "post_at"],
+                "required": [
+                  "hours",
+                  "post_at"
+                ],
                 "additionalProperties": false,
                 "properties": {
-                  "hours": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 0, "maximum": 23}},
-                  "post_at": {"type": "string", "pattern": "^\\d{2}:\\d{2}$"}
+                  "hours": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 23
+                    }
+                  },
+                  "post_at": {
+                    "type": "string",
+                    "pattern": "^\\d{2}:\\d{2}$"
+                  }
                 }
               }
             },
-            "default": {"type": "string"},
-            "evidence": {"$ref": "#/$defs/evidence"}
+            "default": {
+              "type": "string"
+            },
+            "evidence": {
+              "$ref": "#/$defs/evidence"
+            }
           }
         },
         "offers": {
           "type": "object",
-          "required": ["max_sales_per_week", "offers_per_month", "rules", "evidence"],
+          "required": [
+            "max_sales_per_week",
+            "offers_per_month",
+            "rules",
+            "evidence"
+          ],
           "additionalProperties": false,
           "properties": {
-            "max_sales_per_week": {"type": "integer", "minimum": 0},
-            "offers_per_month": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 0}},
-            "rules": {"type": "array", "items": {"type": "string"}},
-            "evidence": {"$ref": "#/$defs/evidence"}
+            "max_sales_per_week": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "offers_per_month": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence": {
+              "$ref": "#/$defs/evidence"
+            }
           }
         },
         "scoring": {
           "type": "object",
-          "required": ["judge_pulls", "baseline", "winsor_log_cap", "skip_unit", "goal_weights", "pooled_weights", "evidence"],
+          "required": [
+            "judge_pulls",
+            "baseline",
+            "winsor_log_cap",
+            "skip_unit",
+            "goal_weights",
+            "pooled_weights",
+            "evidence"
+          ],
           "additionalProperties": false,
           "properties": {
-            "judge_pulls": {"type": "array", "minItems": 1, "items": {"enum": ["48h", "72h", "7d"]}},
-            "baseline": {
-              "type": "object",
-              "required": ["window_days", "min_posts"],
-              "additionalProperties": false,
-              "properties": {"window_days": {"type": "integer", "minimum": 7}, "min_posts": {"type": "integer", "minimum": 1}}
-            },
-            "winsor_log_cap": {"type": "number", "exclusiveMinimum": 0},
-            "skip_unit": {"type": "number", "exclusiveMinimum": 0},
-            "goal_weights": {
-              "type": "object",
-              "required": ["reach", "saves", "conversion"],
-              "additionalProperties": false,
-              "properties": {
-                "reach": {"$ref": "#/$defs/weights"},
-                "saves": {"$ref": "#/$defs/weights"},
-                "conversion": {"$ref": "#/$defs/weights"}
+            "judge_pulls": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "enum": [
+                  "48h",
+                  "72h",
+                  "7d"
+                ]
               }
             },
-            "pooled_weights": {"$ref": "#/$defs/weights"},
-            "evidence": {"$ref": "#/$defs/evidence"}
+            "baseline": {
+              "type": "object",
+              "required": [
+                "window_days",
+                "min_posts"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "window_days": {
+                  "type": "integer",
+                  "minimum": 7
+                },
+                "min_posts": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "winsor_log_cap": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "skip_unit": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "goal_weights": {
+              "type": "object",
+              "required": [
+                "reach",
+                "saves",
+                "conversion"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "reach": {
+                  "$ref": "#/$defs/weights"
+                },
+                "saves": {
+                  "$ref": "#/$defs/weights"
+                },
+                "conversion": {
+                  "$ref": "#/$defs/weights"
+                }
+              }
+            },
+            "pooled_weights": {
+              "$ref": "#/$defs/weights"
+            },
+            "evidence": {
+              "$ref": "#/$defs/evidence"
+            }
           }
         },
         "learning": {
           "type": "object",
-          "required": ["prior_strength", "half_life_days", "data_led_after_posts", "noise_sd", "exploration_budget",
-                       "explore_variance_inflation", "stickiness", "max_pattern_share_week", "promote", "retire", "demote", "evidence"],
+          "required": [
+            "prior_strength",
+            "half_life_days",
+            "data_led_after_posts",
+            "noise_sd",
+            "exploration_budget",
+            "explore_variance_inflation",
+            "stickiness",
+            "max_pattern_share_week",
+            "promote",
+            "retire",
+            "demote",
+            "evidence"
+          ],
           "additionalProperties": false,
           "properties": {
             "prior_strength": {
               "type": "object",
-              "required": ["measured", "observed", "opinion", "interaction"],
+              "required": [
+                "measured",
+                "observed",
+                "opinion",
+                "interaction"
+              ],
               "additionalProperties": false,
               "properties": {
-                "measured": {"type": "number", "minimum": 0},
-                "observed": {"type": "number", "minimum": 0},
-                "opinion": {"type": "number", "minimum": 0},
-                "interaction": {"type": "number", "minimum": 0}
+                "measured": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "observed": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "opinion": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "interaction": {
+                  "type": "number",
+                  "minimum": 0
+                }
               }
             },
             "evidence_prior_mean": {
               "type": "object",
-              "additionalProperties": {"type": "number"},
+              "additionalProperties": {
+                "type": "number"
+              },
               "description": "Cold-start tilt for a pattern by its evidence level, in score units."
             },
-            "half_life_days": {"type": "number", "exclusiveMinimum": 0},
-            "data_led_after_posts": {"type": "integer", "minimum": 1},
-            "noise_sd": {"type": "number", "exclusiveMinimum": 0},
-            "exploration_budget": {"type": "number", "minimum": 0, "maximum": 0.5},
-            "explore_variance_inflation": {"type": "number", "minimum": 1},
-            "stickiness": {"type": "number", "minimum": 0},
-            "max_pattern_share_week": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
-            "underperform_score": {"type": "number"},
-            "promote": {"$ref": "#/$defs/threshold"},
-            "retire": {"$ref": "#/$defs/threshold"},
-            "demote": {"$ref": "#/$defs/threshold"},
-            "insight": {"$ref": "#/$defs/threshold"},
-            "evidence": {"$ref": "#/$defs/evidence"}
+            "half_life_days": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "data_led_after_posts": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "noise_sd": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "exploration_budget": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.5
+            },
+            "explore_variance_inflation": {
+              "type": "number",
+              "minimum": 1
+            },
+            "stickiness": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max_pattern_share_week": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "underperform_score": {
+              "type": "number"
+            },
+            "promote": {
+              "$ref": "#/$defs/threshold"
+            },
+            "retire": {
+              "$ref": "#/$defs/threshold"
+            },
+            "demote": {
+              "$ref": "#/$defs/threshold"
+            },
+            "insight": {
+              "$ref": "#/$defs/threshold"
+            },
+            "evidence": {
+              "$ref": "#/$defs/evidence"
+            }
           }
         },
         "prior_means": {
           "type": "object",
           "description": "Cold-start tilts per dimension level, in score units (about ln of the ratio to NUMA's median).",
-          "additionalProperties": {"type": "object", "additionalProperties": {"type": "number", "minimum": -0.5, "maximum": 0.5}}
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number",
+              "minimum": -0.5,
+              "maximum": 0.5
+            }
+          }
         },
         "prior_evidence": {
           "type": "object",
-          "additionalProperties": {"$ref": "#/$defs/evidence"}
+          "additionalProperties": {
+            "$ref": "#/$defs/evidence"
+          }
         }
       }
     },
     "range_value": {
       "type": "object",
-      "required": ["value", "min", "max"],
+      "required": [
+        "value",
+        "min",
+        "max"
+      ],
       "additionalProperties": false,
-      "properties": {"value": {"type": "integer", "minimum": 0}, "min": {"type": "integer", "minimum": 0}, "max": {"type": "integer", "minimum": 0}}
+      "properties": {
+        "value": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "min": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     },
     "share": {
       "type": "object",
-      "required": ["prior", "min", "max"],
+      "required": [
+        "prior",
+        "min",
+        "max"
+      ],
       "additionalProperties": false,
       "properties": {
-        "prior": {"type": "number", "minimum": 0, "maximum": 1},
-        "min": {"type": "number", "minimum": 0, "maximum": 1},
-        "max": {"type": "number", "minimum": 0, "maximum": 1}
+        "prior": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "min": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "max": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
       }
     },
     "weights": {
       "type": "object",
       "minProperties": 1,
-      "propertyNames": {"enum": ["views", "sends", "saves", "skip", "retention", "profile_visits", "follows", "link_clicks"]},
-      "additionalProperties": {"type": "number", "minimum": 0}
+      "propertyNames": {
+        "enum": [
+          "views",
+          "sends",
+          "saves",
+          "skip",
+          "retention",
+          "profile_visits",
+          "follows",
+          "link_clicks"
+        ]
+      },
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
     },
     "threshold": {
       "type": "object",
-      "required": ["min_n", "min_effect", "min_prob"],
+      "required": [
+        "min_n",
+        "min_effect",
+        "min_prob"
+      ],
       "additionalProperties": false,
       "properties": {
-        "min_n": {"type": "number", "minimum": 0},
-        "min_effect": {"type": "number", "minimum": 0},
-        "min_prob": {"type": "number", "minimum": 0, "maximum": 1}
+        "min_n": {
+          "type": "number",
+          "minimum": 0
+        },
+        "min_effect": {
+          "type": "number",
+          "minimum": 0
+        },
+        "min_prob": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
       }
     },
     "rule": {
       "type": "object",
-      "required": ["id", "topic", "rule", "evidence"],
+      "required": [
+        "id",
+        "topic",
+        "rule",
+        "evidence"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": {"$ref": "#/$defs/id"},
-        "topic": {"enum": ["cadence", "timing", "mix", "offers", "monthly", "learning", "growth", "formats", "other"]},
-        "rule": {"type": "string", "minLength": 1},
-        "how_to_test": {"type": "string"},
-        "evidence": {"$ref": "#/$defs/evidence"},
-        "added": {"$ref": "#/$defs/date"}
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "topic": {
+          "enum": [
+            "cadence",
+            "timing",
+            "mix",
+            "offers",
+            "monthly",
+            "learning",
+            "growth",
+            "formats",
+            "other"
+          ]
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "how_to_test": {
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "added": {
+          "$ref": "#/$defs/date"
+        }
       }
     },
     "prior": {
       "type": "object",
-      "required": ["dimension", "level", "value", "evidence"],
+      "required": [
+        "dimension",
+        "level",
+        "value",
+        "evidence"
+      ],
       "additionalProperties": false,
       "properties": {
-        "dimension": {"enum": ["feed_share"]},
-        "level": {"$ref": "#/$defs/post_type"},
-        "value": {"type": "number", "minimum": 0, "maximum": 1},
-        "evidence": {"$ref": "#/$defs/evidence"},
-        "added": {"$ref": "#/$defs/date"}
+        "dimension": {
+          "enum": [
+            "feed_share"
+          ]
+        },
+        "level": {
+          "$ref": "#/$defs/post_type"
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "added": {
+          "$ref": "#/$defs/date"
+        }
       }
     },
     "change": {
       "type": "object",
-      "required": ["date", "action", "target", "why"],
+      "required": [
+        "date",
+        "action",
+        "target",
+        "why"
+      ],
       "additionalProperties": false,
       "properties": {
-        "date": {"$ref": "#/$defs/date"},
-        "action": {"enum": ["promote", "retire", "demote", "start_testing", "import", "merge", "reject", "insight"]},
-        "target": {"type": "string", "minLength": 1},
-        "from": {"type": ["string", "null"]},
-        "to": {"type": ["string", "null"]},
-        "why": {"type": "string", "minLength": 1},
-        "n": {"type": "number", "minimum": 0},
-        "mean": {"type": "number"},
-        "prob_better": {"type": "number", "minimum": 0, "maximum": 1}
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "action": {
+          "enum": [
+            "promote",
+            "retire",
+            "demote",
+            "start_testing",
+            "import",
+            "merge",
+            "reject",
+            "insight"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "why": {
+          "type": "string",
+          "minLength": 1
+        },
+        "n": {
+          "type": "number",
+          "minimum": 0
+        },
+        "mean": {
+          "type": "number"
+        },
+        "prob_better": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "window": {
+      "type": "object",
+      "required": [
+        "ignore_before_hours",
+        "provisional_hours",
+        "provisional_weight",
+        "final_hours",
+        "evidence"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ignore_before_hours": {
+          "type": "number",
+          "minimum": 0
+        },
+        "provisional_hours": {
+          "type": "number",
+          "minimum": 0
+        },
+        "provisional_weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "final_hours": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "best_early_metric": {
+          "type": "string"
+        },
+        "how_to_verify": {
+          "type": "string"
+        },
+        "origin": {
+          "enum": [
+            "seed",
+            "research",
+            "numa"
+          ]
+        },
+        "added": {
+          "$ref": "#/$defs/date"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      }
+    },
+    "judging": {
+      "type": "object",
+      "description": "Judging windows per post type (R7). A post is ignored before ignore_before_hours and before its first pull at or after provisional_hours; a pull at or after provisional_hours counts at provisional_weight; a pull at or after final_hours (or the store's last pull, 7d, when final_hours is later) counts in full and replaces the provisional entry, never both. Story windows are under 24 h (Instagram keeps Story insights 24 h only).",
+      "propertyNames": {
+        "$ref": "#/$defs/post_type"
+      },
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "ignore_before_hours",
+          "provisional_hours",
+          "provisional_weight",
+          "final_hours",
+          "evidence"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ignore_before_hours": {
+            "type": "number",
+            "minimum": 0
+          },
+          "provisional_hours": {
+            "type": "number",
+            "minimum": 0
+          },
+          "provisional_weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "final_hours": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "best_early_metric": {
+            "type": "string"
+          },
+          "how_to_verify": {
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "seed",
+              "research",
+              "numa"
+            ]
+          },
+          "added": {
+            "$ref": "#/$defs/date"
+          },
+          "evidence": {
+            "$ref": "#/$defs/evidence"
+          },
+          "exceptions": {
+            "type": "object",
+            "description": "Metric-specific windows (e.g. saves final at 7 d): at an earlier read that metric is left out of the score.",
+            "propertyNames": {
+              "$ref": "#/$defs/metric"
+            },
+            "additionalProperties": {
+              "$ref": "#/$defs/window"
+            }
+          }
+        }
       }
     }
   }

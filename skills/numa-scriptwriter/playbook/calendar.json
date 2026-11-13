@@ -1,0 +1,117 @@
+{
+  "_readme": "NUMA's monthly and seasonal rhythm for Mobile, AL (Central time). strategy.py plan resolves each moment to dates for the planned month and attaches it to the slots it fits (local_seasonal slots get the seasonal moments; the week's sales post prefers an `offer` window). Dates are computed, never hard-coded per year: Mardi Gras = Fat Tuesday (Easter Sunday - 47 days); holidays by rule. Closures come only from the Closures Sheet / brand.json closures.known; a holiday here is flagged `possible_closure` so the Director checks it, never assumed closed. Payday timing is a hypothesis from the R2 research prompt, tested through the offer-week arm.",
+  "schema_version": 1,
+  "kind": "calendar",
+  "calendar": {
+    "timezone": "America/Chicago",
+    "monthly": [
+      {
+        "id": "month-start-payday",
+        "name": "Month start (paydays)",
+        "when": {"days": [1, 2, 3, 4, 5, 6, 7]},
+        "what": "Many people are paid around the 1st; a hypothesis for the week's offer post.",
+        "pillar": "offers_events",
+        "offer": true,
+        "evidence": {"level": "opinion", "sources": ["docs/RESEARCH_PROMPTS_PLAYBOOK.md R2 (offers near paydays/month start, to be researched)"], "notes": "Untested; the offer_week arm learns NUMA's own answer.", "confidence": "low"}
+      },
+      {
+        "id": "mid-month-payday",
+        "name": "Mid-month (paydays)",
+        "when": {"days": [15, 16, 17, 18, 19, 20, 21]},
+        "what": "Second common payday window; a hypothesis for an offer post.",
+        "pillar": "offers_events",
+        "offer": true,
+        "evidence": {"level": "opinion", "sources": ["docs/RESEARCH_PROMPTS_PLAYBOOK.md R2"], "notes": "Untested hypothesis.", "confidence": "low"}
+      }
+    ],
+    "seasonal": [
+      {
+        "id": "new-year-reset",
+        "name": "New Year reset",
+        "when": {"from": "01-01", "to": "01-21"},
+        "what": "New routines; the January 'cold start' offer window and first-timer content.",
+        "pillar": "local_seasonal",
+        "offer": true,
+        "hooks": ["first-timer-reaction", "seasonal-weather"],
+        "examples": ["New year, new routine: start with Discover NUMA."],
+        "evidence": {"level": "opinion", "sources": ["spec p.33 (New Year resets as a local moment)", "research/4-mobile-competitor-audit.md (January 'cold start' seasonal offer)", "research/1-content-benchmarks.md (batch-produce before peak seasons such as New Year)"], "confidence": "low"}
+      },
+      {
+        "id": "cold-snaps",
+        "name": "Cold snaps (sauna season)",
+        "when": {"months": [12, 1, 2]},
+        "what": "When the Friday forecast shows a cold front, swap in a weather hook ('Sauna season in Mobile').",
+        "pillar": "local_seasonal",
+        "hooks": ["seasonal-weather", "contrast-visual"],
+        "examples": ["Sauna season in Mobile is open."],
+        "evidence": {"level": "observed", "sources": ["spec p.34 rule 5 (Friday forecast check)", "research/1-content-benchmarks.md (Bathhouse 'Sauna season in NYC', 'defrost in the sauna')"], "confidence": "low"}
+      },
+      {
+        "id": "mardi-gras",
+        "name": "Mardi Gras season",
+        "when": {"rule": "mardi-gras", "offset_days": [-14, 1]},
+        "what": "Mobile's Mardi Gras (two weeks of parades up to Fat Tuesday): a quiet-hour counterpoint and a recovery-week hook; parade days can affect hours and parking.",
+        "pillar": "local_seasonal",
+        "offer": true,
+        "possible_closure": true,
+        "hooks": ["local-identity", "seasonal-weather"],
+        "examples": ["Mardi Gras weekend? Here's your quiet hour."],
+        "evidence": {"level": "opinion", "sources": ["spec p.33-34 (Mardi Gras season)", "research/4-mobile-competitor-audit.md (Mardi Gras recovery week, seasonal offer)"], "confidence": "low"}
+      },
+      {
+        "id": "summer-heat",
+        "name": "Summer heat",
+        "when": {"months": [6, 7, 8, 9]},
+        "what": "Gulf Coast heat: 'Too Hot for a DIY Plunge' (Mobile tap water rarely gets below 70°F) and heat-wave hooks.",
+        "pillar": "local_seasonal",
+        "offer": true,
+        "hooks": ["seasonal-weather", "contrast-visual"],
+        "examples": ["Mobile tap water in August? Not cold enough for a real plunge.", "Summer heat? Start your first month inside."],
+        "evidence": {"level": "opinion", "sources": ["research/4-mobile-competitor-audit.md (NUMA FAQ: tap water rarely below 70°F; summer heat reset offer)", "spec p.25, p.33"], "confidence": "low"}
+      },
+      {
+        "id": "hurricane-season",
+        "name": "Hurricane season",
+        "when": {"from": "06-01", "to": "11-30"},
+        "what": "Atlantic hurricane season (June 1 to November 30): calm and community hooks; storms can close the studio, so check closures before anything that invites people in.",
+        "pillar": "local_seasonal",
+        "possible_closure": true,
+        "hooks": ["local-identity"],
+        "examples": ["Storm on the way? Our hours are in Stories."],
+        "evidence": {"level": "opinion", "sources": ["research/4-mobile-competitor-audit.md (hurricane-season calm)", "spec p.33"], "notes": "The season dates are NOAA's official Atlantic dates; the content angle is opinion.", "confidence": "low"}
+      },
+      {
+        "id": "semester-and-finals",
+        "name": "University of South Alabama terms",
+        "when": {"months": [4, 5, 8, 11, 12]},
+        "what": "Finals-week and back-to-campus angles for students and athletes; exact dates come from the university calendar, not this file.",
+        "pillar": "community",
+        "hooks": ["audience-callout"],
+        "examples": ["Finals week? Take one quiet hour."],
+        "evidence": {"level": "opinion", "sources": ["research/4-mobile-competitor-audit.md (USA students and athletes: finals-week reset, game-day content)"], "confidence": "low"}
+      }
+    ],
+    "holidays": [
+      {"id": "new-years-day", "name": "New Year's Day", "when": {"rule": "fixed 01-01"}, "what": "Holiday; check closures.", "possible_closure": true, "evidence": {"level": "opinion", "sources": ["US federal holiday calendar"]}},
+      {"id": "mlk-day", "name": "Martin Luther King Jr. Day", "when": {"rule": "nth-weekday 1 3 mon"}, "what": "Holiday; check closures.", "possible_closure": true, "evidence": {"level": "opinion", "sources": ["US federal holiday calendar"]}},
+      {"id": "valentines-day", "name": "Valentine's Day", "when": {"rule": "fixed 02-14"}, "what": "'Bring your partner' date-night content, built for sends.", "pillar": "community", "hooks": ["audience-callout"], "examples": ["Date night, but make it sauna."], "evidence": {"level": "opinion", "sources": ["research/1-content-benchmarks.md (design for sends: 'bring your partner' date-night content)"]}},
+      {"id": "mothers-day", "name": "Mother's Day", "when": {"rule": "nth-weekday 5 2 sun"}, "what": "A gift-an-hour angle only if NUMA sells gift cards (brand.json offerings).", "pillar": "community", "evidence": {"level": "opinion", "sources": ["engineering default (gifting holiday)"]}},
+      {"id": "memorial-day", "name": "Memorial Day", "when": {"rule": "nth-weekday 5 -1 mon"}, "what": "Holiday; check closures.", "possible_closure": true, "evidence": {"level": "opinion", "sources": ["US federal holiday calendar"]}},
+      {"id": "fathers-day", "name": "Father's Day", "when": {"rule": "nth-weekday 6 3 sun"}, "what": "Men's angle (Joseph's 'breathwork for guys who don't do yoga').", "pillar": "community", "hooks": ["audience-callout"], "evidence": {"level": "opinion", "sources": ["research/4-mobile-competitor-audit.md (men as an under-targeted audience)"]}},
+      {"id": "independence-day", "name": "Independence Day", "when": {"rule": "fixed 07-04"}, "what": "Holiday in peak heat; check closures.", "possible_closure": true, "evidence": {"level": "opinion", "sources": ["US federal holiday calendar"]}},
+      {"id": "labor-day", "name": "Labor Day", "when": {"rule": "nth-weekday 9 1 mon"}, "what": "Holiday; check closures.", "possible_closure": true, "evidence": {"level": "opinion", "sources": ["US federal holiday calendar"]}},
+      {"id": "thanksgiving", "name": "Thanksgiving", "when": {"rule": "nth-weekday 11 4 thu"}, "what": "Holiday; check closures. The week after suits a calm reset post.", "possible_closure": true, "evidence": {"level": "opinion", "sources": ["US federal holiday calendar"]}},
+      {"id": "christmas-eve", "name": "Christmas Eve", "when": {"rule": "fixed 12-24"}, "what": "Check closures.", "possible_closure": true, "evidence": {"level": "opinion", "sources": ["US holiday calendar"]}},
+      {"id": "christmas-day", "name": "Christmas Day", "when": {"rule": "fixed 12-25"}, "what": "Holiday; check closures.", "possible_closure": true, "evidence": {"level": "opinion", "sources": ["US federal holiday calendar"]}},
+      {"id": "new-years-eve", "name": "New Year's Eve", "when": {"rule": "fixed 12-31"}, "what": "Teaser for the New Year reset window.", "possible_closure": true, "hooks": ["tease-announcement"], "evidence": {"level": "opinion", "sources": ["spec p.33 (New Year resets)"]}}
+    ],
+    "events": {
+      "teaser_days_before": [2, 3],
+      "recap_days_after": [1, 2],
+      "teaser_hooks": ["tease-announcement", "behind-the-scenes"],
+      "teaser_structure": "struct-event-teaser",
+      "recap_structure": "struct-event-recap",
+      "evidence": {"level": "opinion", "sources": ["spec p.34 rule 7 (teaser 2-3 days before, recap within 2 days after)"]}
+    }
+  }
+}

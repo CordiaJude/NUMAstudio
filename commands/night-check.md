@@ -17,6 +17,12 @@ if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then ex
 
 Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
 
+## Run start and end (R339-R342)
+
+1. **Log the start:** `python3 "$S/runlog.py" start night_check --state "$STATE"`; keep the printed run id (`RUN_ID`). Sync with Drive: download Drive `drive.plan_dir`/`runlog.json` and `chrome_queue.json` to `STATE/runlog.drive.json` and `STATE/chrome_queue.drive.json` (skip what does not exist yet), then `python3 "$S/runlog.py" merge "$STATE/runlog.drive.json" --state "$STATE"` and `python3 "$S/chrome_queue.py" merge "$STATE/chrome_queue.drive.json" --state "$STATE"`, and upload both files back.
+2. **Environment:** `python3 "$S/ensure_env.py" --json` (a fresh cloud machine installs what is missing; a warm one returns in seconds). Exit 1: send Jude its ERROR line's fix through the escalation channel in `STATE/brand.json` (DECISIONS D19), still run the watchdog (section 6; runlog.py needs no packages), finish `failed` (step 3) and stop.
+3. **Finish, always, also when the run fails or stops early:** `python3 "$S/runlog.py" finish <RUN_ID> --outcome ok --note "<one line>" --state "$STATE"` (`ok` = "Done means" met; `partial` = done with something left out; `failed` = stopped), then merge and upload as in step 1. Lost the id: `--task night_check`.
+
 ## 1. Find tomorrow
 
 1. `DAY` = `$ARGUMENTS`, else tomorrow's date in Central time.
@@ -33,6 +39,11 @@ Voiceovers are often read back to back for the whole week (R183). Before calling
 ## 3. Send the Scout
 
 For every item on `missing` (and every `unusable` item that a card line depends on), send the **scout** (agents/scout.md) with the line it serves. Claude in Chrome works only while Katie's Mac is awake; in the cloud the scout uses web search and fetch (failure row F17). Its finds land in `JOB/raw/scout/` with their licenses recorded.
+
+**Claude in Chrome (R342).** Check first that the `mcp__claude-in-chrome__*` tools are visible and answer a harmless call (read the open tab's title). Visible: drain the queue first (commands/chrome-queue.md sections 2 and 4), then the scout searches NUMA's signed-in channels. Not visible: the scout uses web search now, section 4 decides tonight as usual, and the lines still without a shot are queued for a signed-in search before the 5 am build (the build uses whatever lands in the day folder's `scout/`):
+```
+python3 "$S/chrome_queue.py" add --kind scout_research --payload '{"for": "Day 10", "what": "line 4: sauna glowing, empty", "save_to": "Day 10 - 2026-12-10 - Cold snap calm/scout"}' --deadline 2026-12-10T04:30:00-06:00 --fallback "Tonight's section 4 substitute stands" --state "$STATE"
+```
 
 ## 4. Still missing: decide now (failure table, in order)
 
@@ -57,6 +68,25 @@ Work each row left to right (the same moves as commands/make-reel.md section 4) 
   Send it as the run's final message (the scheduled task's notification), and add the same line to `STATE/digest_notes.json` `heads_ups` for Sunday's digest.
 - Nothing missing: no message; log "all material present".
 
+## 6. Watchdog (R341)
+
+After section 5's Sheet update and before the run's final message (Katie's heads-up stays the final message), check the last 7 days of scheduled runs:
+```
+python3 "$S/runlog.py" check --state "$STATE" --json --mark-reported
+```
+Then expire what the Chrome queue can no longer do: `python3 "$S/chrome_queue.py" expire --state "$STATE" --json`, and run each returned item's fallback (commands/chrome-queue.md table, last column).
+
+Act on every problem with `"new": true` by its `action`:
+
+| `action` | Do now |
+|---|---|
+| `late_build` | Follow commands/build-today.md for that `date` (it can still post before the posting window ends) |
+| `reschedule` | The day could not post: move that date's plan row per commands/make-reel.md "Reschedule" (status `Ready to build`), and add a line to `STATE/digest_notes.json` `heads_ups` |
+| `rerun` | Run that task's command file now (`plan_month` = commands/plan-month.md for next month, `digest` = commands/digest.md) |
+| `skip` | Nothing: the next run catches up (dashboard pulls stay due; next week's trend check) |
+
+Then send **Jude one line** through the escalation channel in `STATE/brand.json` (DECISIONS D19) naming the new problems and what was done, for example: "NUMA Studio watchdog: Build today missed Tue Nov 10 (day rescheduled); Dashboard refresh failed Sat Nov 7 (Composio unreachable; next run catches up). Fix: none unless it repeats; then check the task in the Claude app's Scheduled list." **Katie gets nothing:** the watchdog line never goes in this run's final message (that message is Katie's notification) and never in her heads-up. No new problems: no line.
+
 ## Done means
 
-Tomorrow's row is `Ready to build` (or swapped, with both folders and cards updated), every decision is in `JOB/work/decisions.md`, and any heads-up is sent. Nobody was asked anything.
+Tomorrow's row is `Ready to build` (or swapped, with both folders and cards updated), every decision is in `JOB/work/decisions.md`, any heads-up is sent, the watchdog ran and the run is finished in the run log. Nobody was asked anything.

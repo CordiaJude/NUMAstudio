@@ -2,7 +2,8 @@
 """Queue of the steps that need Claude in Chrome (R342).
 
 Usage:
-    chrome_queue.py add  --kind KIND --payload JSON --deadline ISO --fallback TEXT [--state DIR] [--now ISO] [--json]
+    chrome_queue.py add  --kind KIND --payload JSON --deadline ISO --fallback TEXT [--not-before ISO]
+                         [--state DIR] [--now ISO] [--json]
     chrome_queue.py list [--status pending|done|expired|all] [--state DIR] [--json]
     chrome_queue.py next [--state DIR] [--now ISO] [--json]
     chrome_queue.py done ID --result TEXT [--state DIR] [--now ISO] [--json]
@@ -27,7 +28,8 @@ else `~/NUMA Studio/_Plan`), synced to Drive `_Plan/` like the run log:
     {"schema_version": 1,
      "items": [{"id": "trial_reel-3be1c09a42", "kind": "trial_reel",
                 "payload": {"job": "Day 10 - 2026-12-10 - Cold snap calm"},
-                "deadline": "2026-12-10T17:00:00-06:00", "fallback": "Post as a normal reel and note it",
+                "not_before": "2026-12-10T16:30:00-06:00", "deadline": "2026-12-10T17:00:00-06:00",
+                "fallback": "Post as a normal reel and note it",
                 "status": "pending", "added_at": "2026-12-10T11:05:00Z", "attempts": 0,
                 "last_error": null, "done_at": null, "result": null, "expired_at": null}]}
 
@@ -35,8 +37,11 @@ else `~/NUMA Studio/_Plan`), synced to Drive `_Plan/` like the run log:
   still pending or already done is not added twice: its id is printed and,
   for a pending one, the earlier of the two deadlines is kept. A naive
   deadline is read in config `schedule.timezone` (Central).
-* `next` prints the pending item with the earliest deadline that has not
-  passed (`{"item": null}` when there is none).
+* `--not-before` holds an item back until then (a Trial Reel is posted in its
+  posting window, not when the Mac happens to wake at 9 am).
+* `next` prints the pending item with the earliest deadline that is ready
+  (`not_before` reached) and not past its deadline (`{"item": null}` when
+  there is none; `waiting` counts the items held back by `not_before`).
 * `done ID --result` marks it done; `fail ID --reason` records a failed
   attempt and leaves it pending for the next Chrome run.
 * `expire` marks every pending item whose deadline has passed as expired and
@@ -101,7 +106,7 @@ def _deadline(it: dict, tz) -> datetime:
 
 
 def _public(it: dict) -> dict:
-    return {k: it.get(k) for k in ("id", "kind", "payload", "deadline", "fallback", "status", "added_at",
+    return {k: it.get(k) for k in ("id", "kind", "payload", "not_before", "deadline", "fallback", "status", "added_at",
                                    "attempts", "last_error", "done_at", "result", "expired_at")}
 
 
@@ -126,6 +131,9 @@ def cmd_add(args) -> int:
     if not fallback:
         raise nc.UserError("--fallback must say what runs when the deadline passes")
     deadline = parse_when(args.deadline, tz, "--deadline")
+    not_before = parse_when(args.not_before, tz, "--not-before") if args.not_before else None
+    if not_before and not_before >= deadline:
+        raise nc.UserError("--not-before must be earlier than --deadline")
     now = now_arg(args.now, tz)
     path = state_dir(args.state) / QUEUE_NAME
     key = item_key(args.kind, payload)
@@ -141,6 +149,7 @@ def cmd_add(args) -> int:
         else:
             n = len(same)
             it = {"id": f"{args.kind}-{key}" + (f"-{n + 1}" if n else ""), "kind": args.kind, "payload": payload,
+                  "not_before": local_iso(not_before, tz) if not_before else None,
                   "deadline": local_iso(deadline, tz), "fallback": fallback, "status": "pending",
                   "added_at": utc_iso(now), "attempts": 0, "last_error": None, "done_at": None, "result": None,
                   "expired_at": None}
@@ -176,10 +185,12 @@ def cmd_next(args) -> int:
     now = now_arg(args.now, tz)
     data = load_queue(state_dir(args.state) / QUEUE_NAME)
     live = [i for i in data["items"] if i["status"] == "pending" and _deadline(i, tz) > now]
-    live.sort(key=lambda i: (_deadline(i, tz), i["added_at"] or ""))
-    it = live[0] if live else None
+    ready = [i for i in live if not i.get("not_before") or parse_when(i["not_before"], tz, "not_before") <= now]
+    ready.sort(key=lambda i: (_deadline(i, tz), i["added_at"] or ""))
+    it = ready[0] if ready else None
     if args.json:
-        nc.print_json({"item": _public(it) if it else None, "pending": len(live)})
+        nc.print_json({"item": _public(it) if it else None, "pending": len(ready),
+                       "waiting": len(live) - len(ready)})
     else:
         print(json.dumps(_public(it), ensure_ascii=False) if it else "none")
     return 0
@@ -303,6 +314,7 @@ def build_parser() -> nc.ArgParser:
     a.add_argument("--payload", required=True, help="JSON object: what the step needs (job, month, file, ...)")
     a.add_argument("--deadline", required=True, help="ISO time after which the fallback runs instead")
     a.add_argument("--fallback", required=True, help="what happens when the deadline passes")
+    a.add_argument("--not-before", help="ISO time before which the step must not run (e.g. the posting window)")
     common(a)
     li = sub.add_parser("list", help="queued items")
     li.add_argument("--status", default="pending", choices=STATUSES + ("all",))

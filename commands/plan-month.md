@@ -29,6 +29,12 @@ if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then ex
 
 Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
 
+## Run start and end (R339-R342)
+
+1. **Log the start:** `python3 "$S/runlog.py" start plan_month --state "$STATE"`; keep the printed run id (`RUN_ID`). Sync with Drive: download Drive `drive.plan_dir`/`runlog.json` and `chrome_queue.json` to `STATE/runlog.drive.json` and `STATE/chrome_queue.drive.json` (skip what does not exist yet), then `python3 "$S/runlog.py" merge "$STATE/runlog.drive.json" --state "$STATE"` and `python3 "$S/chrome_queue.py" merge "$STATE/chrome_queue.drive.json" --state "$STATE"`, and upload both files back.
+2. **Environment:** `python3 "$S/ensure_env.py" --json` (a fresh cloud machine installs what is missing; a warm one returns in seconds). Exit 1: send Jude its ERROR line's fix through the escalation channel in `STATE/brand.json` (DECISIONS D19), finish `failed` (step 3) and stop; the watchdog re-runs the plan (`rerun`).
+3. **Finish, always, also when the run fails or stops early:** `python3 "$S/runlog.py" finish <RUN_ID> --outcome ok --note "<one line>" --state "$STATE"` (`ok` = "Done means" met; `partial` = done with something left out; `failed` = stopped), then merge and upload as in step 1. Lost the id: `--task plan_month`.
+
 ## 1. Gather inputs first (R155)
 
 Run the scout (agents/scout.md) and the data steps in parallel. Missing input: plan with what you have and log it; never wait.
@@ -43,6 +49,11 @@ Run the scout (agents/scout.md) and the data steps in parallel. Missing input: p
 | Trend ideas | the newest `STATE/trends/trends_*.json` (trend-check) | `inputs` `trends` |
 | Feedback memory | `python3 "$S/prefs.py" list --file "$STATE/preferences.json" --json` | honoured in every card |
 | Credit budget | `python3 "$S/ledger.py" report --ledger "$STATE/credit_ledger" --month YYYY-MM --json` (a new month starts at config `budget.monthly_credits`) | `inputs` `credits` |
+
+**Claude in Chrome (R342).** Chrome exists only while Katie's Mac is awake with the desktop app open. Before sending the scout, check that the `mcp__claude-in-chrome__*` tools are visible and answer a harmless call (read the open tab's title). Visible: drain the queue first (commands/chrome-queue.md sections 2 and 4), then the scout researches in Chrome. Not visible: the scout uses WebSearch/WebFetch now and the signed-in check is queued; the plan never waits for it:
+```
+python3 "$S/chrome_queue.py" add --kind scout_research --payload '{"for": "plan-month 2026-12", "what": "offers, prices and events on the NUMA Instagram and Facebook pages", "save_to": "STATE/plans/inputs_2026-12.json"}' --deadline 2026-12-01T00:00:00-06:00 --fallback "The plan stands on the web-search facts" --state "$STATE"
+```
 
 | Months | Local moments to plan around |
 |---|---|
@@ -115,6 +126,8 @@ Send the **scriptwriter** agent the whole `PLAN` with the inputs file and say "m
 
 Plan the month's Higgsfield spend (config `budget`): `python3 "$S/ledger.py" price --json` gives each job's credits. Give each reel its one AI motion shot at the Kling draft-then-pro cost and put the number in the row's `credits_planned`; keep the month inside `budget.split` per category, at most `budget.max_credits_per_reel` per reel, and the first half inside the pacing rule (`budget.pacing`: by day 15 no more than 55% spent). When the plan exceeds a split, drop AI motion from the weakest atmosphere days first (engine motion instead).
 
+**AI-animated people (R342).** Instagram's AI label is required on any reel with AI-animated people (brand.json `posting.ai_label_rule`), and it cannot be guaranteed: INSTAGRAM_POST_IG_USER_MEDIA has no AI-label field, so it is set only through Claude in Chrome, which works only while Katie's Mac happens to be awake at posting time. So plan a day's AI motion shot on a **people-free** still (rooms, water, steam, the sauna glow) and give people shots engine motion. Plan AI motion of a person only when `STATE/setup.json` `verified` records that the API sets the label (docs/SETUP_GUIDE.md "Verify these first" #1). Log each such choice in the decisions file.
+
 ## 7. Check until clean
 
 ```
@@ -156,4 +169,4 @@ Add the month overview to `STATE/digest_notes.json` `changes` (series rotation, 
 
 ## Done means
 
-`check` exits 0; every day folder has photos/, clips/, Finished/, a SHOOT CARD and script.json; the Sheet tab has one row per day; the decisions file and digest notes are written. Nobody was asked anything.
+The run is finished in the run log (section "Run start and end", step 3); `check` exits 0; every day folder has photos/, clips/, Finished/, a SHOOT CARD and script.json; the Sheet tab has one row per day; the decisions file and digest notes are written. Nobody was asked anything.

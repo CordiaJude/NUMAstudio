@@ -17,6 +17,12 @@ if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then ex
 
 Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
 
+## Run start and end (R339-R342)
+
+1. **Log the start:** `python3 "$S/runlog.py" start dashboard_refresh --state "$STATE"`; keep the printed run id (`RUN_ID`). Sync with Drive: download Drive `drive.plan_dir`/`runlog.json` and `chrome_queue.json` to `STATE/runlog.drive.json` and `STATE/chrome_queue.drive.json` (skip what does not exist yet), then `python3 "$S/runlog.py" merge "$STATE/runlog.drive.json" --state "$STATE"` and `python3 "$S/chrome_queue.py" merge "$STATE/chrome_queue.drive.json" --state "$STATE"`, and upload both files back.
+2. **Environment:** `python3 "$S/ensure_env.py" --json` (a fresh cloud machine installs what is missing; a warm one returns in seconds). Exit 1: send Jude its ERROR line's fix through the escalation channel in `STATE/brand.json` (DECISIONS D19), still run the watchdog (section 6; runlog.py needs no packages), finish `failed` (step 3) and stop; tonight's pulls stay due.
+3. **Finish, always, also when the run fails or stops early:** `python3 "$S/runlog.py" finish <RUN_ID> --outcome ok --note "<one line>" --state "$STATE"` (`ok` = "Done means" met; `partial` = pulls skipped or the artifact not republished; `failed` = stopped), then merge and upload as in step 1. Lost the id: `--task dashboard_refresh`.
+
 ## 1. Tag newly posted reels
 
 For each plan Sheet row with Status `Posted` whose reel is not in the store yet, write its NUMA tags (config `instagram.tags`) from the job's `work/plan.json` `meta` and `work/delivered.json` into `STATE/insights/tags_<reel>.json` (length, series, pillar, hook_type, transitions, music_source, posting_time in Central ISO, trial_reel, collab, plus title, slug, media_id, permalink, thumbnail), then:
@@ -64,6 +70,10 @@ On Saturday's run (or when `STATE/dashboard_notes.json` `week_of` is more than 7
 ```
 Rebuild the dashboard with it (section 3) and add the items that change how you plan or edit to `STATE/digest_notes.json` `changes`. Under 30 posted reels, write what the data shows with "early signal" in front; re-tuning waits for plan-month (rule 10).
 
+## 6. Watchdog (R341)
+
+The second check of the day (the night check ran the first at 8 pm). Run commands/night-check.md section 6 exactly: `python3 "$S/runlog.py" check --state "$STATE" --json --mark-reported`, then `python3 "$S/chrome_queue.py" expire --state "$STATE" --json` with each returned item's fallback, act on every problem with `"new": true` by its `action` (`late_build`, `reschedule`, `rerun`, `skip`), and send **Jude one line** through the escalation channel in `STATE/brand.json` (DECISIONS D19). A night check missed at 8 pm shows here as `rerun`: run commands/night-check.md for tomorrow now, before the 5 am build. **Katie gets nothing** from the watchdog. No new problems: no line.
+
 ## Done means
 
-Due pulls are stored (or left due with the reason logged), the dashboard artifact and metrics Sheet show tonight's data, and on Saturdays the Do more / Do less box is current.
+Due pulls are stored (or left due with the reason logged), the dashboard artifact and metrics Sheet show tonight's data, on Saturdays the Do more / Do less box is current, the watchdog ran and the run is finished in the run log.

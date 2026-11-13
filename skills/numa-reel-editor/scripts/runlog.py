@@ -45,7 +45,8 @@ Each problem has an `action`: `late_build` (build_today, when a build started
 now still finishes `late_build_minutes` before the posting window ends,
 `post_by` or `--post-by`, the same day), `reschedule` (build_today otherwise),
 `rerun` (other tasks within `rerun_within_hours` of the slot) or `skip` (the
-next run catches up). `new` is false for problems an earlier
+next run catches up), and `runs` (how many runs started in that slot, so a
+caller tries one late build, not one an hour). `new` is false for problems an earlier
 `check --mark-reported` already returned, so Jude gets each line once.
 
 `check --since ISO` is the setup verification (R343): for every task (or
@@ -427,7 +428,7 @@ def analyze(log: dict, cfg: dict, now: datetime, days: int | None = None, post_b
             if not got:
                 s["missed"] += 1
                 problems.append({"kind": "missed", "task": task, "slot": slot_txt,
-                                 "date": fire.astimezone(tz).date().isoformat(),
+                                 "date": fire.astimezone(tz).date().isoformat(), "runs": 0,
                                  "action": action_for(task, fire)})
                 continue
             covered_ids.update(r["id"] for r, _ in got)
@@ -447,7 +448,7 @@ def analyze(log: dict, cfg: dict, now: datetime, days: int | None = None, post_b
                 s[kind] += 1
                 k, r, start = next(x for x in reversed(states) if x[0] == kind)
                 p = {"kind": kind, "task": task, "slot": slot_txt,
-                     "date": fire.astimezone(tz).date().isoformat(), "run_id": r["id"],
+                     "date": fire.astimezone(tz).date().isoformat(), "run_id": r["id"], "runs": len(got),
                      "started_at": local_iso(start, tz), "action": action_for(task, fire)}
                 if kind == "failed":
                     p["note"] = r.get("note", "")
@@ -464,7 +465,7 @@ def analyze(log: dict, cfg: dict, now: datetime, days: int | None = None, post_b
         k = run_state(r, start)
         if k in ("failed", "stuck"):
             p = {"kind": k, "task": r["task"], "slot": None, "date": start.astimezone(tz).date().isoformat(),
-                 "run_id": r["id"], "started_at": local_iso(start, tz), "action": "skip"}
+                 "run_id": r["id"], "runs": 1, "started_at": local_iso(start, tz), "action": "skip"}
             if k == "failed":
                 p["note"] = r.get("note", "")
             else:
