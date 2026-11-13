@@ -256,7 +256,7 @@ def test_spec_render_is_deterministic(run_script, tmp_path):
 def test_overflow_is_an_error(run_script, tmp_path):
     d = spec()
     d["slides"][0]["fields"]["title"] = "A very long title that keeps going " * 6
-    d["slides"][1]["fields"]["kicker"] = "A kicker far too long for one line here"
+    d["slides"][1]["fields"]["kicker"] = "A kicker that is far far too long to fit on one line ok"
     proc = run_script("design_render.py", "spec", write_spec(tmp_path, d), "--out", tmp_path / "out", "--json")
     assert proc.returncode == 1
     errs = json.loads(proc.stdout)["errors"]
@@ -267,9 +267,9 @@ def test_overflow_is_an_error(run_script, tmp_path):
 
 @needs_chromium
 def test_missing_fonts_are_an_error(tmp_path, monkeypatch, capsys):
-    fake = tmp_path / "fonts"
-    fake.mkdir()
-    monkeypatch.setattr(dr.nc, "FONTS_DIR", fake)  # the bundled font files are no longer served
+    lib = tmp_path / "assets" / "carousel"  # the components without the bundled fonts next to them
+    shutil.copytree(dr.COMPONENTS_DIR, lib)
+    monkeypatch.setattr(dr, "COMPONENTS_DIR", lib)
     rc = dr.render_spec(write_spec(tmp_path, spec()), tmp_path / "out", "jpg", as_json=True)
     assert rc == 1
     errs = json.loads(capsys.readouterr().out)["errors"]
