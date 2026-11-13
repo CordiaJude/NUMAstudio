@@ -133,10 +133,11 @@ def test_speech_model_offline_and_online(env, capsys, monkeypatch):
 
 
 def test_chromium_installed_when_missing(env, capsys):
-    rep, _ = report(capsys, env, "--with-chromium", "--check-only", code=1)
-    assert "playwright install chromium" in next(c for c in rep["checks"] if c["name"] == "chromium")["fix"]
     env["req"].write_text(env["req"].read_text() + "playwright>=1.45\n")
     (env["site"] / "playwright.py").write_text("")  # importable for the package check
+    (env["site"] / "numa_fake_pkg.py").write_text("")
+    rep, _ = report(capsys, env, "--with-chromium", "--check-only", code=1)
+    assert "playwright install chromium" in next(c for c in rep["checks"] if c["name"] == "chromium")["fix"]
     rep, _ = report(capsys, env, "--with-chromium")
     assert rep["ready"] and "chromium" in rep["installed"]
     assert [c[1:5] for c in env["calls"] if "playwright" in c] == [["-m", "playwright", "install", "chromium"]]

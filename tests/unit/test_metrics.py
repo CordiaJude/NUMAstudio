@@ -214,6 +214,7 @@ def test_carousel_and_image_metrics(nc, store, tmp_path, capsys):
 def test_retagging_drops_video_metrics_and_stories_skip_due(nc, store, tmp_path, capsys):
     assert ingest(store, tmp_path, "p", "48h", views=10, reach=8, ig_reels_avg_watch_time=3000) == 0
     assert run(["tag", "--store", str(store), "--post", "p", "--tags", json.dumps({"post_type": "image"})]) == 0
+    assert "avg_watch_time_ms does not apply to an image post" in capsys.readouterr().err
     data = json.loads(store.read_text())
     assert data["reels"]["p"]["pulls"]["48h"]["metrics"] == {"views": 10, "reach": 8}
     assert run(["tag", "--store", str(store), "--post", "s", "--tags",

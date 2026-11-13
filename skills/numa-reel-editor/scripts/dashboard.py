@@ -358,10 +358,11 @@ def leaderboard(rows: list[dict], names: dict[str, str]) -> str:
     return out + "</section>"
 
 
-def breakdown(title: str, hid: str, groups: list[dict], what: str) -> str:
+def breakdown(title: str, hid: str, groups: list[dict], what: str, unit: str = "posts") -> str:
+    """Median results per group; `unit` names what is counted ("posts": every type, "reels": reels and trial reels)."""
     head = f'<section aria-labelledby="{hid}"><h2 id="{hid}">{esc(title)}</h2>'
     if not groups:
-        return head + empty(f"No tagged reels yet: tag each reel's {what} when it posts.") + "</section>"
+        return head + empty(f"No tagged {unit} yet: tag each {unit[:-1]}'s {what} when it posts.") + "</section>"
     top = max([g["views"] or 0 for g in groups] or [0]) or 1
     rows = []
     for g in groups:
@@ -369,8 +370,9 @@ def breakdown(title: str, hid: str, groups: list[dict], what: str) -> str:
         rows.append([esc(g["name"]), fmt_num(g["count"]),
                      f'<span class="bar" style="width:{w}px" aria-hidden="true"></span>{fmt_num(g["views"])}',
                      fmt_pct(g["retention"]), fmt_num(g["sends_1k"], 1)])
-    return head + table(f"Median results by {what}.", [what.capitalize(), "Reels", "Median views", "Retention",
-                                                         "Sends/1k"], rows) + "</section>"
+    note = " Retention counts video posts only." if unit == "posts" else " Reels and trial reels only."
+    return head + table(f"Median results by {what}.{note}", [what.capitalize(), unit.capitalize(), "Median views",
+                                                            "Retention", "Sends/1k"], rows) + "</section>"
 
 
 def by_post_type(rows: list[dict]) -> str:
@@ -567,7 +569,8 @@ def build(store: dict, notes: dict | None, comp: dict | None, today: date | None
         by_post_type(rows),
         '<div class="grid" style="margin-top:16px">',
         breakdown("By series", "bs-h", group(rows, lambda r: names.get(r["series"], r["series"])), "series"),
-        breakdown("By length", "bl-h", group(rows, lambda r: length_bucket(r["length"]), LENGTH_ORDER), "length"),
+        breakdown("By length", "bl-h", group([r for r in rows if r["type"] in mx.REEL_TYPES],
+                                             lambda r: length_bucket(r["length"]), LENGTH_ORDER), "length", "reels"),
         breakdown("By hook type", "bh-h", group(rows, lambda r: r["hook_type"]), "hook type"),
         "</div>",
         heatmap(rows),

@@ -139,6 +139,7 @@ def test_results_by_post_type(nc, tmp_path):
                                      "posting_time": "2026-11-03T12:00:00-06:00"},
                             "pulls": {"48h": {"pulled_at": None, "metrics": {"views": 9000, "reach": 4000, "shares": 40,
                                                                             "saves": 120}}}}
+    store["reels"]["c1"]["tags"].update({"series": "regulate", "length": 10})   # a length tag on a carousel is ignored
     store["reels"]["i1"] = {"tags": {"title": "Cold plunge photo", "post_type": "image"},
                             "pulls": {"7d": {"pulled_at": None, "metrics": {"views": 700, "reach": 500, "saves": 9}}}}
     m = tmp_path / "metrics.json"
@@ -157,6 +158,12 @@ def test_results_by_post_type(nc, tmp_path):
     lb = html[html.index('id="lb-h"'):html.index("</section>", html.index('id="lb-h"'))]
     assert 'data-label="Type" class="l">Carousel<' in lb and 'data-label="Type" class="l">Photo<' in lb
     assert lb.index("Five rituals") < lb.index("Reel 5")             # most views first, any type
+    bl = html[html.index('id="bl-h"'):html.index("</section>", html.index('id="bl-h"'))]
+    assert "Under 15 s" not in bl and 'scope="col">Reels<' in bl and "Reels and trial reels only" in bl
+    bs = html[html.index('id="bs-h"'):html.index("</section>", html.index('id="bs-h"'))]
+    assert 'scope="col">Posts<' in bs and 'scope="col">Reels<' not in bs
+    reg = bs[bs.index(">Regulate<"):bs.index("</tr>", bs.index(">Regulate<"))]
+    assert 'data-label="Posts">3<' in reg                              # 2 reels + the carousel
     assert 'data-label="Type" class="l">Trial reel<' in lb and "(Trial)" not in lb  # v2.0 trial_reel tag -> type
 
 
