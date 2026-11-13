@@ -284,11 +284,13 @@ def table(caption: str, head: list[str], rows: list[list[str]], first_is_name: b
           left: tuple[int, ...] = ()) -> str:
     """An accessible table; `left` = indexes of text columns aligned left (numbers align right).
     Under 600 px wide each row becomes a card: the name on top, then the cells labelled from the header."""
-    th = "".join(f'<th scope="col"{" class=\"l\"" if i in left else ""}>{esc(h)}</th>' for i, h in enumerate(head))
+    def lcls(i: int) -> str:
+        return ' class="l"' if i in left else ""
+    th = "".join(f'<th scope="col"{lcls(i)}>{esc(h)}</th>' for i, h in enumerate(head))
     body = []
     for r in rows:
         cells = [f'<th scope="row" class="name">{r[0]}</th>' if first_is_name else f"<td>{r[0]}</td>"]
-        cells += [f'<td data-label="{esc(head[i])}"{" class=\"l\"" if i in left else ""}>{c}</td>'
+        cells += [f'<td data-label="{esc(head[i])}"{lcls(i)}>{c}</td>'
                   for i, c in enumerate(r[1:], 1)]
         body.append("<tr>" + "".join(cells) + "</tr>")
     return (f'<p class="sub" aria-hidden="true">{esc(caption)}</p>'
