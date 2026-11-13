@@ -265,7 +265,8 @@ def _beats(s):
 @pytest.mark.parametrize("shape", ["voice_music", "photos", "music_only"])
 def test_shots_are_two_or_four_beats(make_job, shape):
     work, A = make_job(shape)
-    plan = build(work, A, script="Three minutes of cold.\nWalk out wide awake.\nRelax, breathe, disconnect.")
+    plan = build(work, A, duration=30.0,
+                 script="Three minutes of cold.\nWalk out wide awake.\nRelax, breathe, disconnect.")
     ec = plan["endcard"]["t"]
     lengths = [_beats(s) for s in plan["shots"][1:] if s["t0"] < ec and s["t1"] <= ec]
     odd = [n for n in lengths if n not in (2, 4)]
