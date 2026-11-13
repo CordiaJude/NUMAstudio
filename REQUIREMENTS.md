@@ -448,3 +448,17 @@ Every requirement in `spec/SPEC.pdf` (text: `spec/SPEC.txt`, "NUMA Studio — Pr
 13. **Critic frames.** Critic gets "QA strip" plus "12 frames" (p.40) while finish writes a 6-frame strip (p.18). *Interpretation:* keep the 6-frame strip and add a separate 12-frame extractor.
 14. **Clips per reel.** "2–4 best hero photos" (p.17), "2–3 hero stills" (p.42), NFR "up to 4" (p.48). *Interpretation:* 2–3 typical, 4 max.
 15. **Monday digest** is sent Sunday 6 pm (p.45, 50); name kept as "Monday digest".
+
+## v2.1 additions (user request, 2026-11-13): Claude Design carousels, carousel and single-photo posts
+
+- **R328** `INSTR` Component carousels are designed in Claude Design (Artifact type "Design"): one canvas per carousel, one 1080×1350 artboard per slide, in NUMA's brand. Slides can be pure components (title, numbered point, stat, myth/fact, quote, steps, price/offer, CTA) or include photos. *Accept:* designer agent + numa-carousel skill describe the full flow with exact Artifact calls.
+- **R329** `DATA` A NUMA carousel component library ships in the plugin (plain HTML/CSS templates with fields, brand fonts bundled under open licences). *Accept:* each component renders standalone at 1080×1350.
+- **R330** `CODE` `design_render.py` turns a Claude Design canvas (files read with the Artifact tool into a local folder) into ordered 1080×1350 PNG/JPG slides with headless Chromium, waiting for fonts and failing loudly on missing fonts, wrong size or blank slides. *Accept:* renders a canvas folder; tests with fixtures.
+- **R331** `CODE` Fallback: the same renderer builds slides straight from a `carousel.json` spec with the bundled components when the Artifact tool or canvas is unavailable, so posting never blocks. *Accept:* identical layout; tests.
+- **R332** `CODE` Carousel copy passes the claims scanner and per-slide fit checks (text fits its component box). *Accept:* validator rejects overflowing or banned text.
+- **R333** `INSTR` Photo carousels can be built from a folder of photos (not only from a reel), graded and framed by the engine. *Accept:* documented path + command.
+- **R334** `CODE` Single-photo posts: one 1080×1350 (4:5) image from a chosen photo, NUMA grade, smart-framed crop, optional short text overlay within safe areas. *Accept:* script output + tests.
+- **R335** `INSTR` `/post-reel` publishes carousels (child containers + CAROUSEL container) and single images (IMAGE) through Composio, with the same gates, limits, AI label and Sheet updates as reels. *Accept:* exact tool flow documented; tests check tool names and gates.
+- **R336** `INSTR` The month planner, shoot cards, daily build, digest and dashboard handle the post types reel / component carousel / photo carousel / single photo / stories; the content mix and default week include them. *Accept:* plan-month, build-today, shoot_card.py, digest_data, dashboard and config updated with tests.
+- **R337** `CODE` Metrics store tags each post with its post type and the dashboard breaks results down by post type. *Accept:* tests.
+- **R338** `CODE` `/numa-setup` checks headless Chromium is available for slide rendering (with the install command as the fix). *Accept:* setup_check line + test.
