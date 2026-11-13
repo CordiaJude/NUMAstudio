@@ -477,7 +477,7 @@ def test_post_reel_image_gates_and_rules(texts, brand, config):
                    "code 9007", "section 8", "never a question", "STATE/consent_list.json", "--blur-faces",
                    "photo_post.py\" carousel", "photo_post.py\" single", "LOOK at every slide",
                    "`--people-free`", "only ever says yes", "Never pass `--people-free` for a photo you have not looked at",
-                   "`people_basis`", "other than `people_free_flag` or `library_tag_no`", "`max_wait_seconds`",
+                   "`people_basis`", "Consent recorded as no", "never blurred, never posted", "other than `people_free_flag` or `library_tag_no`", "`max_wait_seconds`",
                    '"mimetype": "image/jpeg"', "`s3key`",
                    "_carousel_NN.jpg", "read as a number", "Never ask Katie anything"]:
         assert needle in sec, needle

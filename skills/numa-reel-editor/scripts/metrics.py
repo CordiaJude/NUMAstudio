@@ -17,7 +17,7 @@ INSTAGRAM_GET_USER_INSIGHTS (the Composio envelope {"data": ..., "successful":
 ...} is unwrapped) in the Graph API insights shape: `data[].name` with
 `values[].value` (and `end_time` for daily account values) or `total_value.value`.
 A flat object {"views": 120, "reach": 95, ...} is accepted too. `--tags` is a
-JSON file (or inline JSON object) of NUMA's tags.
+JSON file (or inline JSON object) of Numa's tags.
 
 Rules:
 * Per-reel metrics are config `instagram.metrics` (views, reach, likes, comments,
@@ -43,7 +43,7 @@ Rules:
 * `compute` (config `instagram.computed`) writes per pull and per post (from the
   latest pull: 7d, else 72h, else 48h): retention = avg watch time (s) / length (s);
   sends_per_1k_reach = shares / reach * 1000; saves_per_1k_reach; and
-  skip_rate_vs_median = skip rate - median skip rate of NUMA's reels (reel and
+  skip_rate_vs_median = skip rate - median skip rate of Numa's reels (reel and
   trial_reel posts only). Metrics a post type does not have (watch time,
   retention and skip rate of a carousel or image) are null, never an error;
   each post's `computed` carries its `post_type`.
@@ -567,13 +567,13 @@ def build_parser() -> nc.ArgParser:
     i.add_argument("--reel", "--post", dest="reel", required=True, help="post id (media id or slug), any post type")
     i.add_argument("--pull", required=True, choices=PULL_ORDER)
     i.add_argument("--data", required=True, help="INSTAGRAM_GET_IG_MEDIA_INSIGHTS response (file or inline JSON)")
-    i.add_argument("--tags", help="NUMA tags (file or inline JSON object)")
+    i.add_argument("--tags", help="Numa tags (file or inline JSON object)")
     i.add_argument("--pulled-at", help="ISO time of the pull (stored as given)")
     a = sub.add_parser("account", help="store account insights (kept beyond Meta's 90 days)")
     a.add_argument("--store", required=True)
     a.add_argument("--data", required=True, help="INSTAGRAM_GET_USER_INSIGHTS response (file or inline JSON)")
     a.add_argument("--date", help="YYYY-MM-DD for total_value metrics")
-    t = sub.add_parser("tag", help="set or update a reel's NUMA tags")
+    t = sub.add_parser("tag", help="set or update a post's Numa tags")
     t.add_argument("--store", required=True)
     t.add_argument("--reel", "--post", dest="reel", required=True, help="post id (media id or slug)")
     t.add_argument("--tags", required=True)

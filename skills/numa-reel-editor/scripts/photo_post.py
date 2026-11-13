@@ -5,7 +5,7 @@ Usage:
     photo_post.py single PHOTO --out OUT [--text TEXT] [--look warm|none] [--slug S]
                   [--consent] [--library FILE] [--blur-faces] [--people-free] [--json]
     photo_post.py carousel PHOTOS... --out OUT [--texts FILE] [--look warm|none] [--slug S]
-                  [--consent] [--library FILE] [--blur-faces] [--people-free PHOTO ...] [--json]
+                  [--consent] [--library FILE] [--blur-faces] [--people-free PHOTO]... [--json]
 
 Every picture is a 1080x1350 (4:5) JPG rendered by engine.py from a one-shot
 plan, so it carries the reels' look: the colour look (``--look``, default warm),

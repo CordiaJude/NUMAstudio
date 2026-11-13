@@ -927,7 +927,7 @@ Collective a month, event teaser/recap windows); exit 1 on violations.
 ### photo_post.py [T15]
 ```
 photo_post.py single PHOTO --out OUT [--text TEXT] [--look warm|none] [--slug S] [--consent] [--library FILE] [--blur-faces] [--people-free] [--json]
-photo_post.py carousel PHOTOS... --out OUT [--texts FILE] [--look warm|none] [--slug S] [--consent] [--library FILE] [--blur-faces] [--people-free PHOTO ...] [--json]
+photo_post.py carousel PHOTOS... --out OUT [--texts FILE] [--look warm|none] [--slug S] [--consent] [--library FILE] [--blur-faces] [--people-free PHOTO]... [--json]
 ```
 Feed photo posts at 1080x1350 (4:5) rendered by engine.py from a one-shot
 plan (the reels' look, bloom, vignette and grain), framed on vision.py's
@@ -942,11 +942,13 @@ exit 1). People: detectors only ever say yes, so every photo needs a recorded
 basis, reported as `people_basis`: `consent` (`--consent`, Consent List
 checked), `library_consent` (`--library` entry with consent yes),
 `library_tag_no` (library entry with people no and `people_source` "tag"),
-`people_free_flag` (`--people-free` after LOOKING: single takes the flag,
-carousel names each photo, repeatable) or `blurred` (`--blur-faces` and
-detected faces, all blurred). None: exit 1. `--blur-faces` alone never passes
-a photo with no detected face; faces on a photo marked people-free need
-`--blur-faces` or consent; library consent no is never overridden.
+`people_free_flag` (`--people-free` after LOOKING: single takes the flag;
+carousel takes `--people-free PHOTO` given once per photo, a path or file
+name) or `blurred` (`--blur-faces` and detected faces, all blurred). None:
+exit 1. `--blur-faces` alone never passes a photo with no detected face; faces
+on a photo marked people-free need `--blur-faces` or consent. A library
+consent of no means the photo is never used: exit 1 ("consent recorded as no:
+use a different photo") whatever else is passed, `--blur-faces` included.
 Deterministic bytes. `--json` prints `{ok, kind, files, slides: [{file, src,
 text, faces, consent, people_basis, blurred, focus, text_position, upscale}]}`.
 

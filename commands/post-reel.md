@@ -154,8 +154,9 @@ Same grade, framing, safe areas and claims rules as the reels (1080x1350 JPG). P
 |---|---|
 | Truly no people at all | `--people-free` (single), `--people-free <file name>` per photo (carousel); or a library tag `people no` (`--library "$STATE/media_library.json"`) |
 | People, all on `STATE/consent_list.json` with a scope covering social posts | `--consent`, or `--library` when the library records consent yes |
-| People not on the list, faces detected | `--blur-faces` (failure row F12), then LOOK that every face is blurred |
+| People not on the list (no consent recorded either way), faces detected | `--blur-faces` (failure row F12), then LOOK that every face is blurred |
 | People not on the list, no face detected | A different photo (`--blur-faces` cannot pass it: there is nothing it can find to blur) |
+| Consent recorded as no (Consent List or the library's `consent` no) | A different photo, always: never blurred, never posted; the script stops with "consent recorded as no: use a different photo" |
 
 Never pass `--people-free` for a photo you have not looked at. Exit 1 is a one-line ERROR with the fix; apply it and run again. LOOK at every slide before posting: any unlisted face means blur or a different photo. Component carousels arrive ready-made (`SLUG_carousel_NN.jpg`); post them as they are. Slide order = the number in the file name, read as a number. Checks per file: JPEG, 1080 wide, 4:5, at most 8 MB (Instagram's image limits); 2-10 slides for a carousel.
 
