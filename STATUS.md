@@ -19,6 +19,7 @@
 | T14 Claude Design carousels (v2.1) | IN PROGRESS | 1 | |
 | T15 Photo posts + carousel/image posting (v2.1) | IN REVIEW | 1 | shared asks: README, config instagram.tags post_type, CONTRACTS metrics → T16 |
 | T16 Planner/shoot cards/build/digest for new post types (v2.1) | PENDING | 0 | |
+| T17 Scheduling reliability: ensure_env, runlog watchdog, Chrome queue (v2.1) | IN PROGRESS | 1 | |
 
 ## Minor findings (all resolved)
 All minor findings logged during review rounds (example-plan whip spacing, claims gaps/false positives, finish loudness loop, render cache in synced folders, shoot_card BrokenPipe, D18 NUMA_BRAND wiring, formats/baseline sentence fragments, rule 24 counting, card clause length, analyze role guess, transcript capitals and dropped words, outro-aware caption spans, music-only reel length, myth_vs_fact hook, caption legibility over bright frames, prep colour tags, macOS CI, real-3.10 parse) were fixed in the round revisions or the final polish tasks P1-P3.

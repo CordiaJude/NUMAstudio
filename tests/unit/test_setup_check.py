@@ -15,7 +15,7 @@ import setup_check
 
 EXPECTED = ["python", "import numpy", "import cv2", "import PIL", "import pillow_heif", "import librosa",
             "import faster_whisper", "import jsonschema", "import imageio_ffmpeg", "ffmpeg", "ffprobe",
-            "fonts", "assets", "brand.json", "config", "face model", "disk", "speech model"]
+            "fonts", "assets", "brand.json", "config", "face model", "disk", "speech model", "slide renderer"]
 
 
 def clean_env(**extra: str) -> dict:
@@ -217,3 +217,43 @@ def test_cleanup_keeps_fresh_folders_of_other_runs(monkeypatch, tmp_path):
     os.utime(stale, (old, old))
     setup_check.remove_old_test_dirs()
     assert fresh.is_dir() and not stale.exists()
+
+
+# --------------------------------------------------------------------------- slide renderer (R338, T14)
+def _chromium_ok() -> bool:
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as pw:
+            pw.chromium.launch().close()
+        return True
+    except Exception:  # noqa: BLE001 - not installed here
+        return False
+
+
+@pytest.mark.skipif(not _chromium_ok(), reason="Playwright Chromium not installed")
+def test_slide_renderer_passes_with_chromium(tmp_path, monkeypatch):
+    monkeypatch.setattr(setup_check.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(setup_check.tempfile, "tempdir", str(tmp_path))
+    r = setup_check.check_slide_renderer()
+    assert r.status == "pass", r.detail
+    assert "1080x1350" in r.detail and "bundled fonts" in r.detail
+
+
+def test_slide_renderer_missing_browser_warns_with_install_fix(run_script, tmp_path):
+    empty = tmp_path / "no-browsers"
+    empty.mkdir()
+    proc = run_check(run_script, "--skip-render", "--json", env={"PLAYWRIGHT_BROWSERS_PATH": str(empty)}, tmp=tmp_path)
+    check = by_name(json.loads(proc.stdout))["slide renderer"]
+    assert check["status"] == "warn", check
+    assert "python -m playwright install chromium" in check["fix"]
+    assert "Traceback" not in proc.stderr
+
+
+def test_slide_renderer_without_playwright_warns(run_script, tmp_path):
+    fake = tmp_path / "fake_site" / "playwright"
+    fake.mkdir(parents=True)
+    (fake / "__init__.py").write_text("raise ImportError(\"No module named 'playwright'\")\n")
+    proc = run_check(run_script, "--skip-render", "--json", env={"PYTHONPATH": str(fake.parent)}, tmp=tmp_path)
+    check = by_name(json.loads(proc.stdout))["slide renderer"]
+    assert check["status"] == "warn" and "Playwright is not installed" in check["detail"]
+    assert "pip install -r requirements.txt" in check["fix"]
