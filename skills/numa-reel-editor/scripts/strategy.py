@@ -99,7 +99,7 @@ POST_TYPES = ("reel", "trial_reel", "carousel", "image", "story")
 FEED_TYPES = ("reel", "carousel", "image")
 VIDEO_TYPES = ("reel", "trial_reel", "story")
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-PULL_HOURS = {"22h": 22, "48h": 48, "72h": 72, "7d": 168, "14d": 336, "30d": 720}
+PULL_HOURS = {"12h": 12, "22h": 22, "48h": 48, "72h": 72, "7d": 168, "14d": 336, "30d": 720}
 EVIDENCE_ORDER = {"opinion": 0, "observed": 1, "measured": 2, "numa": 3}
 STRUCTURE_KINDS = ("structure", "carousel", "photo")
 KIND_FOR_ROW = {"reel": "reel", "trial_reel": "trial_reel", "carousel": "carousel", "image": "image", "stories": "story"}
@@ -488,6 +488,19 @@ def component_value(post: dict, comp: str) -> float | None:
     return post["pulls"][label].get(comp)             # no pull at its own window: the judged pull is the best read
 
 
+def blocked(post: dict, comp: str, substitute: str | None = None) -> bool:
+    """True when a metric exception (R7) says this component can't be read yet at the post's judged pull."""
+    if comp == "watch_through" and post["post_type"] not in VIDEO_TYPES and substitute:
+        comp = substitute
+    label = post["pull"]
+    if not label:
+        return True
+    for metric, w in (post["window"].get("exceptions") or {}).items():
+        if EXCEPTION_COMPONENT.get(metric) == comp and post["pull_hours"][label] < float(w["provisional_hours"]):
+            return True
+    return False
+
+
 def baseline(post: dict, judged: list[dict], pol: dict, pooled: bool) -> list[dict]:
     """The trailing last-N same-format (or pooled feed) posts, each at least min_age_days old (R6 section 2)."""
     b = pol["scoring"]["baseline"]
@@ -507,6 +520,9 @@ def baseline(post: dict, judged: list[dict], pol: dict, pooled: bool) -> list[di
         if len(pool) >= min_posts:
             return pool[-n:]
     return []
+
+
+MIN_WEIGHT_SHARE = 0.5      # a score needs metrics carrying at least half of the formula's weight
 
 
 def log2_index(value: float, med: float, clip: float) -> float:
@@ -533,7 +549,10 @@ def weighted(post: dict, pool: list[dict], weights: dict, clip: float, substitut
         parts[c] = round(s, 4)
         acc += w * s
         tw += w
-    return (acc / tw if tw else None), parts
+    total = sum(w for comp, w in weights.items() if w > 0 and not blocked(post, comp, substitute))
+    if not tw or tw < MIN_WEIGHT_SHARE * total:
+        return None, parts            # too few metrics (e.g. reach only): missing data, not a loss
+    return acc / tw, parts
 
 
 def score_posts(posts: list[dict], pb: dict) -> list[dict]:
@@ -1274,16 +1293,17 @@ class Planner:
                         f"{gain + stick:+.2f} > stickiness {stick:.2f} (data-led share {lam:.0%})"
                         + ("; evidence widened the feed-mix bounds" if bounds["widened"] else ""))
             # format test (R6 test order: format): the least-tried non-reel format gets one slot this week
-            untested = sorted((len(arm(self.fits, self.pb, "format", t)["records"]), t != "image", t) for t in ("image", "carousel"))
-            untested = [(n_, t) for n_, _, t in untested]
-            untested = [t for n_, t in untested if n_ < need]
+            # carousels get data every week from the default Tuesday slot; the format test is for images
+            untested = ["image"] if len(arm(self.fits, self.pb, "format", "image")["records"]) < need else []
             if untested and len(feed) >= 4:
                 cands = [r for r in free if id(r) not in changed and current[id(r)] == "reel"]
                 for t in untested:
                     for r in sorted(cands, key=lambda r: (r["slot"] != "community_reel", r["date"])):
                         trial = dict(current)
                         trial[id(r)] = t
-                        if fits_bounds(trial):
+                        vals = list(trial.values())
+                        if (sum(v != "reel" for v in vals) <= max(bounds["nonreel"], 2) and vals.count(t) <= max(bounds[t], 1)
+                                and vals.count("carousel") <= bounds["carousel"]):
                             current = trial
                             changed.add(id(r))
                             set_type(r, t)
@@ -1358,6 +1378,8 @@ class Planner:
                                                                      or r.get("signature") or r.get("_protect")
                                                                      or r["strategy"].get("tests"))]
             drop.sort(key=lambda r: (r["slot"] != "regulate_reel", r["slot"] != "community_reel", r["date"]), reverse=False)
+            drop += [r for r in feed if r["kind"] in ("carousel", "image") and r not in drop and not (
+                r.get("event_role") or r.get("sales") or r["strategy"].get("tests"))]      # last resort
             while len(feed) > target and drop:
                 r = drop.pop(0)
                 feed.remove(r)
@@ -2089,13 +2111,17 @@ def parse_evidence(text: str, fname: str, sources: list[str]) -> dict:
         level = present[0] if present else "opinion"   # the weakest evidence present: patterns sit on measured mechanics
     srcs = URL.findall(text) + [s for v in sources for s in (URL.findall(v) or [v.strip()]) if s.strip()]
     rest = URL.sub("", text).strip(" -:;,.")
-    rest = re.sub(r"\b(measured|observed|opinion|official|high|medium|low)\b(\s+confidence)?", "", rest, flags=re.I)
-    rest = re.sub(r"\(\s*\)", "", rest).strip(" ()-:;,.")
+    rest = re.sub(r"^\s*\**(measured|observed|opinion)\**\b[\s.,:;-]*", "", rest, flags=re.I)       # the leading level word
+    rest = re.sub(r"[\s,;]*\b(high|medium|low)(\s+confidence)?\s*$", "", rest, flags=re.I)        # a trailing confidence
+    rest = re.sub(r"[,;\s]*\)", ")", rest)
+    rest = re.sub(r"\(\s*\)", "", rest).strip(" -:;,.")
+    if rest.startswith("(") and rest.endswith(")") and rest.count("(") == 1:
+        rest = rest[1:-1].strip()
     if rest and rest.lower() not in ("measured", "observed", "opinion"):
-        srcs.append(rest[:300])
+        srcs.append(brand_text(rest)[:1200])
     srcs = [s for i, s in enumerate(srcs) if s and s not in srcs[:i]] or [f"research import: {fname}"]
     ev: dict[str, Any] = {"level": level, "sources": srcs[:8], "notes": f"Imported from {fname}."}
-    conf = re.search(r"\b(high|medium|low)\b", t)
+    conf = re.search(r"\b(high|medium|low)\b(?!-)", t)
     if conf:
         ev["confidence"] = conf.group(1)
     return ev

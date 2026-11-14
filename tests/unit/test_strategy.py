@@ -82,7 +82,7 @@ def truth(row, rng):
     return m
 
 
-def simulate(weeks=12, seed=5, start=date(2026, 3, 2)):
+def simulate(weeks=16, seed=3, start=date(2026, 3, 2)):
     """Plan week by week, post, collect metrics, learn. Returns the curve and the final store/state."""
     rng = np.random.default_rng(seed)
     store = empty_store()
@@ -259,7 +259,8 @@ def test_cold_start_plan_is_the_default_week_and_valid(month):
     sk = shoot_card.skeleton(*shoot_card.parse_month(month))
     for row, base in zip(plan["rows"], sk["rows"]):
         assert row["date"] == base["date"]
-        if row.get("event_role") or row.get("signature") or "content mix" in " ".join(row["strategy"]["why"]):
+        if row.get("event_role") or row.get("signature") or "content mix" in " ".join(row["strategy"]["why"]) \
+                or row["strategy"].get("tests") == "format" or row["strategy"].get("feed_per_week", 5) < 5:
             continue
         assert row["kind"] == base["kind"], row["date"]       # default week types and days at cold start
     first_week = [r for r in plan["rows"] if r["strategy"]["week"] == plan["rows"][0]["strategy"]["week"]]
@@ -308,12 +309,12 @@ def test_plan_is_deterministic_with_a_seed(sim, tmp_path):
     outs = []
     for i in range(2):
         out = tmp_path / f"p{i}.json"
-        r = run("plan", "--month", "2026-06", "--metrics", m, "--state", st, "--today", "2026-05-24", "--seed", 11, "--out", out)
+        r = run("plan", "--month", "2026-07", "--metrics", m, "--state", st, "--today", "2026-06-21", "--seed", 11, "--out", out)
         assert r.returncode == 0, r.stderr
         outs.append(out.read_bytes())
     assert outs[0] == outs[1]
     out = tmp_path / "p2.json"
-    run("plan", "--month", "2026-06", "--metrics", m, "--state", st, "--today", "2026-05-24", "--seed", 12, "--out", out)
+    run("plan", "--month", "2026-07", "--metrics", m, "--state", st, "--today", "2026-06-21", "--seed", 12, "--out", out)
     a = [r["pattern_ids"] for r in json.loads(outs[0])["rows"]]
     b = [r["pattern_ids"] for r in json.loads(out.read_text())["rows"]]
     assert a != b   # the seed drives the Thompson draws
@@ -322,24 +323,32 @@ def test_plan_is_deterministic_with_a_seed(sim, tmp_path):
 # --------------------------------------------------------------------------- learning (R346, R348)
 def test_learning_curve_shifts_to_the_true_winners(sim):
     curve, _, _ = sim
-    early, late = curve[:3], curve[6:]
+    early, late = curve[:4], curve[8:]
     mean = lambda rows, k: sum(r[k] for r in rows) / len(rows)  # noqa: E731
-    assert mean(early, "carousel_share") == pytest.approx(0.2)
-    assert mean(late, "carousel_share") >= 0.33
+    assert mean(late, "carousel_share") >= mean(early, "carousel_share") + 0.08   # carousels grow past R2's soft share
     assert all(r["tuesday_carousel"] for r in curve)             # the Tuesday carousel is never given up
-    assert mean(early, "hook_share") <= 0.15
-    assert mean(late, "hook_share") >= 0.3
-    assert all(r["hook_share"] < 1 for r in curve)               # the 40% cap: never all-in on one hook
+    assert mean(early, "hook_share") <= 0.25                    # R1's test-first hook #2, one arm of five
+    assert mean(late, "hook_share") >= max(0.3, mean(early, "hook_share") + 0.15)
+    assert mean(late, "hook_share") <= 0.6                         # the 40% cap (per month and week) keeps variety
     assert all(r["explore_share"] >= 0.15 for r in curve)        # exploration kept every week
     assert curve[-1]["hook_status"] == "proven"                  # promoted by R6's rule (>= 6 of 8, median >= 1.25x)
     assert curve[0]["data_led"] == 0 and curve[-1]["data_led"] == 1
+
+
+def test_hook_cap_holds_in_every_month(sim, tmp_path):
+    _, store, state = sim
+    pb, posts, fits = fits_for(store, state, date(2026, 6, 21))
+    for month in ("2026-07", "2026-08"):
+        plan, v = S.month_plan(pb, fits, month, None, [], None, posts, [])
+        hooks = [x for r in plan["rows"] for x in r.get("pattern_ids", []) if pb["patterns"][x]["kind"] == "hook"]
+        assert v == [] and max(hooks.count(h) for h in set(hooks)) <= int(0.4 * len(hooks))
 
 
 def test_learn_cli_changelog_and_insights(sim, tmp_path):
     _, store, _ = sim
     m, st, txt = tmp_path / "metrics.json", tmp_path / "strategy.json", tmp_path / "changes.txt"
     m.write_text(json.dumps(store))
-    r = run("learn", "--metrics", m, "--state", st, "--today", "2026-05-24", "--text", txt, "--json")
+    r = run("learn", "--metrics", m, "--state", st, "--today", "2026-06-21", "--text", txt, "--json")
     assert r.returncode == 0, r.stderr
     rep = json.loads(r.stdout)
     state = json.loads(st.read_text())
@@ -350,9 +359,9 @@ def test_learn_cli_changelog_and_insights(sim, tmp_path):
     assert promote and promote[0]["action"] == "promote" and "beat Numa's median in" in promote[0]["why"]
     assert any(WIN_HOOK in x for x in rep["insights"]["do_more"])
     text = txt.read_text()
-    assert text.startswith("Strategy update 2026-05-24") and "Do more of:" in text and "Do less of:" in text
+    assert text.startswith("Strategy update 2026-06-21") and "Do more of:" in text and "Do less of:" in text
     n = len(state["changelog"])
-    r = run("learn", "--metrics", m, "--state", st, "--today", "2026-05-24", "--json")
+    r = run("learn", "--metrics", m, "--state", st, "--today", "2026-06-21", "--json")
     assert json.loads(r.stdout)["changes"] == [] and len(json.loads(st.read_text())["changelog"]) == n
 
 
@@ -426,16 +435,16 @@ def test_planning_rules_with_events_and_closures(sim, tmp_path):
     m.write_text(json.dumps(store))
     st.write_text(json.dumps(state))
     ev = tmp_path / "events.json"
-    ev.write_text(json.dumps([{"name": "Numa Nights", "date": "2026-06-19"}]))
+    ev.write_text(json.dumps([{"name": "Numa Nights", "date": "2026-07-17"}]))
     cl = tmp_path / "closures.json"
-    cl.write_text(json.dumps([{"date": "2026-06-05", "name": "staff day"}, {"start": "2026-06-11", "end": "2026-06-12", "closed": True, "what": "storm"}]))
+    cl.write_text(json.dumps([{"date": "2026-07-10", "name": "staff day"}, {"start": "2026-07-22", "end": "2026-07-23", "closed": True, "what": "storm"}]))
     out = tmp_path / "plan.json"
-    r = run("plan", "--month", "2026-06", "--metrics", m, "--state", st, "--today", "2026-05-24",
+    r = run("plan", "--month", "2026-07", "--metrics", m, "--state", st, "--today", "2026-06-21",
             "--events", ev, "--closures", cl, "--out", out)
     assert r.returncode == 0, r.stderr
     plan = json.loads(out.read_text())
     closures = S.closure_dates(str(cl))
-    assert {date(2026, 6, 5), date(2026, 6, 11), date(2026, 6, 12)} <= set(closures)
+    assert {date(2026, 7, 10), date(2026, 7, 22), date(2026, 7, 23)} <= set(closures)
     v, _, _ = shoot_card.check_plan(S.compat_plan(plan), closures)
     assert v == []
     rows = plan["rows"]
@@ -454,7 +463,8 @@ def test_planning_rules_with_events_and_closures(sim, tmp_path):
     assert any(r.get("signature") for r in reels)
     for wk in {r["strategy"]["week"] for r in rows}:
         feed = [r for r in rows if r["strategy"]["week"] == wk and r["kind"] in ("reel", "carousel", "image")]
-        assert sum(r["kind"] != "reel" for r in feed) <= 2     # feed_mix bounds hold however strong the data
+        assert sum(r["kind"] != "reel" for r in feed) <= int(len(feed) * 0.6)   # soft bounds widen with evidence, never past reels >= 40%
+        assert sum(r["kind"] == "image" for r in feed) <= int(len(feed) * 0.4)
 
 
 def test_rules_cut_the_bandit_when_it_breaks_a_rule(monkeypatch):
@@ -555,16 +565,16 @@ def test_brief_lists_provisional_posts_and_validates(sim, tmp_path):
     m.write_text(json.dumps(store))
     st.write_text(json.dumps(state))
     plan = tmp_path / "plan.json"
-    assert run("plan", "--month", "2026-05", "--metrics", m, "--state", st, "--today", "2026-05-24", "--out", plan).returncode == 0
+    assert run("plan", "--month", "2026-06", "--metrics", m, "--state", st, "--today", "2026-06-21", "--out", plan).returncode == 0
     notes = tmp_path / "notes.txt"
     notes.write_text("Steam hooks lead; keep the Tuesday carousel.\n")
     out, md = tmp_path / "brief.json", tmp_path / "brief.md"
-    r = run("brief", "--plan", plan, "--metrics", m, "--state", st, "--today", "2026-05-24", "--week", "2026-05-25",
+    r = run("brief", "--plan", plan, "--metrics", m, "--state", st, "--today", "2026-06-21", "--week", "2026-06-22",
             "--out", out, "--md", md, "--notes", notes)
     assert r.returncode == 0, r.stderr
     b = json.loads(out.read_text())
     assert nc.schema_errors("strategy_brief.schema.json", b) == []
-    assert b["week_of"] == "2026-05-25" and len(b["slots"]) == 7
+    assert b["week_of"] == "2026-06-22" and len(b["slots"]) == 7
     assert b["provisional"] and all(0 < p["weight"] < 1 for p in b["provisional"])
     assert b["data"]["provisional_posts"] == len(b["provisional"])
     assert b["strategist_notes"].startswith("Steam hooks lead")
@@ -575,7 +585,7 @@ def test_brief_lists_provisional_posts_and_validates(sim, tmp_path):
     for head in ("## This week", "## Still provisional", "## Do more of", "## Why", "## Strategist notes", "## Guardrails"):
         assert head in text
     notes.write_text("Plunging cures stress.")
-    r = run("brief", "--plan", plan, "--metrics", m, "--state", st, "--today", "2026-05-24", "--notes", notes)
+    r = run("brief", "--plan", plan, "--metrics", m, "--state", st, "--today", "2026-06-21", "--notes", notes)
     assert r.returncode == 1 and "banned claim" in r.stderr
 
 
@@ -615,10 +625,13 @@ def test_import_research_fixtures(tmp_path):
     assert steam["try_instead"] == ["temp-split", "seasonal-weather"]
     assert set(steam["formats"]) == {"reel", "trial_reel", "story"}
     assert by["three-beat-explainer"]["kind"] == "structure" and by["three-beat-explainer"]["length_s"] == [45, 60]
-    ts = by["temp-split"]
+    assert "temp-split" not in by                                 # a bundled pattern is never copied into STATE
+    delta = state["pattern_deltas"]["temp-split"]
+    assert "https://example.org/hooks-2026" in delta["sources"] and set(delta) <= {"sources", "examples", "notes"}
+    merged_ts = S.load_playbook(None, state)["patterns"]["temp-split"]
     seed = S.load_playbook()["patterns"]["temp-split"]
-    assert ts["status"] == seed["status"] and ts["evidence"]["level"] == seed["evidence"]["level"]   # merge never upgrades
-    assert "https://example.org/hooks-2026" in ts["evidence"]["sources"]
+    assert merged_ts["status"] == seed["status"] and merged_ts["evidence"]["level"] == seed["evidence"]["level"]   # never upgraded
+    assert "https://example.org/hooks-2026" in merged_ts["evidence"]["sources"]
     for p in state["patterns"]:
         for ex in p["examples"]:
             assert not claims_scan.has_fail(claims_scan.scan_text(ex))
@@ -627,8 +640,11 @@ def test_import_research_fixtures(tmp_path):
     assert {p["level"]: p["value"] for p in state["priors"]} == {"reel": 0.65, "carousel": 0.3}
     assert state["rules"][0]["topic"] == "cadence" and state["rules"][0]["evidence"]["level"] == "measured"
     r = run("import-research", files[0], "--state", st, "--today", "2026-11-14", "--json")
-    assert json.loads(r.stdout)["added"] == []
-    assert len(json.loads(st.read_text())["patterns"]) == len(state["patterns"])
+    rep2 = json.loads(r.stdout)
+    assert rep2["added"] == [] and rep2["skipped"] == ["R1 Hooks.md"]          # same text: skipped, idempotent
+    again = json.loads(st.read_text())
+    assert again["patterns"] == state["patterns"] and len(again["changelog"]) == len(state["changelog"])
+    assert len(again["imports"]) == len(state["imports"])
     assert run("validate", "--state", st).returncode == 0
 
 

@@ -1,5 +1,5 @@
 {
-  "_readme": "Numa's pattern library: 31 hook patterns (docs/research/R1_Hooks.md), 16 script structures (R3), 12 carousel templates and 9 single-photo types (R4), plus CTA, offer-framing and growth seeds (spec and the developer-kit research). Seeded by strategy.py's research importer and corrected by docs/research/REVIEW.md, where Numa's facts and rules win: 'Numa' never 'NUMA', plunges 44-52°F and sauna 175-190°F, no stated sauna capacity, no Clinical Conversations (cancelled), no emojis, no trending songs (trend-audio-sync became beat-sync-original-sound), member words photo-led only (no quote cards), no unconfirmed amenities (robes, tea, lockers), R4's yoga-studio copy replaced (its slide structure kept). owner_signal records what the owners' own posts showed (real people, collabs, walk-out lines, event recaps and member testimony worked; graphics and posters flopped): those priors count more than research. Hook priority follows R1's 'The 10 to Test First' (those and the owners' winners start as testing, the rest as candidates, so 3-5 arms are tested at a time, R6). No seed is 'proven': that is earned only from Numa's own posts (strategy.py learn). Every example and template passes claims_scan.py (tests/unit/test_strategy.py). This file changes only with a plugin release; learned statuses live in STATE/strategy.json.",
+  "_readme": "Numa's pattern library: 32 hook patterns (docs/research/R1_Hooks.md; one retired), 16 script structures (R3), 12 carousel templates and 9 single-photo types (R4), plus CTA, offer-framing and growth seeds (spec and the developer-kit research). Seeded by strategy.py's research importer and corrected by docs/research/REVIEW.md, where Numa's facts and rules win: 'Numa' never 'NUMA', plunges 44-52°F and sauna 175-190°F, no stated sauna capacity, no Clinical Conversations (cancelled), no emojis, no trending songs (trend-audio-sync became beat-sync-original-sound), member words photo-led only (no quote cards), no unconfirmed amenities (robes, tea, lockers), R4's yoga-studio copy replaced (its slide structure kept). owner_signal records what the owners' own posts showed (real people, collabs, walk-out lines, event recaps and member testimony worked; graphics and posters flopped): those priors count more than research. Hook priority follows R1's 'The 10 to Test First' (those and the owners' winners start as testing, the rest as candidates, so 3-5 arms are tested at a time, R6). No seed is 'proven': that is earned only from Numa's own posts (strategy.py learn). Every example and template passes claims_scan.py (tests/unit/test_strategy.py). This file changes only with a plugin release; learned statuses live in STATE/strategy.json.",
   "schema_version": 1,
   "kind": "patterns",
   "patterns": [
@@ -23,7 +23,7 @@
       "evidence": {
         "level": "observed",
         "sources": [
-          "Remedy Place plunge videos at 2.7M–2.8M TikTok views, and Business of Fashion says some #6minuteclub videos have \"over 10 million views.\" Robb Report describes \"shock on their faces\" as the draw.  mechanism: skip rate covers the first 3 seconds (Instagram, August 2025"
+          "Remedy Place plunge videos at 2.7M–2.8M TikTok views, and Business of Fashion says some #6minuteclub videos have \"over 10 million views.\" Robb Report describes \"shock on their faces\" as the draw. Measured mechanism: skip rate covers the first 3 seconds (Instagram, August 2025)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -99,7 +99,7 @@
       "evidence": {
         "level": "observed",
         "sources": [
-          "Remedy Place's #6minuteclub turns time-in-water into a shareable achievement; Business of Fashion quotes it as \"a very shareable moment.\"  mechanism: watch time is a top-3 signal (Mosseri, January 2025"
+          "Remedy Place's #6minuteclub turns time-in-water into a shareable achievement; Business of Fashion quotes it as \"a very shareable moment.\" Measured mechanism: watch time is a top-3 signal (Mosseri, January 2025)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -131,7 +131,7 @@
       "evidence": {
         "level": "observed",
         "sources": [
-          "Othership's towel-waving explainer got about 10× its normal likes (1,002 vs 49–122). : practitioner guides recommend opening on a sharp sound in the first half second"
+          "Othership's towel-waving explainer got about 10× its normal likes (1,002 vs 49–122). Opinion: practitioner guides recommend opening on a sharp sound in the first half second"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -160,7 +160,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "practitioner guides, e.g. PromptsLove's scan of 79 outlier Reels). Caution: the oft-cited muted-viewing figures trace to a May 2016 Digiday report on Facebook, not Instagram, where publishers self-reported about 85% soundless views (PopSugar: 50–80%), so the text overlay is mandatory"
+          "(practitioner guides, e.g. PromptsLove's scan of 79 outlier Reels). Caution: the oft-cited muted-viewing figures trace to a May 2016 Digiday report on Facebook, not Instagram, where publishers self-reported about 85% soundless views (PopSugar: 50–80%), so the text overlay is mandatory"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -193,7 +193,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "widespread creator format). : SweatHouz creator UGC leans on \"first visit\" walk-throughs"
+          "(widespread creator format). Observed: SweatHouz creator UGC leans on \"first visit\" walk-throughs"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -225,7 +225,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "practitioners list \"split screen before/after\" as a no-words visual hook). Uses  facts NUMA controls (its own temperatures), which keeps it FTC-safe"
+          "(practitioners list \"split screen before/after\" as a no-words visual hook). Uses measured facts Numa controls (its own temperatures), which keeps it FTC-safe"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -258,7 +258,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "practitioners: put the promise first). : Metricool found posts with CTAs get 203% more comments, so end with \"drop your question.\""
+          "(practitioners: put the promise first). Measured: Metricool found posts with CTAs get 203% more comments, so end with \"drop your question.\""
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -330,7 +330,7 @@
       "evidence": {
         "level": "observed",
         "sources": [
-          "Bathhouse's own \"Bathhouse vs spa, what's the difference?\" overlay hook. Othership positions itself as social, not silent.  numbers on brand posts (85 likes) suggest it works better voiced by people than by the brand"
+          "Bathhouse's own \"Bathhouse vs spa, what's the difference?\" overlay hook. Othership positions itself as social, not silent. Low numbers on brand posts (85 likes) suggest it works better voiced by people than by the brand"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win).",
         "confidence": "low"
@@ -366,7 +366,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "direct-response practice).  context: Metricool found CTA posts get 92% more saves. FTC: state offer terms clearly (new clients, one month"
+          "(direct-response practice). Measured context: Metricool found CTA posts get 92% more saves. FTC: state offer terms clearly (new clients, one month)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -402,7 +402,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "mechanism: sends weigh more for non-follower reach (Mosseri). \"Mobile\" in text and caption helps location relevance (Mosseri has said hashtags help Instagram understand topic, not raise reach"
+          "Measured mechanism: sends weigh more for non-follower reach (Mosseri). \"Mobile\" in text and caption helps location relevance (Mosseri has said hashtags help Instagram understand topic, not raise reach)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -517,7 +517,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "Frame 1 has the highest Story exit rate (23.8%, Socialinsider).  on the sticker"
+          "Frame 1 has the highest Story exit rate (23.8%, Socialinsider). Opinion on the sticker"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -554,6 +554,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
+          "FTC: expert endorsements are treated as the advertiser's own claims, so clip only questions, framing and logistics, never efficacy statements",
           "docs/research/R1_Hooks.md #16",
           "docs/research/REVIEW.md (Clinical Conversations cancelled for now)"
         ],
@@ -586,7 +587,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "mechanism. Sends per reach is the key signal for unconnected reach (Mosseri, January 2025). Reels hold the highest share rate (0.10%, Socialinsider). The pattern itself"
+          "mechanism. Sends per reach is the key signal for unconnected reach (Mosseri, January 2025). Reels hold the highest share rate (0.10%, Socialinsider). The pattern itself: opinion"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -686,7 +687,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "format effect. Carousels earn 9× the saves of single images (Metricool 2026). The pattern"
+          "format effect. Carousels earn 9× the saves of single images (Metricool 2026). The pattern: opinion"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -717,7 +718,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "number-list hooks are a staple practitioner pattern). : carousel save rate leads"
+          "(number-list hooks are a staple practitioner pattern). Measured: carousel save rate leads"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -751,7 +752,7 @@
       "evidence": {
         "level": "observed",
         "sources": [
-          "Creator/guest voices outperform brand voices at Bathhouse and SweatHouz. FTC: testimonials are the advertiser's claims, so edit out any health outcome (\"my back pain is gone\""
+          "Creator/guest voices outperform brand voices at Bathhouse and SweatHouz. FTC: testimonials are the advertiser's claims, so edit out any health outcome (\"my back pain is gone\")"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -790,7 +791,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "behind-the-scenes is a common recommendation). Socialinsider notes Reels fit \"authentic behind-the-scenes glimpses.\""
+          "(behind-the-scenes is a common recommendation). Socialinsider notes Reels fit \"authentic behind-the-scenes glimpses.\""
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -823,7 +824,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "practitioners: \"show the finished result in frame one\"). FTC: show a mood, not a medical before/after"
+          "(practitioners: \"show the finished result in frame one\"). FTC: show a mood, not a medical before/after"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -857,7 +858,7 @@
       "evidence": {
         "level": "observed",
         "sources": [
-          "Othership grew from an app and Zoom breathwork community that pairs music with breath. Pattern"
+          "Othership grew from an app and Zoom breathwork community that pairs music with breath. Pattern: opinion"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -889,7 +890,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "pattern-interrupt theory). There is a risk: most data favors motion at frame 0 (practitioners argue \"motion in frame 1\""
+          "(pattern-interrupt theory). There is a risk: most data favors motion at frame 0 (practitioners argue \"motion in frame 1\")"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -920,7 +921,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "carousels lead engagement (0.55% in 2025, Socialinsider"
+          "Measured: carousels lead engagement (0.55% in 2025, Socialinsider)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -955,7 +956,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "SweatHouz franchisees report customers who \"don't have a fitness routine.\""
+          "Observed: SweatHouz franchisees report customers who \"don't have a fitness routine.\""
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1024,6 +1025,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
+          "Robb Report credits Remedy Place's \"spunky music\" with the entertainment value. Remedy uses tracks like \"Remember the Name.\"",
           "docs/research/R1_Hooks.md #30 (trend audio, observed) rewritten per docs/research/REVIEW.md music rule"
         ],
         "notes": "R1's evidence is for trending audio, which Numa can't use; the licensed-music version is untested.",
@@ -1057,7 +1059,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "Instagram \"will often give that carousel a second chance and automatically move to that second piece of media\" (Mosseri"
+          "Instagram \"will often give that carousel a second chance and automatically move to that second piece of media\" (Mosseri)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1087,7 +1089,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "context. Frame-1 Story exit is 23.8% (Socialinsider). Interactive stickers give a tap reason. Pattern"
+          "context. Frame-1 Story exit is 23.8% (Socialinsider). Interactive stickers give a tap reason. Pattern: opinion"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1117,7 +1119,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Sends weighted for unconnected reach (**OS**, Mosseri January 2025). Numbered-list structure (**PC**). Myths must be about the *experience*, not physiology; \"myth: cold plunges speed recovery\" framed either way is a health claim needing RCT-level substantiation (**OS**, FTC 2022"
+          "Sends weighted for unconnected reach (**OS**, Mosseri January 2025). Numbered-list structure (**PC**). Myths must be about the *experience*, not physiology; \"myth: cold plunges speed recovery\" framed either way is a health claim needing RCT-level substantiation (**OS**, FTC 2022)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1164,7 +1166,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "Sends per reach is a top signal (**OS**). Short loops drive rewatches, and replays count as views and watch time (**OS**, Instagram help definitions). Sketch performance in local wellness is unmeasured (**AN**). Cast staff or friends who have consented. If the \"friend\" is staff, don't present it as "
+          "Sends per reach is a top signal (**OS**). Short loops drive rewatches, and replays count as views and watch time (**OS**, Instagram help definitions). Sketch performance in local wellness is unmeasured (**AN**). Cast staff or friends who have consented. If the \"friend\" is staff, don't present it as a real customer testimonial (**OS**, 2024 FTC rule on insider testimonials)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1207,7 +1209,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "Authenticity is consistently ranked first in what consumers want from brands; Sprout's 2022 Index found 39% want real customer testimonials or demos (**LS** survey). The FTC requires disclosure of material connections (a comped session) and bars outcome claims in testimonials without substantiation "
+          "Authenticity is consistently ranked first in what consumers want from brands; Sprout's 2022 Index found 39% want real customer testimonials or demos (**LS** survey). The FTC requires disclosure of material connections (a comped session) and bars outcome claims in testimonials without substantiation (**OS**). Do not keep a \"my soreness was gone\" line in the edit"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1256,12 +1258,12 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Socialinsider's 45–60 s bracket leads on engagement rate and median views (**LS**, H1 2026). Buffer's reach data shows little difference below 90 s (**LS**). \"Time-stamped walkthrough\" is practitioner-recommended for saves (**PC**). Describe the process, not effects (**OS**, FTC"
+          "Socialinsider's 45–60 s bracket leads on engagement rate and median views (**LS**, H1 2026). Buffer's reach data shows little difference below 90 s (**LS**). \"Time-stamped walkthrough\" is practitioner-recommended for saves (**PC**). Describe the process, not effects (**OS**, FTC)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
       "status": "candidate",
-      "when_not": "Failure signs and fix: Saves under ~3 per 1K means it reads as a promo, not a reference; add specifics like times, what to bring and price. Steep slope at 20–30 s means you're narrating what viewers can already see; cut words and let the visuals carry (target ~2.3 wps). High skip rate means \"here's what happens\" is generic; lead with a surprising detail (\"no phones for 60 minutes\").",
+      "when_not": "Failure signs and fix: Saves under ~3 per 1K means it reads as a promo, not a reference; add specifics like times, what to bring and price. Steep slope at 20–30 s means you're narrating what viewers can already see; cut words and let the visuals carry (target ~2.3 wps). High skip rate means \"here's what happens\" is generic; lead with a surprising detail (\"phones stay out of the sauna\").",
       "try_instead": [],
       "origin": "seed",
       "length_s": [
@@ -1303,7 +1305,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Before/after transformations are a top practitioner format (**PC**). For a wellness business, the \"transformation\" must be the *schedule or setting*, not a body, symptom, mood disorder or performance metric. Before/after body or health claims require RCT-level substantiation (**OS**, FTC 2022). \"Cal"
+          "Before/after transformations are a top practitioner format (**PC**). For a wellness business, the \"transformation\" must be the *schedule or setting*, not a body, symptom, mood disorder or performance metric. Before/after body or health claims require RCT-level substantiation (**OS**, FTC 2022). \"Calm\" as a description of the *space* is a much safer framing than \"reduces stress.\""
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1344,7 +1346,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Likes matter more for connected (follower) reach (**OS**). Day-in-the-life drives follows and community (**PC**). Sprout's 2025 Index puts authenticity and relatability at the top of what consumers want (**LS** survey). This is -risk on FTC grounds; keep staff opinions about the *job and space*"
+          "Likes matter more for connected (follower) reach (**OS**). Day-in-the-life drives follows and community (**PC**). Sprout's 2025 Index puts authenticity and relatability at the top of what consumers want (**LS** survey). This is low-risk on FTC grounds; keep staff opinions about the *job and space*"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win).",
         "confidence": "low"
@@ -1391,7 +1393,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Process and BTS content is practitioner-favoured for trust (**PC**). Make hygiene claims only if they're literally true and documented. Avoid \"sterile\" or \"germ-free\" unless substantiated (**OS**, FTC general substantiation principle"
+          "Process and BTS content is practitioner-favoured for trust (**PC**). Make hygiene claims only if they're literally true and documented. Avoid \"sterile\" or \"germ-free\" unless substantiated (**OS**, FTC general substantiation principle)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1404,7 +1406,7 @@
         35.0
       ],
       "beats": [
-        "Hook (0–2 s): Text: \"What happens in the 15 min between sessions\". Overhead time-lapse start.",
+        "Hook (0–2 s): Text: \"What happens between sessions\". Overhead time-lapse start.",
         "Payoff (22–27 s): Clean, empty, lit room, held for 2 s.",
         "Save line (27–30 s): Text: \"Save this for when you book: we reset every room, every time.\""
       ],
@@ -1436,7 +1438,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Absolute seconds watched matter, so a 60–90 s story is not penalized if retained (**OS**, Mosseri). Buffer finds 90–179 s Reels get slightly more reach against baseline (**LS**). Socialinsider shows engagement steady from 30 s to 3 min (**LS**). Founder content is mainly a follow and affinity play ("
+          "Absolute seconds watched matter, so a 60–90 s story is not penalized if retained (**OS**, Mosseri). Buffer finds 90–179 s Reels get slightly more reach against baseline (**LS**). Socialinsider shows engagement steady from 30 s to 3 min (**LS**). Founder content is mainly a follow and affinity play (**PC**)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1481,7 +1483,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "Promotional and offer content gets lower organic distribution than value content, and contest or giveaway promotion limits recommendations (**OS**, creator FAQ). Meta's engagement-bait definition exempts \"a specific call to action,\" so a keyword DM tied to receiving times is defensible, but how it's"
+          "Promotional and offer content gets lower organic distribution than value content, and contest or giveaway promotion limits recommendations (**OS**, creator FAQ). Meta's engagement-bait definition exempts \"a specific call to action,\" so a keyword DM tied to receiving times is defensible, but how it's classified is unclear (**OS** plus thin). Any scarcity claim (\"booked out\") must be true (**OS**, FTC deception standard)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1526,7 +1528,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Sends dominate unconnected reach (**OS**). Metricool finds ~65% of a Reel's views land in the first 72 hours (**LS**), so post teasers 5–10 days out and again at 48 hours. Event teasers are a practitioner staple (**PC**"
+          "Sends dominate unconnected reach (**OS**). Metricool finds ~65% of a Reel's views land in the first 72 hours (**LS**), so post teasers 5–10 days out and again at 48 hours. Event teasers are a practitioner staple (**PC**)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1618,7 +1620,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Saves come from reference-style utility (**PC**). Carousels out-engage Reels per viewer (Buffer, **LS**), so also publish this as a carousel and cross-link. Dash Social's wellness saves-per-reach (~7.6 per 1K, derived) is relatively , which suggests wellness audiences do save (**LS**, derived"
+          "Saves come from reference-style utility (**PC**). Carousels out-engage Reels per viewer (Buffer, **LS**), so also publish this as a carousel and cross-link. Dash Social's wellness saves-per-reach (~7.6 per 1K, derived) is relatively high, which suggests wellness audiences do save (**LS**, derived)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win).",
         "confidence": "high"
@@ -1662,7 +1664,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "Replays are included in views and watch time (**OS**, Instagram definitions). Socialinsider shows sub-30 s Reels have the lowest median views (4,700) and engagement (0.28%) (**LS**), so loops are a supporting format, not the backbone.  risk for FTC"
+          "Replays are included in views and watch time (**OS**, Instagram definitions). Socialinsider shows sub-30 s Reels have the lowest median views (4,700) and engagement (0.28%) (**LS**), so loops are a supporting format, not the backbone. Low risk for FTC"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win).",
         "confidence": "low"
@@ -1709,7 +1711,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Identity and personality content drives sends (**PC**). The engagement-bait line is crossed by unrelated asks (\"comment YES\"), while a genuine question is allowed (**OS**, Meta definition). Traits must be personality jokes, never physiological benefits (\"plunge person recovers faster\" is a claim"
+          "Identity and personality content drives sends (**PC**). The engagement-bait line is crossed by unrelated asks (\"comment YES\"), while a genuine question is allowed (**OS**, Meta definition). Traits must be personality jokes, never physiological benefits (\"plunge person recovers faster\" is a claim)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1753,7 +1755,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "Instagram's creator FAQ recommends replying to comments. Buffer data scientist Julian Winternheimer's fixed-effects analysis of 700,000+ Instagram posts from ~68,000 accounts found that \"posts where creators replied to comments saw about 21% higher engagement on average — even after controlling for "
+          "Instagram's creator FAQ recommends replying to comments. Buffer data scientist Julian Winternheimer's fixed-effects analysis of 700,000+ Instagram posts from ~68,000 accounts found that \"posts where creators replied to comments saw about 21% higher engagement on average — even after controlling for whether the post had comments at all\" (**OS** plus **LS**). Saying \"we can't give medical advice\" also protects against implied-claim drift (**OS**, FTC principles)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1800,7 +1802,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Local identity and itinerary formats are practitioner-endorsed for sends (**PC**). Collab posts reach both audiences (**PC**; Instagram notes Insights don't yet fully support collab posts). If partners pay or barter, disclose the material connection (**OS**, Endorsement Guides"
+          "Local identity and itinerary formats are practitioner-endorsed for sends (**PC**). Collab posts reach both audiences (**PC**; Instagram notes Insights don't yet fully support collab posts). If partners pay or barter, disclose the material connection (**OS**, Endorsement Guides)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1849,7 +1851,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Educational/what-to-expect content is what consumers most want (Sprout Q1 2026, 40%). Studio vendors cite first-visit anxiety as a conversion barrier (Anecdotal"
+          "Educational/what-to-expect content is what consumers most want (Sprout Q1 2026, 40%). Studio vendors cite first-visit anxiety as a conversion barrier (Anecdotal)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1891,7 +1893,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Saves are highest on carousels (Socialinsider, Moderate). A save ask fits reference content (Anecdotal"
+          "Saves are highest on carousels (Socialinsider, Moderate). A save ask fits reference content (Anecdotal)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1926,7 +1928,7 @@
       "evidence": {
         "level": "observed",
         "sources": [
-          "Faces lift likes and comments (Georgia Tech, Moderate). Content from front-line employees is wanted by 16% of consumers (Sprout Q1 2026"
+          "Faces lift likes and comments (Georgia Tech, Moderate). Content from front-line employees is wanted by 16% of consumers (Sprout Q1 2026)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -1972,7 +1974,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "Sends are a named ranking signal, especially for non-followers (Mosseri, Strong"
+          "Sends are a named ranking signal, especially for non-followers (Mosseri, Strong)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2008,7 +2010,7 @@
       "evidence": {
         "level": "observed",
         "sources": [
-          "Educational content about services is the #1 thing consumers want (Sprout). Carousels with more slides tend to get more reach (Socialinsider, Moderate"
+          "Educational content about services is the #1 thing consumers want (Sprout). Carousels with more slides tend to get more reach (Socialinsider, Moderate)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2042,7 +2044,7 @@
       "evidence": {
         "level": "observed",
         "sources": [
-          "Behind-the-scenes content is wanted by 19% of consumers (26% of Gen Z) (Sprout Q1 2026). Photo-led carousels suit wellness (Rival IQ H&B photo finding, Moderate"
+          "Behind-the-scenes content is wanted by 19% of consumers (26% of Gen Z) (Sprout Q1 2026). Photo-led carousels suit wellness (Rival IQ H&B photo finding, Moderate)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2074,7 +2076,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "16 CFR 255.2 (Strong). Testimonials must be real, from real customers, and unedited in meaning (16 CFR 465, Strong"
+          "16 CFR 255.2 (Strong). Testimonials must be real, from real customers, and unedited in meaning (16 CFR 465, Strong)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2113,7 +2115,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Practical, specific info drives saves (Anecdotal). 3:4 frames fill the grid (Strong"
+          "Practical, specific info drives saves (Anecdotal). 3:4 frames fill the grid (Strong)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2146,7 +2148,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "Clear negative-option disclosure (ROSCA and state laws, Strong). Bona fide regular price (16 CFR 233.1, Strong"
+          "Clear negative-option disclosure (ROSCA and state laws, Strong). Bona fide regular price (16 CFR 233.1, Strong)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2183,7 +2185,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Educational content is preferred (Sprout). Specific DM-driven questions are relevant to your own audience (Anecdotal"
+          "Educational content is preferred (Sprout). Specific DM-driven questions are relevant to your own audience (Anecdotal)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2216,7 +2218,7 @@
       "evidence": {
         "level": "observed",
         "sources": [
-          "Community content is the #2 type consumers want (27%, Sprout). Photo-dump carousels with more slides tend toward more reach (Socialinsider, Moderate"
+          "Community content is the #2 type consumers want (27%, Sprout). Photo-dump carousels with more slides tend toward more reach (Socialinsider, Moderate)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2281,7 +2283,7 @@
       "evidence": {
         "level": "observed",
         "sources": [
-          "Faces +38% likes, +32% comments (Georgia Tech, Moderate"
+          "Faces +38% likes, +32% comments (Georgia Tech, Moderate)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2313,7 +2315,7 @@
       "evidence": {
         "level": "observed",
         "sources": [
-          "Rival IQ shows photos lead in Health & Beauty (Moderate"
+          "Rival IQ shows photos lead in Health & Beauty (Moderate)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2343,7 +2345,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Anecdotal (aesthetic posts tend to get likes but rarely sends"
+          "Anecdotal (aesthetic posts tend to get likes but rarely sends)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2401,7 +2403,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Behind-the-scenes demand is 19% overall, 26% for Gen Z (Sprout Q1 2026"
+          "Behind-the-scenes demand is 19% overall, 26% for Gen Z (Sprout Q1 2026)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2430,7 +2432,7 @@
       "evidence": {
         "level": "measured",
         "sources": [
-          "16 CFR 255.2 and 255.5, 16 CFR 465 (Strong"
+          "16 CFR 255.2 and 255.5, 16 CFR 465 (Strong)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2460,7 +2462,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Same reassurance logic as C1 (Anecdotal"
+          "Same reassurance logic as C1 (Anecdotal)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2522,7 +2524,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "Anecdotal. Location tags help local search (folklore, untested"
+          "Anecdotal. Location tags help local search (folklore, untested)"
         ],
         "notes": "Seeded from docs/research (corrected by docs/research/REVIEW.md: Numa's facts win)."
       },
@@ -2558,7 +2560,7 @@
       "evidence": {
         "level": "opinion",
         "sources": [
-          "research/4-mobile-competitor-audit.md (lead with the $49 Discover NUMA month as a pinned reel and highlight)"
+          "research/4-mobile-competitor-audit.md (lead with the $49 Discover Numa month as a pinned reel and highlight)"
         ],
         "confidence": "low"
       },
