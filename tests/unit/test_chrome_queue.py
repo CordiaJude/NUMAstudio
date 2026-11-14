@@ -207,34 +207,65 @@ def test_every_kind_is_accepted(q):
     assert set(chrome_queue.POSTING_KINDS) == {"trial_reel", "collab_invite", "ai_label"}
 
 
-def test_merge_with_drive_copy(q, tmp_path):
+def _upload(files, drive):
+    for f in files:
+        (drive / f.rsplit("/", 1)[-1]).write_text(open(f).read())
+
+
+def test_per_item_files_and_merge_dir(q, tmp_path):
+    """N3: each item is its own Drive file; two runs adding at the same moment never drop each other's item."""
+    drive = tmp_path / "drive_queue"
+    drive.mkdir()
+    a = add(q, payload={"job": "A"})
+    assert a["files"] == [str(q.state / "chrome_queue" / f"{a['item']['id']}.json")]
+    _upload(a["files"], drive)
+    other = tmp_path / "other"                                  # a second machine, same Drive starting point
+    assert run(["merge-dir", str(drive), "--state", str(other)]) == 0
+    capsys_add = run(["add", "--kind", "ai_label", "--payload", '{"job": "B"}', "--deadline", "2026-12-10T17:00",
+                      "--fallback", "stays staged", "--state", str(other)])
+    assert capsys_add == 0
+    _upload([str(f) for f in (other / "chrome_queue").glob("ai_label-*.json")], drive)
+    c = add(q, payload={"job": "C"})                            # this machine uploads only its own new item
+    assert c["files"] == [str(q.state / "chrome_queue" / f"{c['item']['id']}.json")]
+    _upload(c["files"], drive)
+    out = q("merge-dir", str(drive), "--json")
+    assert out["items"] == 3 and out["added"] == 1
+    assert {i["payload"]["job"] for i in q("list", "--json")["items"]} == {"A", "B", "C"}
+    claimed = claim(q)
+    assert claimed["files"] == [str(q.state / "chrome_queue" / f"{claimed['item']['id']}.json")]
+    (drive / "junk.json").write_text("{bad")
+    assert q("merge-dir", str(drive), "--json")["skipped"] == 1
+    q("merge-dir", str(tmp_path / "missing"), code=1)          # a failed download is never "absent"
+
+
+def test_merge_rules_with_drive_copy(q, tmp_path):
     a = add(q, payload={"job": "A"})
     b = add(q, payload={"job": "B"})
     c = add(q, payload={"job": "C"})
-    claim(q, RUN_B, "2026-12-10T09:05:00-06:00")  # local claim of A (earliest deadline, added first)
-    q("expire", "--run", NIGHT, "--now", "2026-12-11T00:00:00-06:00", "--margin-minutes", "0")  # local: B, C expired
-    drive = json.loads((q.state / "chrome_queue.json").read_text())
-    items = {i["id"]: i for i in drive["items"]}
-    items[a["item"]["id"]].update(status="in_progress", claimed_by=RUN_A, claimed_at="2026-12-10T15:00:00Z")
-    items[b["item"]["id"]].update(status="done", result="posted", done_at="2026-12-10T22:00:00Z", expired_at=None)
-    items[c["item"]["id"]].update(status="pending", attempts=2, expired_at=None)
-    drive["items"].append({**items[c["item"]["id"]], "id": "collab_invite-x", "kind": "collab_invite",
-                           "payload": {"job": "D"}, "attempts": 0})
-    f = tmp_path / "drive_queue.json"
-    f.write_text(json.dumps(drive))
-    # make the local claim of A the later one
     local = json.loads((q.state / "chrome_queue.json").read_text())
-    for i in local["items"]:
+    drive = tmp_path / "drive_queue"
+    drive.mkdir()
+    items = {i["id"]: dict(i) for i in local["items"]}
+    items[a["item"]["id"]].update(status="in_progress", claimed_by=RUN_A, claimed_at="2026-12-10T15:00:00Z")
+    items[b["item"]["id"]].update(status="done", result="posted", done_at="2026-12-10T22:00:00Z", claimed_by=RUN_A)
+    items[c["item"]["id"]].update(attempts=2)
+    for i in items.values():
+        (drive / f"{i['id']}.json").write_text(json.dumps(i))
+    (drive / "collab_invite-x.json").write_text(json.dumps({**items[c["item"]["id"]], "id": "collab_invite-x",
+                                                            "kind": "collab_invite", "payload": {"job": "D"},
+                                                            "attempts": 0}))
+    for i in local["items"]:                                   # local: a later claim of A, B and C expired
         if i["id"] == a["item"]["id"]:
             i.update(status="in_progress", claimed_by=RUN_B, claimed_at="2026-12-10T15:05:00Z")
+        else:
+            i.update(status="expired", expired_at="2026-12-11T02:00:00Z", expired_by=NIGHT)
     (q.state / "chrome_queue.json").write_text(json.dumps(local))
-    out = q("merge", str(f), "--json")
+    out = q("merge-dir", str(drive), "--json")
     assert out["added"] == 1 and out["items"] == 4 and out["conflicts"] == 1
     got = {i["id"]: i for i in q("list", "--status", "all", "--json")["items"]}
     assert got[a["item"]["id"]]["claimed_by"] == RUN_A                 # the earlier claim wins
     assert got[b["item"]["id"]]["status"] == "conflict"                # done there, expired here
     assert got[c["item"]["id"]]["status"] == "expired" and got[c["item"]["id"]]["attempts"] == 2
-    q("merge", str(tmp_path / "none.json"), code=1)
 
 
 def test_bad_queue_file(q):
