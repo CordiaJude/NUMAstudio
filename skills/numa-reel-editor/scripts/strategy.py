@@ -1857,6 +1857,16 @@ def parse_evidence(text: str, fname: str, sources: list[str]) -> dict:
     return ev
 
 
+EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B50\u23F0-\u23FF\uFE0F]")
+
+
+def brand_text(text: str) -> str:
+    """REVIEW.md corrections every import applies: 'Numa' never 'NUMA', 'Discover Numa', no emojis."""
+    t = EMOJI.sub("", str(text))
+    t = re.sub(r"\bNUMA(?! Studio)\b", "Numa", t)
+    return re.sub(r"[ \t]{2,}", " ", t).strip()
+
+
 def parse_formats(text: str) -> list[str]:
     t = text.lower()
     out = []
@@ -2190,6 +2200,10 @@ class Importer:
         if f.get("failure"):
             f.setdefault("when_not", []).append("Failure signs and fix: " + " ".join(f["failure"]))
         where = f"{fname} pattern {pid}"
+        for key in ("template", "examples", "visual", "beats", "when_not"):
+            if f.get(key):
+                f[key] = [brand_text(x) for x in f[key]]
+        name = brand_text(name)
         examples = split_examples(f.get("examples", []))
         good, bad = [], []
         for ex in examples:
@@ -2197,16 +2211,16 @@ class Importer:
             (bad if hits else good).append((ex, hits))
         for ex, hits in bad:
             self.reject(f"{where} example \"{ex[:50]}\"", hits[0].line())
-        template = " ".join(f.get("template", [])).strip() or name
-        t_hits = [h for h in claims_scan.scan_text(template, where=f"{where} template") if h.severity == "fail"]
-        if t_hits:
-            self.reject(where, t_hits[0].line())
-            return
         good_ex = [ex for ex, _ in good][:6]
         ev = parse_evidence(" ".join(f.get("evidence", [])) + " " + " ".join(f.get("confidence", [])), fname, f.get("sources", []))
         existing = pid if pid in self.ids else (self.aliases.get(pid) or self.names.get((kind, norm_text(name))))
         if existing:
-            self.merge(existing, good_ex, ev, fname)
+            self.merge(existing, good_ex, ev, fname)      # sources and safe examples only
+            return
+        template = " ".join(f.get("template", [])).strip() or name
+        t_hits = [h for h in claims_scan.scan_text(template, where=f"{where} template") if h.severity == "fail"]
+        if t_hits:
+            self.reject(where, t_hits[0].line())
             return
         if not good_ex:
             self.reject(where, "no claims-safe example left")

@@ -69,14 +69,12 @@ def test_location_phone_hours(brand):
 
 
 def test_closures_next_six_months(brand):
-    known = v(brand, "closures.known")
-    closed = {(c["start"], c["end"]) for c in known if c["closed"]}
-    assert {("2026-11-25", "2026-11-27"), ("2026-12-24", "2026-12-25"), ("2027-01-01", "2027-01-01"),
-            ("2027-03-26", "2027-03-28")} <= closed
-    nye = [c for c in known if c["start"] == "2026-12-31"]
-    assert nye and nye[0]["closed"] is False and nye[0]["open_until"] == "12:00"
-    for c in known:
-        assert date.fromisoformat(c["start"]) <= date.fromisoformat(c["end"])
+    known = {c["date"] for c in v(brand, "closures.known")}
+    assert {"2026-11-25", "2026-11-26", "2026-11-27", "2026-12-24", "2026-12-25", "2027-01-01",
+            "2027-03-26", "2027-03-27", "2027-03-28"} == known
+    for d in known:
+        date.fromisoformat(d)
+    assert v(brand, "closures.partial") == [{"date": "2026-12-31", "name": "New Year's Eve", "open_until": "12:00"}]
 
 
 def test_temperatures_and_unknown_sauna_capacity(brand):

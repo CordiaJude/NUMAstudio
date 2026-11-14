@@ -2680,42 +2680,59 @@
     "known": {
       "value": [
         {
-          "start": "2026-11-25",
-          "end": "2026-11-27",
-          "closed": true,
-          "what": "Thanksgiving"
+          "date": "2026-11-25",
+          "name": "Thanksgiving"
         },
         {
-          "start": "2026-12-24",
-          "end": "2026-12-25",
-          "closed": true,
-          "what": "Christmas Eve and Christmas Day"
+          "date": "2026-11-26",
+          "name": "Thanksgiving"
         },
         {
-          "start": "2026-12-31",
-          "end": "2026-12-31",
-          "closed": false,
-          "open_until": "12:00",
-          "what": "New Year's Eve: open until 12pm"
+          "date": "2026-11-27",
+          "name": "Thanksgiving"
         },
         {
-          "start": "2027-01-01",
-          "end": "2027-01-01",
-          "closed": true,
-          "what": "New Year's Day"
+          "date": "2026-12-24",
+          "name": "Christmas Eve"
         },
         {
-          "start": "2027-03-26",
-          "end": "2027-03-28",
-          "closed": true,
-          "what": "Good Friday to Easter Sunday"
+          "date": "2026-12-25",
+          "name": "Christmas Day"
+        },
+        {
+          "date": "2027-01-01",
+          "name": "New Year's Day"
+        },
+        {
+          "date": "2027-03-26",
+          "name": "Good Friday"
+        },
+        {
+          "date": "2027-03-27",
+          "name": "Easter Saturday"
+        },
+        {
+          "date": "2027-03-28",
+          "name": "Easter Sunday"
         }
       ],
       "status": "confirmed",
       "source": "owners' setup answers, 2026-11-13 (Q3)",
-      "note": "The next 6 months as of 2026-11-13. Opening hours are under review (business.hours)."
+      "note": "Full-day closures for the next 6 months as of 2026-11-13, one entry per day ({date, name}, the shape shoot_card.py reads). Opening hours are under review (business.hours)."
     },
-    "source": "spec p.34, p.49"
+    "source": "spec p.34, p.49",
+    "partial": {
+      "value": [
+        {
+          "date": "2026-12-31",
+          "name": "New Year's Eve",
+          "open_until": "12:00"
+        }
+      ],
+      "status": "confirmed",
+      "source": "owners' setup answers, 2026-11-13 (Q3)",
+      "note": "Open in the morning only: nothing that invites people in after 12pm."
+    }
   },
   "drive": {
     "_source": "spec p.32 (Drive structure), p.45 and p.49 (Digests, Consent List, Closures), DECISIONS D7 (metrics sheet)",
