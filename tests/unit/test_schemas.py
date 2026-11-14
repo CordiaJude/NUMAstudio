@@ -472,7 +472,7 @@ def test_config_instagram_and_formats(config):
     assert ig["graph_api_version"] == "v26.0"
     assert ig["tools"]["media_insights"] == "INSTAGRAM_GET_IG_MEDIA_INSIGHTS"
     assert ig["tools"]["publish_media"] == "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH"
-    assert ig["insight_pulls_hours"] == [48, 72, 168]
+    assert ig["insight_pulls_hours"] == [12, 22, 48, 72, 168, 336, 720]  # R7: Story reads before 24 h, saves/shares at 14 d, 30 d audit
     assert set(ig["never_request"]) == {"plays", "impressions"}
     assert not set(ig["never_request"]) & set(ig["metrics"])
     outs = {o["id"]: o for o in config["formats"]["outputs"]}

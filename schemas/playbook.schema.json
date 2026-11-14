@@ -86,6 +86,9 @@
           "median_index": {
             "type": "number",
             "minimum": 0
+          },
+          "counts_from": {
+            "$ref": "#/$defs/date"
           }
         }
       }
@@ -138,6 +141,9 @@
           "rejected": {
             "type": "integer",
             "minimum": 0
+          },
+          "sha": {
+            "type": "string"
           }
         }
       }
@@ -210,6 +216,37 @@
           },
           "why": {
             "type": "string"
+          }
+        }
+      }
+    },
+    "pattern_deltas": {
+      "type": "object",
+      "description": "State only: what research added to a bundled pattern (sources, examples, notes); applied on top of the bundled file so later plugin fixes still show.",
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       }
@@ -788,7 +825,8 @@
         "offers",
         "scoring",
         "judging",
-        "learning"
+        "learning",
+        "rotations"
       ],
       "additionalProperties": false,
       "properties": {
@@ -845,6 +883,11 @@
             },
             "evidence": {
               "$ref": "#/$defs/evidence"
+            },
+            "approval_capacity_per_week": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Feed posts a week the approvers can handle (D26); caps the cadence rotation."
             }
           }
         },
@@ -1397,8 +1440,7 @@
               "type": "object",
               "required": [
                 "min_tries",
-                "min_win_rate",
-                "max_win_rate"
+                "min_prob"
               ],
               "additionalProperties": false,
               "properties": {
@@ -1406,14 +1448,9 @@
                   "type": "number",
                   "minimum": 1
                 },
-                "min_win_rate": {
+                "min_prob": {
                   "type": "number",
-                  "minimum": 0,
-                  "maximum": 1
-                },
-                "max_win_rate": {
-                  "type": "number",
-                  "minimum": 0,
+                  "minimum": 0.5,
                   "maximum": 1
                 }
               }
@@ -1442,6 +1479,128 @@
           },
           "additionalProperties": {
             "$ref": "#/$defs/window"
+          }
+        },
+        "rotations": {
+          "type": "object",
+          "required": [
+            "block_weeks",
+            "cadence",
+            "story_frames",
+            "off_day"
+          ],
+          "additionalProperties": false,
+          "description": "Blocked rotations outside the bandit (R6 section 6, R2 experiment 4): the first level is the default.",
+          "properties": {
+            "block_weeks": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "cadence": {
+              "type": "object",
+              "required": [
+                "levels",
+                "min_each",
+                "min_ratio"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "levels": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": [
+                      "integer",
+                      "string"
+                    ]
+                  }
+                },
+                "min_each": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "min_ratio": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "judged_on": {
+                  "type": "string"
+                },
+                "evidence": {
+                  "$ref": "#/$defs/evidence"
+                }
+              }
+            },
+            "story_frames": {
+              "type": "object",
+              "required": [
+                "levels",
+                "min_each",
+                "min_ratio"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "levels": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": [
+                      "integer",
+                      "string"
+                    ]
+                  }
+                },
+                "min_each": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "min_ratio": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "judged_on": {
+                  "type": "string"
+                },
+                "evidence": {
+                  "$ref": "#/$defs/evidence"
+                }
+              }
+            },
+            "off_day": {
+              "type": "object",
+              "required": [
+                "levels",
+                "min_each",
+                "min_ratio"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "levels": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": [
+                      "integer",
+                      "string"
+                    ]
+                  }
+                },
+                "min_each": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "min_ratio": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "judged_on": {
+                  "type": "string"
+                },
+                "evidence": {
+                  "$ref": "#/$defs/evidence"
+                }
+              }
+            }
           }
         }
       }
@@ -1492,6 +1651,18 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1
+        },
+        "max_with_evidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "The share this format may grow to once it beats reels on the pooled feed median (soft R2 bound)."
+        },
+        "min_with_evidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Reels: the floor once another format beats them."
         }
       }
     },

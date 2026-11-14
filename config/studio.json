@@ -492,11 +492,7 @@
       "collaborator invites"
     ],
     "not_in_composio_fallback": "Graph API directly or Claude in Chrome",
-    "insight_pulls_hours": [
-      48,
-      72,
-      168
-    ],
+    "insight_pulls_hours": [12, 22, 48, 72, 168, 336, 720],
     "data_lag_hours": 48,
     "account_metrics_retention_days": 90,
     "metrics": [
@@ -524,7 +520,11 @@
       "music_source",
       "posting_time",
       "trial_reel",
-      "collab"
+      "collab",
+      "boosted",
+      "pattern_ids",
+      "strategy_arm",
+      "story_frames"
     ],
     "computed": {
       "retention": "avg_watch_time_ms / 1000 / length_s",

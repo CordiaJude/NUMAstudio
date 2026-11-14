@@ -16,7 +16,7 @@
 | T10 Setup/posting | ACCEPTED (re-review 7/7 PASS; 2 minors fixed by orchestrator) | 2 | |
 | T12 Templates/prefs/kinetic/rule41 | ACCEPTED (re-review 5/5 PASS) | 2 | minors logged |
 | T11 Integration | ACCEPTED (re-review 6/6 PASS) | 2 | |
-| T14 Claude Design carousels (v2.1) | REVISING (review: pass with fixes + new brand rules) | 2 | shared asks: README, CI playwright install, post-reel re-render → T16 |
+| T14 Claude Design carousels (v2.1) | ACCEPTED (re-review must-fixes verified by orchestrator: brand-font and placeholder errors) | 4 | shared asks: README, CI playwright install, post-reel re-render → T16 |
 | T15 Photo posts + carousel/image posting (v2.1) | ACCEPTED (re-review PASS; consent-no always blocks) | 3 | shared asks: README, config instagram.tags post_type, CONTRACTS metrics → T16 |
 | T16 Planner/shoot cards/build/digest for new post types (v2.1) | PENDING | 0 | |
 | T17 Scheduling reliability: ensure_env, runlog watchdog, Chrome queue (v2.1) | ACCEPTED (re-review PASS all R339-R343; N1-N3 + D26 checks closed) | 3 | |

@@ -29,6 +29,8 @@ Rules:
 * Tags (config `instagram.tags`): length (s), series, pillar, hook_type,
   transitions (list), music_source, posting_time (ISO 8601; naive times are
   Central), trial_reel (bool), collab (bool); plus title, slug, media_id,
+  boosted (bool), pattern_ids (list of playbook ids), strategy_arm (text) and
+  story_frames (int) for strategy.py (docs/CONTRACTS.md section 9),
   permalink, thumbnail, and post_type (R337): reel, carousel, image, story or
   trial_reel (POST_TYPES). A post without post_type is a reel (a trial_reel
   when its trial_reel tag is true); trial_reel true with a post_type other than
@@ -37,7 +39,10 @@ Rules:
   video posts (reel, trial_reel, story) have watch time and skip rate: a
   carousel's or image's avg_watch_time_ms, total_watch_time_ms or skip_rate is
   dropped at ingest with a WARN and rejected by `validate`.
-* Pulls are stored per reel at 48h / 72h / 7d (config `instagram.insight_pulls_hours`);
+* Pulls are stored per post at the config `instagram.insight_pulls_hours` ages:
+  12h / 22h for Stories (before their insights expire at 24 h), 48h / 72h / 7d /
+  14d / 30d for every other post (R7: saves and shares final at 14 d; a 30-day
+  long-tail audit for Reels);
   re-ingesting a pull replaces it. Account-level insights are kept forever
   (Meta keeps them only 90 days).
 * `compute` (config `instagram.computed`) writes per pull and per post (from the
@@ -47,9 +52,9 @@ Rules:
   trial_reel posts only). Metrics a post type does not have (watch time,
   retention and skip rate of a carousel or image) are null, never an error;
   each post's `computed` carries its `post_type`.
-* `due` lists the posts whose next pull is due at --now (posting_time + 48 h,
-  72 h, 168 h and not yet pulled). Stories are left out: Instagram keeps a
-  Story's insights only while it is live (24 h), so they are pulled the same day.
+* `due` lists the posts whose next pull is due at --now (posting_time + each
+  configured age, not yet pulled). A Story is due at 12 h and 22 h and never
+  after 24 h (Instagram keeps a Story's insights only while it is live).
 
 Store shape (metrics.json):
     {"schema_version": 1,
@@ -74,8 +79,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numa_common as nc  # noqa: E402
 
 STORE_SCHEMA_VERSION = 1
-PULL_LABELS = {48: "48h", 72: "72h", 168: "7d"}
-PULL_ORDER = ["48h", "72h", "7d"]
+PULL_LABELS = {12: "12h", 22: "22h", 48: "48h", 72: "72h", 168: "7d", 336: "14d", 720: "30d"}
+PULL_ORDER = ["12h", "22h", "48h", "72h", "7d", "14d", "30d"]
+STORY_PULLS_MAX_H = 23      # Instagram keeps a Story's insights for 24 h only (R7)
 CENTRAL = "America/Chicago"
 
 # Graph API metric names -> store names.
@@ -90,8 +96,10 @@ NAME_MAP = {
 EXTRA_REEL_METRICS = {"total_watch_time_ms", "follows", "profile_visits", "profile_activity"}
 # Counters that went away together with plays/impressions.
 RETIRED_EXTRA = {"ig_reels_aggregated_all_plays_count", "clips_replays_count", "video_views"}
-TAG_TEXT = ("series", "pillar", "hook_type", "music_source", "title", "slug", "media_id", "permalink", "thumbnail")
-TAG_BOOL = ("trial_reel", "collab")
+TAG_TEXT = ("series", "pillar", "hook_type", "music_source", "title", "slug", "media_id", "permalink", "thumbnail",
+            "strategy_arm")
+TAG_BOOL = ("trial_reel", "collab", "boosted")
+TAG_INT = ("story_frames",)
 # Post types (R337). Video posts have watch time and skip rate; carousels and single images do not.
 POST_TYPES = ("reel", "carousel", "image", "story", "trial_reel")
 VIDEO_TYPES = ("reel", "trial_reel", "story")
@@ -315,7 +323,7 @@ def clean_tags(tags: Any, where: str = "tags") -> dict:
     if not isinstance(tags, dict):
         raise nc.UserError(f"{where}: expected a JSON object")
     allowed = (set(nc.config_value("instagram.tags", []) or []) | set(TAG_TEXT) | set(TAG_BOOL)
-               | {"length", "transitions", "posting_time", "post_type"})
+               | {"length", "transitions", "posting_time", "post_type", "pattern_ids"} | set(TAG_INT))
     out: dict[str, Any] = {}
     for k, v in tags.items():
         if k.startswith("_"):
@@ -332,6 +340,14 @@ def clean_tags(tags: Any, where: str = "tags") -> dict:
             if not isinstance(v, bool):
                 raise nc.UserError(f"{where}: {k} must be true or false, got {v!r}")
             out[k] = v
+        elif k in TAG_INT:
+            if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+                raise nc.UserError(f"{where}: {k} must be a whole number >= 0, got {v!r}")
+            out[k] = v
+        elif k == "pattern_ids":
+            if not isinstance(v, list) or not all(isinstance(x, str) and re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", x) for x in v):
+                raise nc.UserError(f"{where}: pattern_ids must be a list of playbook ids (kebab-case), got {v!r}")
+            out[k] = list(v)
         elif k == "transitions":
             items = [v] if isinstance(v, str) else v
             if not isinstance(items, list) or not all(isinstance(x, str) and x.strip() for x in items):
@@ -543,13 +559,18 @@ def due(store: dict, now: datetime) -> list[dict]:
     for rid in sorted(store["reels"]):
         reel = store["reels"][rid]
         pt = (reel.get("tags") or {}).get("posting_time")
-        if not pt or post_type_of(reel) == "story":
+        if not pt:
             continue
+        story = post_type_of(reel) == "story"
         posted = parse_time(pt, f"reels.{rid}.tags.posting_time")
         age_h = (now - posted).total_seconds() / 3600.0
         done = set((reel.get("pulls") or {}).keys())
         last_done = max([hours.get(label, 0) for label in done] or [0])
-        ready = [label for label, h in hours.items() if age_h >= h and label not in done and h > last_done]
+        # Stories: only the pulls before Instagram drops their insights at 24 h; other posts: 48 h and later
+        mine = {lb: h for lb, h in hours.items() if (h <= STORY_PULLS_MAX_H) == story}
+        if story and age_h >= 24:
+            continue
+        ready = [label for label, h in mine.items() if age_h >= h and label not in done and h > last_done]
         if ready:
             out.append({"reel": rid, "post_type": post_type_of(reel), "pulls": ready, "pull_now": ready[-1], "hours_since_post": round(age_h, 1),
                         "posting_time": pt, "media_id": (reel.get("tags") or {}).get("media_id")})
@@ -577,7 +598,7 @@ def build_parser() -> nc.ArgParser:
     t.add_argument("--store", required=True)
     t.add_argument("--reel", "--post", dest="reel", required=True, help="post id (media id or slug)")
     t.add_argument("--tags", required=True)
-    d = sub.add_parser("due", help="reels whose 48h/72h/7d pull is due now")
+    d = sub.add_parser("due", help="posts whose next insights pull is due now")
     d.add_argument("--store", required=True)
     d.add_argument("--now", help="ISO date-time (default: the current time)")
     d.add_argument("--json", action="store_true")

@@ -208,6 +208,13 @@ def load_playbook(directory: str | None = None, state: dict | None = None) -> di
         patterns[p["id"]] = copy.deepcopy(p)
     for p in st.get("patterns", []):
         patterns[p["id"]] = copy.deepcopy(p)
+    for pid, delta in (st.get("pattern_deltas") or {}).items():
+        if pid in patterns:
+            p = patterns[pid]
+            p["evidence"]["sources"] = (p["evidence"]["sources"] + [s for s in delta.get("sources", []) if s not in p["evidence"]["sources"]])[:12]
+            p["examples"] = p["examples"] + [e for e in delta.get("examples", []) if e not in p["examples"]]
+            if delta.get("notes"):
+                p["evidence"]["notes"] = (p["evidence"].get("notes", "") + " " + " ".join(delta["notes"])).strip()[:600]
     for pid, ov in (st.get("status_overrides") or {}).items():
         if pid in patterns:
             patterns[pid]["status"] = ov["status"]
@@ -297,6 +304,8 @@ def rates(m: dict, length: Any, ptype: str) -> dict:
     v = {k: float(x) for k, x in m.items() if isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)}
     out: dict[str, float] = {}
     reach = v.get("reach")
+    if reach is not None and reach <= 0:
+        return {}                      # zero reach: no data yet (or not returned under 5 viewers), never a loss
     if reach is not None:
         out["reach"] = reach
     if reach and reach > 0:
@@ -323,20 +332,23 @@ def configured_pull_hours() -> list[int]:
     return sorted(int(h) for h in hours)
 
 
-def judge_state(post_type: str, pulls: dict, age_h: float | None, win: dict) -> tuple[str, str | None, float]:
-    """(status, pull label, weight): pending | provisional | final (policies.judging, R7)."""
-    labels = sorted((lb for lb in pulls if lb in PULL_HOURS), key=lambda x: PULL_HOURS[x])
+def judge_state(post_type: str, pull_hours: dict[str, float], age_h: float | None, win: dict) -> tuple[str, str | None, float]:
+    """(status, pull label, weight): pending | provisional | final (policies.judging, R7).
+
+    pull_hours maps each pull to the post's age when it was taken (pulled_at - posting time when both are known,
+    else the label's nominal hours), so a late or early pull is judged by its real age."""
+    labels = sorted(pull_hours, key=lambda x: (pull_hours[x], x))
     if not labels:
         return "pending", None, 0.0
     if age_h is not None and age_h < float(win["ignore_before_hours"]):
         return "pending", None, 0.0
-    if post_type == "story":       # Story insights live 24 h: whatever was captured is final
-        return "final", labels[-1], 1.0
-    final_at = min(float(win["final_hours"]), float(max(configured_pull_hours())))
-    finals = [lb for lb in labels if PULL_HOURS[lb] >= final_at]
+    story = post_type == "story"
+    avail = [h for h in configured_pull_hours() if (h <= 23) == story] or configured_pull_hours()
+    final_at = min(float(win["final_hours"]), float(max(avail)))
+    finals = [lb for lb in labels if pull_hours[lb] >= final_at - 1e-9]
     if finals:
         return "final", finals[0], 1.0
-    provs = [lb for lb in labels if PULL_HOURS[lb] >= float(win["provisional_hours"])]
+    provs = [lb for lb in labels if pull_hours[lb] >= float(win["provisional_hours"]) - 1e-9]
     if provs:
         return "provisional", provs[-1], float(win["provisional_weight"])
     return "pending", None, 0.0
@@ -391,8 +403,18 @@ def collect_posts(store: dict, pb: dict, today: date) -> list[dict]:
             except nc.UserError:
                 nc.warn(f"post {pid}: posting_time {tags['posting_time']!r} is not a date-time; timing arms skipped")
         age_h = (now - posted).total_seconds() / 3600.0 if posted else None
-        pulls = {k: v for k, v in (raw.get("pulls") or {}).items() if isinstance(v, dict) and isinstance(v.get("metrics"), dict)}
-        status, label, jw = judge_state(ptype, pulls, age_h, win)
+        pulls = {k: v for k, v in (raw.get("pulls") or {}).items()
+                 if k in PULL_HOURS and isinstance(v, dict) and isinstance(v.get("metrics"), dict)}
+        pull_hours: dict[str, float] = {}
+        for k, v in pulls.items():
+            h = float(PULL_HOURS[k])
+            if posted is not None and v.get("pulled_at"):
+                try:
+                    h = (mstore.to_central(mstore.parse_time(v["pulled_at"], f"{pid} pulled_at")) - posted).total_seconds() / 3600.0
+                except nc.UserError:
+                    nc.warn(f"post {pid}: pull {k} pulled_at {v['pulled_at']!r} is not a date-time; using {k}")
+            pull_hours[k] = h
+        status, label, jw = judge_state(ptype, pull_hours, age_h, win)
         arm = parse_arm(tags.get("strategy_arm"))
         pids = [x for x in (tags.get("pattern_ids") or []) if isinstance(x, str)]
         hook = next((x for x in pids if pb["patterns"].get(x, {}).get("kind") == "hook"), None)
@@ -424,7 +446,8 @@ def collect_posts(store: dict, pb: dict, today: date) -> list[dict]:
             "offer_week": week_of_month(posted.date()) if posted and sales else None,
             "mode": arm.get("mode"), "length": tags.get("length"), "flags": flags, "collab": collab,
             "january": bool(posted and posted.month == 1),
-            "pulls": {k: rates(v["metrics"], tags.get("length"), ptype) for k, v in pulls.items()},
+            "pulls": {k: rates(v["metrics"], tags.get("length"), ptype) for k, v in pulls.items()}, "pull_hours": pull_hours,
+            "story_frames": tags.get("story_frames") if isinstance(tags.get("story_frames"), int) else None,
         }
         post["values"] = post["pulls"].get(label, {}) if label else {}
         posts.append(post)
@@ -449,7 +472,7 @@ def component_value(post: dict, comp: str) -> float | None:
     label = post["pull"]
     if not label:
         return None
-    hours = PULL_HOURS[label]
+    hours = post["pull_hours"][label]
     ex = None
     for metric, w in (post["window"].get("exceptions") or {}).items():
         if EXCEPTION_COMPONENT.get(metric) == comp:
@@ -459,8 +482,8 @@ def component_value(post: dict, comp: str) -> float | None:
     if hours < float(ex["provisional_hours"]):
         return None                                   # not readable yet (e.g. saves before 7 d)
     upto = min(float(ex["final_hours"]), float(hours))
-    for lb in sorted(post["pulls"], key=lambda x: -PULL_HOURS.get(x, 0)):
-        if PULL_HOURS.get(lb, 0) <= upto and comp in post["pulls"][lb]:
+    for lb in sorted(post["pulls"], key=lambda x: -post["pull_hours"][x]):
+        if post["pull_hours"][lb] <= upto + 1e-9 and comp in post["pulls"][lb]:
             return post["pulls"][lb][comp]
     return post["pulls"][label].get(comp)             # no pull at its own window: the judged pull is the best read
 
@@ -470,7 +493,7 @@ def baseline(post: dict, judged: list[dict], pol: dict, pooled: bool) -> list[di
     b = pol["scoring"]["baseline"]
     n, min_age, min_posts = int(b["window_posts"]), float(b["min_age_days"]) * 24.0, int(b["min_posts"])
     earlier = [q for q in judged if q is not post and q["posted"] is not None and post["posted"] is not None
-               and q["posted"] < post["posted"]]
+               and q["posted"] < post["posted"] and "boosted" not in q["flags"] and q["values"]]
     if pooled:
         cohort = [q for q in earlier if q["post_type"] in FEED_TYPES and not q["collab"]]
     elif post["collab"]:
@@ -520,33 +543,37 @@ def score_posts(posts: list[dict], pb: dict) -> list[dict]:
     clip = float(scp["index_clip_log2"])
     sub = scp.get("static_watch_substitute")
     judged = [p for p in posts if p["status"] in ("provisional", "final")]
+    win_above = float(scp["win_above"])
     for p in posts:
         p.update({"score": None, "pooled_score": None, "win": None, "pooled_win": None, "components": {}, "goal_scores": {}})
         if p not in judged:
             continue
-        pool = baseline(p, judged, pol, pooled=False)
-        if not pool:
-            p["score_note"] = "baseline still building (fewer than 3 earlier posts of this format)"
+        if not p["values"]:
+            p["score_note"] = "no reach or no metrics in this pull: missing data, not a loss"
             continue
-        s, parts = weighted(p, pool, scp["composite"], clip, sub)
-        if s is None:
-            p["score_note"] = "no metric to score"
-            nc.warn(f"post {p['id']}: no metric to score; left out of learning")
-            continue
-        p["score"], p["components"] = round(s, 4), parts
-        p["win"] = s > float(scp["win_above"])
-        for goal, w in scp["goals"].items():
-            g, _ = weighted(p, pool, w, clip, sub)
-            if g is not None:
-                p["goal_scores"][goal] = round(g, 4)
         if p["post_type"] in FEED_TYPES and not p["collab"]:
+            # formats are compared on the pooled feed baseline, so a new format is scored from its first post
             ppool = baseline(p, judged, pol, pooled=True)
             if ppool:
                 pw = {k: v for k, v in scp["composite"].items() if k != "watch_through"}
                 ps, _ = weighted(p, ppool, pw, clip, sub)
                 if ps is not None:
                     p["pooled_score"] = round(ps, 4)
-                    p["pooled_win"] = ps > float(scp["win_above"])
+                    p["pooled_win"] = ps > win_above
+        pool = baseline(p, judged, pol, pooled=False)
+        if not pool:
+            p["score_note"] = "baseline still building (fewer than 3 earlier posts of this format)"
+            continue
+        s, parts = weighted(p, pool, scp["composite"], clip, sub)
+        if s is None:
+            p["score_note"] = "no metric to score: missing data, not a loss"
+            continue
+        p["score"], p["components"] = round(s, 4), parts
+        p["win"] = s > win_above
+        for goal, w in scp["goals"].items():
+            g, _ = weighted(p, pool, w, clip, sub)
+            if g is not None:
+                p["goal_scores"][goal] = round(g, 4)
     return posts
 
 
@@ -596,84 +623,136 @@ def arm_prior(pb: dict, var: str, level: str) -> tuple[float, float]:
     return 1.0 + t * (0.5 + tilt), 1.0 + t * (0.5 - tilt)
 
 
-def post_arms(p: dict) -> list[tuple[str, str, str]]:
-    """(variable, level, outcome key) for every factored arm a post updates."""
-    out: list[tuple[str, str, str]] = []
+TRIAL = "trial:"
+TRIAL_INFORM_WEIGHT = 0.5     # a Trial Reel informs the main arm's posterior at half weight, never its decisions
+
+
+def post_arms(p: dict) -> list[tuple[str, str, str, float, bool]]:
+    """(variable, level, outcome, weight factor, keeps decision records) for every arm a post updates.
+
+    Trial Reels decide in their own trial-only pool (R6 sections 5 and 7: compare trials only with trials) and inform
+    the main hook/structure/CTA arms at reduced weight."""
+    out: list[tuple[str, str, str, float, bool]] = []
     trial = p["post_type"] == "trial_reel"
-    pre = ""       # a Trial Reel is one try for its arms, judged against the trial-only baseline (R6 sections 5, 7)
     if p["post_type"] in FEED_TYPES and p["pooled_win"] is not None:
-        out.append(("format", p["post_type"], "pooled"))
+        out.append(("format", p["post_type"], "pooled", 1.0, True))
         if p["weekday"]:
-            out.append(("format_day", f"{p['post_type']}|{p['weekday']}", "pooled"))
+            out.append(("format_day", f"{p['post_type']}|{p['weekday']}", "pooled", 1.0, True))
+    if p["win"] is None:
+        return out
+    pats = []
     if p["hook"]:
-        out.append(("hook", pre + hook_key(p["hook"], p["post_type"]), "win"))
+        pats.append(("hook", hook_key(p["hook"], p["post_type"])))
     if p["structure"]:
-        out.append(("structure", pre + p["structure"], "win"))
-    for x in p["others"]:
-        out.append(("pattern", pre + x, "win"))
+        pats.append(("structure", p["structure"]))
+    pats += [("pattern", x) for x in p["others"]]
+    for var, lv in pats:
+        if trial:
+            out.append((var, TRIAL + lv, "win", 1.0, True))
+            out.append((var, lv, "win", TRIAL_INFORM_WEIGHT, False))
+        else:
+            out.append((var, lv, "win", 1.0, True))
     if not trial:
         for var, lv in (("pillar", p["pillar"]), ("series", p["series"]), ("weekday", p["weekday"]),
-                        ("band", p["hour_band"]), ("offer_week", p["offer_week"])):
+                        ("band", p["hour_band"]), ("offer_week", p["offer_week"]),
+                        ("story_frames", str(p["story_frames"]) if p["post_type"] == "story" and p["story_frames"] else None)):
             if lv:
-                out.append((var, lv, "win"))
+                out.append((var, lv, "win", 1.0, True))
     return out
 
 
 def fit_models(posts: list[dict], pb: dict) -> dict:
-    """Discounted Beta posteriors per arm (gamma per new judged post) plus undiscounted decision records."""
+    """Discounted Beta posteriors per arm plus undiscounted decision records (R6 sections 5-6).
+
+    Each arm's counts, its prior's pseudo-counts included, decay by gamma each time that arm is updated, floored at
+    Beta(1, 1): an arm used rarely keeps its evidence, a busy arm adapts."""
     lp = pb["policies"]["learning"]
     gamma = float(lp["discount"])
     excluded = set(lp["exclude_from_decisions"])
-    ev: dict[tuple[str, str], list[float]] = {}
+    ev: dict[tuple[str, str], list[float]] = {}          # [wins, losses, updates]
     records: dict[tuple[str, str], list[dict]] = {}
     cohort: dict[str, list[dict]] = {}
-    judged = [p for p in posts if p["status"] in ("provisional", "final") and p["score"] is not None]
+    judged = [p for p in posts if p["status"] in ("provisional", "final") and (p["score"] is not None or p["pooled_score"] is not None)]
     for p in judged:
-        for k in ev:
-            ev[k][0] *= gamma
-            ev[k][1] *= gamma
         p["excluded"] = sorted(set(p["flags"]) & excluded)
         if p["collab"]:
             cohort.setdefault("collab", []).append(p)
         if p["excluded"]:
             continue
         w = p["judge_weight"]
-        for var, lv, kind in post_arms(p):
+        for var, lv, kind, factor, keep in post_arms(p):
             won = p["pooled_win"] if kind == "pooled" else p["win"]
             s = p["pooled_score"] if kind == "pooled" else p["score"]
             if won is None:
                 continue
-            e = ev.setdefault((var, lv), [0.0, 0.0])
-            e[0 if won else 1] += w
-            records.setdefault((var, lv), []).append({"post": p["id"], "date": p["posted"].date().isoformat() if p["posted"] else None,
-                                                      "S": s, "win": bool(won), "final": p["status"] == "final",
-                                                      "january": p["january"]})
+            e = ev.setdefault((var, lv), [0.0, 0.0, 0.0])
+            e[0] *= gamma
+            e[1] *= gamma
+            e[2] += 1
+            e[0 if won else 1] += w * factor
+            if keep:
+                records.setdefault((var, lv), []).append({"post": p["id"], "date": p["posted"].date().isoformat() if p["posted"] else None,
+                                                          "S": s, "win": bool(won), "final": p["status"] == "final",
+                                                          "january": p["january"]})
     n = len(judged)
-    prior_decay = gamma ** n          # R6: all counts, the priors' pseudo-counts too, decay by gamma per new post (floor Beta(1,1))
     arms: dict[tuple[str, str], dict] = {}
     for key in set(ev) | set(records):
-        arms[key] = make_arm(pb, key, prior_decay, ev.get(key, [0.0, 0.0]), records.get(key, []))
+        e = ev.get(key, [0.0, 0.0, 0.0])
+        arms[key] = make_arm(pb, key, gamma ** e[2], e[:2], records.get(key, []))
     return {"arms": arms, "cohorts": cohort, "lambda": min(1.0, n / float(lp["data_led_after_posts"])), "judged": n,
-            "prior_decay": prior_decay,
+            "weeks": weekly_outcomes(posts, pb),
             "final": sum(p["status"] == "final" for p in judged), "provisional": sum(p["status"] == "provisional" for p in judged)}
 
 
+def weekly_outcomes(posts: list[dict], pb: dict) -> list[dict]:
+    """Per posting week (Mon-Sun): feed posts made and the week's total reach and follows from judged feed posts.
+
+    The cadence rotation (R2 experiment 4) compares weeks, not posts. Account-level follows and bookings per 1,000
+    reach replace these sums once the store carries them (Growth Analyst data)."""
+    weeks: dict[date, dict] = {}
+    for p in posts:
+        if p["posted"] is None or p["post_type"] not in FEED_TYPES:
+            continue
+        wk = p["posted"].date() - timedelta(days=p["posted"].weekday())
+        w = weeks.setdefault(wk, {"week": wk.isoformat(), "feed": 0, "judged": 0, "reach": 0.0, "follows": 0.0, "final": True,
+                                  "excluded": False})
+        w["feed"] += 1
+        if p["status"] != "final" or "reach" not in p["values"]:
+            w["final"] = False
+            continue
+        w["judged"] += 1
+        w["reach"] += p["values"]["reach"]
+        w["follows"] += p["values"].get("follows", 0.0) * p["values"]["reach"]
+        if set(p["flags"]) & {"holiday", "boosted"}:
+            w["excluded"] = True
+    return [weeks[k] for k in sorted(weeks)]
+
+
 def make_arm(pb: dict, key: tuple[str, str], prior_decay: float, ev: list[float], records: list[dict]) -> dict:
-    a0, b0 = arm_prior(pb, *key)
+    a0, b0 = arm_prior(pb, key[0], key[1][len(TRIAL):] if key[1].startswith(TRIAL) else key[1])
     a = 1.0 + (a0 - 1.0) * prior_decay + ev[0]
     b = 1.0 + (b0 - 1.0) * prior_decay + ev[1]
     return {"alpha": a, "beta": b, "records": records, "mean": a / (a + b)}
 
 
 def arm(fits: dict, pb: dict, var: str, level: str) -> dict:
-    """An arm's posterior (its decayed prior when Numa has no data on it yet)."""
+    """An arm's posterior (its prior when Numa has no data on it yet)."""
     if (var, level) in fits["arms"]:
         return fits["arms"][(var, level)]
-    return make_arm(pb, (var, level), fits.get("prior_decay", 1.0), [0.0, 0.0], [])
+    return make_arm(pb, (var, level), 1.0, [0.0, 0.0], [])
 
 
-def decision_stats(records: list[dict], january: bool = True) -> dict:
-    rec = [r for r in records if r["final"] and (january or not r["january"])]
+def prob_better(wins: float, tries: float) -> float:
+    """P(win rate > 0.5) under Beta(1 + wins, 1 + losses): the binomial identity for whole counts."""
+    w, n = int(round(wins)), int(round(tries))
+    a, b = 1 + w, 1 + n - w
+    m = a + b - 1
+    return sum(math.comb(m, k) for k in range(0, a)) / 2 ** m
+
+
+def decision_stats(records: list[dict], january: bool = True, since: str | None = None) -> dict:
+    """Final tries, wins and the median index, from `since` (the last status change) on."""
+    rec = [r for r in records if r["final"] and (january or not r["january"]) and (since is None or (r["date"] or "") >= since)]
     s = [r["S"] for r in rec]
     return {"tries": len(rec), "wins": sum(r["win"] for r in rec),
             "median_index": round(2 ** statistics.median(s), 4) if s else None, "records": rec}
@@ -776,9 +855,8 @@ class Draws:
         return self.cache[key]
 
     def informed(self, var: str, level: str) -> float:
-        """A draw for an arm NUMA has data on; the prior mean for one it hasn't (no churn from pure prior noise)."""
-        a = arm(self.fits, self.pb, var, level)
-        return self.beta(var, level) if a["records"] else a["mean"]
+        """A Thompson draw; an arm Numa has no data on draws from its prior, so untried arms get tried."""
+        return self.beta(var, level)
 
     def prime(self) -> None:
         for t in FEED_TYPES:
@@ -901,6 +979,9 @@ def read_events(path: str | None) -> list[dict]:
     return out
 
 
+OFFER_EXPLORE_UNTIL = 3       # tries per week-of-month before the monthly offer-week test stops
+
+
 class Planner:
     def __init__(self, pb: dict, fits: dict, year: int, month: int, seed: int, events: list[dict],
                  closures: dict[date, str], posts: list[dict], diagnoses: list[dict]):
@@ -926,9 +1007,16 @@ class Planner:
             dr = Draws(self.fits, self.pb, rng)
             dr.prime()
             week_draws[wk] = dr
-            for d in weeks[wk]:     # weekdays follow the default week (spec p.34); time is a blocked rotation (R6)
-                r = make_row(d, sc.DEFAULT_WEEK[d.weekday()]["slot"], self.month)
+            off, off_note = self.rotation("off_day", wk)
+            for d in weeks[wk]:     # the default week (spec p.34); the Stories-only day is a blocked rotation (R6)
+                role = sc.DEFAULT_WEEK[d.weekday()]["slot"]
+                swap = off == "Sun" and len(weeks[wk]) == 7 and WEEKDAYS[d.weekday()] in ("Sat", "Sun")
+                if swap:
+                    role = "regulate_reel" if WEEKDAYS[d.weekday()] == "Sat" else "stories"
+                r = make_row(d, role, self.month)
                 r["strategy"] = {"why": [], "week": wk.isoformat()}
+                if WEEKDAYS[d.weekday()] in ("Sat", "Sun"):
+                    r["strategy"]["why"].append(f"Stories-only day: {off}. {off_note}")
                 rows.append(r)
         by_date = {r["date"]: r for r in rows}
         for r in rows:
@@ -940,10 +1028,16 @@ class Planner:
         self.assign_sales(rows, week_draws, lam, stick)
         self.assign_monthly(rows)
         self.assign_types(rows, week_draws, lam, stick)
+        self.apply_cadence(rows)
         self.balance_pillars(rows, lam)
         self.assign_hours(rows, week_draws, lam)
         for r in rows:
             r["post_type"] = KIND_FOR_ROW[r["kind"]]
+            frames, frames_note = self.rotation("story_frames", date.fromisoformat(r["strategy"]["week"]))
+            r["strategy"]["stories_per_day"] = int(frames)
+            if r["kind"] == "stories":
+                r["story_frames"] = int(frames)
+                r["strategy"]["why"].append(f"Stories: {frames} frames a day. {frames_note}")
         plan = {"schema_version": 1, "month": f"{self.year:04d}-{self.month:02d}",
                 "month_folder": sc.month_folder(all_days[0]), "days": days_in,
                 "mix": nc.brand_value("positioning.content_mix", {}), "mix_tolerance": sc.DEFAULT_MIX_TOLERANCE,
@@ -1000,7 +1094,22 @@ class Planner:
             ranked.append((s, d, r))
         ranked.sort(key=lambda x: (-x[0], x[1]))
         k = max(0, min(hi, max(lo, round(len(sales_rows) / 2)), len(sales_rows) - 2, len(ranked)))
-        offers = {id(r) for _, _, r in ranked[:k]}
+        offers = {id(r) for _, _, r in ranked[:max(0, k - 1)]}
+        if k >= 1:
+            # one offer a month explores the week of the month Numa knows least about (R6: explore 3-5 arms)
+            rest = [(len(arm(self.fits, self.pb, "offer_week", week_of_month(d))["records"]), -s, d, r)
+                    for s, d, r in ranked if id(r) not in offers]
+            if rest and min(x[0] for x in rest) >= OFFER_EXPLORE_UNTIL:
+                rest = []                        # every week of the month has data: all offers follow the draws
+                offers = {id(r) for _, _, r in ranked[:k]}
+            if rest:
+                rest.sort(key=lambda x: (x[0], x[1], x[2]))
+                pick = rest[0][3]
+                if k >= 2 or lam > 0:
+                    offers.add(id(pick))
+                    pick["strategy"]["offer_explore"] = True
+                else:
+                    offers.add(id(ranked[0][2]))
         collab_done = mtc_done = False
         for r in sales_rows:
             d = date.fromisoformat(r["date"])
@@ -1008,7 +1117,8 @@ class Planner:
                 r.update({"pillar": "offers_events", "goal": "offer", "template": "offer_promo", "sales": True, "series": None,
                           "slot_notes": "The week's one sales moment", "post": "Offer reel"})
                 win = [m["name"] for m in self.moments if m["offer"] and r["date"] in m["dates"]]
-                r["strategy"]["why"].append(f"Offer placed in {week_of_month(d)} of the month"
+                r["strategy"]["why"].append(("Offer-week test: " if r["strategy"].get("offer_explore") else "")
+                                            + f"Offer placed in {week_of_month(d)} of the month"
                                             + (f" ({', '.join(win)})" if win else "")
                                             + f"; offer-week win-rate draw {week_draws[sc.monday_of(d)].informed('offer_week', week_of_month(d)):.2f}")
                 continue
@@ -1099,48 +1209,163 @@ class Planner:
         wd = row["weekday"]
         return lam * (dr.informed("format", t) + dr.informed("format_day", f"{t}|{wd}")) + (stick if t == default_type(row) else 0.0)
 
-    def assign_types(self, rows: list[dict], week_draws: dict, lam: float, stick: float) -> None:
-        """Format by goal (R6 test order 3): Thompson draws on the format arms (pooled wins vs the feed median)."""
+    def format_bounds(self, n: int) -> dict:
+        """Feed-mix bounds for one week: R2's shares are soft; evidence that a format beats reels widens them."""
         mix = self.pol["feed_mix"]
+        reel = arm(self.fits, self.pb, "format", "reel")
+        need = float(self.lp["fast_track"]["first"])
+        out, widened = {}, False
+        for t in ("carousel", "image"):
+            a = arm(self.fits, self.pb, "format", t)
+            mx = float(mix[t]["max"])
+            if len(a["records"]) >= need and a["mean"] > reel["mean"] and mix[t].get("max_with_evidence"):
+                mx = float(mix[t]["max_with_evidence"])
+                widened = True
+            out[t] = int(math.floor(n * mx + 1e-9))
+        reel_min = float(mix["reel"].get("min_with_evidence", mix["reel"]["min"])) if widened else float(mix["reel"]["min"])
+        out["nonreel"] = int(math.floor(n * (1 - reel_min) + 1e-9))
+        out["min_carousel"] = 1 if n >= 4 else 0
+        out["widened"] = widened
+        return out
+
+    def assign_types(self, rows: list[dict], week_draws: dict, lam: float, stick: float) -> None:
+        """Format by goal (R6 test order 3): Thompson draws on the format arms (pooled wins vs the feed median),
+        plus one format-test slot a week while a format has fewer tries than the promote rule needs."""
+        need = float(self.lp["promote"]["min_tries"])
         for wk, dr in sorted(week_draws.items()):
             feed = [r for r in rows if r["strategy"]["week"] == wk.isoformat() and r["kind"] in ("reel", "carousel", "image")]
-            if lam <= 0 or not feed:
+            if not feed:
                 continue
-            n = len(feed)
-            max_nonreel = int(math.floor(n * (1 - float(mix["reel"]["min"])) + 1e-9))
-            max_car = int(math.floor(n * float(mix["carousel"]["max"]) + 1e-9))
-            max_img = int(math.floor(n * float(mix["image"]["max"]) + 1e-9))
-            min_car = 1 if n >= 4 else 0
+            bounds = self.format_bounds(len(feed))
             current = {id(r): default_type(r) for r in feed}
-            free = [r for r in feed if not (r.get("event_role") or r.get("collab") or r.get("signature") or r.get("_protect"))]
-            moves = []
-            for r in free:
-                cur = current[id(r)]
-                base = self.type_score(dr, r, cur, lam, stick)
-                for t in FEED_TYPES:
-                    if t != cur:
-                        gain = self.type_score(dr, r, t, lam, stick) - base
-                        if gain > 0:
-                            moves.append((gain, r["date"], t, r))
-            moves.sort(key=lambda x: (-x[0], x[1], x[2]))
+            free = [r for r in feed if not (r.get("event_role") or r.get("collab") or r.get("signature") or r.get("_protect")
+                                            or r.get("sales"))]
+
+            def fits_bounds(cur: dict) -> bool:
+                vals = list(cur.values())
+                return (sum(v != "reel" for v in vals) <= bounds["nonreel"] and vals.count("carousel") <= bounds["carousel"]
+                        and vals.count("image") <= bounds["image"] and vals.count("carousel") >= bounds["min_carousel"])
             changed: set[int] = set()
-            for gain, _, t, r in moves:
-                if id(r) in changed:
+            if lam > 0:
+                moves = []
+                for r in free:
+                    cur = current[id(r)]
+                    base = self.type_score(dr, r, cur, lam, stick)
+                    for t in FEED_TYPES:
+                        if t != cur:
+                            gain = self.type_score(dr, r, t, lam, stick) - base
+                            if gain > 0:
+                                moves.append((gain, r["date"], t, r))
+                moves.sort(key=lambda x: (-x[0], x[1], x[2]))
+                for gain, _, t, r in moves:
+                    if id(r) in changed:
+                        continue
+                    trial = dict(current)
+                    trial[id(r)] = t
+                    if not fits_bounds(trial):
+                        continue
+                    current = trial
+                    changed.add(id(r))
+                    old = default_type(r)
+                    set_type(r, t)
+                    fa = arm(self.fits, self.pb, "format", t)
+                    r["strategy"]["why"].append(
+                        f"Type {old} -> {t}: P({t} beats the feed median) {fa['mean']:.0%} (posterior), {r['weekday']} draw gain "
+                        f"{gain + stick:+.2f} > stickiness {stick:.2f} (data-led share {lam:.0%})"
+                        + ("; evidence widened the feed-mix bounds" if bounds["widened"] else ""))
+            # format test (R6 test order: format): the least-tried non-reel format gets one slot this week
+            untested = sorted((len(arm(self.fits, self.pb, "format", t)["records"]), t != "image", t) for t in ("image", "carousel"))
+            untested = [(n_, t) for n_, _, t in untested]
+            untested = [t for n_, t in untested if n_ < need]
+            if untested and len(feed) >= 4:
+                cands = [r for r in free if id(r) not in changed and current[id(r)] == "reel"]
+                for t in untested:
+                    for r in sorted(cands, key=lambda r: (r["slot"] != "community_reel", r["date"])):
+                        trial = dict(current)
+                        trial[id(r)] = t
+                        if fits_bounds(trial):
+                            current = trial
+                            changed.add(id(r))
+                            set_type(r, t)
+                            r["strategy"]["tests"] = "format"
+                            r["strategy"]["why"].append(f"Format test: {t} has {len(arm(self.fits, self.pb, 'format', t)['records'])} "
+                                                        f"of the {need:g} tries R6 needs; this slot tries it against the feed median")
+                            break
+                    else:
+                        continue
+                    break
+
+    def rotation(self, var: str, wk: date) -> tuple[str, str]:
+        """A blocked rotation outside the bandit (R6 section 6, R2 experiment 4): levels rotate in blocks of weeks until
+        one beats the default by min_ratio over min_each judged posts or weeks each; the winner then holds three
+        blocks in four."""
+        rot = self.pol["rotations"]
+        cfg = rot[var]
+        levels = [str(x) for x in cfg["levels"]]
+        default = levels[0]
+        epoch = (wk - date(2024, 1, 1)).days // 7
+        block = epoch // int(rot["block_weeks"])
+        stats = self.rotation_stats(var, levels)
+        best, why = default, f"{var.replace('_', ' ')} rotates in {rot['block_weeks']}-week blocks ({' / '.join(levels)}) until one level wins"
+        d = stats.get(default) or {"n": 0, "index": None}
+        for lv in levels[1:]:
+            s = stats.get(lv) or {"n": 0, "index": None}
+            if s["n"] >= cfg["min_each"] and d["n"] >= cfg["min_each"] and s["index"] and d["index"]:
+                ratio = s["index"] / d["index"]
+                if ratio >= float(cfg["min_ratio"]):
+                    best, why = lv, f"{lv} beat {default} by {ratio:.2f}x over {s['n']} and {d['n']} (needs {cfg['min_ratio']}x over {cfg['min_each']} each)"
+        if best == default and not any((stats.get(lv) or {"n": 0})["n"] >= cfg["min_each"] for lv in levels):
+            return levels[block % len(levels)], why
+        if best != default or all((stats.get(lv) or {"n": 0})["n"] >= cfg["min_each"] for lv in levels):
+            if block % 4 == 3 and len(levels) > 1:
+                return next(lv for lv in levels if lv != best), why + "; one block in four keeps rotating"
+            return best, why
+        return levels[block % len(levels)], why
+
+    def rotation_stats(self, var: str, levels: list[str]) -> dict[str, dict]:
+        out: dict[str, dict] = {}
+        if var == "cadence":
+            weeks = [w for w in self.fits.get("weeks", []) if w["final"] and not w["excluded"] and w["judged"]]
+            for i, w in enumerate(weeks):
+                prev = [x["reach"] for x in weeks[max(0, i - 8):i]]
+                if len(prev) < 3:
                     continue
-                trial = dict(current)
-                trial[id(r)] = t
-                vals = list(trial.values())
-                if (sum(v != "reel" for v in vals) > max_nonreel or vals.count("carousel") > max_car
-                        or vals.count("image") > max_img or vals.count("carousel") < min_car):
-                    continue
-                current = trial
-                changed.add(id(r))
-                old = default_type(r)
-                set_type(r, t)
-                fa = arm(self.fits, self.pb, "format", t)
-                r["strategy"]["why"].append(
-                    f"Type {old} -> {t}: {t}s beat the feed median in {fa['mean']:.0%} of Numa's posts (posterior), "
-                    f"{r['weekday']} draw gain {gain + stick:+.2f} > stickiness {stick:.2f} (data-led share {lam:.0%})")
+                s = math.log2(max(w["reach"], 1e-9) / max(statistics.median(prev), 1e-9))
+                lv = str(min(max(w["feed"], min(int(x) for x in levels)), max(int(x) for x in levels)))
+                out.setdefault(lv, []).append(max(-2.0, min(2.0, s)))
+        else:
+            arm_var = {"story_frames": "story_frames", "off_day": "weekday"}[var]
+            for lv in levels:
+                recs = decision_stats(arm(self.fits, self.pb, arm_var, lv)["records"])["records"]
+                if recs:
+                    out[lv] = [r["S"] for r in recs]
+        return {lv: {"n": len(v), "index": 2 ** statistics.median(v)} for lv, v in out.items()}
+
+    def apply_cadence(self, rows: list[dict]) -> None:
+        """How many feed posts a week: the cadence rotation, capped by the planning rules and approval capacity."""
+        cad = self.pol["cadence"]
+        cap = int(cad.get("approval_capacity_per_week") or cad["feed_per_week"]["max"])
+        for wk in sorted({r["strategy"]["week"] for r in rows}):
+            wrows = [r for r in rows if r["strategy"]["week"] == wk]
+            if len(wrows) < 7:
+                continue
+            level, note = self.rotation("cadence", date.fromisoformat(wk))
+            target = max(int(cad["feed_per_week"]["min"]), min(int(level), cap, int(cad["feed_per_week"]["max"])))
+            feed = [r for r in wrows if r["kind"] in ("reel", "carousel", "image")]
+            for r in wrows:
+                r["strategy"]["feed_per_week"] = target
+            drop = [r for r in feed if r["kind"] == "reel" and not (r.get("event_role") or r.get("sales") or r.get("collab")
+                                                                     or r.get("signature") or r.get("_protect")
+                                                                     or r["strategy"].get("tests"))]
+            drop.sort(key=lambda r: (r["slot"] != "regulate_reel", r["slot"] != "community_reel", r["date"]), reverse=False)
+            while len(feed) > target and drop:
+                r = drop.pop(0)
+                feed.remove(r)
+                for k in ("template", "length_class", "derived_from", "series", "goal", "pillar", "sales", "invites"):
+                    r.pop(k, None)
+                r.update({"kind": "stories", "post": "Stories", "slot_notes": "Stories (cadence test week)",
+                          "film_by": None, "batch_session": None, "pillar": None, "series": None, "goal": None})
+                r["strategy"]["why"].append(f"Cadence: {target} feed posts this week. {note}")
 
     def time_plan(self) -> tuple[str, list[str], str]:
         """Blocked time-slot rotation outside the bandit (R6 section 6): (best band, rotation, reason)."""
@@ -1187,8 +1412,10 @@ class Planner:
         rng = np.random.default_rng(self.seed + 7919)
         rows = plan["rows"]
         feed = [r for r in rows if r["kind"] in ("reel", "carousel", "image")]
-        n_explore = int(round(float(self.lp["explore_share"]) * len(feed)))
-        protected = [r for r in feed if not (r.get("sales") or r.get("event_role") or r.get("signature") or r.get("collab"))]
+        format_tests = [r for r in feed if r["strategy"].get("tests") == "format"]
+        n_explore = max(0, int(round(float(self.lp["explore_share"]) * len(feed))) - len(format_tests))
+        protected = [r for r in feed if not (r.get("sales") or r.get("event_role") or r.get("signature") or r.get("collab")
+                                             or r["strategy"].get("tests"))]
         current = self.current_test_variable()
         r_note = f"testing {current} first (R6 test order: {', '.join(self.lp['test_order'])})"
         tested: dict[int, str] = {}
@@ -1198,6 +1425,8 @@ class Planner:
         for r in rows:
             if r["kind"] == "trial_reel":
                 tested[id(r)] = "hook"        # Trial Reels test hooks, on top of the explore share (trial-only pool)
+        for r in format_tests:
+            tested[id(r)] = "format"
         cap = float(self.lp["max_pattern_share_month"])
         hook_rows = [r for r in rows if r["kind"] in ("reel", "trial_reel", "carousel", "image")]
         limit = max(1, int(math.floor(cap * len(hook_rows) + 1e-9)))
@@ -1285,7 +1514,7 @@ class Planner:
 
     def pattern_arm(self, pid: str, ptype: str) -> tuple[str, str]:
         kind = self.pb["patterns"][pid]["kind"]
-        pre = ""
+        pre = TRIAL if ptype == "trial_reel" else ""
         if kind == "hook":
             return "hook", pre + hook_key(pid, ptype)
         if kind in STRUCTURE_KINDS:
@@ -1543,8 +1772,8 @@ def level_text(var: str, level: str) -> str:
 
 
 def insights(fits: dict, pb: dict) -> tuple[list[str], list[str]]:
-    """'Do more of / Do less of' lines: arms with enough final tries and a clear win rate and median index."""
-    ins = pb["policies"]["learning"].get("insight") or {"min_tries": 4, "min_win_rate": 0.65, "max_win_rate": 0.35}
+    """'Do more of / Do less of' lines: arms with enough final tries, a clear posterior and a clear median index."""
+    ins = pb["policies"]["learning"].get("insight") or {"min_tries": 6, "min_prob": 0.8}
     up = float(pb["policies"]["learning"]["promote"]["min_median_index"])
     down = float(pb["policies"]["learning"]["retire"]["max_median_index"])
     more, less = [], []
@@ -1552,28 +1781,34 @@ def insights(fits: dict, pb: dict) -> tuple[list[str], list[str]]:
         st = decision_stats(a["records"])
         if st["tries"] < ins["min_tries"] or not st["median_index"]:
             continue
-        rate = st["wins"] / st["tries"]
+        pb_ = prob_better(st["wins"], st["tries"])
         if var in VAR_LABEL:
             label = level_text(var, level).capitalize()
             base = "the feed median" if var in ("format", "format_day") else "Numa's median"
         else:
-            pid = level.split(":")[-1].split("@")[0]
+            pid = level[len(TRIAL):] if level.startswith(TRIAL) else level
+            pid = pid.split("@")[0]
             if pid not in pb["patterns"]:
                 continue
-            label = pb["patterns"][pid]["name"] + (" (Trial Reels)" if level.startswith("trial:") else "") + \
+            label = pb["patterns"][pid]["name"] + (" (Trial Reels)" if level.startswith(TRIAL) else "") + \
                 (" on carousels and images" if level.endswith(STATIC_SUFFIX) else "") + f" ({pid})"
-            base = "Numa's median"
+            base = "Numa's median" if not level.startswith(TRIAL) else "the Trial Reel median"
         line = f"{label}: beat {base} in {st['wins']} of {st['tries']} posts, median {st['median_index']:.2f}x."
-        if rate >= ins["min_win_rate"] and st["median_index"] >= up:
+        if pb_ >= ins["min_prob"] and st["median_index"] >= up:
             more.append(line)
-        elif rate <= ins["max_win_rate"] and st["median_index"] <= down:
+        elif 1 - pb_ >= ins["min_prob"] and st["median_index"] <= down:
             less.append(line)
     collab = [p for p in fits["cohorts"].get("collab", []) if p["score"] is not None and p["status"] == "final"]
     if len(collab) >= ins["min_tries"]:
         wins = sum(bool(p["win"]) for p in collab)
-        line = f"Collab posts (their own cohort): beat the collab median in {wins} of {len(collab)}."
-        (more if wins / len(collab) >= ins["min_win_rate"] else less if wins / len(collab) <= ins["max_win_rate"] else []).append(line)
+        pb_ = prob_better(wins, len(collab))
+        mi = 2 ** statistics.median(p["score"] for p in collab)
+        line = f"Collab posts (their own cohort): beat the collab median in {wins} of {len(collab)}, median {mi:.2f}x."
+        (more if pb_ >= ins["min_prob"] and mi >= up else less if 1 - pb_ >= ins["min_prob"] and mi <= down else []).append(line)
     return more, less
+
+
+FAST_TRACK_MAX_TRIES = 10     # R6: fast track is for a pattern's first tries only; re-checked at 10
 
 
 def months_after(d: date, months: float) -> date:
@@ -1583,11 +1818,14 @@ def months_after(d: date, months: float) -> date:
     return date(y, m, min(d.day, calendar.monthrange(y, m)[1])) + timedelta(days=int(round((months % 1) * 30)))
 
 
-def decide(p: dict, a: dict, lp: dict) -> tuple[str | None, str | None, dict]:
-    """(new status, reason, stats) for one pattern's main-pool arm, per R6 section 5."""
+def decide(p: dict, a: dict, lp: dict, since: str | None = None) -> tuple[str | None, str | None, dict]:
+    """(new status, reason, stats) for one pattern's main-pool arm, per R6 section 5.
+
+    Only tries from `since` (the last promote, retire, demote or re-entry) count, so a re-entered pattern starts
+    clean and a fresh promotion or demotion needs fresh evidence (no flapping)."""
     cur = p["status"]
-    st = decision_stats(a["records"])
-    no_jan = decision_stats(a["records"], january=False)
+    st = decision_stats(a["records"], since=since)
+    no_jan = decision_stats(a["records"], january=False, since=since)
     pro, fast, ret, dem = lp["promote"], lp["fast_track"], lp["retire"], lp["demote"]
     name = p["name"]
 
@@ -1596,7 +1834,7 @@ def decide(p: dict, a: dict, lp: dict) -> tuple[str | None, str | None, dict]:
             return (f"{name} beat Numa's median in {s['wins']} of {s['tries']} posts with a median of {s['median_index']:.2f}x "
                     f"(promote at {pro['min_wins']:g} of {pro['min_tries']:g} and {pro['min_median_index']}x); promoted to the exploit slots.")
         first = s["records"][:int(fast["first"])]
-        if len(first) >= fast["first"]:
+        if len(first) >= fast["first"] and s["tries"] < FAST_TRACK_MAX_TRIES:
             w = sum(r["win"] for r in first)
             mi = 2 ** statistics.median(r["S"] for r in first)
             if w >= fast["min_wins"] and mi >= fast["min_median_index"]:
@@ -1639,7 +1877,8 @@ def learn(pb: dict, fits: dict, today: date) -> tuple[dict, list[dict]]:
             since = date.fromisoformat(ov["since"])
             if today >= months_after(since, float(lp["retired_months"])):
                 why = f"{p['name']} was retired on {ov['since']}; after {lp['retired_months']:g} months it re-enters testing once."
-                st["status_overrides"][pid] = {"status": "testing", "since": today.isoformat(), "why": why, "reentered": True}
+                st["status_overrides"][pid] = {"status": "testing", "since": today.isoformat(), "why": why, "reentered": True,
+                                               "counts_from": today.isoformat()}
                 changes.append({"date": today.isoformat(), "action": "reenter", "target": pid, "from": "retired", "to": "testing", "why": why})
             continue
         key = status_key(pb, pid)
@@ -1647,7 +1886,7 @@ def learn(pb: dict, fits: dict, today: date) -> tuple[dict, list[dict]]:
         a = fits["arms"].get((var, key))
         if not a:
             continue
-        new, why, s = decide(p, a, lp)
+        new, why, s = decide(p, a, lp, ov.get("counts_from"))
         if why and not new:
             if not any(c.get("target") == pid and c["action"] == "hold" and c["why"] == why for c in st.get("changelog", [])[-50:]):
                 changes.append({"date": today.isoformat(), "action": "hold", "target": pid, "from": p["status"], "to": p["status"], "why": why})
@@ -1658,6 +1897,11 @@ def learn(pb: dict, fits: dict, today: date) -> tuple[dict, list[dict]]:
                 entry["median_index"] = s["median_index"]
             if ov.get("reentered"):
                 entry["reentered"] = True
+            if new == "testing" and p["status"] == "candidate":
+                if ov.get("counts_from"):
+                    entry["counts_from"] = ov["counts_from"]       # first use: keep counting the same tries
+            else:
+                entry["counts_from"] = today.isoformat()           # promote, retire, demote: fresh evidence from here
             st["status_overrides"][pid] = entry
             action = {"proven": "promote", "retired": "retire", "testing": "demote" if p["status"] == "proven" else "start_testing"}[new]
             ch = {"date": today.isoformat(), "action": action, "target": pid, "from": p["status"], "to": new, "why": why,
@@ -1934,7 +2178,7 @@ class Importer:
         self.ids = set(pb["patterns"])
         self.aliases = {a: pid for pid, p in pb["patterns"].items() for a in p.get("aliases", [])}
         self.names = {(p["kind"], norm_text(p["name"])): pid for pid, p in pb["patterns"].items()}
-        self.report: dict[str, list] = {"added": [], "merged": [], "rejected": [], "rules": [], "diagnosis": [],
+        self.report: dict[str, list] = {"added": [], "merged": [], "rejected": [], "rules": [], "diagnosis": [], "skipped": [],
                                         "priors": [], "judging": []}
 
     def log(self, action: str, target: str, why: str) -> None:
@@ -1946,6 +2190,11 @@ class Importer:
             raise nc.UserError(f"research file not found: {path}")
         text = path.read_text(encoding="utf-8-sig", errors="replace")
         fname = path.name
+        import hashlib
+        sha = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+        if any(i.get("sha") == sha for i in self.st["imports"]):
+            self.report.setdefault("skipped", []).append(fname)    # the same text was imported before: nothing to do
+            return
         before = {k: len(v) for k, v in self.report.items()}
         for headers, rows, heading in parse_tables(text):
             self.table(headers, rows, heading, fname)
@@ -1954,7 +2203,7 @@ class Importer:
         added = len(self.report["added"]) - before["added"] + len(self.report["diagnosis"]) - before["diagnosis"] \
             + len(self.report["rules"]) - before["rules"] + len(self.report["judging"]) - before["judging"] \
             + len(self.report["priors"]) - before["priors"]
-        self.st["imports"].append({"date": self.today.isoformat(), "file": fname, "added": added,
+        self.st["imports"].append({"date": self.today.isoformat(), "file": fname, "sha": sha, "added": added,
                                    "merged": len(self.report["merged"]) - before["merged"],
                                    "rejected": len(self.report["rejected"]) - before["rejected"]})
 
@@ -2278,20 +2527,39 @@ class Importer:
         return kebab(prefix + name, 48), name
 
     def merge(self, pid: str, examples: list[str], ev: dict, fname: str) -> None:
-        # Research only adds sources and safe examples: status, evidence level and Numa's results are never changed.
-        cur = copy.deepcopy(next((p for p in self.st["patterns"] if p["id"] == pid), None) or self.pb["patterns"][pid])
-        srcs = cur["evidence"]["sources"] + [s for s in ev["sources"] if s not in cur["evidence"]["sources"]]
-        cur["evidence"]["sources"] = srcs[:12]
+        """Research only adds sources and safe examples: status, evidence level and Numa's results never change.
+
+        A bundled pattern gets a delta in STATE (`pattern_deltas`), so later plugin fixes to the bundled entry still
+        apply; a pattern research added earlier is updated in place."""
+        own = next((p for p in self.st["patterns"] if p["id"] == pid), None)
+        base = own if own is not None else self.pb["patterns"][pid]
+        delta = self.st.setdefault("pattern_deltas", {}).setdefault(pid, {}) if own is None else None
+        have_src = set(base["evidence"]["sources"]) | set((delta or {}).get("sources", []))
+        have_ex = set(base["examples"]) | set((delta or {}).get("examples", []))
+        new_src = [s for s in ev["sources"] if s not in have_src]
+        new_ex = [e for e in examples if e not in have_ex][:max(0, 6 - len(have_ex))]
         note = f"Also in {fname} ({ev['level']})."
-        if note not in cur["evidence"].get("notes", ""):
-            cur["evidence"]["notes"] = (cur["evidence"].get("notes", "") + " " + note).strip()[:600]
-        for ex in examples:
-            if ex not in cur["examples"] and len(cur["examples"]) < 6:
-                cur["examples"].append(ex)
-        self.st["patterns"] = [p for p in self.st["patterns"] if p["id"] != pid] + [cur]
+        new_note = note not in base["evidence"].get("notes", "") and note not in (delta or {}).get("notes", [])
         self.report["merged"].append(pid)
-        self.log("merge", pid, f"{cur['name']} is already in the playbook; added the sources and safe examples from {fname} "
-                 f"(status and Numa's results unchanged).")
+        if not (new_src or new_ex or new_note):
+            if delta == {}:
+                self.st["pattern_deltas"].pop(pid, None)
+            return                                        # idempotent: nothing new, no changelog line
+        if own is not None:
+            own["evidence"]["sources"] = (own["evidence"]["sources"] + new_src)[:12]
+            own["examples"] += new_ex
+            if new_note:
+                own["evidence"]["notes"] = (own["evidence"].get("notes", "") + " " + note).strip()[:600]
+        else:
+            delta.setdefault("sources", []).extend(new_src)
+            delta.setdefault("examples", []).extend(new_ex)
+            if new_note:
+                delta.setdefault("notes", []).append(note)
+            for k in ("sources", "examples", "notes"):
+                if not delta.get(k):
+                    delta.pop(k, None)
+        self.log("merge", pid, f"{base['name']} is already in the playbook; added {len(new_src)} source(s) and {len(new_ex)} safe "
+                 f"example(s) from {fname} (status and Numa's results unchanged).")
 
 
 # ---------------------------------------------------------------------------

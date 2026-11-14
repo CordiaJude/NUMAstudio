@@ -18,15 +18,16 @@
     "cadence": {
       "feed_per_week": {"value": 5, "min": 4, "max": 5},
       "trial_per_week": {"value": 1, "min": 1, "max": 2},
+      "approval_capacity_per_week": 5,
       "stories": "1-3 a day on most days (R2 C5); never a full week dark (R2 C2); at most one feed post a day, 24 h apart (R2 C4, opinion).",
       "never_dark_week": true,
       "evidence": {"level": "measured", "sources": ["docs/research/R2_Formats_and_mix.md cadence rules C1-C8 (Buffer 2.1M posts, correlational)", "spec p.33-34 (4-5 feed posts, 1-2 Trial Reels a week)"], "notes": "R2 says 3-5 feed posts; the spec's 4-5 is the planning rule.", "confidence": "medium"}
     },
     "feed_mix": {
-      "reel": {"prior": 0.6, "min": 0.5, "max": 0.85},
-      "carousel": {"prior": 0.33, "min": 0.1, "max": 0.5},
-      "image": {"prior": 0.07, "min": 0.0, "max": 0.2},
-      "evidence": {"level": "measured", "sources": ["docs/research/R2_Formats_and_mix.md (Reels 55-60%, carousels 30-35%, single photos <=10% of feed posts)"], "notes": "Shares are R2's; min/max are engineering bounds on how far learning may move one plan.", "confidence": "medium"}
+      "reel": {"prior": 0.6, "min": 0.5, "max": 0.85, "min_with_evidence": 0.4},
+      "carousel": {"prior": 0.33, "min": 0.1, "max": 0.5, "max_with_evidence": 0.6},
+      "image": {"prior": 0.07, "min": 0.0, "max": 0.2, "max_with_evidence": 0.4},
+      "evidence": {"level": "measured", "sources": ["docs/research/R2_Formats_and_mix.md (Reels 55-60%, carousels 30-35%, single photos <=10% of feed posts)"], "notes": "Shares are R2's and soft: min/max hold until a format beats reels on the pooled feed median over at least 6 posts, then *_with_evidence widen them (images up to 40% of the feed). A format-test slot a week tries the least-tried format until it has the 8 tries R6 needs.", "confidence": "medium"}
     },
     "hour_bands": {
       "bands": {
@@ -162,9 +163,21 @@
       "data_led_after_posts": 30,
       "stickiness": 0.1,
       "underperform_index": 0.8,
-      "insight": {"min_tries": 4, "min_win_rate": 0.65, "max_win_rate": 0.35},
+      "insight": {"min_tries": 6, "min_prob": 0.9},
       "time_slots": {"rotation": ["late_afternoon", "morning", "midday"], "min_posts_each": 8, "min_ratio": 1.25},
       "evidence": {"level": "opinion", "sources": ["docs/research/R6_Learning_loop.md sections 5-9 (Beta-Bernoulli posteriors, Russo et al. 2018; discounted Thompson sampling, Raj & Kalyani 2017; sign-test arithmetic)", "docs/research/REVIEW.md (owners' data outranks research)"], "notes": "heuristic (R6): thresholds, the 0.97 discount, the 70/30 split and the 40% cap are reasoned starting settings. Owner priors count as 4 tries, research priors 1-2, so Numa's data leads after a few posts. data-led share = min(1, judged posts / 30) gates format changes (spec p.34 rule 10). Trial Reels learn in a trial-only pool; holiday-week, boosted and collab posts are scored but kept out of the posteriors and decisions; January wins must repeat in February-March before a promotion.", "confidence": "medium"}
+    },
+    "rotations": {
+      "block_weeks": 4,
+      "cadence": {"levels": [5, 4], "min_each": 8, "min_ratio": 1.25,
+                  "judged_on": "Weekly reach of the week's feed posts against the median of the 8 weeks before (follows and bookings per 1,000 reach once the store carries account data); holiday and boosted weeks left out.",
+                  "evidence": {"level": "opinion", "sources": ["docs/research/R2_Formats_and_mix.md experiment 4 (blocked 4-week cadence rotation)", "spec p.34 (4-5 feed posts a week is the planning rule)"], "notes": "R2 tests 3-5 a week; the spec's planning rule keeps it to 4-5, and approval_capacity_per_week caps it."}},
+      "story_frames": {"levels": [2, 1, 3], "min_each": 8, "min_ratio": 1.25,
+                       "judged_on": "Story posts' score (reach and link taps against the Story median), tagged story_frames.",
+                       "evidence": {"level": "opinion", "sources": ["docs/research/R2_Formats_and_mix.md cadence rule C5 (1-3 Stories a day)"]}},
+      "off_day": {"levels": ["Sat", "Sun"], "min_each": 8, "min_ratio": 1.25,
+                  "judged_on": "Feed posts on Saturday vs Sunday (the weekday arms); the other day carries Stories only.",
+                  "evidence": {"level": "opinion", "sources": ["docs/research/R6_Learning_loop.md section 6 (timing outside the bandit: blocked rotation, >= 1.25x over >= 8 posts each)", "docs/research/R2_Formats_and_mix.md section 3 (Saturday weak in several studies)"]}}
     },
     "prior_means": {
       "offer_week": {"w1": 0.03, "w2": 0.0, "w3": 0.02, "w4": 0.0, "w5": 0.0}
