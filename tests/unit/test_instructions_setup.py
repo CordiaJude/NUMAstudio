@@ -521,7 +521,9 @@ def test_numa_setup_bootstrap_and_task_verification(texts):
     for needle in ["eight scheduled tasks", "Quarterly research re-check", "0 10 12 2,5,8,11 *", "Chrome queue",
                    "local (desktop) scheduled task", "never in the cloud", "Run now", "`SINCE`",
                    'runlog.py" check --since "<SINCE>" --tasks', "(not run)", "Leave the schedule off",
-                   "do not expand", "copied **exactly**"]:
+                   "do not expand", "copied **exactly**", 'runlog.py" merge-dir "$STATE/runlog.drive"',
+                   "`WARN:` (finished `partial`", "**Nothing posts during this round:**",
+                   "leave that row unapproved", "**off** for the quarterly reminder"]:
         assert needle in sec, needle
     ids = re.search(r"--tasks ([a-z_,]+)", sec).group(1).split(",")
     assert ids == ["plan_month", "night_check", "build_today", "dashboard_refresh", "trend_check", "digest",
@@ -532,6 +534,9 @@ def test_setup_guide_eight_tasks_and_runlog_check(texts):
     t = texts["guide"]
     for needle in ["Create the eight scheduled tasks", "| Quarterly research re-check |", "| Chrome queue |",
                    "**Desktop** (Katie's Mac)", "Cloud or desktop.", "only while the Mac is awake",
-                   "Check the run log", "runlog.py check --since", "`ensure_env.py`"]:
+                   "Check the run log", "runlog.py check --since", "`ensure_env.py`", "`WARN:`",
+                   "a post goes out only after a person approves it", "fallback that never publishes",
+                   "posts nothing", "**off** for the quarterly reminder and the Chrome queue"]:
         assert needle in t, needle
+    assert "plan, build and post every reel" not in t and "built and posted" not in t
     assert "six scheduled tasks" not in t

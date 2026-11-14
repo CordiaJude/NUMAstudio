@@ -45,8 +45,28 @@ def write_log(state, runs, created="2026-10-01T00:00:00Z", reported=()):
                                                    "reported": list(reported)}))
 
 
+RID = "night_check-20261114T020000Z-ab12"  # a watchdog run's id for --mark-reported
+
+
 @pytest.fixture
-def state(tmp_path, nc, monkeypatch):
+def pinned_config(tmp_path, monkeypatch, repo_root):
+    """The six cloud tasks and timezone of the shipped config, nothing else: tests do not move when
+    config gains schedule.extra_tasks or schedule.runlog."""
+    cfg = json.loads((repo_root / "config" / "studio.json").read_text())
+    cfg["schedule"] = {"timezone": "America/Chicago",
+                       "tasks": [{k: t[k] for k in ("id", "name", "when", "cron", "command")}
+                                 for t in cfg["schedule"]["tasks"]]}
+    assert [t["id"] for t in cfg["schedule"]["tasks"]] == ["plan_month", "night_check", "build_today",
+                                                            "dashboard_refresh", "trend_check", "digest"]
+    path = tmp_path / "studio_pinned.json"
+    path.write_text(json.dumps(cfg))
+    monkeypatch.setenv("NUMA_CONFIG", str(path))
+    numa_common.clear_caches()
+    return cfg
+
+
+@pytest.fixture
+def state(tmp_path, nc, monkeypatch, pinned_config):
     monkeypatch.delenv("NUMA_STATE", raising=False)
     return tmp_path / "_Plan"
 
@@ -129,16 +149,15 @@ def test_synthetic_dst_week_is_healthy(state, capsys):
     assert res["tasks"]["plan_month"]["expected"] == 0  # the 24th is outside the window
 
 
-def test_naive_utc_offset_mistake_is_caught(state, capsys):
-    """A run logged at 5 am Central with last week's offset (-05:00) after the change lands an hour early, so
-    it belongs to the previous day's slot and the day itself is missed."""
+def test_an_hour_off_still_matches_its_slot(state, capsys):
+    """A scheduler stuck on a fixed UTC cron runs an hour early after the fall-back change; the run still
+    belongs to its own day's slot (early_minutes 120), so it is not reported as missed."""
     runs = [r for r in week_runs() if not (r["task"] == "build_today" and r["started_at"].startswith("2026-11-02"))]
     runs.append(rec("build_today", datetime(2026, 11, 2, 5, 2, tzinfo=timezone(timedelta(hours=-5))).astimezone(UTC),
-                    rid="wrong-offset"))
+                    rid="hour-early"))
     write_log(state, runs)
     res = out_json(capsys, ["check", "--state", str(state), "--now", "2026-11-04T12:00:00-06:00", "--json"])
-    missed = [p for p in res["problems"] if p["kind"] == "missed"]
-    assert [(p["task"], p["date"]) for p in missed] == [("build_today", "2026-11-02")]
+    assert res["healthy"] and res["tasks"]["build_today"]["ok"] == 7
 
 
 def test_missed_failed_stuck_and_partial(state, capsys):
@@ -157,8 +176,8 @@ def test_missed_failed_stuck_and_partial(state, capsys):
     assert set(kinds) == {("missed", "build_today", "2026-11-02"), ("missed", "night_check", "2026-11-03"),
                           ("failed", "dashboard_refresh", "2026-10-31"), ("stuck", "build_today", "2026-11-04")}
     assert kinds[("failed", "dashboard_refresh", "2026-10-31")]["note"] == "Composio unreachable"
-    assert kinds[("missed", "build_today", "2026-11-02")]["action"] == "reschedule"
-    assert kinds[("stuck", "build_today", "2026-11-04")]["action"] == "late_build"  # noon: a build still posts today
+    assert kinds[("missed", "build_today", "2026-11-02")]["action"] == "reschedule"  # not today
+    assert kinds[("stuck", "build_today", "2026-11-04")]["action"] == "reschedule"  # a run exists: no late build
     assert kinds[("stuck", "build_today", "2026-11-04")]["minutes"] == 419
     assert kinds[("stuck", "build_today", "2026-11-04")]["runs"] == 1 and kinds[("missed", "build_today", "2026-11-02")]["runs"] == 0
     assert kinds[("failed", "dashboard_refresh", "2026-10-31")]["action"] == "skip"
@@ -174,7 +193,7 @@ def test_a_rerun_in_the_same_slot_clears_a_failure(state, capsys):
     assert res["healthy"] and res["tasks"]["build_today"] == {**res["tasks"]["build_today"], "ok": 1, "failed": 0}
 
 
-def test_late_build_window_and_post_by(state, capsys):
+def test_late_build_only_for_a_slot_missed_outright_today(state, capsys):
     write_log(state, [], created="2026-11-12T00:00:00Z")
     args = ["check", "--state", str(state), "--json"]
 
@@ -183,11 +202,79 @@ def test_late_build_window_and_post_by(state, capsys):
         return next(p["action"] for p in res["problems"] if p["task"] == "build_today" and p["date"] == now[:10])
 
     assert action("2026-11-13T09:00:00-06:00") == "late_build"
-    assert action("2026-11-13T16:59:00-06:00") == "late_build"  # 60 min build before 18:00
-    assert action("2026-11-13T17:30:00-06:00") == "reschedule"
-    assert action("2026-11-13T17:30:00-06:00", "--post-by", "19:00") == "late_build"
+    assert action("2026-11-13T14:59:00-06:00") == "late_build"  # before late_build_by 15:00
+    assert action("2026-11-13T15:00:00-06:00") == "reschedule"
+    assert action("2026-11-13T15:30:00-06:00", "--late-build-by", "16:00") == "late_build"
     assert action("2026-11-13T20:00:00-06:00") == "reschedule"  # the 8 pm night check: too late today
-    assert run(args + ["--now", "2026-11-13T09:00:00", "--post-by", "25:00"]) == 1
+    assert run(args + ["--now", "2026-11-13T09:00:00", "--late-build-by", "25:00"]) == 1
+
+
+def test_late_build_happens_at_most_once(state, capsys):
+    """M1: missed -> late_build; a late run in the slot (running, failed or ok) ends late builds for that day."""
+    write_log(state, [], created="2026-11-12T00:00:00Z")
+    chk = ["check", "--state", str(state), "--json"]
+    res = out_json(capsys, chk + ["--now", "2026-11-13T09:47:00-06:00"])
+    (p,) = [p for p in res["problems"] if p["task"] == "build_today" and p["date"] == "2026-11-13"]
+    assert (p["kind"], p["runs"], p["action"]) == ("missed", 0, "late_build")
+    capsys.readouterr()
+    assert run(["start", "build_today", "--late", "--state", str(state), "--now", "2026-11-13T09:48:00-06:00"]) == 0
+    rid = capsys.readouterr().out.strip()
+    res = out_json(capsys, chk + ["--now", "2026-11-13T10:47:00-06:00"])  # still running: not a problem
+    assert not [p for p in res["problems"] if p["task"] == "build_today" and p["date"] == "2026-11-13"]
+    assert run(["finish", rid, "--outcome", "failed", "--note", "render crash", "--state", str(state),
+                "--now", "2026-11-13T10:50:00-06:00"]) == 0
+    res = out_json(capsys, chk + ["--now", "2026-11-13T11:47:00-06:00"])
+    (p,) = [p for p in res["problems"] if p["task"] == "build_today" and p["date"] == "2026-11-13"]
+    assert (p["kind"], p["runs"], p["late_runs"], p["action"]) == ("failed", 1, 1, "reschedule")
+    assert json.loads((state / "runlog" / f"{rid}.json").read_text())["late"] is True
+    # a stuck late run never triggers another one either
+    write_log(state, [rec("build_today", utc(2026, 11, 13, 15, 48), outcome=None, rid="late-hung")],
+              created="2026-11-12T00:00:00Z")
+    json_log = json.loads((state / "runlog.json").read_text())
+    json_log["runs"][0]["late"] = True
+    (state / "runlog.json").write_text(json.dumps(json_log))
+    res = out_json(capsys, chk + ["--now", "2026-11-13T14:30:00-06:00"])
+    (p,) = [p for p in res["problems"] if p["task"] == "build_today" and p["date"] == "2026-11-13"]
+    assert (p["kind"], p["action"]) == ("stuck", "reschedule")
+
+
+def test_a_run_that_rescheduled_itself_is_not_rescheduled_again(state, capsys):
+    """B2: build-today failed and moved the day itself (finish --rescheduled): the watchdog skips it."""
+    capsys.readouterr()
+    assert run(["start", "build_today", "--state", str(state), "--now", "2026-11-13T05:00:10-06:00"]) == 0
+    rid = capsys.readouterr().out.strip()
+    assert run(["finish", rid, "--outcome", "failed", "--rescheduled", "--note", "env: ffmpeg missing",
+                "--state", str(state), "--now", "2026-11-13T05:04:00-06:00"]) == 0
+    res = out_json(capsys, ["check", "--state", str(state), "--now", "2026-11-13T20:00:00-06:00", "--json"])
+    (p,) = [p for p in res["problems"] if p["task"] == "build_today"]
+    assert p["kind"] == "failed" and p["action"] == "skip" and p["rescheduled"] is True
+    # without --rescheduled the same failure is rescheduled by the watchdog
+    write_log(state, [rec("build_today", utc(2026, 11, 13, 11, 0), outcome="failed")], created="2026-11-13T00:00:00Z")
+    res = out_json(capsys, ["check", "--state", str(state), "--now", "2026-11-13T20:00:00-06:00", "--json"])
+    assert next(p for p in res["problems"] if p["task"] == "build_today")["action"] == "reschedule"
+
+
+def test_early_start_lands_in_its_own_slot(state, capsys):
+    """Minor 4: a run up to early_minutes (120) before its time belongs to that slot, not the day before."""
+    write_log(state, [rec("build_today", utc(2026, 11, 12, 11, 0)),
+                      rec("build_today", datetime(2026, 11, 13, 3, 40, tzinfo=CHI).astimezone(UTC), rid="early")],
+              created="2026-11-12T00:00:00Z")
+    res = out_json(capsys, ["check", "--state", str(state), "--now", "2026-11-13T09:00:00-06:00", "--json"])
+    assert not [p for p in res["problems"] if p["task"] == "build_today"]
+    assert res["tasks"]["build_today"]["ok"] == 2
+
+
+def test_a_run_cut_off_by_sleep_is_interrupted_not_stuck(state, capsys):
+    """Minor 1: the next run of the task lists the open one in `supersedes`; it is reported as interrupted."""
+    capsys.readouterr()
+    assert run(["start", "make_reel", "--state", str(state), "--now", "2026-11-13T09:00:00-06:00"]) == 0
+    first = capsys.readouterr().out.strip()
+    out = out_json(capsys, ["start", "make_reel", "--state", str(state), "--now", "2026-11-13T14:00:00-06:00",
+                            "--json"])
+    assert out["supersedes"] == [first]
+    res = out_json(capsys, ["check", "--state", str(state), "--now", "2026-11-13T15:00:00-06:00", "--json"])
+    assert not [p for p in res["problems"] if p["task"] == "make_reel"]
+    assert [(n["kind"], n["run_id"]) for n in res["notes"]] == [("interrupted", first)]
 
 
 def test_rerun_window_for_other_tasks(state, capsys):
@@ -218,13 +305,16 @@ def test_grace_period(state, capsys):
 
 def test_mark_reported_sends_each_problem_once(state, capsys):
     write_log(state, [], created="2026-11-12T00:00:00Z")
-    args = ["check", "--state", str(state), "--now", "2026-11-13T20:00:00-06:00", "--json", "--mark-reported"]
+    args = ["check", "--state", str(state), "--now", "2026-11-13T20:00:00-06:00", "--json", "--mark-reported", RID]
     first = out_json(capsys, args)
     assert first["problems"] and all(p["new"] for p in first["problems"])
+    marks = json.loads((state / "runlog" / f"reported-{RID}.json").read_text())
+    assert marks["run_id"] == RID and set(marks["reported"]) == {p["key"] for p in first["problems"]}
     again = out_json(capsys, args)
     assert again["problems"] and not any(p["new"] for p in again["problems"])
     later = out_json(capsys, ["check", "--state", str(state), "--now", "2026-11-13T23:30:00-06:00", "--json"])
     assert [p["task"] for p in later["problems"] if p["new"]] == ["night_check", "dashboard_refresh"]
+    assert run(["check", "--state", str(state), "--mark-reported", "me"]) == 2  # must be a run id
 
 
 def test_unscheduled_runs_report_failures(state, capsys):
@@ -246,8 +336,11 @@ def test_start_and_finish(state, capsys):
     assert run(["finish", rid, "--outcome", "failed", "--note", "render   crash", "--state", str(state),
                 "--now", "2026-11-13T05:30:00-06:00"]) == 0
     log = json.loads((state / "runlog.json").read_text())
-    assert log["runs"][0] == {"id": rid, "task": "build_today", "started_at": "2026-11-13T11:00:20Z",
-                              "finished_at": "2026-11-13T11:30:00Z", "outcome": "failed", "note": "render crash"}
+    expect = {"id": rid, "task": "build_today", "started_at": "2026-11-13T11:00:20Z",
+              "finished_at": "2026-11-13T11:30:00Z", "outcome": "failed", "note": "render crash", "late": False,
+              "rescheduled": False, "supersedes": []}
+    assert log["runs"][0] == expect
+    assert json.loads((state / "runlog" / f"{rid}.json").read_text()) == expect  # this run's own file
     run(["start", "digest", "--state", str(state), "--now", "2026-11-15T18:00:00"])
     capsys.readouterr()
     assert run(["finish", "--task", "digest", "--outcome", "ok", "--state", str(state), "--json"]) == 0
@@ -276,19 +369,43 @@ def test_bad_log_and_bad_times(state, capsys):
     assert "ISO 8601" in capsys.readouterr().err
 
 
-def test_merge_keeps_both_machines_runs(state, tmp_path, capsys):
-    a = rec("build_today", utc(2026, 11, 13, 11, 0), outcome=None, rid="a")
-    write_log(state, [a], created="2026-11-13T11:00:00Z")
-    other = tmp_path / "drive.json"
-    other.write_text(json.dumps({"created_at": "2026-11-10T00:00:00Z", "reported": ["missed:x:y"],
-                                 "runs": [rec("build_today", utc(2026, 11, 13, 11, 0), rid="a"),
-                                          rec("night_check", utc(2026, 11, 13, 2, 0), rid="b")]}))
-    out = out_json(capsys, ["merge", str(other), "--state", str(state), "--json"])
-    assert out["added"] == 1 and out["runs"] == 2
-    log = json.loads((state / "runlog.json").read_text())
-    assert {r["id"]: r["outcome"] for r in log["runs"]} == {"a": "ok", "b": "ok"}  # the finished copy wins
-    assert log["created_at"] == "2026-11-10T00:00:00Z" and log["reported"] == ["missed:x:y"]
-    assert run(["merge", str(tmp_path / "missing.json"), "--state", str(state)]) == 1
+def test_merge_dir_two_machines_interleaved(tmp_path, nc, pinned_config, capsys, monkeypatch):
+    """M2: two machines start from the same Drive folder, each finishes its own run and uploads its own file;
+    whatever order the uploads land in, the merged log has both finishes."""
+    monkeypatch.delenv("NUMA_STATE", raising=False)
+    drive = tmp_path / "drive_runlog"
+    drive.mkdir()
+    a_state, b_state = tmp_path / "A", tmp_path / "B"
+    ids = {}
+    for name, st, task, t0 in (("A", a_state, "build_today", "2026-11-13T05:00:00-06:00"),
+                               ("B", b_state, "chrome_queue", "2026-11-13T05:47:00-06:00")):
+        out_json(capsys, ["merge-dir", str(drive), "--state", str(st), "--json"])  # download + merge
+        ids[name] = out_json(capsys, ["start", task, "--state", str(st), "--now", t0, "--json"])["run_id"]
+        f = st / "runlog" / f"{ids[name]}.json"
+        (drive / f.name).write_text(f.read_text())                                # upload own file
+    out_json(capsys, ["finish", ids["B"], "--outcome", "ok", "--state", str(b_state),
+                      "--now", "2026-11-13T05:50:00-06:00", "--json"])
+    (drive / f"{ids['B']}.json").write_text((b_state / "runlog" / f"{ids['B']}.json").read_text())
+    out_json(capsys, ["finish", ids["A"], "--outcome", "ok", "--state", str(a_state),
+                      "--now", "2026-11-13T05:20:00-06:00", "--json"])
+    (drive / f"{ids['A']}.json").write_text((a_state / "runlog" / f"{ids['A']}.json").read_text())
+    # a stale open copy of A's record must not undo A's finish
+    out = out_json(capsys, ["merge-dir", str(drive), "--state", str(b_state), "--json"])
+    assert out["added"] == 0 and out["updated"] == 1 and out["runs"] == 2  # B saw A's start, now its finish
+    log = json.loads((b_state / "runlog.json").read_text())
+    assert {r["id"]: r["outcome"] for r in log["runs"]} == {ids["A"]: "ok", ids["B"]: "ok"}
+    stale = json.loads((drive / f"{ids['A']}.json").read_text())
+    stale.update(finished_at=None, outcome=None)
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / f"{ids['A']}.json").write_text(json.dumps(stale))
+    (other / "reported-x.json").write_text(json.dumps({"run_id": "x", "reported": ["missed:digest:z"]}))
+    (other / "junk.json").write_text("{not json")
+    out = out_json(capsys, ["merge-dir", str(other), "--state", str(b_state), "--json"])
+    assert out["updated"] == 0 and out["skipped"] == 1
+    log = json.loads((b_state / "runlog.json").read_text())
+    assert {r["id"]: r["outcome"] for r in log["runs"]}[ids["A"]] == "ok" and log["reported"] == ["missed:digest:z"]
+    assert run(["merge-dir", str(tmp_path / "missing"), "--state", str(b_state)]) == 1  # never "absent" silently
 
 
 def test_concurrent_starts_lose_nothing(state, scripts_dir):
@@ -322,6 +439,7 @@ def test_setup_verification_since(state, capsys):
     runs = [rec(t, utc(2026, 11, 13, 16, i)) for i, t in enumerate(
         ["plan_month", "night_check", "build_today", "dashboard_refresh", "trend_check"])]
     runs.append(rec("digest", utc(2026, 11, 13, 16, 30), outcome="failed", note="Docs not connected"))
+    runs.append(rec("trend_check", utc(2026, 11, 13, 16, 40), outcome="partial", note="no Chrome", rid="tc2"))
     runs.append(rec("digest", utc(2026, 11, 12, 16, 30), rid="old-ok"))  # before --since: does not count
     write_log(state, runs)
     res = out_json(capsys, ["check", "--since", since, "--state", str(state), "--now", "2026-11-13T12:00:00-06:00",
@@ -334,27 +452,35 @@ def test_setup_verification_since(state, capsys):
                             "--now", "2026-11-13T12:00:00-06:00", "--json"])
     assert res["verify"]["chrome_queue"]["status"] == "not run"
     assert run(["check", "--tasks", "digest", "--state", str(state)]) == 2
+    write_log(state, [rec("digest", utc(2026, 11, 13, 16, 30), outcome="partial", note="no thumbnails")])
+    res = out_json(capsys, ["check", "--since", since, "--tasks", "digest", "--state", str(state),
+                            "--now", "2026-11-13T12:00:00-06:00", "--json"])
+    assert res["healthy"] and res["warnings"] == ["digest"] and res["verify"]["digest"]["ran"]  # partial = ran, warn
+    capsys.readouterr()
+    run(["check", "--since", since, "--tasks", "digest", "--state", str(state), "--now", "2026-11-13T12:00:00-06:00"])
+    assert "WARN: digest (partial: no thumbnails)" in capsys.readouterr().out
 
 
-def test_extra_tasks_and_settings_from_config(state, tmp_path, monkeypatch, capsys, repo_root):
-    cfg = json.loads((repo_root / "config" / "studio.json").read_text())
-    cfg = copy.deepcopy(cfg)
+def test_extra_tasks_and_settings_from_config(state, tmp_path, monkeypatch, capsys, pinned_config):
+    cfg = copy.deepcopy(pinned_config)
     cfg["schedule"]["extra_tasks"] = [
         {"id": "quarterly_research", "name": "Quarterly research re-check", "cron": "0 10 12 2,5,8,11 *",
          "where": "cloud"},
         {"id": "chrome_queue", "name": "Chrome queue", "cron": "17 * * * *", "where": "desktop"}]
-    cfg["schedule"]["runlog"] = {"_readme": "x", "post_by": "17:00", "stuck_after_minutes": {"build_today": 30}}
+    cfg["schedule"]["runlog"] = {"_readme": "x", "late_build_by": "17:00", "stuck_after_minutes": {"build_today": 30}}
     path = tmp_path / "studio.json"
     path.write_text(json.dumps(cfg))
     monkeypatch.setenv("NUMA_CONFIG", str(path))
     numa_common.clear_caches()
-    write_log(state, [rec("build_today", utc(2026, 11, 13, 11, 0), outcome=None, rid="hung")],
+    write_log(state, [rec("build_today", utc(2026, 11, 12, 11, 0), outcome=None, rid="hung")],
               created="2026-11-10T00:00:00Z")
     res = out_json(capsys, ["check", "--state", str(state), "--now", "2026-11-13T15:55:00-06:00", "--json"])
     assert "chrome_queue" not in res["tasks"]  # desktop-only: asleep is not missed
     assert res["tasks"]["quarterly_research"]["expected"] == 1
     hung = next(p for p in res["problems"] if p.get("run_id") == "hung")
-    assert hung["kind"] == "stuck" and hung["action"] == "late_build"  # 15:55 + 60 min <= post_by 17:00; open 10 h > 30 min
+    assert hung["kind"] == "stuck"  # stuck_after_minutes 30 from config
+    today = next(p for p in res["problems"] if p["task"] == "build_today" and p["date"] == "2026-11-13")
+    assert today["action"] == "late_build"  # 15:55 is before late_build_by 17:00 from config
     res = out_json(capsys, ["check", "--since", "2026-11-13T00:00", "--state", str(state), "--json",
                             "--now", "2026-11-13T16:10:00-06:00"])
     assert "chrome_queue" in res["verify"] and "quarterly_research" in res["verify"]

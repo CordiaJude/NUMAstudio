@@ -33,7 +33,7 @@ SPEC_EXAMPLE = {
     "goal": "community", "template": "member_story_reel", "length_s": 45, "hook_text": "Three minutes.",
     "lines": ["Three minutes. That's all it takes.", "The first ten seconds are loud. Then it gets quiet.",
               "You come out different than you went in.",
-              "Try a month with Discover NUMA, $49. Send this to your plunge buddy."],
+              "Try a month with Discover Numa, $49. Send this to your plunge buddy."],
     "shots": [
         {"n": 1, "line": 1, "what": "a hand touching the water surface, slow", "framing": "close", "seconds": 5,
          "people": False, "ai_motion": False},
@@ -50,7 +50,7 @@ SPEC_EXAMPLE = {
     ],
     "photos": ["a candle by the plunge"],
     "music": {"mood": "calm, warm piano", "bpm": [90, 100], "source": "generate"},
-    "cta": "Try a month with Discover NUMA, $49.", "share_line": "Send this to your plunge buddy.",
+    "cta": "Try a month with Discover Numa, $49.", "share_line": "Send this to your plunge buddy.",
     "safety_line": True, "needs_consent": True, "film_by": "2026-12-07", "batch_room": "plunge room",
 }
 
@@ -73,7 +73,7 @@ def script_for(row: dict, title: str) -> dict:
              "people": False, "ai_motion": True, "room": room},
         ],
         "music": {"mood": "calm, warm piano", "bpm": [90, 100], "source": "generate"},
-        "cta": "Save this for your first visit." if edu or row.get("goal") != "offer" else "Try a month with Discover NUMA, $49.",
+        "cta": "Save this for your first visit." if edu or row.get("goal") != "offer" else "Try a month with Discover Numa, $49.",
         "share_line": "Send this to your plunge buddy.", "safety_line": True, "needs_consent": True, "batch_room": room,
     }
 
@@ -630,7 +630,7 @@ def test_sales_from_cta_text_only(tmp_path, capsys):
     code, vs = violations(tmp_path, capsys, p)
     assert code == 1 and "1-sales-per-week" in rules(vs)
     p = december()
-    row(p, 2)["lines"] = row(p, 2)["lines"][:3] + ["Try a month with Discover NUMA, $49."]
+    row(p, 2)["lines"] = row(p, 2)["lines"][:3] + ["Try a month with Discover Numa, $49."]
     assert "1-sales-per-week" in rules(violations(tmp_path, capsys, p)[1])
 
 
@@ -646,7 +646,7 @@ def test_sales_flag_forces_and_collab_friday_is_not_sales(tmp_path, capsys):
 
 def test_offer_hidden_in_an_ask_the_dpt_reel(tmp_path, capsys):
     p = december()
-    row(p, 14)["lines"] = row(p, 14)["lines"][:3] + ["Discover NUMA is $49 for your first month."]
+    row(p, 14)["lines"] = row(p, 14)["lines"][:3] + ["Discover Numa is $49 for your first month."]
     code, vs = violations(tmp_path, capsys, p)
     assert code == 1 and any("Ask the DPT" in v["message"] for v in vs)
 

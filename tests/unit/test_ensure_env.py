@@ -207,3 +207,16 @@ def test_real_warm_run_under_five_seconds(tmp_path, scripts_dir):
     assert time.monotonic() - t0 < 5
     rep = json.loads(warm.stdout)
     assert warm.returncode == 0 and rep["ready"] and rep["fast_path"] and rep["installed"] == []
+
+
+def test_direct_reference_lines(tmp_path):
+    """Minor 7: `pkg @ <url>` (PEP 508) is read as a package with no version clause."""
+    req = tmp_path / "r.txt"
+    req.write_text("numa-thing @ git+ssh://git@example.invalid/numa/thing.git#egg=numa-thing\n"
+                   "other[extra] @ file:///opt/wheels/other-1.0-py3-none-any.whl ; python_version >= '3.10'\n")
+    reqs = ensure_env.parse_requirements(req)
+    assert [(r["dist"], r["module"], r["clauses"]) for r in reqs] == [("numa-thing", "numa_thing", []),
+                                                                    ("other", "other", [])]
+    req.write_text("broken @\n")
+    with pytest.raises(numa_common.UserError):
+        ensure_env.parse_requirements(req)

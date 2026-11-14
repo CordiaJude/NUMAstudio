@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Adaptive strategy engine: learns from NUMA's own engagement what to post, when and how (DECISIONS D23).
+"""Adaptive strategy engine: learns from Numa's own engagement what to post, when and how (DECISIONS D23).
 
 Usage:
     strategy.py plan    --month YYYY-MM [--metrics FILE] [--state FILE] [--playbook DIR] [--events FILE]
@@ -18,7 +18,7 @@ FILE paths: --metrics is metrics.py's store (metrics.json); --state is the learn
 overlay (STATE/strategy.json, created on first learn/import); --playbook defaults
 to skills/numa-scriptwriter/playbook (patterns, diagnosis, calendar, policies;
 schemas/playbook.schema.json). The bundled playbook is never written: statuses
-NUMA's data sets, imported research and the changelog live in the state file.
+Numa's data sets, imported research and the changelog live in the state file.
 
 How it learns
 * Judging windows (policies.judging, per post type, R7): a post is ignored before
@@ -28,7 +28,7 @@ How it learns
   later) counts in full and replaces the provisional entry (FINAL). A post is
   never counted twice. Metric exceptions (e.g. saves final at 7 d) leave that
   metric out of a provisional score. Any Story pull is final (24 h insights).
-* Score per post: each metric is compared with NUMA's own rolling median (90 days,
+* Score per post: each metric is compared with Numa's own rolling median (90 days,
   same post type; pooled when fewer than 3) as z = ln(x / median) winsorised at
   +/- ln 4 (skip rate: (median - skip) / 0.10). Goal weights (policies.scoring):
   reach = views, sends/1k, skip, retention; saves = saves/1k, sends/1k, views;
@@ -41,7 +41,7 @@ How it learns
   post_type and post_type x weekday; B on the per-type score with weekday,
   hour_band, pillar, series, hook, structure and offer_week. Each observation
   weighs judging weight x 0.5^(age days / 90). A research prior counts as
-  prior_strength posts (measured 3, observed 2, opinion 1), so NUMA's own data
+  prior_strength posts (measured 3, observed 2, opinion 1), so Numa's own data
   outweighs research after a few posts.
 * Cold start and data-led share: lambda = min(1, judged posts / 30) (spec p.34
   rule 10: re-tune after 30 reels). The month starts from the default week
@@ -462,7 +462,7 @@ def component_value(post: dict, comp: str) -> float | None:
     for lb in sorted(post["pulls"], key=lambda x: -PULL_HOURS.get(x, 0)):
         if PULL_HOURS.get(lb, 0) <= upto and comp in post["pulls"][lb]:
             return post["pulls"][lb][comp]
-    return None
+    return post["pulls"][label].get(comp)             # no pull at its own window: the judged pull is the best read
 
 
 def baseline(post: dict, judged: list[dict], pol: dict, pooled: bool) -> list[dict]:
@@ -1070,7 +1070,11 @@ class Planner:
             n = len(counted)
             share = {p: sum(r.get("pillar") == p for r in counted) / n for p in sc.PILLARS}
             over = [p for p in sc.PILLARS if share[p] > target[p] + tol]
+            low = [p for p in dest_fields if share[p] < target[p] - tol]
             under = [p for p in dest_fields if share[p] < target[p] + tol - 1.0 / n]
+            if low and not over:      # a pillar is short (events took its slots): take from the biggest surplus
+                over = [max((p for p in sc.PILLARS if p not in low and p != "offers_events"), key=lambda p: share[p] - target[p])]
+                under = low
             if not over or not under:
                 return
             src = max(over, key=lambda p: share[p] - target[p])
@@ -1135,7 +1139,7 @@ class Planner:
                 set_type(r, t)
                 fa = arm(self.fits, self.pb, "format", t)
                 r["strategy"]["why"].append(
-                    f"Type {old} -> {t}: {t}s beat the feed median in {fa['mean']:.0%} of NUMA's posts (posterior), "
+                    f"Type {old} -> {t}: {t}s beat the feed median in {fa['mean']:.0%} of Numa's posts (posterior), "
                     f"{r['weekday']} draw gain {gain + stick:+.2f} > stickiness {stick:.2f} (data-led share {lam:.0%})")
 
     def time_plan(self) -> tuple[str, list[str], str]:
@@ -1333,8 +1337,9 @@ class Planner:
             scored = []
             for p in pool:
                 st = self.pstat(p["id"], ptype)
-                s = dr.beta(*self.pattern_arm(p["id"], ptype)) + self.fit_bonus(p, r, goal, diag) - penalty.get(p["id"], 0.0)
-                s += 0.1 / (1 + st["tries"] + len(st["records"]))   # explore what NUMA has least data on
+                a = arm(self.fits, self.pb, *self.pattern_arm(p["id"], ptype))
+                s = float(dr.rng.beta(a["alpha"], a["beta"])) + self.fit_bonus(p, r, goal, diag) - penalty.get(p["id"], 0.0)
+                s += 0.3 / (1 + len(st["records"]))   # explore what Numa has least data on first
                 scored.append((s, p["id"]))
             mode = f"explore: Thompson draw over {len(pool)} arms"
         else:
@@ -1358,11 +1363,14 @@ class Planner:
         wk = r["strategy"]["week"]
         pats = [p for p in self.candidates((kind,), ptype, r)
                 if used.get(p["id"], 0) < limit and week_used.get((wk, p["id"]), 0) < week_limit]
-        penalty: dict[str, float] = {}     # hook fatigue is handled by the monthly cap (R6: 40% per pattern)
+        # hook fatigue is handled by the cap (R6: 40% per pattern); explore slots spread over different arms each week
+        penalty = {p["id"]: 1.0 for p in pats if explore and (r["strategy"]["week"], "x:" + p["id"]) in week_used}
         got = self.choose(r, dr, pats, ptype, goal, explore, diag, penalty)
         if not got:
             return None
         best, how = got
+        if explore:
+            week_used[(r["strategy"]["week"], "x:" + best)] = 1
         r["strategy"]["why"].append(f"{kind.capitalize()}: {self.describe(best, ptype)}; {how}")
         return best
 
@@ -1458,7 +1466,7 @@ DIAG_VALUE = {
 
 
 def diagnose_post(p: dict, pb: dict, judged: list[dict]) -> list[dict]:
-    """Diagnosis rows whose conditions all hold, against NUMA's same-format trailing median (R3 table)."""
+    """Diagnosis rows whose conditions all hold, against Numa's same-format trailing median (R3 table)."""
     pool = baseline(p, judged, pb["policies"], pooled=False) or [q for q in judged if q["post_type"] == p["post_type"] and q is not p]
 
     def value(q: dict, m: str) -> float | None:
@@ -1547,14 +1555,14 @@ def insights(fits: dict, pb: dict) -> tuple[list[str], list[str]]:
         rate = st["wins"] / st["tries"]
         if var in VAR_LABEL:
             label = level_text(var, level).capitalize()
-            base = "the feed median" if var in ("format", "format_day") else "NUMA's median"
+            base = "the feed median" if var in ("format", "format_day") else "Numa's median"
         else:
             pid = level.split(":")[-1].split("@")[0]
             if pid not in pb["patterns"]:
                 continue
             label = pb["patterns"][pid]["name"] + (" (Trial Reels)" if level.startswith("trial:") else "") + \
                 (" on carousels and images" if level.endswith(STATIC_SUFFIX) else "") + f" ({pid})"
-            base = "NUMA's median"
+            base = "Numa's median"
         line = f"{label}: beat {base} in {st['wins']} of {st['tries']} posts, median {st['median_index']:.2f}x."
         if rate >= ins["min_win_rate"] and st["median_index"] >= up:
             more.append(line)
@@ -1585,7 +1593,7 @@ def decide(p: dict, a: dict, lp: dict) -> tuple[str | None, str | None, dict]:
 
     def promotes(s: dict) -> str | None:
         if s["tries"] >= pro["min_tries"] and s["wins"] >= pro["min_wins"] and (s["median_index"] or 0) >= pro["min_median_index"]:
-            return (f"{name} beat NUMA's median in {s['wins']} of {s['tries']} posts with a median of {s['median_index']:.2f}x "
+            return (f"{name} beat Numa's median in {s['wins']} of {s['tries']} posts with a median of {s['median_index']:.2f}x "
                     f"(promote at {pro['min_wins']:g} of {pro['min_tries']:g} and {pro['min_median_index']}x); promoted to the exploit slots.")
         first = s["records"][:int(fast["first"])]
         if len(first) >= fast["first"]:
@@ -1606,7 +1614,7 @@ def decide(p: dict, a: dict, lp: dict) -> tuple[str | None, str | None, dict]:
     if cur in ("candidate", "testing", "proven") and st["median_index"] is not None and st["median_index"] <= ret["max_median_index"]:
         for rule in ret["rules"]:
             if st["tries"] >= rule["min_tries"] and st["wins"] <= rule["max_wins"]:
-                return "retired", (f"{name} beat NUMA's median in only {st['wins']} of {st['tries']} posts, median "
+                return "retired", (f"{name} beat Numa's median in only {st['wins']} of {st['tries']} posts, median "
                                    f"{st['median_index']:.2f}x; retired for {lp['retired_months']:g} months."), st
     if cur == "proven" and st["tries"] >= dem["last"]:
         last = st["records"][-int(dem["last"]):]
@@ -1900,13 +1908,12 @@ def metric_from_text(text: str) -> str | None:
 
 
 def to_number(text: str, what: str) -> float:
-    m = re.search(r"-?\d+(?:\.\d+)?", str(text).replace(",", ""))
+    """The first number in a cell, in hours ('7 d' or '7 days' = 168)."""
+    m = re.search(r"(-?\d+(?:\.\d+)?)\s*(days?|d\b|h\b|hours?)?", str(text).replace(",", ""))
     if not m:
         raise ValueError(f"{what}: no number in {text!r}")
-    v = float(m.group(0))
-    if re.search(r"\b(d|day|days)\b", str(text).lower()) and not re.search(r"\bh(ours?)?\b", str(text).lower()):
-        v *= 24.0
-    return v
+    v = float(m.group(1))
+    return v * 24.0 if (m.group(2) or "").startswith("d") else v
 
 
 class Importer:
@@ -1915,6 +1922,7 @@ class Importer:
         self.st = copy.deepcopy(pb["state"])
         self.st.setdefault("judging", {})
         self.ids = set(pb["patterns"])
+        self.aliases = {a: pid for pid, p in pb["patterns"].items() for a in p.get("aliases", [])}
         self.names = {(p["kind"], norm_text(p["name"])): pid for pid, p in pb["patterns"].items()}
         self.report: dict[str, list] = {"added": [], "merged": [], "rejected": [], "rules": [], "diagnosis": [],
                                         "priors": [], "judging": []}
@@ -1966,67 +1974,103 @@ class Importer:
                     self.block({"_title": rec.get("name") or rec.get("id") or "", "_section": heading, "_fields": fields}, fname)
 
     def judging_table(self, headers: list[str], rows: list[list[str]], fname: str) -> None:
+        """R7 tables: one row per post type (or several: 'reel, carousel, image'; 'feed' = carousel and image; a
+        'collab / reshared' row is the collab cohort), plus metric exceptions when the table has a metric column."""
         has_metric = "metric" in headers
+        aliases = {"reel": ["reel"], "reels": ["reel"], "trial_reel": ["trial_reel"], "trial_reels": ["trial_reel"],
+                   "trial": ["trial_reel"], "carousel": ["carousel"], "carousels": ["carousel"], "image": ["image"],
+                   "images": ["image"], "photo": ["image"], "single_image": ["image"], "single_photo": ["image"],
+                   "story": ["story"], "stories": ["story"], "feed": ["carousel", "image"]}
         for r in rows:
             rec = dict(zip(headers, r))
-            pt_raw = norm_text(rec.get("post_type", "")).replace(" ", "_")
-            pt = {"photo": "image", "single_image": "image", "stories": "story", "trial_reels": "trial_reel",
-                  "reels": "reel", "carousels": "carousel", "images": "image"}.get(pt_raw, pt_raw)
-            where = f"{fname} judging row {pt_raw or '?'}"
-            if pt not in POST_TYPES:
-                self.reject(where, f"unknown post_type {rec.get('post_type')!r}")
-                continue
+            raw = rec.get("post_type", "")
+            where = f"{fname} judging row {norm_text(raw)[:30] or '?'}"
+            cohort = "collab" if re.search(r"collab|reshar", raw, re.I) else None
+            types: list[str] = []
+            if not cohort:
+                for tok in re.split(r"[,/;&]|\band\b", raw):
+                    key = norm_text(tok).replace(" ", "_")
+                    if key:
+                        if key not in aliases:
+                            types = []
+                            self.reject(where, f"unknown post_type {tok.strip()!r}")
+                            break
+                        types += [x for x in aliases[key] if x not in types]
+                if not types:
+                    continue
             try:
-                win = {"ignore_before_hours": to_number(rec.get("ignore_before_hours", "0"), "ignore_before_hours"),
+                ign = rec.get("ignore_before_hours", "0")
+                win = {"ignore_before_hours": 0.0 if not re.search(r"\d", ign) else to_number(ign, "ignore_before_hours"),
                        "provisional_hours": to_number(rec["provisional_hours"], "provisional_hours"),
                        "provisional_weight": to_number(rec.get("provisional_weight", "0.5"), "provisional_weight"),
                        "final_hours": to_number(rec["final_hours"], "final_hours")}
             except (KeyError, ValueError) as e:
                 self.reject(where, str(e))
                 continue
+            tail = re.search(r"(\d+)\s*(?:h\s*)?(?:\([^)]*\)\s*)?long[- ]tail", rec.get("final_hours", ""), re.I)
             if not 0 <= win["provisional_weight"] <= 1:
                 self.reject(where, f"provisional_weight {win['provisional_weight']} is not between 0 and 1")
                 continue
             if not win["ignore_before_hours"] <= win["provisional_hours"] <= win["final_hours"] or win["final_hours"] <= 0:
                 self.reject(where, "needs ignore_before_hours <= provisional_hours <= final_hours")
                 continue
-            if pt == "story" and win["final_hours"] >= 24:
-                self.reject(where, "Story windows must be under 24 h (Instagram keeps Story insights 24 h only)")
-                continue
+            if "story" in types and win["final_hours"] >= 24:
+                self.reject(where + " (story)", "Story windows must be under 24 h (Instagram keeps Story insights 24 h only)")
+                types = [x for x in types if x != "story"]
+                if not types:
+                    continue
             ev_text = " ".join(x for x in (rec.get("evidence", ""), rec.get("confidence", "")) if x)
             win["evidence"] = parse_evidence(ev_text, fname, [rec.get("sources", "")] if rec.get("sources") else [])
             if rec.get("best_early_metric"):
-                win["best_early_metric"] = rec["best_early_metric"][:200]
+                win["best_early_metric"] = re.sub(r"\*+", "", rec["best_early_metric"])[:200]
             hv = next((v for k, v in rec.items() if k.startswith("how_to")), "")
             if hv:
                 win["how_to_verify"] = hv[:300]
             win["origin"] = "research"
             win["added"] = self.today.isoformat()
-            current = self.st["judging"].get(pt) or copy.deepcopy(self.pb["policies"]["judging"].get(pt) or {})
-            if current.get("origin") == "numa":
-                self.reject(where, "NUMA's own judging window is never overwritten by research")
+            if cohort:
+                self.st.setdefault("judging_cohorts", {})[cohort] = win
+                self.report["judging"].append(f"cohort:{cohort}")
+                self.log("import", f"judging:{cohort}", f"{cohort} posts: their own baseline, provisional at {win['provisional_hours']:g} h "
+                         f"(weight {win['provisional_weight']:g}), final at {win['final_hours']:g} h, from {fname}.")
                 continue
-            if has_metric and rec.get("metric"):
-                metric = next((m for pat, m in EXCEPTION_METRICS if re.search(pat, rec["metric"].lower())), None)
-                if metric is None:
-                    self.reject(where, f"unknown metric {rec['metric']!r}")
+            metric_text = rec.get("metric", "") if has_metric else ""
+            for pt in types:
+                current = self.st["judging"].get(pt) or copy.deepcopy(self.pb["policies"]["judging"].get(pt) or {})
+                if current.get("origin") == "numa":
+                    self.reject(where, "Numa's own judging window is never overwritten by research")
                     continue
-                base = current if current else None
-                if not base:
-                    self.reject(where, f"no window for {pt} to attach the {metric} exception to")
+                if metric_text and re.search(r"long[- ]tail", metric_text, re.I):
+                    if current:
+                        current["long_tail_audit_hours"] = win["final_hours"]
+                        self.st["judging"][pt] = current
+                        self.report["judging"].append(f"{pt}:long_tail")
                     continue
-                base.setdefault("exceptions", {})[metric] = dict(win)
-                self.st["judging"][pt] = base
-                self.report["judging"].append(f"{pt}:{metric}")
-                self.log("import", f"judging:{pt}:{metric}", f"{pt} {metric} is judged final at {win['final_hours']:g} h "
-                         f"(provisional {win['provisional_hours']:g} h at weight {win['provisional_weight']:g}), from {fname}.")
-            else:
+                if metric_text:
+                    metrics = []
+                    for tok in re.split(r"[,/]|\band\b", metric_text):
+                        m = next((mm for pat, mm in EXCEPTION_METRICS if re.search(pat, tok.lower())), None)
+                        if m and m not in metrics:
+                            metrics.append(m)
+                    if not metrics or not current:
+                        self.reject(where, f"no metric or no {pt} window for the exception {metric_text!r}")
+                        continue
+                    for m in metrics:
+                        current.setdefault("exceptions", {})[m] = dict(win)
+                        self.report["judging"].append(f"{pt}:{m}")
+                    self.st["judging"][pt] = current
+                    self.log("import", f"judging:{pt}:{'+'.join(metrics)}", f"{pt} {', '.join(metrics)}: final at {win['final_hours']:g} h "
+                             f"(provisional {win['provisional_hours']:g} h at weight {win['provisional_weight']:g}), from {fname}.")
+                    continue
                 if current.get("exceptions") and current.get("origin") == "research":
                     win["exceptions"] = current["exceptions"]
-                self.st["judging"][pt] = win
+                w = dict(win)
+                if tail:
+                    w["long_tail_audit_hours"] = float(tail.group(1))
+                self.st["judging"][pt] = w
                 self.report["judging"].append(pt)
-                self.log("import", f"judging:{pt}", f"{pt} posts: ignore before {win['ignore_before_hours']:g} h, provisional at "
-                         f"{win['provisional_hours']:g} h (weight {win['provisional_weight']:g}), final at {win['final_hours']:g} h, from {fname}.")
+                self.log("import", f"judging:{pt}", f"{pt} posts: ignore before {w['ignore_before_hours']:g} h, provisional at "
+                         f"{w['provisional_hours']:g} h (weight {w['provisional_weight']:g}), final at {w['final_hours']:g} h, from {fname}.")
 
     def diagnosis_table(self, headers: list[str], rows: list[list[str]], fname: str) -> None:
         col = {k: next((h for h in headers if k in h), None) for k in ("symptom", "cause", "fix", "evidence", "source")}
@@ -2088,7 +2132,7 @@ class Importer:
                                       "added": self.today.isoformat()})
             self.report["priors"].append(f"feed_share:{types[0]}={val:.2f}")
             self.log("import", f"prior:feed_share:{types[0]}", f"Research suggests {types[0]}s as about {val:.0%} of feed posts "
-                     f"({ev['level']}); kept as a weak prior, NUMA's own data decides.")
+                     f"({ev['level']}); kept as a weak prior, Numa's own data decides.")
 
     def add_rule(self, text: str, evidence: str, source: str, confidence: str, how: str, fname: str, heading: str) -> None:
         text = text.strip()
@@ -2160,7 +2204,7 @@ class Importer:
             return
         good_ex = [ex for ex, _ in good][:6]
         ev = parse_evidence(" ".join(f.get("evidence", [])) + " " + " ".join(f.get("confidence", [])), fname, f.get("sources", []))
-        existing = pid if pid in self.ids else self.names.get((kind, norm_text(name)))
+        existing = pid if pid in self.ids else (self.aliases.get(pid) or self.names.get((kind, norm_text(name))))
         if existing:
             self.merge(existing, good_ex, ev, fname)
             return
@@ -2175,7 +2219,7 @@ class Importer:
             fmts = ["image"] if "image" not in fmts else fmts
         try_text = " ".join(f.get("try_instead", []))
         tries = [x for x in re.findall(r"\b[a-z0-9]+(?:-[a-z0-9]+)+\b", try_text) if x in self.ids and x != pid]
-        when_not = " ".join(f.get("when_not", [])).strip() or "Not stated in the research; treat as untested on NUMA."
+        when_not = " ".join(f.get("when_not", [])).strip() or "Not stated in the research; treat as untested on Numa."
         if try_text and not tries:
             when_not += f" If it underperforms: {try_text}"
         pat: dict[str, Any] = {"id": pid, "kind": kind, "name": name[:120], "formats": fmts,
@@ -2220,7 +2264,7 @@ class Importer:
         return kebab(prefix + name, 48), name
 
     def merge(self, pid: str, examples: list[str], ev: dict, fname: str) -> None:
-        # Research only adds sources and safe examples: status, evidence level and NUMA's results are never changed.
+        # Research only adds sources and safe examples: status, evidence level and Numa's results are never changed.
         cur = copy.deepcopy(next((p for p in self.st["patterns"] if p["id"] == pid), None) or self.pb["patterns"][pid])
         srcs = cur["evidence"]["sources"] + [s for s in ev["sources"] if s not in cur["evidence"]["sources"]]
         cur["evidence"]["sources"] = srcs[:12]
@@ -2233,7 +2277,7 @@ class Importer:
         self.st["patterns"] = [p for p in self.st["patterns"] if p["id"] != pid] + [cur]
         self.report["merged"].append(pid)
         self.log("merge", pid, f"{cur['name']} is already in the playbook; added the sources and safe examples from {fname} "
-                 f"(status and NUMA results unchanged).")
+                 f"(status and Numa's results unchanged).")
 
 
 # ---------------------------------------------------------------------------
@@ -2265,7 +2309,7 @@ def build_brief(plan: dict, pb: dict, posts: list[dict], fits: dict, week: date,
             avoid.append({"id": pid, "kind": p["kind"], "reason": (pb["state"]["status_overrides"].get(pid) or {}).get("why", "Retired.")})
         elif p["status"] == "proven":
             use.append({"id": pid, "kind": p["kind"], "status": "proven",
-                        "reason": f"Beat NUMA's median in {s['wins']} of {s['tries']} final posts"
+                        "reason": f"Beat Numa's median in {s['wins']} of {s['tries']} final posts"
                                   + (f", median {s['median_index']:.2f}x." if s["median_index"] else ".")})
     planned = sorted({pid for s in slots for pid in s["pattern_ids"]})
     for pid in planned:
@@ -2274,7 +2318,7 @@ def build_brief(plan: dict, pb: dict, posts: list[dict], fits: dict, week: date,
             var = "hook" if p["kind"] == "hook" else ("structure" if p["kind"] in STRUCTURE_KINDS else "pattern")
             s = decision_stats(arm(fits, pb, var, status_key(pb, pid))["records"])
             use.append({"id": pid, "kind": p["kind"], "status": p["status"],
-                        "reason": f"Planned this week ({p['status']}, {s['tries']} final NUMA posts so far)."})
+                        "reason": f"Planned this week ({p['status']}, {s['tries']} final Numa posts so far)."})
     experiments = []
     for s in slots:
         if s["mode"] == "explore":
@@ -2284,7 +2328,7 @@ def build_brief(plan: dict, pb: dict, posts: list[dict], fits: dict, week: date,
                       {"hook": ("hook",), "structure": STRUCTURE_KINDS, "cta": ("cta", "offer")}.get(var, ("hook",))]
             experiments.append({"date": s["date"], "post_type": s["post_type"], "testing": tested or s["pattern_ids"],
                                 "compare_with": "other Trial Reels (trial-only pool)" if s["post_type"] == "trial_reel"
-                                else f"NUMA's last {pb['policies']['scoring']['baseline']['window_posts']} {s['post_type']}s",
+                                else f"Numa's last {pb['policies']['scoring']['baseline']['window_posts']} {s['post_type']}s",
                                 "metric": "composite S (win = S > 0)"})
     prov = [{"id": p["id"], "title": p["title"], "post_type": p["post_type"], "pull": p["pull"], "weight": p["judge_weight"],
              "final_after_hours": p["window"]["final_hours"]}
@@ -2299,7 +2343,7 @@ def build_brief(plan: dict, pb: dict, posts: list[dict], fits: dict, week: date,
         reasoning.append("Planning rules overrode part of the bandit's choice this month (see each slot's why).")
     reasoning += [f"Do more: {x}" for x in more[:4]] + [f"Do less: {x}" for x in less[:4]]
     for d in diag:
-        reasoning.append(f"{d['title']} underperformed ({d['index']:.2f}x NUMA's median): {d['rows'][0]['fix']}")
+        reasoning.append(f"{d['title']} underperformed ({d['index']:.2f}x Numa's median): {d['rows'][0]['fix']}")
     target = nc.brand_value("positioning.content_mix", {}) or {}
     suggested = {}
     for pil, share in target.items():
@@ -2379,7 +2423,8 @@ def build_parser() -> nc.ArgParser:
     p.add_argument("--out", help="write the plan JSON here")
     p.add_argument("--json", action="store_true")
     p = sub.add_parser("learn", help="update pattern statuses, changelog and insights")
-    common(p, metrics_required=True)
+    common(p, metrics_required=True, state=False)
+    p.add_argument("--state", required=True, help="learned overlay (STATE/strategy.json)")
     p.add_argument("--text", help="also write the plain-text changelog here")
     p.add_argument("--json", action="store_true")
     p = sub.add_parser("brief", help="the Strategist's week brief")
@@ -2505,14 +2550,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "score":
         out = [{"id": p["id"], "post_type": p["post_type"], "status": p["status"], "pull": p["pull"], "weight": p["judge_weight"],
-                "goal": p["goal"], "score": p["score"], "pooled_score": p["pooled_score"], "components": p["components"],
-                **({"note": p["score_note"]} if p.get("score_note") else {})} for p in posts]
+                "score": p["score"], "index": round(2 ** p["score"], 3) if p["score"] is not None else None, "win": p["win"],
+                "pooled_score": p["pooled_score"], "components": p["components"], "goal_scores": p["goal_scores"],
+                "excluded": p.get("excluded", []), **({"note": p["score_note"]} if p.get("score_note") else {})} for p in posts]
         if args.json:
             nc.print_json({"posts": out, "judged": fits["judged"], "data_led_share": round(fits["lambda"], 4)})
         else:
             for o in out:
-                s = f"{o['score']:+.2f}" if o["score"] is not None else "n/a"
-                print(f"{o['id']} ({o['post_type']}, {o['status']}{', ' + o['pull'] if o['pull'] else ''}): score {s}")
+                s = f"S {o['score']:+.2f} ({o['index']:.2f}x, {'win' if o['win'] else 'loss'})" if o["score"] is not None else f"n/a ({o.get('note', o['status'])})"
+                ex = f" [kept out of decisions: {', '.join(o['excluded'])}]" if o["excluded"] else ""
+                print(f"{o['id']} ({o['post_type']}, {o['status']}{', ' + o['pull'] if o['pull'] else ''}): {s}{ex}")
         return 0
 
     if args.cmd == "diagnose":

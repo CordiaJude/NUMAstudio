@@ -1,4 +1,4 @@
-"""chrome_queue.py: the queue of steps that need Claude in Chrome, with deadlines and fallbacks (R342)."""
+"""chrome_queue.py: the queue of steps that need Claude in Chrome, with claims, deadlines and fallbacks (R342)."""
 from __future__ import annotations
 
 import json
@@ -9,6 +9,10 @@ import pytest
 
 import chrome_queue
 import numa_common
+
+RUN_A = "chrome_queue-20261210T224700Z-aaaa"
+RUN_B = "chrome_queue-20261210T224700Z-bbbb"
+NIGHT = "night_check-20261211T020000Z-cccc"
 
 
 def run(argv):
@@ -33,28 +37,74 @@ def q(tmp_path, nc, monkeypatch, capsys):
 
 
 def add(q, kind="trial_reel", payload=None, deadline="2026-12-10T17:00:00-06:00",
-        fallback="Post as a normal reel and note it", now="2026-12-10T05:20:00-06:00"):
+        fallback="Stays staged; the approver is told", now="2026-12-10T05:20:00-06:00", *extra):
     payload = payload or {"job": "Day 10 - 2026-12-10 - Cold snap calm"}
     return q("add", "--kind", kind, "--payload", json.dumps(payload), "--deadline", deadline, "--fallback", fallback,
-             "--now", now, "--json")
+             "--now", now, "--json", *extra)
 
 
-def test_add_list_next_done(q):
+def claim(q, run_id=RUN_A, now="2026-12-10T09:00:00-06:00", *extra):
+    return q("next", "--claim", run_id, "--now", now, "--json", *extra)
+
+
+def test_add_list_claim_done(q):
     a = add(q)
     assert a["added"] and a["item"]["id"].startswith("trial_reel-") and a["item"]["status"] == "pending"
-    assert a["item"]["deadline"] == "2026-12-10T17:00:00-06:00" and a["item"]["attempts"] == 0
-    b = add(q, kind="competitor_log", payload={"month": "2026-12"}, deadline="2026-12-31T23:59:00",
-            fallback="Keep the web-search competitor log")
+    b = add(q, "competitor_log", {"month": "2026-12"}, "2026-12-31T23:59:00", "Keep the web-search competitor log")
     assert b["item"]["deadline"] == "2026-12-31T23:59:00-06:00"  # naive = Central
-    listed = q("list", "--json")["items"]
-    assert [i["kind"] for i in listed] == ["trial_reel", "competitor_log"]
-    nxt = q("next", "--now", "2026-12-10T09:00:00-06:00", "--json")
-    assert nxt["item"]["id"] == a["item"]["id"] and nxt["pending"] == 2 and nxt["waiting"] == 0
-    done = q("done", a["item"]["id"], "--result", "posted as Trial Reel: https://www.instagram.com/reel/x",
-             "--now", "2026-12-10T16:40:00-06:00", "--json")
-    assert done["item"]["status"] == "done" and done["item"]["done_at"] == "2026-12-10T22:40:00Z"
-    assert q("next", "--now", "2026-12-10T17:30:00-06:00", "--json")["item"]["kind"] == "competitor_log"
-    assert [i["status"] for i in q("list", "--status", "all", "--json")["items"]] == ["pending", "done"]
+    assert [i["kind"] for i in q("list", "--json")["items"]] == ["trial_reel", "competitor_log"]
+    peek = q("next", "--now", "2026-12-10T09:00:00-06:00", "--json")
+    assert peek["item"]["id"] == a["item"]["id"] and not peek["claimed"]
+    assert q("list", "--json")["items"][0]["status"] == "pending"  # a peek changes nothing
+    c = claim(q)
+    assert c["claimed"] and c["item"]["status"] == "in_progress" and c["item"]["claimed_by"] == RUN_A
+    assert c["item"]["lease_until"] == "2026-12-10T15:45:00Z"  # 45 min lease
+    assert claim(q, RUN_B)["item"]["kind"] == "competitor_log"  # the claimed one is not handed out again
+    q("done", a["item"]["id"], "--claim", RUN_B, "--result", "x", code=1)  # not B's claim
+    done = q("done", a["item"]["id"], "--claim", RUN_A, "--result", "posted as Trial Reel: permalink",
+             "--now", "2026-12-10T09:20:00-06:00", "--json")
+    assert done["item"]["status"] == "done" and done["item"]["done_at"] == "2026-12-10T15:20:00Z"
+
+
+def test_two_parallel_drainers_get_one_claim(tmp_path, scripts_dir, nc):
+    """B1: two drainers ask at the same moment; exactly one gets the item."""
+    state = tmp_path / "s"
+    subprocess.run([sys.executable, str(scripts_dir / "chrome_queue.py"), "add", "--kind", "ai_label", "--payload",
+                    '{"job": "J"}', "--deadline", "2099-01-01T00:00:00", "--fallback", "stays staged",
+                    "--state", str(state)], check=True, capture_output=True)
+    for _ in range(3):
+        procs = [subprocess.Popen([sys.executable, str(scripts_dir / "chrome_queue.py"), "next", "--claim", rid,
+                                   "--json", "--state", str(state)], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  text=True) for rid in (RUN_A, RUN_B)]
+        outs = [json.loads(p.communicate(timeout=60)[0]) for p in procs]
+        assert sorted(o["claimed"] for o in outs) == [False, True]
+        data = json.loads((state / "chrome_queue.json").read_text())
+        winner = next(o for o in outs if o["claimed"])["item"]["claimed_by"]
+        assert data["items"][0]["claimed_by"] == winner
+        subprocess.run([sys.executable, str(scripts_dir / "chrome_queue.py"), "fail", data["items"][0]["id"],
+                        "--claim", winner, "--reason", "retry", "--state", str(state)], check=True,
+                       capture_output=True)
+
+
+def test_lease_runs_out_and_item_returns(q):
+    a = add(q)
+    claim(q, RUN_A, "2026-12-10T09:00:00-06:00", "--lease-minutes", "10")
+    assert claim(q, RUN_B, "2026-12-10T09:05:00-06:00")["item"] is None
+    again = claim(q, RUN_B, "2026-12-10T09:11:00-06:00")
+    assert again["item"]["id"] == a["item"]["id"] and again["item"]["claimed_by"] == RUN_B
+    assert again["item"]["attempts"] == 1 and "lease of " + RUN_A in again["item"]["last_error"]
+    q("done", a["item"]["id"], "--claim", RUN_A, "--result", "late", code=1)  # A lost its claim
+
+
+def test_fail_returns_item_to_pending(q):
+    a = add(q, "scout_research", {"for": "plan-month 2026-12", "what": "offers on Instagram"},
+            "2026-12-01T00:00:00-06:00", "Plan stands on web-search facts", "2026-11-25T09:00:00-06:00")
+    claim(q, RUN_A, "2026-11-25T10:00:00")
+    f = q("fail", a["item"]["id"], "--claim", RUN_A, "--reason", "Instagram asked to log in again",
+          "--now", "2026-11-25T10:05:00", "--json")
+    assert f["item"]["status"] == "pending" and f["item"]["attempts"] == 1 and f["item"]["claimed_by"] is None
+    assert f["item"]["last_error"].endswith("Instagram asked to log in again")
+    assert claim(q, RUN_B, "2026-11-25T11:00:00")["item"]["id"] == a["item"]["id"]
 
 
 def test_dedupe_identical_items(q):
@@ -66,54 +116,73 @@ def test_dedupe_identical_items(q):
     assert not c["added"] and c["item"]["deadline"] == "2026-12-10T16:00:00-06:00"
     assert len(q("list", "--json")["items"]) == 1
     assert add(q, kind="collab_invite", payload={"job": "J", "partner": "Mission Fitness"})["added"]  # other kind
-    q("done", a["item"]["id"], "--result", "posted")
+    claim(q)
+    q("done", a["item"]["id"], "--claim", RUN_A, "--result", "posted")
     assert not add(q, payload={"job": "J", "partner": "Mission Fitness"})["added"]  # already done: not redone
-    text = q("add", "--kind", "trial_reel", "--payload", '{"job": "J", "partner": "Mission Fitness"}',
-             "--deadline", "2026-12-10T17:00", "--fallback", "x").out
-    assert "already queued, done" in text
 
 
-def test_expire_returns_fallbacks_and_requeue_after_expiry(q):
-    a = add(q, kind="ai_label", payload={"job": "J"}, fallback="Do not post; Jude gets section 6's line")
-    add(q, kind="competitor_log", payload={"month": "2026-12"}, deadline="2026-12-31T23:59:00-06:00",
-        fallback="Keep the web-search log")
-    assert q("expire", "--now", "2026-12-10T16:59:00-06:00", "--json")["expired"] == []
-    ex = q("expire", "--now", "2026-12-10T17:00:00-06:00", "--json")["expired"]
-    assert [(i["id"], i["fallback"]) for i in ex] == [(a["item"]["id"], "Do not post; Jude gets section 6's line")]
-    assert ex[0]["status"] == "expired" and ex[0]["expired_at"] == "2026-12-10T23:00:00Z"
-    assert q("expire", "--now", "2026-12-11T00:00:00-06:00", "--json")["expired"] == []  # only once
-    assert q("next", "--now", "2026-12-11T00:00:00-06:00", "--json")["item"]["kind"] == "competitor_log"
-    q("done", a["item"]["id"], "--result", "late", code=1)
-    again = add(q, kind="ai_label", payload={"job": "J"}, deadline="2026-12-12T17:00:00-06:00")
-    assert again["added"] and again["item"]["id"] == a["item"]["id"] + "-2"
-    text = q("expire", "--now", "2026-12-13T00:00:00-06:00").out
-    assert f"EXPIRED: {again['item']['id']}" in text and "fallback:" in text
-
-
-def test_next_skips_past_deadlines_and_none_left(q):
-    add(q, deadline="2026-12-10T08:00:00-06:00")
-    assert q("next", "--now", "2026-12-10T09:00:00-06:00", "--json") == {"item": None, "pending": 0, "waiting": 0}
-    assert q("next", "--now", "2026-12-10T09:00:00-06:00").out.strip() == "none"
+def test_dedupe_never_puts_not_before_after_the_deadline(q):
+    """Minor 3: an earlier deadline from a duplicate that would come before not_before is refused."""
+    add(q, payload={"job": "K"}, deadline="2026-12-10T17:00:00-06:00", now="2026-12-10T05:00:00-06:00")
+    q("add", "--kind", "ai_label", "--payload", '{"job": "L"}', "--not-before", "2026-12-10T15:45",
+      "--deadline", "2026-12-10T17:00", "--fallback", "stays staged")
+    out = q("add", "--kind", "ai_label", "--payload", '{"job": "L"}', "--deadline", "2026-12-10T15:00",
+            "--fallback", "stays staged", code=1)
+    assert "would come before it" in out.err
+    item = next(i for i in q("list", "--json")["items"] if i["kind"] == "ai_label")
+    assert item["deadline"] == "2026-12-10T17:00:00-06:00"
 
 
 def test_not_before_holds_an_item_back(q):
-    a = q("add", "--kind", "trial_reel", "--payload", '{"job": "J"}', "--not-before", "2026-12-10T16:30:00",
-          "--deadline", "2026-12-10T17:00:00", "--fallback", "Post as a normal reel", "--json")
-    assert a["item"]["not_before"] == "2026-12-10T16:30:00-06:00"
-    assert q("next", "--now", "2026-12-10T09:17:00-06:00", "--json") == {"item": None, "pending": 0, "waiting": 1}
-    assert q("next", "--now", "2026-12-10T16:47:00-06:00", "--json")["item"]["id"] == a["item"]["id"]
+    a = q("add", "--kind", "trial_reel", "--payload", '{"job": "J"}', "--not-before", "2026-12-10T15:45:00",
+          "--deadline", "2026-12-10T17:00:00", "--fallback", "Stays staged", "--json")
+    assert a["item"]["not_before"] == "2026-12-10T15:45:00-06:00"
+    peek = q("next", "--now", "2026-12-10T09:47:00-06:00", "--json")
+    assert peek["item"] is None and peek["waiting"] == 1
+    assert claim(q, RUN_A, "2026-12-10T15:47:00-06:00")["item"]["id"] == a["item"]["id"]  # the :47 run in T-75 min
     q("add", "--kind", "ai_label", "--payload", '{"job": "J"}', "--not-before", "2026-12-10T17:00",
       "--deadline", "2026-12-10T17:00", "--fallback", "x", code=1)
 
 
-def test_fail_keeps_item_pending(q):
-    a = add(q, kind="scout_research", payload={"for": "plan-month 2026-12", "what": "offers on Instagram"},
-            deadline="2026-12-01T00:00:00-06:00", fallback="Plan stands on web-search facts")
-    f = q("fail", a["item"]["id"], "--reason", "Instagram asked to log in again", "--now", "2026-11-25T10:00:00",
-          "--json")
-    assert f["item"]["status"] == "pending" and f["item"]["attempts"] == 1
-    assert f["item"]["last_error"].endswith("Instagram asked to log in again")
-    assert q("next", "--now", "2026-11-25T11:00:00", "--json")["item"]["id"] == a["item"]["id"]
+def test_kinds_filter(q):
+    add(q, "ai_label", {"job": "J"})
+    add(q, "competitor_log", {"month": "2026-12"}, "2026-12-31T23:59:00")
+    got = claim(q, RUN_A, "2026-12-10T09:00:00", "--kinds", "scout_research,competitor_log,higgsfield_unlimited")
+    assert got["item"]["kind"] == "competitor_log"
+    q("next", "--kinds", "tiktok", code=2)
+
+
+def test_expire_with_margin_by_the_designated_runner(q):
+    a = add(q, "ai_label", {"job": "J"}, fallback="Stays staged; the approver is told")
+    add(q, "competitor_log", {"month": "2026-12"}, "2026-12-31T23:59:00-06:00", "Keep the web-search log")
+    q("expire", "--now", "2026-12-10T17:30:00-06:00", code=2)  # --run is required
+    assert q("expire", "--run", NIGHT, "--now", "2026-12-10T17:30:00-06:00", "--json")["expired"] == []  # margin
+    ex = q("expire", "--run", NIGHT, "--now", "2026-12-10T18:00:00-06:00", "--json")["expired"]
+    assert [(i["id"], i["fallback"], i["expired_by"]) for i in ex] == [
+        (a["item"]["id"], "Stays staged; the approver is told", NIGHT)]
+    assert q("expire", "--run", NIGHT, "--now", "2026-12-11T00:00:00-06:00", "--json")["expired"] == []  # once
+    again = add(q, "ai_label", {"job": "J"}, "2026-12-12T17:00:00-06:00")
+    assert again["added"] and again["item"]["id"] == a["item"]["id"] + "-2"
+    assert "EXPIRED:" in q("expire", "--run", NIGHT, "--now", "2026-12-13T00:00:00-06:00", "--margin-minutes", "0").out
+
+
+def test_a_live_claim_is_not_expired_but_a_lapsed_one_is(q):
+    a = add(q, "trial_reel", {"job": "J"}, "2026-12-10T17:00:00-06:00")
+    claim(q, RUN_A, "2026-12-10T16:50:00-06:00", "--lease-minutes", "90")
+    assert q("expire", "--run", NIGHT, "--now", "2026-12-10T18:05:00-06:00", "--json")["expired"] == []
+    ex = q("expire", "--run", NIGHT, "--now", "2026-12-10T18:30:00-06:00", "--json")["expired"]
+    assert [i["id"] for i in ex] == [a["item"]["id"]]
+
+
+def test_done_after_expiry_is_a_reported_conflict(q):
+    a = add(q, "ai_label", {"job": "J"}, "2026-12-10T17:00:00-06:00")
+    claim(q, RUN_A, "2026-12-10T16:50:00-06:00", "--lease-minutes", "15")
+    q("expire", "--run", NIGHT, "--now", "2026-12-10T20:00:00-06:00")
+    out = q("done", a["item"]["id"], "--claim", RUN_A, "--result", "posted with AI label", code=1)
+    assert "conflict" in out.err
+    item = q("list", "--status", "conflict", "--json")["items"][0]
+    assert item["conflict"]["done_by"] == RUN_A and item["conflict"]["expired_by"] == NIGHT
+    assert q("expire", "--run", NIGHT, "--now", "2026-12-11T20:00:00-06:00", "--json")["conflicts"][0]["id"] == a["item"]["id"]
 
 
 @pytest.mark.parametrize("argv,code,msg", [
@@ -122,8 +191,8 @@ def test_fail_keeps_item_pending(q):
     (["add", "--kind", "ai_label", "--payload", "{bad", "--deadline", "2026-12-10", "--fallback", "x"], 1, "valid JSON"),
     (["add", "--kind", "ai_label", "--payload", '{"a":1}', "--deadline", "soon", "--fallback", "x"], 1, "ISO 8601"),
     (["add", "--kind", "ai_label", "--payload", '{"a":1}', "--deadline", "2026-12-10", "--fallback", " "], 1, "--fallback"),
-    (["done", "nope", "--result", "x"], 1, "no item nope"),
-    (["done", "nope"], 2, "--result"),
+    (["done", "nope", "--claim", RUN_A, "--result", "x"], 1, "no item nope"),
+    (["done", "nope", "--result", "x"], 2, "--claim"),
 ])
 def test_input_errors(q, argv, code, msg):
     out = q(*argv, code=code)
@@ -132,26 +201,39 @@ def test_input_errors(q, argv, code, msg):
 
 def test_every_kind_is_accepted(q):
     for i, kind in enumerate(chrome_queue.KINDS):
-        assert add(q, kind=kind, payload={"n": i})["added"]
+        assert add(q, kind, {"n": i})["added"]
     assert set(chrome_queue.KINDS) == {"scout_research", "competitor_log", "trial_reel", "collab_invite", "ai_label",
                                        "higgsfield_unlimited"}
+    assert set(chrome_queue.POSTING_KINDS) == {"trial_reel", "collab_invite", "ai_label"}
 
 
 def test_merge_with_drive_copy(q, tmp_path):
     a = add(q, payload={"job": "A"})
     b = add(q, payload={"job": "B"})
+    c = add(q, payload={"job": "C"})
+    claim(q, RUN_B, "2026-12-10T09:05:00-06:00")  # local claim of A (earliest deadline, added first)
+    q("expire", "--run", NIGHT, "--now", "2026-12-11T00:00:00-06:00", "--margin-minutes", "0")  # local: B, C expired
     drive = json.loads((q.state / "chrome_queue.json").read_text())
-    drive["items"][0].update(status="done", result="posted", done_at="2026-12-10T22:00:00Z")
-    drive["items"][1]["attempts"] = 2
-    drive["items"].append({**drive["items"][1], "id": "collab_invite-x", "kind": "collab_invite",
-                           "payload": {"job": "C"}, "attempts": 0})
+    items = {i["id"]: i for i in drive["items"]}
+    items[a["item"]["id"]].update(status="in_progress", claimed_by=RUN_A, claimed_at="2026-12-10T15:00:00Z")
+    items[b["item"]["id"]].update(status="done", result="posted", done_at="2026-12-10T22:00:00Z", expired_at=None)
+    items[c["item"]["id"]].update(status="pending", attempts=2, expired_at=None)
+    drive["items"].append({**items[c["item"]["id"]], "id": "collab_invite-x", "kind": "collab_invite",
+                           "payload": {"job": "D"}, "attempts": 0})
     f = tmp_path / "drive_queue.json"
     f.write_text(json.dumps(drive))
+    # make the local claim of A the later one
+    local = json.loads((q.state / "chrome_queue.json").read_text())
+    for i in local["items"]:
+        if i["id"] == a["item"]["id"]:
+            i.update(status="in_progress", claimed_by=RUN_B, claimed_at="2026-12-10T15:05:00Z")
+    (q.state / "chrome_queue.json").write_text(json.dumps(local))
     out = q("merge", str(f), "--json")
-    assert out["added"] == 1 and out["items"] == 3
-    items = {i["id"]: i for i in q("list", "--status", "all", "--json")["items"]}
-    assert items[a["item"]["id"]]["status"] == "done"  # done wins over pending
-    assert items[b["item"]["id"]]["attempts"] == 2
+    assert out["added"] == 1 and out["items"] == 4 and out["conflicts"] == 1
+    got = {i["id"]: i for i in q("list", "--status", "all", "--json")["items"]}
+    assert got[a["item"]["id"]]["claimed_by"] == RUN_A                 # the earlier claim wins
+    assert got[b["item"]["id"]]["status"] == "conflict"                # done there, expired here
+    assert got[c["item"]["id"]]["status"] == "expired" and got[c["item"]["id"]]["attempts"] == 2
     q("merge", str(tmp_path / "none.json"), code=1)
 
 

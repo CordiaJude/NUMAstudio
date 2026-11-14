@@ -15,7 +15,7 @@ Sample research output used by tests/unit/test_strategy.py. It follows the R1 fi
 - **Evidence:** observed (example account posts, https://example.org/steam-study) low confidence
 - **Expected effect:** lower skip rate, more sends
 - **When NOT to use it:** in summer heat waves when steam reads as sweaty
-- **What to try instead if it underperforms:** contrast-visual or seasonal-weather
+- **What to try instead if it underperforms:** temp-split or seasonal-weather
 
 ## 2. `detox-hook` — Sweat it out
 
@@ -28,11 +28,11 @@ Sample research output used by tests/unit/test_strategy.py. It follows the R1 fi
 - **Best use:** education
 - **Evidence:** opinion (agency blog)
 - **When NOT to use it:** never
-- **What to try instead if it underperforms:** question-hook
+- **What to try instead if it underperforms:** myth-or-question
 
-## 3. `contrast-visual` — Hot/cold contrast
+## 3. `temp-split` — Hot/cold contrast
 
-- **id, name:** contrast-visual, Hot/cold contrast
+- **id, name:** temp-split, Hot/cold contrast
 - **Format(s):** reel, carousel
 - **Template:** "{Heat}. Then {cold}."
 - **NUMA examples:**
@@ -41,9 +41,9 @@ Sample research output used by tests/unit/test_strategy.py. It follows the R1 fi
 - **When NOT to use it:** twice in a row
 - **What to try instead if it underperforms:** seasonal-weather
 
-## 4. `cold-plunge-pov` — First person into the plunge
+## 4. `cold-plunge-feet` — First person into the plunge
 
-- **id, name:** cold-plunge-pov, First person into the plunge
+- **id, name:** cold-plunge-feet, First person into the plunge
 - **Format(s):** reel, trial reel
 - **Template:** "POV: your feet touch the cold water."
 - **NUMA examples:**
@@ -52,7 +52,7 @@ Sample research output used by tests/unit/test_strategy.py. It follows the R1 fi
 - **Best use:** community
 - **Evidence:** opinion (practitioner reports)
 - **When NOT to use it:** when the plunge room is crowded
-- **What to try instead if it underperforms:** first-timer-reaction
+- **What to try instead if it underperforms:** reaction-face
 
 ## The 10 patterns to test first
 

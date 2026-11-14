@@ -60,7 +60,7 @@ def small_plan(job, make_image, make_video, duration: float = 14.0) -> dict:
                   line("Then it slows.", 3.8, 5.0),
                   line("Three minutes feels long.", 5.2, 6.9),
                   line("You walk out wide awake.", 7.1, 8.6),
-                  line("This is NUMA.", 8.7, 9.8)],
+                  line("This is Numa.", 8.7, 9.8)],
         "endcard": {"t": 10.0, "tagline": "Wellness Collective", "subtitle": "Less noise. More presence."},
         "music": {"source": "folder", "path": None, "license": "NUMA's own track"},
         "meta": {"slug": "first-plunge", "title": "Cold, then calm"},
@@ -342,9 +342,9 @@ def test_music_only_plan_skips_what_it_cannot_make(job, make_image, nc):
     assert skipped == {"reach", "story", "carousel"} and "cover" in fm      # never the reel's own hook
     assert all(w.split(":")[0] in ("reach", "story", "carousel", "hook variants") for w in warnings)
     # a shoot-card script gives the reach cut new hook text
-    (job.work / "script.txt").write_text("This is what Katie saw. One year of NUMA in Mobile.", encoding="utf-8")
+    (job.work / "script.txt").write_text("This is what Katie saw. One year of Numa in Mobile.", encoding="utf-8")
     fm, _, skipped = formats.resolve_formats(plan, {"reach"}, [], job.work)
-    assert not skipped and fm["reach_cut"]["hook"] == "One year of NUMA in Mobile."
+    assert not skipped and fm["reach_cut"]["hook"] == "One year of Numa in Mobile."
 
 
 def test_clip_plan_retiles_shifts_and_validates(job, make_image, make_video, nc):
@@ -485,7 +485,7 @@ def test_full_run_small(small_job, run_script, nc):
     info = numa_common.media_info(reach)
     assert (info["width"], info["height"]) == tuple(SMALL) and info["has_audio"]
     assert 8.0 <= info["duration"] <= 12.0 and info["duration"] == pytest.approx(10.0 - 1.0 + 3.0, abs=0.05)
-    # t1 9.5 cut "This is NUMA." (8.7-9.8 s): played out to the end card at 10 s, then the end-card tail
+    # t1 9.5 cut "This is Numa." (8.7-9.8 s): played out to the end card at 10 s, then the end-card tail
     assert sec["outputs"]["reach"]["spec"]["t1"] == 10.0
     assert sec["checks"][reach.name]["ok"], sec["checks"][reach.name]
     # the new hook text is on frame 0: the top band differs from the same frame rendered without it

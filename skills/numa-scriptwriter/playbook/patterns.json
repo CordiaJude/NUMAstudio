@@ -536,6 +536,38 @@
       "priority": 17
     },
     {
+      "id": "clinical-conversations-question",
+      "kind": "hook",
+      "name": "Expert Asks the Question (Clinical Conversations)",
+      "formats": [
+        "reel",
+        "carousel",
+        "story"
+      ],
+      "goals": [
+        "reach"
+      ],
+      "template": "Not used: the event it promotes is cancelled for now.",
+      "examples": [
+        "Not planned while the event is on hold."
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R1_Hooks.md #16",
+          "docs/research/REVIEW.md (Clinical Conversations cancelled for now)"
+        ],
+        "notes": "Kept as retired so a research re-import cannot bring it back."
+      },
+      "status": "retired",
+      "when_not": "Clinical Conversations is cancelled for now (owners, 2026-11-13); never promote it.",
+      "try_instead": [
+        "myth-or-question"
+      ],
+      "origin": "seed",
+      "priority": 32
+    },
+    {
       "id": "send-this-to",
       "kind": "hook",
       "name": "Built for the DM",
@@ -1002,7 +1034,10 @@
       "try_instead": [],
       "origin": "seed",
       "visual": "Person poised at the plunge edge, ready to drop on the beat.",
-      "priority": 28
+      "priority": 28,
+      "aliases": [
+        "trend-audio-sync"
+      ]
     },
     {
       "id": "slide2-rehook",
@@ -1914,7 +1949,10 @@
       "series": [
         "meet_the_collective"
       ],
-      "priority": 3
+      "priority": 3,
+      "aliases": [
+        "carousel-meet-the-teacher"
+      ]
     },
     {
       "id": "carousel-three-myths-about-starting",
@@ -2252,7 +2290,10 @@
       "try_instead": [],
       "origin": "seed",
       "visual": "Eye-level, natural window light, the guide in the studio with props softly visible; a genuine expression, not a pose.",
-      "priority": 1
+      "priority": 1,
+      "aliases": [
+        "photo-teacher-portrait"
+      ]
     },
     {
       "id": "photo-class-in-motion",

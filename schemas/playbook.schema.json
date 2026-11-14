@@ -488,6 +488,13 @@
             "flopped"
           ],
           "description": "What the owners' own posts showed before the system (REVIEW.md): this prior counts more than research."
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "description": "Research ids this pattern replaces (REVIEW.md renames); import-research merges them here instead of adding them back."
         }
       }
     },

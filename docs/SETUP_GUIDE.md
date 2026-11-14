@@ -1,6 +1,6 @@
 # NUMA Studio setup guide
 
-One afternoon, done by Jude on Katie's Mac (spec p.49-51). After this, Katie makes no decisions and types no commands: seven cloud scheduled tasks plan, build and post every reel (with her Mac on or off), and one desktop task does the Claude in Chrome steps whenever her Mac is awake, and her only job is to film what a shoot card lists.
+One afternoon, done by Jude on Katie's Mac (spec p.49-51). After this, Katie makes no decisions and types no commands: seven cloud scheduled tasks plan, build, check and stage every post (with her Mac on or off), a post goes out only after a person approves it (DECISIONS D26), and one desktop task does the Claude in Chrome steps whenever her Mac is awake, and her only job is to film what a shoot card lists.
 
 Tick each box in order. Commands are typed in the Claude desktop app (or Claude Code) with the numa-studio plugin installed.
 
@@ -43,10 +43,10 @@ Nothing in the code can replace these (spec p.2):
 | Quarterly research re-check | The 12th of Feb, May, Aug and Nov, 10 am | Cloud |
 | Chrome queue | Hourly at :47, while the Mac is awake | **Desktop** (Katie's Mac) |
 
-   **Cloud or desktop.** A cloud task runs on Anthropic's servers on a fresh machine at its time, whether the Mac is on or off; that is where the reel is built and posted. A desktop task is created in the Claude desktop app on Katie's Mac as a local scheduled task and runs only while the Mac is awake and the app is open. Chrome queue must be the desktop kind: it does the steps that need Claude in Chrome (signed-in research, competitor log, Trial Reels, collab invites, the AI label, Higgsfield unlimited drafts), which exists only on the awake Mac. Anything it cannot reach by its deadline runs a fallback, so nothing waits for the Mac.
+   **Cloud or desktop.** A cloud task runs on Anthropic's servers on a fresh machine at its time, whether the Mac is on or off; that is where each post is built, checked and staged, and where an approved post is published. A desktop task is created in the Claude desktop app on Katie's Mac as a local scheduled task and runs only while the Mac is awake and the app is open. Chrome queue must be the desktop kind: it does the steps that need Claude in Chrome (signed-in research, competitor log, Trial Reels, collab invites, the AI label, Higgsfield unlimited drafts), which exists only on the awake Mac; the posting steps only for posts a person approved. Anything it cannot reach by its deadline runs a fallback that never publishes (the post stays staged and its approver gets one line), so nothing waits for the Mac.
 
-   Turn notifications on for each, then "Run now" each once and confirm it finishes with no permission prompt.
-12. [ ] **Check the run log** (R343): `/numa-setup` step 10 runs `runlog.py check --since <the time of the first Run now>`. Every one of the eight tasks must show `OK:` (it started and finished ok). A task that shows `not run` did not follow its prompt: paste the prompt again exactly and Run now. Only then is the schedule left on.
+   Turn notifications on for tasks 1-6 and **off** for the quarterly reminder and the Chrome queue (docs/SCHEDULED_TASKS.md, Notifications column), then "Run now" each once and confirm it finishes with no permission prompt. The build's Run now stages today's post and posts nothing; leave its row unapproved unless it is meant to go out.
+12. [ ] **Check the run log** (R343): `/numa-setup` step 10 runs `runlog.py check --since <the time of the first Run now>`. Every one of the eight tasks must show `OK:` (it started and finished ok) or `WARN:` (it finished `partial`; read its note). A task that shows `not run` did not follow its prompt: paste the prompt again exactly and Run now. Only then is the schedule left on.
 
 ## Account fixes at setup (from the Mobile audit; done once by Jude)
 
