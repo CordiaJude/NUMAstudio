@@ -166,6 +166,8 @@ def test_owner_rules(texts):
     assert "never state the sauna's capacity" in low and "44–52°f" in low and "175–190°f" in low
     assert "no emoji" in low and "**Numa**" in s
     assert "NUMA_BRAND_FONTS" in s and "Domaine Sans Text Light" in s and "Avenir Next" in s
+    assert "ask the dpt" not in s.replace('("Ask the DPT")', "").lower() and "discover.numawellness" not in low
+    assert "NUMA_BRAND_LOGO" in s and "[Member first name]" in s and "business.cta_link" in s
     assert "clinical conversations" not in "\n".join(texts.values()).lower()
 
 

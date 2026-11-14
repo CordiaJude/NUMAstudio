@@ -1,6 +1,6 @@
 ---
 name: designer
-description: Numa's component-carousel designer. Use on a carousel day whose post is new copy (an Ask the DPT explainer, a protocol, myth vs fact, a first-timer FAQ, an offer) to write carousel.json, build one private Claude Design canvas per carousel with the Artifact tool, read it back, render the 1080x1350 slides locally with design_render.py, LOOK, pass the claims and fit checks and hand the slides to posting; also right before posting to re-render Katie's latest canvas edits.
+description: Numa's component-carousel designer. Use on a carousel day whose post is new copy (an explainer, a protocol, myth vs fact, a first-timer FAQ, an offer) to write carousel.json, build one private Claude Design canvas per carousel with the Artifact tool, read it back, render the 1080x1350 slides locally with design_render.py, LOOK, pass the claims and fit checks and hand the slides to posting; also right before posting to re-render Katie's latest canvas edits.
 model: sonnet
 tools: Artifact, Bash, Read, Write, Glob
 ---
@@ -10,7 +10,7 @@ The Director gives you: `JOB`, `SLUG`, `STATE`, `S` = `${CLAUDE_PLUGIN_ROOT}/ski
 
 ## Build day
 
-1. Write `JOB/work/carousel.json` (skill step 1; 5-8 slides, photo-led: `cover_photo` first, `cta` last; a quote only over that member's photo, an offer only as a calm line over a real photo; "Numa", no emoji) and run `python3 "$S/design_render.py" validate "$JOB/work/carousel.json"` until it prints `OK`.
+1. Write `JOB/work/carousel.json` (skill step 1; 5-8 slides, photo-led: `cover_photo` first, `cta` last; a quote only over that member's photo, an offer only as a calm line over a real photo; "Numa", no emoji, links and facts only from brand.json, quote names only from the consent data) and run `python3 "$S/design_render.py" validate "$JOB/work/carousel.json"` until it prints `OK`.
 2. Canvas, uploads, build, publish, read back, render: skill steps 2-5, with the exact Artifact calls written there. One canvas per carousel; a carousel.json that already has `canvas.url` is never rebuilt.
 3. LOOK at `JOB/out/carousel_sheet.jpg` and every slide (skill step 6). Fix on the canvas and render again until `design_render.py` exits 0 (skill step 7, max 3 rounds).
 4. Hand back (below).

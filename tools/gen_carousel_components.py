@@ -15,8 +15,10 @@ Usage:
            (needs fontTools: pip install fonttools brotli)
 
 Tokens: {{field}} spec fields; {{color.<role>}} brand palette roles (design_render.PALETTE_ROLES);
-{{component}}, {{slide_title}}, {{page}}, {{brand_name}}, {{photo}}, {{photo_alt}},
-{{photo_position}}, {{wordmark}}, {{price}}, {{price_note}} filled by design_render.py.
+{{component}}, {{slide_title}}, {{page}}, {{brand_name}}, {{brand_short}}, {{photo}}, {{photo_alt}},
+{{photo_position}}, {{logo}}, {{price}}, {{price_note}}, {{offer_details}} filled by design_render.py
+from brand.json (the end slide shows Numa's logo file when one is supplied, else "Numa" set in
+the display font; never a typed all-caps wordmark).
 <!--if:field--> ... <!--/if:field--> blocks are dropped when the optional field is not given.
 
 Look (owners' brief, 2026-11): photo-led by default; text-led slides restrained and editorial,
@@ -216,7 +218,8 @@ C["offer"] = ("Offer (photo, calm)", photo_slide(
         text("h2", "title", font=DISPLAY, size=68, lh=1.06, lines=2, weight=300, extra=TIGHT),
         '<p data-fit="offer" style="margin: 0; max-height: 96px; overflow: hidden; font-size: 36px; line-height: 48px; '
         'font-weight: 400; color: {{color.ink}}"><span style="font-weight: 700">{{offer}}</span> · {{price}} {{price_note}}</p>',
-        opt("details", text("p", "details", font=BODY, size=34, lh=1.42, lines=2)),
+        opt("offer_details", '<p data-fit="offer_details" style="margin: 0; max-height: 144px; overflow: hidden; '
+            'font-size: 32px; line-height: 46px; font-weight: 400; color: {{color.ink}}; text-wrap: pretty">{{offer_details}}</p>'),
         text("p", "cta", font=BODY, size=34, lh=1.42, lines=1, weight=600,
              extra="; white-space: nowrap; text-decoration: underline; text-decoration-color: {{color.accent}}; "
                    "text-decoration-thickness: 3px; text-underline-offset: 10px"),
@@ -226,7 +229,10 @@ C["offer"] = ("Offer (photo, calm)", photo_slide(
 C["cta"] = ("End slide", "\n".join([
     ROOT,
     content("\n".join([
-        '<img src="{{wordmark}}" alt="Numa" style="display: block; width: 400px; height: 88px; flex-shrink: 0">',
+        opt("logo", '<img src="{{logo}}" alt="Numa" style="display: block; height: 120px; width: auto; max-width: 600px; '
+                    'flex-shrink: 0">'),
+        opt("no_logo", '<p style="margin: 0; font-family: ' + DISPLAY + '; font-weight: 300; font-size: 88px; '
+                       'line-height: 96px; letter-spacing: 0.02em; color: {{color.ink}}">{{brand_short}}</p>'),
         RULE,
         text("h2", "title", font=DISPLAY, size=96, lh=1.04, lines=4, weight=300, extra=TIGHT + "; text-align: center"),
         opt("body", text("p", "body", font=BODY, size=42, lh=1.4, lines=3, extra="; text-align: center")),

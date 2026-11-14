@@ -998,7 +998,7 @@ its Chromium (`pip install -r requirements.txt`, then
   posting date and caption; `designSystems` record when `--design-system`) and
   one `.dc.html` per slide from `assets/carousel/<component>.dc.html`, fields
   filled as literal markup. `--uploads-only` copies the images to upload to
-  `ROOT/uploads/` and lists them (keys: the slide's `photo` string, `wordmark`);
+  `ROOT/uploads/` and lists them (keys: the slide's `photo` string, `logo` when a logo file is supplied);
   without `canvas.blobs` for each, `build` exits 1. `--json` prints
   `{"ok", "root", "index", "boards", "files", "uploads", "warnings"}`; `files`
   is the Artifact publish `files` map (plus the design system's tokens.json copy).
@@ -1036,29 +1036,32 @@ its Chromium (`pip install -r requirements.txt`, then
 ```json
 {"schema_version": 1, "slug": "2026-12-08-sauna-vs-red-light",
  "title": "Numa Carousel · 2026-12-08 · Sauna vs red light", "date": "2026-12-08",
- "topic": "Ask the DPT: sauna vs red light", "caption": "Sauna vs red light in Mobile, AL: ...",
+ "topic": "Sauna vs red light", "caption": "Sauna vs red light in Mobile, AL: ...",
  "hashtags": ["#MobileAL"],
  "slides": [
    {"component": "cover_photo", "photo": "skills/numa-reel-editor/assets/brand-photos/sauna-logo.jpg",
-    "fields": {"kicker": "Ask the DPT", "title": "Sauna vs red light: what's *different*?"}},
+    "fields": {"kicker": "Know the difference", "title": "Sauna vs red light: what's *different*?"}},
    {"component": "photo", "photo": "skills/numa-reel-editor/assets/brand-photos/red-light.jpg", "photo_position": "50% 38%",
     "fields": {"kicker": "Red light", "caption": "Red light is *light*, not heat."}},
    {"component": "offer", "photo": "skills/numa-reel-editor/assets/brand-photos/cold-plunge.jpg",
-    "fields": {"kicker": "New here?", "title": "Your first month", "offer": "Discover NUMA", "cta": "discover.numawellness.org"}},
-   {"component": "cta", "fields": {"title": "Feel the difference.", "button": "discover.numawellness.org"}}],
+    "fields": {"kicker": "New here?", "title": "Your first month", "offer": "Discover Numa"}},
+   {"component": "cta", "fields": {"title": "Feel the difference."}}],
  "canvas": {"url": "https://claude.ai/artifact/<id>",
-            "blobs": {"skills/numa-reel-editor/assets/brand-photos/red-light.jpg": "/_blob/<id>", "wordmark": "/_blob/<id>"}}}
+            "blobs": {"skills/numa-reel-editor/assets/brand-photos/red-light.jpg": "/_blob/<id>", "logo": "/_blob/<id>"}}}
 ```
 Components and fields (required, *optional*). Photo-led (slide `photo`
 required, *`photo_position`*, *`photo_alt`*): `cover_photo` kicker, title;
 `photo` kicker, caption; `quote` kicker, quote, name, *role* (only over that
 member's photo); `offer` kicker, title, offer (a brand.json offer/session name;
-price and its note come from brand.json; shown as "Discover Numa · $49 one
-month"), cta, *details*. Text-led: `cover` kicker, title, *subtitle*; `point`
+price, unit and includes come from brand.json: "Discover Numa · $49 one
+month" over "3 classes, ... ends on its own."), *cta* (default the bio link). Text-led: `cover` kicker, title, *subtitle*; `point`
 kicker, number, title, body; `stat` kicker, stat (<= 8 chars), label, *body*,
 *source*; `myth_fact` kicker, myth, fact; `faq` kicker, question, answer;
-`steps` kicker, title, step1-3, *step4*; `cta` title, button, *body* (wordmark
-added). Text: `\n` line break, `*word*` emphasis (medium weight, gold
+`steps` kicker, title, step1-3, *step4*; `cta` title, *button* (default
+brand.json `business.cta_link`), *body*; Numa's logo file (`NUMA_BRAND_LOGO` or
+brand.json `assets.logo_file`) when supplied, else "Numa" in the display font.
+Any link in slide text must be a brand.json link (`cta_link`, `website`, an
+offer's `link`; else ERROR). Text: `\n` line break, `*word*` emphasis (medium weight, gold
 underline); fits are measured at render. Palette roles (bg, ink, accent, panel,
 rule, tint) map to brand.json `palette.value` keys light, dark_teal, tan_gold,
 beige, blue, light_blue (`design_render.PALETTE_ROLES`, with the owners' hex

@@ -4,11 +4,11 @@ description: Build a Numa component carousel (explainer, protocol, myth vs fact,
 ---
 # Numa component carousels in Claude Design (R328-R332, DECISIONS D21)
 
-**When:** a plan row whose `kind` is carousel and whose content is new copy (an Ask the DPT explainer, a protocol, a myth vs fact, a first-timer FAQ, an offer). A carousel cut from a reel uses formats.py; a photo carousel uses photo_post.py (commands/post-reel.md section 12). **Who:** the designer agent. **Never** ask Katie anything and never add an approval step: the canvas is where Katie and Jude look and edit, and the post is rendered from whatever the canvas holds at posting time.
+**When:** a plan row whose `kind` is carousel and whose content is new copy (an explainer, a protocol, a myth vs fact, a first-timer FAQ, an offer). A carousel cut from a reel uses formats.py; a photo carousel uses photo_post.py (commands/post-reel.md section 12). **Who:** the designer agent. **Never** ask Katie anything and never add an approval step: the canvas is where Katie and Jude look and edit, and the post is rendered from whatever the canvas holds at posting time.
 
 **D21 overrides the Design type's instructions in two places:** its "never verify / never render" rule (we always read the canvas back and render it locally, because the slides are made from it) and its "one artboard per call" pacing (step 3 below).
 
-`S` = `${CLAUDE_PLUGIN_ROOT}/skills/numa-reel-editor/scripts`. `JOB` = the day's job folder. `ROOT` = a new folder in your session's scratchpad (else inside the working directory; the Artifact tool only sends files from there): `ROOT=<scratchpad>/canvas-<slug>`. Log every decision and fallback in `JOB/work/decisions.md` (`HH:MM | carousel | decision | why | fallback`). Brand fonts: when `STATE/fonts/` holds Numa's own font files (`display.<woff2|otf|ttf>` = Domaine Sans Text Light, `body.<...>` = Avenir Next), start every Bash call that runs design_render.py with `export NUMA_BRAND_FONTS="$STATE/fonts"`; without them the bundled open stand-ins (Hanken Grotesk, Nunito Sans) are used.
+`S` = `${CLAUDE_PLUGIN_ROOT}/skills/numa-reel-editor/scripts`. `JOB` = the day's job folder. `ROOT` = a new folder in your session's scratchpad (else inside the working directory; the Artifact tool only sends files from there): `ROOT=<scratchpad>/canvas-<slug>`. Log every decision and fallback in `JOB/work/decisions.md` (`HH:MM | carousel | decision | why | fallback`). Brand fonts: when `STATE/fonts/` holds Numa's own font files (`display.<woff2|otf|ttf>` = Domaine Sans Text Light, `body.<...>` = Avenir Next), start every Bash call that runs design_render.py with `export NUMA_BRAND_FONTS="$STATE/fonts"`; without them the bundled open stand-ins (Hanken Grotesk, Nunito Sans) are used. Logo: when Numa has supplied its logo file (`STATE/logo.png`), also `export NUMA_BRAND_LOGO="$STATE/logo.png"`; without it the end slide sets "Numa" in the display font (never a typed all-caps wordmark).
 
 | Step | Do | Output |
 |---|---|---|
@@ -29,41 +29,41 @@ description: Build a Numa component carousel (explainer, protocol, myth vs fact,
 |---|---|---|
 | `cover_photo` | the hook over a real photo (default first slide) | kicker, title; slide `photo` |
 | `photo` | a real photo with a one-line caption | kicker, caption; slide `photo`, *`photo_position`* ("50% 38%") |
-| `quote` | a member's own words, **only over that member's photo** (consent list) | kicker, quote, name, *role*; slide `photo` |
-| `offer` | a calm price line over a real photo, never a flyer | kicker, title, offer (an offer or session name in brand.json `offerings`), cta, *details*; slide `photo` |
+| `quote` | a member's own words, **only over that member's photo** (consent list) | kicker, quote, name (from `STATE/consent_list.json` at run time, never invented), *role*; slide `photo` |
+| `offer` | a calm price line over a real photo, never a flyer | kicker, title, offer (an offer or session name in brand.json `offerings`; price, unit and what it includes come from there), *cta* (default: the bio link); slide `photo` |
 | `cover` | text-led hook when no photo fits | kicker, title, *subtitle* |
 | `point` | numbered point (editorial) | kicker, number, title, body |
 | `stat` | one sourced, claims-safe number ("44–52°F" plunge water) | kicker, stat (<= 8 chars), label, *body*, *source* |
 | `myth_fact` | a common mix-up | kicker, myth, fact |
 | `faq` | a first-timer question | kicker, question, answer |
 | `steps` | a protocol | kicker, title, step1-3, *step4* |
-| `cta` | end slide with the wordmark | title, button, *body* |
+| `cta` | end slide: Numa's logo (or "Numa" in the display font) and the bio link | title, *button* (default: brand.json `business.cta_link`), *body* |
 
 Copy rules (validate enforces the starred ones):
 - Voice and claims from brand.json `voice` and `claims` (sell the experience, never the outcome; `claims.modalities.<m>.say`).*
-- The name is written **Numa** on slides, never NUMA (the wordmark image is the only all-caps form).* No emoji and no symbols the bundled fonts lack (arrows, check marks): plain words.*
-- Facts only from brand.json: plunge 44–52°F and sauna 175–190°F are the owners' figures; never state the sauna's capacity. Prices are never typed: `offer` takes them from brand.json, and an offer whose price is `needs_katie` is not used (drop the slide, log it).*
+- The name is written **Numa** on slides, never NUMA (only a logo file Numa supplies may show its own lettering).* No emoji and no symbols the bundled fonts lack (arrows, check marks): plain words.*
+- Facts only from brand.json: plunge 44–52°F and sauna 175–190°F are the owners' figures; never state the sauna's capacity; amenities only from brand.json `business.facility` (never its `not_confirmed` list), hours from `business.hours`. Links: only brand.json links (`business.cta_link`, the one bio link; `business.website`; an offer's `link`); any other URL is an ERROR.* Never present Katie as an on-camera expert ("Ask the DPT") until brand.json says she agreed. People: a quote's name and role come only from the consent data at run time; demos and tests use "[Member first name]". Prices are never typed: `offer` takes them from brand.json, and an offer whose price is `needs_katie` is not used (drop the slide, log it).*
 - `*word*` = emphasis (medium weight, gold underline), at most one per slide. Text-led slides need enough copy to fill the space: design_render WARNs below 60%; add a line or make it a photo slide.
 - A recognizable person on any photo slide only with a `STATE/consent_list.json` entry whose scope covers social posts. The caption opens with a plain searchable phrase (brand.json `captions.opening_rule`) and adds brand.json `claims.safety_line.text` for sauna or cold plunge.
 
-Worked example (the Ask the DPT explainer, 6 slides):
+Worked example (an explainer, 6 slides):
 
 ```json
 {"schema_version": 1, "slug": "2026-12-08-sauna-vs-red-light",
  "title": "Numa Carousel · 2026-12-08 · Sauna vs red light", "date": "2026-12-08",
- "caption": "Sauna vs red light in Mobile, AL: what's actually different? ... Talk to your doctor first if you have a heart, blood pressure or breathing condition.\n\n#MobileAL #MidtownMobile #GulfCoastWellness",
+ "caption": "Sauna vs red light in Mobile, AL: what's actually different? ... Link in bio. Talk to your doctor first if you have a heart, blood pressure or breathing condition.\n\n#MobileAL #MidtownMobile #GulfCoastWellness",
  "slides": [
-  {"component": "cover_photo", "photo": "skills/numa-reel-editor/assets/brand-photos/sauna-logo.jpg", "photo_position": "50% 42%", "fields": {"kicker": "Ask the DPT", "title": "Sauna vs red light: what's *different*?"}},
+  {"component": "cover_photo", "photo": "skills/numa-reel-editor/assets/brand-photos/sauna-logo.jpg", "photo_position": "50% 42%", "fields": {"kicker": "Know the difference", "title": "Sauna vs red light: what's *different*?"}},
   {"component": "point", "fields": {"kicker": "The sauna", "number": "1", "title": "Heat that surrounds you", "body": "Our Finnish sauna holds the air at 175–190°F. Deep, quiet heat to unwind, the way Finns have for centuries."}},
   {"component": "photo", "photo": "skills/numa-reel-editor/assets/brand-photos/red-light.jpg", "photo_position": "50% 38%", "fields": {"kicker": "Red light", "caption": "Red light is *light*, not heat. You sit in front of a panel's warm glow."}},
   {"component": "myth_fact", "fields": {"kicker": "Common mix-up", "myth": "Red light is just a sauna with colored bulbs.", "fact": "A sauna heats the air. A red light panel shines light on you. Two different tools."}},
   {"component": "steps", "fields": {"kicker": "Try both", "title": "One easy way to start", "step1": "Begin in the sauna and let yourself settle.", "step2": "Step out, cool down and drink some water.", "step3": "Finish with a calm, warm red light session."}},
-  {"component": "cta", "fields": {"title": "Feel the difference for yourself.", "body": "Your reset starts here.", "button": "discover.numawellness.org"}}]}
+  {"component": "cta", "fields": {"title": "Feel the difference for yourself.", "body": "Your reset starts here."}}]}
 ```
 ```
 python3 "$S/design_render.py" validate "$JOB/work/carousel.json"
 ```
-Every `ERROR:` (banned claim, missing field, unknown offer, `needs_katie` price, emoji, a character the fonts lack, "NUMA") is fixed in carousel.json before step 2. `WARN:` lines are reworded when the wording can be safer; otherwise kept and logged.
+Every `ERROR:` (banned claim, missing field, unknown offer, `needs_katie` price, emoji, a character the fonts lack, "NUMA", a link that is not in brand.json) is fixed in carousel.json before step 2. `WARN:` lines are reworded when the wording can be safer; otherwise kept and logged.
 
 ## 2. Create the canvas (one per carousel)
 
@@ -84,9 +84,9 @@ python3 "$S/design_render.py" build "$JOB/work/carousel.json" --root "$ROOT" --u
 Upload every listed file in ONE call (up to 25):
 ```
 Artifact {"action": "publish", "url": "<canvas url>", "asset": true,
-          "file_paths": ["<ROOT>/uploads/sauna-logo.jpg", "<ROOT>/uploads/red-light.jpg", "<ROOT>/uploads/wordmark.png"]}
+          "file_paths": ["<ROOT>/uploads/sauna-logo.jpg", "<ROOT>/uploads/red-light.jpg"]}
 ```
-Write each returned `/_blob/<id>` into carousel.json `canvas.blobs` under its `key` from the listing (the slide's `photo` string, or `wordmark`). Then:
+Write each returned `/_blob/<id>` into carousel.json `canvas.blobs` under its `key` from the listing (the slide's `photo` string, or `logo`). Then:
 ```
 python3 "$S/design_render.py" build "$JOB/work/carousel.json" --root "$ROOT" --json
 ```
@@ -122,11 +122,11 @@ Writes `JOB/out/SLUG_carousel_01.jpg` ... in reading order, `JOB/out/carousel_sh
 
 ## 6. LOOK
 
-Open `JOB/out/carousel_sheet.jpg`, then every slide at full size. Check: the slides read in order as one story; the hook works on slide 1 alone; photos lead and look like Numa (real rooms, real people with consent), never a flyer or poster; each slide has one idea and reads on a phone; text-led slides feel calm and full, not sparse (`fill` >= 0.6); no text clipped, crowded or orphaned (a single word on its last line: shorten); the photo crop keeps the subject (move `photo_position`); "Numa" spelled right; the wordmark on the last slide. Anything off: fix it (step 7) and render again.
+Open `JOB/out/carousel_sheet.jpg`, then every slide at full size. Check: the slides read in order as one story; the hook works on slide 1 alone; photos lead and look like Numa (real rooms, real people with consent), never a flyer or poster; each slide has one idea and reads on a phone; text-led slides feel calm and full, not sparse (`fill` >= 0.6); no text clipped, crowded or orphaned (a single word on its last line: shorten); the photo crop keeps the subject (move `photo_position`); "Numa" spelled right; the logo (or "Numa") and the bio link on the last slide; no invented fact, person or amenity. Anything off: fix it (step 7) and render again.
 
 ## 7. Claims, character and fit checks
 
-`design_render.py` exits 1 on any ERROR: a banned claim in the rendered text (Katie's edits included), an emoji or a character the fonts cannot draw, "NUMA", text overflowing its box, a font that did not load, a blank slide, wrong size, a `[PRICE]` placeholder. Fix on the canvas, never only locally:
+`design_render.py` exits 1 on any ERROR: a banned claim in the rendered text (Katie's edits included), an emoji or a character the fonts cannot draw, "NUMA", a link not in brand.json, text overflowing its box, a font that did not load, a blank slide, wrong size, a `[PRICE]` placeholder. Fix on the canvas, never only locally:
 1. Edit `project/<board>` in `ROOT` (copy it from `JOB/work/canvas/project/` first when the canvas changed since you built it): shorten or reword the text, keep the markup.
 2. Publish only the changed boards: `Artifact {"action": "publish", "url": "<canvas url>", "root": "<ROOT>", "file_path": "<ROOT>/project/Slide04.dc.html"}`. Refused because someone saved meanwhile: read the boards the refusal names, redo the edit, publish again.
 3. Steps 4-5 again. At most 3 rounds, then the fallback row "render still fails".

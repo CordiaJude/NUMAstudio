@@ -10,7 +10,12 @@
 <!--slide-->
 <div data-slide="{{component}}" style="width: 1080px; height: 1350px; box-sizing: border-box; padding: 96px 96px 80px; display: flex; flex-direction: column; gap: 48px; overflow: hidden; background: {{color.bg}}; color: {{color.ink}}; font-family: 'Nunito Sans', 'Avenir Next', Avenir, sans-serif">
 <div data-fit="content" style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 48px; align-items: center; padding-bottom: 96px">
-<img src="{{wordmark}}" alt="Numa" style="display: block; width: 400px; height: 88px; flex-shrink: 0">
+<!--if:logo-->
+<img src="{{logo}}" alt="Numa" style="display: block; height: 120px; width: auto; max-width: 600px; flex-shrink: 0">
+<!--/if:logo-->
+<!--if:no_logo-->
+<p style="margin: 0; font-family: 'Hanken Grotesk', 'Helvetica Neue', Arial, sans-serif; font-weight: 300; font-size: 88px; line-height: 96px; letter-spacing: 0.02em; color: {{color.ink}}">{{brand_short}}</p>
+<!--/if:no_logo-->
 <div style="width: 120px; height: 4px; flex-shrink: 0; background: {{color.accent}}"></div>
 <h2 data-fit="title" style="margin: 0; max-height: 400px; overflow: hidden; font-family: 'Hanken Grotesk', 'Helvetica Neue', Arial, sans-serif; font-size: 96px; line-height: 100px; font-weight: 300; color: {{color.ink}}; letter-spacing: -0.02em; text-wrap: balance; text-align: center">{{title}}</h2>
 <!--if:body-->

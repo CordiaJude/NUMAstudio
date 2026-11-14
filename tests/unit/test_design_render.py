@@ -39,10 +39,10 @@ needs_chromium = pytest.mark.skipif(not CHROMIUM, reason="Python Playwright + Ch
 SAUNA = "skills/numa-reel-editor/assets/brand-photos/sauna-logo.jpg"
 PLUNGE = "skills/numa-reel-editor/assets/brand-photos/cold-plunge.jpg"
 ALL_SLIDES = [
-    {"component": "cover", "fields": {"kicker": "Ask the DPT", "title": "Sauna vs red light: what's *different*?",
+    {"component": "cover", "fields": {"kicker": "Sauna vs red light", "title": "Sauna vs red light: what's *different*?",
                                       "subtitle": "Two warm rooms, two very different sessions."}},
     {"component": "cover_photo", "photo": SAUNA, "photo_position": "50% 42%",
-     "fields": {"kicker": "Ask the DPT", "title": "Sauna vs red light: what's *different*?"}},
+     "fields": {"kicker": "Know the difference", "title": "Sauna vs red light: what's *different*?"}},
     {"component": "photo", "photo": PHOTO, "photo_position": "50% 38%",
      "fields": {"kicker": "Red light", "caption": "Red light is *light*, not heat."}},
     {"component": "point", "fields": {"kicker": "The sauna", "number": "1", "title": "Heat that surrounds you",
@@ -51,19 +51,17 @@ ALL_SLIDES = [
                                      "body": "Cold enough to wake you up.", "source": "Numa, Midtown Mobile"}},
     {"component": "myth_fact", "fields": {"kicker": "Common mix-up", "myth": "Red light is a sauna with colored bulbs.",
                                           "fact": "A sauna heats the air. A red light panel shines light on you."}},
-    {"component": "faq", "fields": {"kicker": "First time?", "question": "Do I need to bring anything?",
-                                    "answer": "Just a swimsuit and a water bottle. Towels and showers are ready, and we walk you through your first visit."}},
+    {"component": "faq", "fields": {"kicker": "First time?", "question": "Do I have to know what I'm doing?",
+                                    "answer": "No. A guide is always nearby, and you can start with a 30-minute session at your own pace."}},
     {"component": "steps", "fields": {"kicker": "Try both", "title": "One easy way to start", "step1": "Begin in the sauna.",
                                       "step2": "Cool down and drink some water.", "step3": "Finish with red light.",
                                       "step4": "Notice how you feel."}},
     {"component": "quote", "photo": "skills/numa-reel-editor/assets/brand-photos/breathwork-class.jpg",
      "fields": {"kicker": "From the collective", "quote": "I come for the quiet and stay for the people.",
-                "name": "Jordan", "role": "Sunday regular"}},
+                "name": "[Member first name]"}},
     {"component": "offer", "photo": PLUNGE, "fields": {"kicker": "New here?", "title": "Your first month at Numa",
-                                                       "offer": "Discover NUMA", "details": "Classes, sauna and cold plunge.",
-                                                       "cta": "discover.numawellness.org"}},
-    {"component": "cta", "fields": {"title": "Feel the difference for yourself.", "body": "Your reset starts here.",
-                                    "button": "discover.numawellness.org"}},
+                                                       "offer": "Discover Numa"}},
+    {"component": "cta", "fields": {"title": "Feel the difference for yourself.", "body": "Your reset starts here."}},
 ]
 
 
@@ -199,7 +197,7 @@ def test_fill_rich_text_and_optional_blocks():
 
 
 # --------------------------------------------------------------------------- build (canvas files)
-BLOBS = {PHOTO: "aaaa1111", "wordmark": "bbbb2222", SAUNA: "cccc3333",
+BLOBS = {PHOTO: "aaaa1111", SAUNA: "cccc3333",
          "skills/numa-reel-editor/assets/brand-photos/breathwork-class.jpg": "dddd4444", PLUNGE: "eeee5555"}
 
 
@@ -236,9 +234,13 @@ def test_build_needs_uploads_then_writes_canvas(run_script, tmp_path):
         assert "{{" not in text and "<!--" not in text, b
     photo = (root / "project" / "Slide02.dc.html").read_text()
     assert 'src="/_blob/aaaa1111"' in photo and "object-position: 50% 38%" in photo
-    assert 'src="/_blob/bbbb2222"' in (root / "project" / "Slide10.dc.html").read_text()
+    end = (root / "project" / "Slide10.dc.html").read_text()
+    assert "<img" not in end and ">Numa</p>" in end and "NUMA" not in end  # no logo file yet: "Numa" in the display font
+    assert ">linktr.ee/numawc</p>" in end  # the button defaults to brand.json business.cta_link
     offer = (root / "project" / "Slide09.dc.html").read_text()
     assert "$49" in offer and "Discover Numa" in offer and "NUMA" not in offer  # price from brand.json, "Numa"
+    assert "3 classes, 3 red light sessions, unlimited Flow Space." in offer and "ends on its own" in offer
+    assert "linktr.ee/numawc" in offer
 
 
 def test_build_design_system_record(run_script, tmp_path):
@@ -335,18 +337,18 @@ def make_canvas(tmp_path: Path, run_script, slides=None, runtime: Path | None = 
     else:  # stand-in: no runtime at all, the artboard markup renders as plain HTML
         (canvas / "artifact-type" / "dc-runtime.js").write_text("/* no-op stand-in for tests */\n")
     for key, bid in BLOBS.items():
-        src = dr.nc.brand_asset("wordmark") if key == "wordmark" else dr.nc.PLUGIN_ROOT / key
+        src = dr.nc.PLUGIN_ROOT / key
         shutil.copyfile(src, canvas / f"{bid}{src.suffix}")
     return canvas
 
 
 def test_list_blobs(run_script, tmp_path):
-    canvas = make_canvas(tmp_path, run_script)
-    (canvas / "bbbb2222.png").unlink()
+    canvas = make_canvas(tmp_path, run_script, slides=[ALL_SLIDES[1], ALL_SLIDES[2]])
+    (canvas / "cccc3333.jpg").unlink()
     proc = run_script("design_render.py", "canvas", canvas, "--list-blobs", "--json")
     assert proc.returncode == 0
     rows = {r["id"]: r["file"] for r in json.loads(proc.stdout)["blobs"]}
-    assert rows["aaaa1111"].endswith("aaaa1111.jpg") and rows["bbbb2222"] is None
+    assert rows["aaaa1111"].endswith("aaaa1111.jpg") and rows["cccc3333"] is None
 
 
 def test_canvas_missing_blob_or_runtime_is_an_error(run_script, tmp_path):
@@ -459,3 +461,32 @@ def test_selftest_detail_has_no_fix_text(tmp_path, monkeypatch):
     monkeypatch.setattr(dr, "Browser", broken)
     ok, detail = dr.selftest(tmp_path)
     assert not ok and detail == "Chromium for Playwright is not installed"
+
+
+@pytest.mark.parametrize("text, ok", [
+    ("linktr.ee/numawc", True), ("https://linktr.ee/numawc", True), ("numawellness.org", True),
+    ("discover.numawellness.org", False), ("www.example.com/book", False),
+])
+def test_links_must_be_brand_links(run_script, tmp_path, text, ok):
+    d = spec([ALL_SLIDES[0], {"component": "cta", "fields": {"title": "See you soon.", "button": text}}])
+    proc = run_script("design_render.py", "validate", write_spec(tmp_path, d))
+    assert (proc.returncode == 0) is ok, proc.stderr
+    if not ok:
+        assert "is not a brand.json link" in proc.stderr and "linktr.ee/numawc" in proc.stderr
+
+
+def test_logo_file_when_supplied(run_script, tmp_path):
+    logo = tmp_path / "numa-logo.png"
+    shutil.copyfile(dr.nc.brand_asset("secondary_mark"), logo)  # any image stands in for Numa's supplied file
+    d = spec([ALL_SLIDES[0], ALL_SLIDES[10]])
+    p = write_spec(tmp_path, d)
+    env = {"NUMA_BRAND_LOGO": str(logo)}
+    proc = run_script("design_render.py", "build", p, "--root", tmp_path / "r", "--uploads-only", "--json", env=env)
+    assert proc.returncode == 0 and [u["key"] for u in json.loads(proc.stdout)["uploads"]] == ["logo"]
+    d["canvas"] = {"url": "https://claude.ai/artifact/AbC123", "blobs": {"logo": "/_blob/ffff6666"}}
+    proc = run_script("design_render.py", "build", write_spec(tmp_path, d), "--root", tmp_path / "r", env=env)
+    assert proc.returncode == 0, proc.stderr
+    end = (tmp_path / "r" / "project" / "Slide02.dc.html").read_text()
+    assert 'src="/_blob/ffff6666"' in end and ">Numa</p>" not in end
+    bad = run_script("design_render.py", "validate", p, env={"NUMA_BRAND_LOGO": str(tmp_path / "none.png")})
+    assert bad.returncode == 1 and "logo file is missing" in bad.stderr

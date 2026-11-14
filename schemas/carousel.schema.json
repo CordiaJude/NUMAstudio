@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "carousel.schema.json",
   "title": "NUMA component carousel spec (carousel.json)",
-  "description": "One component carousel: 2-10 slides of 1080x1350, each a component from skills/numa-reel-editor/assets/carousel with its text fields. design_render.py builds the Claude Design canvas from it (build), renders it straight from the bundled components when the canvas is unavailable (spec), and validates it (validate: this schema, the claims scan over every text field, brand.json prices, the bundled fonts' characters (no emoji), \"Numa\" not \"NUMA\"). Photo-led by default: a quote only over that member's photo, an offer only over a real photo. Text may use a line break (\\n) and *emphasis* (medium weight, tan underline). Prices are never typed here: the offer component takes them from brand.json. See docs/CONTRACTS.md section 9.",
+  "description": "One component carousel: 2-10 slides of 1080x1350, each a component from skills/numa-reel-editor/assets/carousel with its text fields. design_render.py builds the Claude Design canvas from it (build), renders it straight from the bundled components when the canvas is unavailable (spec), and validates it (validate: this schema, the claims scan over every text field, brand.json prices, the bundled fonts' characters (no emoji), \"Numa\" not \"NUMA\", links only from brand.json). Photo-led by default: a quote only over that member's photo, an offer only over a real photo. Text may use a line break (\\n) and *emphasis* (medium weight, tan underline). Prices are never typed here: the offer component takes them from brand.json. See docs/CONTRACTS.md section 9.",
   "type": "object",
   "required": [
     "schema_version",
@@ -560,8 +560,7 @@
       "required": [
         "kicker",
         "title",
-        "offer",
-        "cta"
+        "offer"
       ],
       "properties": {
         "kicker": {
@@ -574,13 +573,11 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 60,
-          "description": "An offer or session name from brand.json offerings.offers[] / offerings.sessions[]; the price comes from there."
-        },
-        "details": {
-          "$ref": "#/$defs/text"
+          "description": "An offer or session name from brand.json offerings; its price, unit and what it includes come from there."
         },
         "cta": {
-          "$ref": "#/$defs/text"
+          "$ref": "#/$defs/text",
+          "description": "The link line; default: brand.json business.cta_link. Any link must be a brand.json link."
         }
       }
     },
@@ -588,8 +585,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "title",
-        "button"
+        "title"
       ],
       "properties": {
         "title": {
@@ -599,7 +595,8 @@
           "$ref": "#/$defs/text"
         },
         "button": {
-          "$ref": "#/$defs/line"
+          "$ref": "#/$defs/line",
+          "description": "Default: brand.json business.cta_link (the bio link). Any link must be a brand.json link."
         }
       }
     }

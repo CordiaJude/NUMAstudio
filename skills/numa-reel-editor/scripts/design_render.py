@@ -18,14 +18,20 @@ validate  Checks carousel.json (schemas/carousel.schema.json): the components an
           caption pass the claims scanner (claims_scan.py as a module), offer
           prices come from brand.json (a price that is `needs_katie` is an ERROR),
           every character is in the bundled fonts (assets/fonts/carousel_charset.json),
-          no emoji, the name written "Numa" (never "NUMA").
+          no emoji, the name written "Numa" (never "NUMA"), every link in the
+          text one of brand.json's (business.cta_link, business.website, an offer's
+          link). The end slide's button and the offer's link line default to
+          business.cta_link; the offer's price and what it includes come from
+          brand.json. The end slide shows Numa's logo file (NUMA_BRAND_LOGO or
+          brand.json assets.logo_file) when one is supplied, else "Numa" set in the
+          display font.
 build     Writes the canvas files for a new canvas under ROOT, ready for one
           Artifact publish per file: `ROOT/project/canvas.json` and one
           `ROOT/project/<board>.dc.html` per slide (Main.dc.html, Slide02.dc.html, ...)
           from the bundled `.dc.html` components, every field filled in as literal
           markup (so it can be retyped on the canvas) and the brand palette applied.
           Images must be uploaded first: `--uploads-only` copies each image that
-          needs an upload (slide photos, the wordmark) to `ROOT/uploads/` and lists
+          needs an upload (slide photos, Numa's logo file) to `ROOT/uploads/` and lists
           them; record each upload's `/_blob/<id>` in carousel.json `canvas.blobs`.
           `--design-system URL` (config `carousel.design_system_url`) adds the
           system's `designSystems` record (namespace `numa`) and, in the printed
@@ -124,8 +130,12 @@ BUNDLED_FONTS = {
 }
 FONT_EXTS = (".woff2", ".woff", ".otf", ".ttf")
 CHARSET_FILE = "carousel_charset.json"
-AUTO_FIELDS = {"component", "slide_title", "page", "brand_name", "wordmark", "photo", "photo_alt", "photo_position",
-               "price", "price_note"}
+AUTO_FIELDS = {"component", "slide_title", "page", "brand_name", "brand_short", "logo", "photo", "photo_alt",
+               "photo_position", "price", "price_note", "offer_details"}
+# Link fields that default to brand.json business.cta_link (the one bio link) when the spec leaves them out.
+LINK_DEFAULTS = {"cta": "button", "offer": "cta"}
+URL_RE = re.compile(r"\b(?:https?:\/\/)?(?:www\.)?(?:[a-z0-9-]+\.)+(?:org|com|net|ee|io|co|app|us|info|biz|me|link|ly)"
+                    r"(?:\/[^\s,;)]*)?", re.I)
 TOKEN = re.compile(r"\{\{\s*([A-Za-z0-9_.]+)\s*\}\}")
 IF_BLOCK = re.compile(r"[ \t]*<!--if:([a-z0-9_]+)-->\n?(.*?)<!--/if:\1-->\n?", re.S)
 SLIDE_MARKERS = re.compile(r"<!--/?slide-->\n?")
@@ -219,20 +229,75 @@ def _price_text(price: dict) -> str | None:
     return f"${amount}" if price.get("currency", "USD") == "USD" else f"{amount} {price['currency']}"
 
 
+def offer_details(o: dict) -> str:
+    """What an offer includes, from brand.json details only: "3 classes, ... One time only, ends on its own." """
+    node = o.get("details") or {}
+    if not isinstance(node, dict) or node.get("status") == "needs_katie" or not isinstance(node.get("value"), dict):
+        return ""
+    d = node["value"]
+    parts = []
+    if d.get("includes"):
+        parts.append(", ".join(str(x) for x in d["includes"]) + ".")
+    tail = [t for t in ("one time only" if d.get("one_time_only") else "", d.get("renewal") or "") if t]
+    if tail:
+        parts.append(", ".join(tail).capitalize() + ".")
+    return " ".join(parts)
+
+
 def offers(brand: dict) -> list[dict]:
     """Every priced thing in brand.json: offerings.offers[] then offerings.sessions[]."""
     out = []
     for o in nc.fact(nc.dig(brand, "offerings.offers")) or []:
-        out.append({"name": o.get("name", ""), "price": _price_text(o.get("price")), "note": o.get("what") or ""})
+        price = o.get("price") or {}
+        out.append({"name": o.get("name", ""), "price": _price_text(price),
+                    "note": price.get("unit") or o.get("what") or "", "details": offer_details(o)})
     for s in nc.fact(nc.dig(brand, "offerings.sessions")) or []:
         price = s.get("price") or {}
-        out.append({"name": s.get("name", ""), "price": _price_text(price), "note": price.get("unit") or ""})
+        out.append({"name": s.get("name", ""), "price": _price_text(price), "note": price.get("unit") or "", "details": ""})
     return [o for o in out if o["name"]]
 
 
 def find_offer(brand: dict, name: str) -> dict | None:
     key = " ".join(name.lower().split())
     return next((o for o in offers(brand) if " ".join(o["name"].lower().split()) == key), None)
+
+
+def norm_link(url: str) -> str:
+    u = re.sub(r"^https?:\/\/", "", url.strip().lower())
+    return re.sub(r"^www\.", "", u).rstrip("/.")
+
+
+def brand_links(brand: dict) -> set[str]:
+    """The links slides may show: business.cta_link, business.website and each offer's link."""
+    links = [nc.fact(nc.dig(brand, "business.cta_link")), nc.fact(nc.dig(brand, "business.website"))]
+    links += [o.get("link") for o in nc.fact(nc.dig(brand, "offerings.offers")) or []]
+    return {norm_link(x) for x in links if isinstance(x, str) and x.strip()}
+
+
+def cta_link(brand: dict) -> str:
+    """business.cta_link as it reads on a slide (no scheme): linktr.ee/numawc."""
+    link = nc.fact(nc.dig(brand, "business.cta_link"))
+    if not isinstance(link, str) or not link.strip():
+        raise nc.UserError("brand.json business.cta_link is not set (the bio link the end slide shows)")
+    return norm_link(link)
+
+
+def link_rules(text: str, where: str, links: set[str], probs: Problems) -> None:
+    for m in URL_RE.finditer(text):
+        if norm_link(m.group(0)) not in links:
+            probs.error(f"{where}: link {m.group(0)!r} is not a brand.json link ({', '.join(sorted(links))})")
+
+
+def logo_file(brand: dict) -> Path | None:
+    """Numa's own logo file: NUMA_BRAND_LOGO, else brand.json assets.logo_file; None until Numa supplies one."""
+    raw = os.environ.get("NUMA_BRAND_LOGO", "").strip() or nc.fact(nc.dig(brand, "assets.logo_file")) or ""
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    p = Path(raw).expanduser()
+    p = p if p.is_absolute() else nc.PLUGIN_ROOT / p
+    if not p.is_file():
+        raise nc.UserError(f"the logo file is missing: {p} (NUMA_BRAND_LOGO / brand.json assets.logo_file)")
+    return p.resolve()
 
 
 def known_prices(brand: dict) -> set[str]:
@@ -268,7 +333,11 @@ def template_fields(component: str) -> tuple[set[str], set[str]]:
         return {t for t in TOKEN.findall(s) if t not in AUTO_FIELDS and not t.startswith("color.")}
 
     required = spec_tokens(outside)
+    if component in LINK_DEFAULTS:  # optional in the spec: prepare() fills it with the brand link
+        required.discard(LINK_DEFAULTS[component])
     optional = set().union(*[spec_tokens(b) for b in optional_blocks.values()]) - required if optional_blocks else set()
+    if component in LINK_DEFAULTS:
+        optional.add(LINK_DEFAULTS[component])
     return required, optional
 
 
@@ -364,19 +433,25 @@ def prepare(spec: dict, spec_dir: Path, brand: dict, probs: Problems, *, image: 
     colors = palette(brand)
     accent = colors["accent"]
     total = len(spec["slides"])
+    links = brand_links(brand)
+    logo = logo_file(brand)
     slides = []
     for n, s in enumerate(spec["slides"], 1):
         comp = s["component"]
         where = f"slide {n} ({comp})"
         fields = {k: v for k, v in (s.get("fields") or {}).items() if isinstance(v, str) and v.strip()}
+        if comp in LINK_DEFAULTS and LINK_DEFAULTS[comp] not in fields:
+            fields[LINK_DEFAULTS[comp]] = cta_link(brand)
         required, optional = template_fields(comp)
         for f in sorted(required - set(fields)):
             probs.error(f"{where}: field {f!r} is required")
         values = {f"color.{k}": v for k, v in colors.items()}
         values.update({k: rich(v, accent) for k, v in fields.items()})
         values.update(component=comp, slide_title=html.escape(f"{n} · {LABELS[comp]}"), page=f"{n} / {total}",
-                      brand_name=html.escape(brand_name(brand)))
-        values["wordmark"] = image("wordmark", nc.brand_asset("wordmark")) if comp == "cta" else ""
+                      brand_name=html.escape(brand_name(brand)),
+                      brand_short=html.escape(numa_case((nc.fact(nc.dig(brand, "business.name")) or {}).get("short") or "Numa")))
+        values["logo"] = image("logo", logo) if comp == "cta" and logo else ""
+        extra_present = ({"logo"} if logo else {"no_logo"}) if comp == "cta" else set()
         values["photo"] = values["photo_alt"] = values["photo_position"] = ""
         if comp in PHOTO_COMPONENTS:
             path = resolve_photo(s["photo"], spec_dir)
@@ -386,7 +461,7 @@ def prepare(spec: dict, spec_dir: Path, brand: dict, probs: Problems, *, image: 
             alt = s.get("photo_alt") or plain(fields.get("caption") or fields.get("title") or fields.get("quote") or "")
             values["photo_alt"] = html.escape(numa_case(alt))
             values["photo_position"] = s.get("photo_position", "50% 50%")
-        values["price"] = values["price_note"] = ""
+        values["price"] = values["price_note"] = values["offer_details"] = ""
         if comp == "offer" and "offer" in fields:
             offer = find_offer(brand, fields["offer"])
             if offer is None:
@@ -395,6 +470,9 @@ def prepare(spec: dict, spec_dir: Path, brand: dict, probs: Problems, *, image: 
             else:
                 values["offer"] = html.escape(numa_case(offer["name"]))
                 values["price_note"] = html.escape(offer["note"])
+                values["offer_details"] = html.escape(offer["details"])
+                if offer["details"]:
+                    extra_present.add("offer_details")
                 if offer["price"]:
                     values["price"] = html.escape(offer["price"])
                 else:
@@ -405,7 +483,9 @@ def prepare(spec: dict, spec_dir: Path, brand: dict, probs: Problems, *, image: 
         text = " ".join(plain(v) for v in shown.values())
         scan(text, where, probs)
         text_rules("\n".join(shown.values()), where, probs)
-        slides.append({"n": n, "component": comp, "values": values, "present": set(fields) & (required | optional),
+        link_rules("\n".join(shown.values()), where, links, probs)
+        slides.append({"n": n, "component": comp, "values": values,
+                       "present": (set(fields) & (required | optional)) | extra_present,
                        "text": text, "photo_key": s.get("photo")})
     scan(spec["caption"], "caption", probs)
     for tag in spec.get("hashtags") or []:
@@ -458,7 +538,7 @@ def canvas_index(spec: dict, slides: list[dict], created_at: str, design_systems
 
 
 def upload_name(key: str, path: Path) -> str:
-    stem = "wordmark" if key == "wordmark" else nc.slugify(path.stem, 40)
+    stem = "logo" if key == "logo" else nc.slugify(path.stem, 40)
     return f"{stem}{path.suffix.lower()}"
 
 
@@ -895,6 +975,7 @@ def run_render(jobs: list[dict], browser: Browser, out: Path, slug: str, fmt: st
     out.mkdir(parents=True, exist_ok=True)
     clear_old(out, slug)
     prices = known_prices(nc.load_brand())
+    links = brand_links(nc.load_brand())
     results, files = [], []
     for job in jobs:
         where = f"slide {job['n']}"
@@ -906,6 +987,7 @@ def run_render(jobs: list[dict], browser: Browser, out: Path, slug: str, fmt: st
             scan(text, where, slide_probs)
         price_rules(text, where, prices, slide_probs)
         text_rules(probe["raw"], where, slide_probs)
+        link_rules(probe["text"], where, links, slide_probs)  # innerText: block boundaries kept
         fill = probe.get("fill")
         if fill is not None and not probe.get("photo") and fill < MIN_FILL:
             slide_probs.warn(f"{where}: the copy fills {fill:.0%} of the space between header and footer "
@@ -974,7 +1056,7 @@ def render_spec(path: Path, out: Path, fmt: str, *, as_json: bool) -> int:
     with Browser() as browser:
         browser.roots = [COMPONENTS_DIR.resolve(), nc.FONTS_DIR.resolve(), nc.ASSETS_DIR.resolve()]
         for sl in slides:
-            for key in ("photo", "wordmark"):
+            for key in ("photo", "logo"):
                 if sl["values"].get(key, "").startswith("file:"):
                     p = file_url_path(sl["values"][key])
                     browser.roots.append(p.parent.resolve())
@@ -1091,7 +1173,7 @@ def selftest(work: Path) -> tuple[bool, str]:
     spec = {"schema_version": 1, "slug": "setup-check", "title": "Setup check", "caption": "Setup check.",
             "slides": [{"component": "cover", "fields": {"kicker": "Setup check", "title": "Slides render here",
                                                          "subtitle": "Bundled fonts, no network."}},
-                       {"component": "cta", "fields": {"title": "Ready for carousels.", "button": "numawellness.org"}}]}
+                       {"component": "cta", "fields": {"title": "Ready for carousels."}}]}
     fonts = "brand fonts" if brand_font_dir() and brand_font_dir().is_dir() else "the bundled fonts"
     work.mkdir(parents=True, exist_ok=True)
     path = work / "carousel.json"
