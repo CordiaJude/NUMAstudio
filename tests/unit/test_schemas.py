@@ -214,17 +214,18 @@ def test_every_fact_has_a_known_status_and_unknowns_are_flagged(brand):
 
 
 def test_brand_kit_keys_r144(brand):
-    assert brand["business"]["name"]["value"]["full"] == "NUMA Wellness Collective"
+    assert brand["business"]["name"]["value"]["full"] == "Numa Wellness Collective"  # owners Q1
     assert brand["business"]["name"]["status"] == "confirmed"
     assert brand["socials"]["instagram"]["value"] == "@numawellnessmobile"
     assert {"facebook", "ios_app"} <= set(brand["socials"])
     assert brand["voice"]["description"]["status"] == "from_website"
     assert len(brand["voice"]["reference_lines"]["value"]) == 3
-    assert "Discover NUMA" in [o["name"] for o in brand["offerings"]["offers"]["value"]]
+    assert "Discover Numa" in [o["name"] for o in brand["offerings"]["offers"]["value"]]
     for key in ("wordmark", "secondary_mark", "endcard_background", "brand_photos_dir"):
         assert brand["assets"][key]["status"] == "bundled"
     pal = brand["palette"]["value"]
-    assert (pal["cedar_ember"], pal["water_teal"], pal["cream"], pal["caption_gold"]) == ("#C8643C", "#5E8C8F", "#FAF6EE", "#F7D6A0")
+    # owners' palette (Q17); the old keys are aliases of the official colours
+    assert (pal["cedar_ember"], pal["water_teal"], pal["cream"], pal["caption_gold"]) == ("#CA8B3A", "#06272E", "#F2EADB", "#F7D6A0")
     assert brand["fonts"]["value"]["family"] == "Liberation Serif"
     assert brand["endcard"]["signoff_examples"]["value"] == ["Year one. Thank you, Mobile."]
 
@@ -241,20 +242,22 @@ def test_business_facts_r145(brand):
     biz = brand["business"]
     assert biz["location"]["value"]["address"] == "1719 Dauphin St, Mobile, AL 36604"
     assert biz["facility"]["value"]["cold_plunge_tubs"] == 4
-    assert "14-person Finnish sauna" in biz["facility"]["value"]["sauna"]
+    # owners' answers 2026-11-13 (Q3, Q4, Q42, Q43): capacity unconfirmed, real prices, one phone
+    assert "Finnish sauna" in biz["facility"]["value"]["sauna"] and "14" not in biz["facility"]["value"]["sauna"]
     assert [f["name"] for f in biz["founders"]["value"]] == ["Scott Moore", "Katie Moore"]
-    assert biz["booking"]["value"]["platforms"] == ["Mindbody", "the NUMA app"]
+    assert biz["booking"]["value"]["platforms"] == ["Mindbody", "the Numa Wellness Collective app"]
     assert biz["booking"]["value"]["trial_page"] == "https://discover.numawellness.org"
-    assert biz["hours"]["value"]["summary"] == "Opens 5:30 AM Monday to Thursday"
+    assert biz["hours"]["value"]["regular"]["mon"] == ["05:30", "18:30"]
     phone = biz["phone"]
-    assert phone["value"] is None and phone["status"] == "needs_katie" and len(phone["candidates"]) == 3
+    assert phone["value"] == "251-310-3656" and phone["status"] == "confirmed"
     sessions = {s["name"]: s for s in brand["offerings"]["sessions"]["value"]}
-    assert sessions["Free Flow"]["price"]["value"] == 30 and sessions["Free Flow"]["minutes"] == 45
-    assert sessions["NUMA Experience"]["price"] == {"value": None, "status": "needs_katie"}
+    assert sessions["Visit Pass"]["price"]["value"] == 25 and sessions["Sauna Session"]["minutes"] == 30
     assert brand["offerings"]["not_offered"]["value"] == ["IV drips", "cryotherapy", "compression boots", "float tanks", "reformer Pilates"]
-    names = [m["name"] for m in brand["team"]["collective"]["value"]]
-    for n in ("LaJuan Humbert", "Matt Henson", "Kandi Roemhildt", "Natalia Lichtenberger", "Fallon Gleason", "Joseph Irby"):
-        assert n in names
+    # roles only in the public repo; names live in the private STATE/people.json (owners' answers, D25)
+    roles = [m["role"] for m in brand["team"]["collective"]["value"]]
+    for r in ("counselor", "massage therapist", "esthetician (facials)", "breathwork guide", "yoga teacher"):
+        assert r in roles
+    assert {m["name"] for m in brand["team"]["collective"]["value"] if "name" in m} == {"Scott Moore", "Katie Moore"}
     assert "Less Noise. More Presence." in brand["voice"]["site_lines"]["value"]
 
 
@@ -264,15 +267,16 @@ def test_positioning_r146_r161_r171(brand):
     assert [s["name"] for s in series] == ["Ask the DPT", "First Plunge", "Too Hot for a DIY Plunge", "Regulate", "Meet the Collective"]
     assert all(s["what"] and s["built_for"] for s in series)
     assert series[0]["length_s"] == [45, 60] and series[3]["length_s"] == [45, 60]
-    assert [p["name"] for p in pos["collab_partners"]["value"]][:3] == ["Mission Fitness", "barre3 Mobile", "Pure Barre Mobile"]
-    assert len(pos["target_audiences"]["value"]) == 4
+    # owners' answers (Q10, Q49): AMP is the active partner; Mission Fitness is not a Numa partner
+    assert [p["name"] for p in pos["collab_partners"]["value"]][:3] == ["AMP", "Collective providers", "Pure Barre Mobile"]
+    assert len(pos["target_audiences"]["value"]) == 5
     assert sum(pos["content_mix"]["value"].values()) == pytest.approx(1.0)
 
 
 def test_transcript_fixes_r148(brand):
     fixes = {f["to"]: f for f in brand["transcript_fixes"]["fixes"]}
     assert "Moby" in fixes["Mobile"]["variants"]
-    assert "Numa" in fixes["NUMA"]["variants"]
+    assert "NUMA" in fixes["Numa"]["variants"]  # owners: "Numa", never "NUMA"
     assert fixes["Katie"]["variants"] and fixes["Scott"]["variants"]
     assert fixes["Dauphin"]["next_words"]
     assert "Numa Nights" in brand["transcript_fixes"]["protect"]
@@ -314,7 +318,7 @@ def test_banned_claims_catch_every_spec_item(brand, text):
     "Guided breathing to help you slow down.", "Feel more centered.", "Learn techniques people use to relax.",
     "Find a collective rhythm in the chaos of life.", "Your reset starts here.", "Take your first deep breath.",
     "Less Noise. More Presence.", "Everyone hates the cold.", "We started Numa because we needed it.",
-    "Healthcare and shift workers welcome at 5:30 AM.", "Try a month with Discover NUMA, $49. Send this to your plunge buddy.",
+    "Healthcare and shift workers welcome at 5:30 AM.", "Try a month with Discover Numa, $49. Send this to your plunge buddy.",
     "Talk to your doctor first if you have a heart, blood pressure or breathing condition.",
     "#MobileAL #MidtownMobile #GulfCoastWellness", "Year one. Thank you, Mobile.",
 ])
@@ -366,9 +370,9 @@ def test_claims_structure(brand):
     claims = brand["claims"]
     assert set(claims["modalities"]) == {"cold_plunge", "sauna", "red_light", "breathwork"}
     assert all(r["applies_to"] == "all" for r in claims["banned"])
-    assert claims["dosing_line"]["blocked"] is True and claims["dosing_line"]["status"] == "blocked_until_counsel"
+    assert claims["dosing_line"]["blocked"] is True and claims["dosing_line"]["status"] == "blocked_source_pending"
     assert claims["safety_line"]["text"].startswith("Talk to your doctor first")
-    assert len(claims["rules"]) == 8
+    assert len(claims["rules"]) == 14  # 8 from the brief + 6 from the owners' answers
     for tag in brand["captions"]["hashtags"]["never"]:
         assert _scan(brand, tag), tag
     for tag in brand["captions"]["hashtags"]["base"]:
@@ -384,8 +388,9 @@ def test_consent_drive_posting_escalation(brand):
     assert brand["captions"]["hashtags"]["count"] == [3, 5]
     assert brand["captions"]["hashtags"]["base"] == ["#MobileAL", "#MidtownMobile", "#GulfCoastWellness"]
     post = brand["posting"]
-    assert post["auto_post"]["value"] is True and post["require_approval"]["value"] is False
-    assert post["legal_review_done"]["value"] is False
+    # owners' answers (Q34, Q51; DECISIONS D26): approval required, lawyer review waived
+    assert post["auto_post"]["value"] is True and post["require_approval"]["value"] is True
+    assert post["legal_review_done"]["value"] is True and post["legal_review_done"]["waived"] is True
     assert brand["escalation"]["contact"] == "Jude Moore" and len(brand["escalation"]["for"]) == 3
 
 

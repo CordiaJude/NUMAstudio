@@ -52,7 +52,7 @@ ALL_SLIDES = [
     {"component": "myth_fact", "fields": {"kicker": "Common mix-up", "myth": "Red light is a sauna with colored bulbs.",
                                           "fact": "A sauna heats the air. A red light panel shines light on you."}},
     {"component": "faq", "fields": {"kicker": "First time?", "question": "Do I need to bring anything?",
-                                    "answer": "Just a swimsuit and a water bottle. Towels, robes and showers are ready, and we walk you through your first visit."}},
+                                    "answer": "Just a swimsuit and a water bottle. Towels and showers are ready, and we walk you through your first visit."}},
     {"component": "steps", "fields": {"kicker": "Try both", "title": "One easy way to start", "step1": "Begin in the sauna.",
                                       "step2": "Cool down and drink some water.", "step3": "Finish with red light.",
                                       "step4": "Notice how you feel."}},
@@ -134,8 +134,6 @@ def test_validate_accepts_good_spec(run_script, tmp_path):
     (lambda d: d["slides"][0]["fields"].update(subtitle="Sweat out the toxins and detox."), "banned claim"),
     (lambda d: d.update(caption="Red light heals your joints."), "banned claim"),
     (lambda d: d["slides"].append({"component": "offer", "photo": PLUNGE, "fields": {"kicker": "k", "title": "t",
-                                   "offer": "Contrast Flow", "cta": "c"}}), "needs_katie"),
-    (lambda d: d["slides"].append({"component": "offer", "photo": PLUNGE, "fields": {"kicker": "k", "title": "t",
                                    "offer": "Float tank", "cta": "c"}}), "not in brand.json offerings"),
     (lambda d: d["slides"][0]["fields"].update(title="Sauna → plunge ✓"), "'→' (U+2192)"),
     (lambda d: d["slides"][0]["fields"].update(subtitle="Warm up \U0001F525 then cool off"), "emoji"),
@@ -167,6 +165,19 @@ def test_schema_errors_are_one_line(run_script, tmp_path, mutate, needle):
     assert proc.returncode == 1
     lines = [ln for ln in proc.stderr.splitlines() if ln.startswith("ERROR:")]
     assert len(lines) == 1 and "not a valid carousel.json" in lines[0] and needle in lines[0]
+
+
+def test_needs_katie_price_is_an_error(run_script, tmp_path):
+    brand = json.loads(dr.nc.BRAND_PATH.read_text(encoding="utf-8"))
+    offer = brand["offerings"]["offers"]["value"][0]
+    offer["price"] = {"value": None, "status": "needs_katie"}
+    bp = tmp_path / "brand.json"
+    bp.write_text(json.dumps(brand), encoding="utf-8")
+    d = spec(ALL_SLIDES[:2])
+    d["slides"].append({"component": "offer", "photo": PLUNGE, "fields": {"kicker": "k", "title": "t",
+                        "offer": offer["name"], "cta": "c"}})
+    proc = run_script("design_render.py", "validate", write_spec(tmp_path, d), env={"NUMA_BRAND": str(bp)})
+    assert proc.returncode == 1 and "needs_katie" in proc.stderr
 
 
 def test_typed_price_is_a_warning(run_script, tmp_path):

@@ -400,10 +400,11 @@ def prepare(spec: dict, spec_dir: Path, brand: dict, probs: Problems, *, image: 
                 else:
                     values["price"] = PRICE_PLACEHOLDER
                     price_missing(f"{where}: the price of {offer['name']!r} is needs_katie in brand.json")
-        text = " ".join(plain(fields[k]) for k in fields)
-        scan(" ".join(plain(v) for v in fields.values()), where, probs)
-        # the offer field is a brand.json lookup key ("Discover NUMA"); it is shown as "Discover Numa"
-        text_rules("\n".join(numa_case(v) if k == "offer" else v for k, v in fields.items()), where, probs)
+        # the offer field is a brand.json lookup key; it is shown (and scanned) in brand casing
+        shown = {k: numa_case(v) if k == "offer" else v for k, v in fields.items()}
+        text = " ".join(plain(v) for v in shown.values())
+        scan(text, where, probs)
+        text_rules("\n".join(shown.values()), where, probs)
         slides.append({"n": n, "component": comp, "values": values, "present": set(fields) & (required | optional),
                        "text": text, "photo_key": s.get("photo")})
     scan(spec["caption"], "caption", probs)

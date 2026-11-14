@@ -409,11 +409,11 @@ def test_holiday_collab_and_boosted_posts_stay_out_of_decisions():
 
 
 def test_january_wins_wait_for_february_march():
-    store = _decision_store({"steam-pour": True, "myth-not-required": False}, start=date(2027, 1, 6), n=26, step=1)
+    store = _decision_store({"steam-pour": True, "myth-not-required": False}, start=date(2027, 1, 6), n=28, step=1)
     pb, posts, fits = fits_for(store, today=date(2027, 3, 1))
     a = fits["arms"][("hook", "steam-pour")]
     st = S.decision_stats(a["records"])
-    assert st["wins"] >= 5 and all(r["january"] for r in st["records"])   # MLK week is held out as a holiday week
+    assert st["wins"] >= 8 and sum(r["january"] for r in st["records"]) >= 7   # MLK week is held out as a holiday week
     state, changes = S.learn(pb, fits, date(2027, 3, 1))
     assert state["status_overrides"].get("steam-pour", {}).get("status") != "proven"
     assert any(c["action"] == "hold" and "January" in c["why"] for c in changes)

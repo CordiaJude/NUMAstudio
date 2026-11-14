@@ -1085,11 +1085,20 @@ The adaptive strategy engine (DECISIONS D23, R344-R350). Reads the playbook
 `STATE/strategy.json` (same schema, `kind: state`: status overrides, imported
 research, judging windows, changelog, insights) and metrics.py's store (read
 tolerantly: `pattern_ids`/`strategy_arm` tags allowed). Deterministic: the seed
-defaults to YYYYMM; `--today` fixes ages. Judging windows per post type
-(policies `judging`): ignored before `ignore_before_hours`, PROVISIONAL from the
+defaults to YYYYMM; `--today` fixes ages. Scoring and learning are R6
+(policies `scoring`, `learning`): per-reach rates, a log2 index against the
+trailing median of the last 20 same-format posts at least 7 days old (Trial
+Reels and collabs are their own cohorts), clipped at +/-2; composite S = 0.30
+sends + 0.20 follows + 0.20 watch-through (views per reach for carousels and
+images) + 0.15 saves + 0.15 reach; win = S > 0; discounted (0.97 per post)
+Beta posteriors per factored arm; holiday-week, boosted and collab posts are
+scored but kept out of decisions. Judging windows are R7 (policies `judging`,
+`judging_cohorts`): ignored before `ignore_before_hours`, PROVISIONAL from the
 first pull at/after `provisional_hours` (weight `provisional_weight`), FINAL
-from the pull at/after `final_hours` (7d when later), never counted twice;
-metric `exceptions` drop that metric from a provisional score. `plan` writes a
+from the pull at/after `final_hours` (or the last configured pull), never
+counted twice; metric `exceptions` (saves/shares final at 336 h, Reel skip and
+watch time final at 72 h) read that metric at its own pull. Pull labels it
+understands: `22h`, `48h`, `72h`, `7d`, `14d`, `30d`. `plan` writes a
 MONTH_JSON (shoot_card.py shape; an `image` row is a single-photo feed post)
 whose rows add `post_type`, `post_time` (Central HH:MM), `hour_band`,
 `pattern_ids`, `strategy_arm`, `strategy` {mode exploit|explore|rule, goal,
@@ -1109,6 +1118,7 @@ de-duplicates by id and name, never changes a status or NUMA's own data.
 | Field | Type | Written by | Read by |
 |---|---|---|---|
 | `pattern_ids` | list of playbook pattern ids (kebab-case), in the order hook, structure, CTA or offer | strategy.py plan (row); Scriptwriter (script.json, the ids actually used) | build-today -> metrics.py tag; strategy.py learn/score |
+| `boosted` | bool (tag) | /post-reel or the Director when a post is paid or boosted | strategy.py: kept out of decisions |
 | `strategy_arm` | string `type=<post_type>;pillar=<p>;series=<s>;day=<Mon..Sun>;band=<hour band>;hook=<id>;structure=<id>;offer_week=<w1..w5>;goal=<reach\|saves\|conversion>;mode=<exploit\|explore\|rule>;plan=<YYYY-MM>` (keys always in this order; empty value = none) | strategy.py plan; copied unchanged | metrics.py tag (text); strategy.py (`parse_arm`) |
 
 The weekday and hour credited to a post come from its `posting_time` tag (what

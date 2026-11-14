@@ -33,7 +33,7 @@ def test_import_from_any_cwd(scripts_dir, tmp_path):
     """))
     out = subprocess.run([sys.executable, str(probe)], cwd=os.sep, capture_output=True, text=True, timeout=60)
     assert out.returncode == 0, out.stderr
-    assert out.stdout.split() == ["NUMA", "True"]
+    assert out.stdout.split() == ["Numa", "True"]  # owners: "Numa", never "NUMA"
 
 
 # --------------------------------------------------------------------------- ffmpeg lookup
@@ -341,7 +341,7 @@ def test_schema_error_messages(nc, plan_factory):
 def test_load_brand_and_config(nc):
     brand = nc.load_brand()
     assert brand is nc.load_brand()  # cached
-    assert nc.brand_value("business.name.short") == "NUMA"
+    assert nc.brand_value("business.name.short") == "Numa"
     assert nc.accent_rgb() == [247, 214, 160]
     assert nc.brand_color("caption_text") == [255, 255, 255]
     for key in ("wordmark", "secondary_mark", "endcard_background", "brand_photos_dir"):

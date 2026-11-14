@@ -20,45 +20,45 @@ to skills/numa-scriptwriter/playbook (patterns, diagnosis, calendar, policies;
 schemas/playbook.schema.json). The bundled playbook is never written: statuses
 Numa's data sets, imported research and the changelog live in the state file.
 
-How it learns
-* Judging windows (policies.judging, per post type, R7): a post is ignored before
-  ignore_before_hours and before its first pull at or after provisional_hours; a
-  pull at/after provisional_hours counts at provisional_weight (PROVISIONAL); a
-  pull at/after final_hours (or the store's last pull, 7d, when final_hours is
-  later) counts in full and replaces the provisional entry (FINAL). A post is
-  never counted twice. Metric exceptions (e.g. saves final at 7 d) leave that
-  metric out of a provisional score. Any Story pull is final (24 h insights).
-* Score per post: each metric is compared with Numa's own rolling median (90 days,
-  same post type; pooled when fewer than 3) as z = ln(x / median) winsorised at
-  +/- ln 4 (skip rate: (median - skip) / 0.10). Goal weights (policies.scoring):
-  reach = views, sends/1k, skip, retention; saves = saves/1k, sends/1k, views;
-  conversion = profile visits, follows, link clicks per 1k reach (reach weights
-  when none are tracked). Missing metrics drop out; weights re-normalise. A second,
-  pooled score (views, sends, saves vs the median of all feed posts) compares
-  post types with each other.
-* Model: two additive Bayesian models fitted by backfitting with Normal priors
-  (Normal-Normal per level, known noise): A on the pooled score with dimensions
-  post_type and post_type x weekday; B on the per-type score with weekday,
-  hour_band, pillar, series, hook, structure and offer_week. Each observation
-  weighs judging weight x 0.5^(age days / 90). A research prior counts as
-  prior_strength posts (measured 3, observed 2, opinion 1), so Numa's own data
-  outweighs research after a few posts.
-* Cold start and data-led share: lambda = min(1, judged posts / 30) (spec p.34
-  rule 10: re-tune after 30 reels). The month starts from the default week
-  (shoot_card.py month, spec p.34); a slot's type, weekday and hour move only when
-  lambda x (Thompson draw difference) beats a stickiness margin (0.1). Hook and
-  structure patterns are Thompson-sampled from the start (Trial Reels test hooks).
-* Allocation: one Thompson draw per week (numpy default_rng(seed); default seed
-  YYYYMM, so the same inputs give the same plan). An explicit exploration budget
-  (policies.learning.exploration_budget, 25% of pattern slots, Trial Reels first)
-  draws from testing/candidate patterns with inflated variance; the other slots
-  exploit proven/testing ones. Retired patterns are never planned. No pattern
-  takes more than max_pattern_share_week of a week's slots.
-* Rules win: every candidate month is checked with shoot_card.py's planning rules
-  (topic repeat, one sales post a week, closures, collab, Meet the Collective,
-  signature reel, series, events teaser/recap, cadence, mix). On a violation the
-  bandit's influence is halved (lambda/2, /4, 0) until the plan passes; the
+How it learns (policies.json; R6 = docs/research/R6_Learning_loop.md, R7 = R7_Judging_windows.md)
+* Judging windows (policies.judging, per post type; judging_cohorts.collab): a post is
+  ignored before ignore_before_hours and before its first pull at or after
+  provisional_hours; such a pull counts at provisional_weight (PROVISIONAL); a pull
+  at/after final_hours (or the last configured pull) counts in full and replaces it
+  (FINAL). Never counted twice. A metric exception (saves and shares final at 336 h,
+  Reel skip rate and watch time final at 72 h) reads that metric at its own pull
+  and leaves it out before its provisional hours. Any Story pull is final (24 h).
+* Score (R6): rates per reach; each one's index against the median of the last
+  20 same-format posts at least 7 days old (Trial Reels and collabs in their own
+  cohorts), s = clip(log2 index, -2, +2); composite S = 0.30 sends + 0.20 follows
+  + 0.20 watch-through (views per reach for carousels and images) + 0.15 saves +
+  0.15 reach (missing metrics drop out, weights re-normalise); per-goal scores
+  too; win = S > 0. A pooled S against all feed posts compares formats.
+* Learning (R6): one discounted Beta-Bernoulli arm per factored variable
+  (format, format x weekday, hook (video and static separately), structure,
+  CTA/offer, pillar, series, weekday, hour band, offer week). Every new judged post
+  multiplies all counts, the priors' pseudo-counts too, by 0.97 (floor Beta(1,1));
+  provisional posts add their weight. Priors: owners' results 4 tries, measured 2,
+  observed 1.5, opinion 1. Holiday-week, boosted and collab posts are scored but
+  kept out of the arms and decisions.
+* Plan: the spec's default week (shoot_card.py month) at cold start. Formats move
+  when data-led share x (Beta draw difference) beats a stickiness of 0.1, with
+  data-led share = min(1, judged posts / 30) (spec p.34 rule 10). Hours: a blocked
+  weekly rotation (late afternoon, morning, midday) until one slot beats the
+  default by 1.25x over 8 posts each. Patterns: exploit slots take the best
+  posterior (proven patterns first); 30% of feed slots explore one variable at a
+  time in R6's order (hook, structure, CTA) by Thompson sampling over 3-5 arms in
+  test-first order; Trial Reels explore on top. A hook takes at most 40% of the
+  month's (and each week's) slots; retired patterns are never planned. One seeded
+  numpy Generator: same inputs + seed = the same plan.
+* Rules win: every candidate month is checked with shoot_card.py's planning rules;
+  on a violation the data-led share is halved (then quartered, then 0) and the
   explanation says so. An `image` row is checked as a feed post like a carousel.
+* learn applies R6 section 5: promote at >= 8 tries, >= 6 wins and a median
+  index >= 1.25 (fast track: 5 of the first 6 at >= 1.4); retire at <= 1 win of
+  6 or <= 2 of 8 with a median <= 0.8 (out for 3 months, then back once); demote a
+  proven pattern when its last 8 have <= 3 wins or a median < 1.0. A promotion
+  that needs January wins is held until February-March confirms it.
 
 Outputs
 * plan: MONTH_JSON (shoot_card.py shape) whose rows also carry post_type,
