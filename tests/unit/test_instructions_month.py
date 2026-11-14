@@ -369,7 +369,7 @@ def test_skill_example_passes_the_checker(texts, tmp_path):
 TEMPLATE_IDS = ["transformation", "class_spotlight", "member_story", "modality_explainer", "offer_promo",
                 "event_recap", "event_teaser", "behind_the_scenes", "founder_message", "myth_vs_fact",
                 "seasonal_holiday"]
-PRESET_NAMES = ["Numa Nights recap", "Class spotlight", "Member story", "Offer promo: Discover NUMA",
+PRESET_NAMES = ["Numa Nights recap", "Class spotlight", "Member story", "Offer promo: Discover Numa",
                 "Education: 3 things, with kinetic type", "Holiday hours"]
 FIELDS = ["id", "name", "kind", "what", "example_hook", "arc", "beat_count", "typical_length_s", "default_length_s",
           "length_class", "signature_moment", "turn", "pacing", "look", "transitions", "hook_style", "goal",

@@ -23,7 +23,7 @@
     "kinetic_type": "true: the reel uses large animated text cards (engine kinetic type, R195).",
     "text_cards": "[{beat, source: line|label, text?, max_words}]: a card shows the beat's spoken line (shortened to max_words) or a fixed label.",
     "cta_style": "How the CTA is matched to the goal.",
-    "example_hook": "One hook in NUMA's voice that passes claims_scan.py."
+    "example_hook": "One hook in Numa's voice that passes claims_scan.py."
   },
   "templates": [
     {
@@ -109,7 +109,7 @@
       "id": "class_spotlight",
       "name": "Class spotlight",
       "kind": "template",
-      "what": "One class or session (Embodiment Flow Yoga, a guided breathwork class, the NUMA Experience): the energy, who it's for, how it feels.",
+      "what": "One class or session (a yoga class, a guided breathwork class, an Experience Pass visit): the energy, who it's for, how it feels.",
       "example_hook": "Tuesday, 6 pm. This room.",
       "arc": [
         {
@@ -287,7 +287,7 @@
         },
         {
           "beat": "how",
-          "does": "How a session at NUMA goes"
+          "does": "How a session at Numa goes"
         },
         {
           "beat": "feel",
@@ -358,8 +358,8 @@
       "id": "offer_promo",
       "name": "Offer promo",
       "kind": "template",
-      "what": "One offer (Discover NUMA, one month for $49 from brand.json offerings.offers): what it is, what a first visit feels like, how to start.",
-      "example_hook": "Your first month at NUMA: $49.",
+      "what": "One offer (Discover Numa, one month for $49 from brand.json offerings.offers): what it is, what a first visit feels like, how to start.",
+      "example_hook": "Your first month at Numa: $49.",
       "arc": [
         {
           "beat": "hook",
@@ -659,7 +659,7 @@
       "id": "founder_message",
       "name": "Founder message",
       "kind": "template",
-      "what": "Katie on why NUMA exists, in her own words: the story, why it matters, what NUMA is for Mobile.",
+      "what": "Katie on why Numa exists, in her own words: the story, why it matters, what Numa is for Mobile.",
       "example_hook": "We started Numa because we needed it.",
       "arc": [
         {
@@ -676,7 +676,7 @@
         },
         {
           "beat": "what",
-          "does": "What NUMA is now"
+          "does": "What Numa is now"
         },
         {
           "beat": "invite",
@@ -756,7 +756,7 @@
         },
         {
           "beat": "practice",
-          "does": "What to do at NUMA instead"
+          "does": "What to do at Numa instead"
         },
         {
           "beat": "save",
@@ -846,7 +846,7 @@
         },
         {
           "beat": "answer",
-          "does": "NUMA's answer to it"
+          "does": "Numa's answer to it"
         },
         {
           "beat": "detail",
@@ -1156,11 +1156,11 @@
     },
     {
       "id": "offer_promo_discover",
-      "name": "Offer promo: Discover NUMA",
+      "name": "Offer promo: Discover Numa",
       "kind": "preset",
       "base": "offer_promo",
-      "what": "The offer promo preset for Discover NUMA (brand.json offerings.offers): one month, price as confirmed there.",
-      "example_hook": "Your first month at NUMA: $49.",
+      "what": "The offer promo preset for Discover Numa (brand.json offerings.offers): one month, price as confirmed there.",
+      "example_hook": "Your first month at Numa: $49.",
       "arc": [
         {
           "beat": "hook",
@@ -1227,7 +1227,7 @@
       "kinetic_type": false,
       "text_cards": [],
       "cta_style": "discover link (brand.json business.cta_link)",
-      "offer": "Discover NUMA"
+      "offer": "Discover Numa"
     },
     {
       "id": "education_three_things",
@@ -1338,7 +1338,7 @@
       "kind": "preset",
       "base": "seasonal_holiday",
       "what": "Holiday or closure hours as a short announcement with kinetic type; never invites people in on a closed day.",
-      "example_hook": "Holiday hours at NUMA.",
+      "example_hook": "Holiday hours at Numa.",
       "arc": [
         {
           "beat": "hook",

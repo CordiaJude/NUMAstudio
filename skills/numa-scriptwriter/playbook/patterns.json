@@ -852,7 +852,7 @@
       ],
       "template": "\"Breathe with [instructor] for [n] seconds\"",
       "examples": [
-        "Breathe with Fallon for 30 seconds. Right now, wherever you are.",
+        "Breathe with [guide name] for 30 seconds. Right now, wherever you are.",
         "Inhale with the circle. That's a Numa breathwork class, in miniature."
       ],
       "evidence": {
@@ -1922,7 +1922,7 @@
       ],
       "template": "Portrait + 'Meet [name], who guides [session]' -> Candid photo + one line on why they guide -> What their session feels like (experience language) -> A favorite moment at Numa -> Their sessions on the schedule -> 'Come say hi.'",
       "examples": [
-        "Meet Joseph, one of our breathwork guides.",
+        "Meet [guide name], one of our breathwork guides.",
         "Come say hi."
       ],
       "evidence": {
@@ -2277,7 +2277,7 @@
       ],
       "template": "Eye-level, natural window light, the guide in the studio with props softly visible; a genuine expression, not a pose.",
       "examples": [
-        "This is Fallon. She guides breathwork.",
+        "This is [guide name]. They guide breathwork.",
         "Say hi next time you're in."
       ],
       "evidence": {

@@ -24,7 +24,7 @@ You plan each reel before anything is filmed, so the edit has the right material
 ## What each reel gets (spec p.35)
 
 1. **Hook:** the first 2 seconds, on screen in frame zero (`hook_text`) and spoken as the start of line 1. Works muted.
-2. **Voiceover script** (`lines`): one short sentence per story beat, in NUMA's voice. Words in all lines <= 2.3 x (`length_s` - `outro_s`): a 30 s voiced part is about 65-70 words, then 6-8 s of music-only outro.
+2. **Voiceover script** (`lines`): one short sentence per story beat, in Numa's voice. Words in all lines <= 2.3 x (`length_s` - `outro_s`): a 30 s voiced part is about 65-70 words, then 6-8 s of music-only outro.
 3. **Shot list** (`shots`): numbered, each tied to a line (`line`), with framing (wide, medium, close, overhead), hold (`seconds`, 5 by default), `people`, and exactly one `ai_motion` hero shot. Example: `3. Close-up: hand breaking the water surface of the plunge, 5 s, slow`.
 4. **Photos** (`photos`): stills worth grabbing when they beat video (finished space, people mid-laugh, steam, a candle).
 5. **Audio direction** (`music`): mood and tempo ("calm, warm piano", `bpm` [90, 100]) and source: `generate` (Higgsfield makes it), `library` (Music Library by mood, files named mood_bpm_title.mp3), `folder` (Katie may drop a track), `natural`. Never a trending song. Who reads (`voiceover_by`). Recording tips (the card prints them short): a quiet room with soft surfaces (a closet or carpeted bedroom), phone about 12 inches from the mouth, a normal talking voice, one take of the whole script, 1 second of silence at the start and end.
@@ -36,7 +36,7 @@ You plan each reel before anything is filmed, so the edit has the right material
 | education | save or send; never booking | "Save this for your first visit." |
 | community | share line | "Send this to the friend who 'could never'." |
 | awareness | soft, local | "Midtown Mobile. See you in there." |
-| offer | the offer and its link (`business.cta_link`) | "Try a month with Discover NUMA, $49." |
+| offer | the offer and its link (`business.cta_link`) | "Try a month with Discover Numa, $49." |
 
 ## Rules
 
@@ -71,7 +71,7 @@ Each entry defines the arc (beats in order), beat count, typical length, signatu
 | `numa_nights_recap` | Preset: Numa Nights recap | 6 | 20-30 s | flash on the peak of the night | community |
 | `class_spotlight_reel` | Preset: Class spotlight | 6 | 25-35 s | flash into the quiet end of class | community |
 | `member_story_reel` | Preset: Member story (First Plunge) | 6 | 45-60 s | flash on the first seconds in the cold | community |
-| `offer_promo_discover` | Preset: Offer promo, Discover NUMA | 5 | 20-30 s | flash on the first-visit line | offer |
+| `offer_promo_discover` | Preset: Offer promo, Discover Numa | 5 | 20-30 s | flash on the first-visit line | offer |
 | `education_three_things` | Preset: Education "3 things" with kinetic type | 6 | 45-60 s | flash on the first number card | education |
 | `holiday_hours` | Preset: Holiday hours (kinetic type, never inviting) | 4 | 15-20 s | flash from title to hours | awareness |
 
@@ -100,7 +100,7 @@ READ THIS OUT LOUD  (closet or carpeted room, phone 12 in away, one take, 1 s si
   "Three minutes. That's all it takes.
    The first ten seconds are loud. Then it gets quiet.
    You come out different than you went in.
-   Try a month with Discover NUMA, $49. Send this to your plunge buddy."
+   Try a month with Discover Numa, $49. Send this to your plunge buddy."
 
 MUSIC: none needed (Claude makes it).  LENGTH: 45 s (5 shots + library).
 IF YOU CAN'T: skip it. Claude will find another way.
@@ -125,7 +125,7 @@ python3 "$S/shoot_card.py" script script.json --json
 {"day": 9, "date": "2026-12-09", "title": "Your first plunge", "series": "first_plunge", "pillar": "community",
  "goal": "community", "template": "member_story_reel", "length_s": 45, "hook_text": "Three minutes.",
  "lines": ["Three minutes. That's all it takes.", "The first ten seconds are loud. Then it gets quiet.",
-           "You come out different than you went in.", "Try a month with Discover NUMA, $49. Send this to your plunge buddy."],
+           "You come out different than you went in.", "Try a month with Discover Numa, $49. Send this to your plunge buddy."],
  "shots": [
   {"n": 1, "line": 1, "what": "a hand touching the water surface, slow", "framing": "close", "seconds": 5, "people": false, "ai_motion": false},
   {"n": 2, "line": 2, "what": "someone stepping into the plunge, shoulders down", "framing": "medium", "seconds": 5, "people": false, "ai_motion": false},
@@ -134,6 +134,6 @@ python3 "$S/shoot_card.py" script script.json --json
   {"n": 5, "line": 4, "what": "the plunge from above", "framing": "overhead", "seconds": 5, "kind": "photo", "people": false, "ai_motion": true}],
  "photos": ["steam over the sauna stones"],
  "music": {"mood": "calm, warm piano", "bpm": [90, 100], "source": "generate"},
- "cta": "Try a month with Discover NUMA, $49.", "share_line": "Send this to your plunge buddy.",
+ "cta": "Try a month with Discover Numa, $49.", "share_line": "Send this to your plunge buddy.",
  "safety_line": true, "needs_consent": true, "film_by": "2026-12-07", "batch_room": "plunge room"}
 ```
