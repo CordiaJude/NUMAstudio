@@ -295,6 +295,28 @@ def test_new_install_is_not_missed(state, capsys):
     assert json.loads((state / "runlog.json").read_text())["created_at"] == "2026-11-13T11:00:00Z"
 
 
+def test_fresh_install_first_run_after_a_slot(state, capsys):
+    """N1: the very first run is the 06:30 dashboard refresh; the 05:00 build before it is not 'missed'."""
+    capsys.readouterr()
+    assert run(["start", "dashboard_refresh", "--state", str(state), "--now", "2026-11-13T06:30:00-06:00"]) == 0
+    res = out_json(capsys, ["check", "--state", str(state), "--now", "2026-11-13T07:00:00-06:00", "--json"])
+    assert res["healthy"], res["problems"]
+    assert res["tasks"]["build_today"]["expected"] == 0
+    # an early first run still covers its own slot: created 04:00, the 05:00 build is expected and covered
+    write_log(state, [rec("build_today", datetime(2026, 11, 14, 4, 0, tzinfo=CHI).astimezone(UTC))], created=None)
+    res = out_json(capsys, ["check", "--state", str(state), "--now", "2026-11-14T07:00:00-06:00", "--json"])
+    assert res["healthy"] and res["tasks"]["build_today"] == {**res["tasks"]["build_today"], "expected": 1, "ok": 1}
+
+
+def test_desktop_runs_are_never_stuck(state, capsys):
+    """N2: a desktop Chrome queue run cut off by sleep is interrupted, not stuck, even with no later run."""
+    write_log(state, [rec("chrome_queue", utc(2026, 11, 13, 15, 47), outcome=None, rid="cq-asleep")],
+              created="2026-11-13T00:00:00Z")
+    res = out_json(capsys, ["check", "--state", str(state), "--now", "2026-11-14T09:00:00-06:00", "--json"])
+    assert not [p for p in res["problems"] if p["task"] == "chrome_queue"]
+    assert ("interrupted", "cq-asleep") in [(n["kind"], n["run_id"]) for n in res["notes"]]
+
+
 def test_grace_period(state, capsys):
     write_log(state, [], created="2026-11-13T00:00:00Z")
     res = out_json(capsys, ["check", "--state", str(state), "--now", "2026-11-13T05:30:00-06:00", "--json"])

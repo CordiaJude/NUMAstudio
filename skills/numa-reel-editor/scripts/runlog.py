@@ -44,12 +44,13 @@ the non-desktop tasks in `schedule.extra_tasks`) and settings from
 timezone with zoneinfo (so daylight-saving changes are handled), and reports
 over the last `--days` (7):
 
-* missed  - a scheduled time (after the log's `created_at`, so a new install
-            is not flagged) with no run started in its slot (from
+* missed  - a scheduled time (at or after the log's `created_at`, so a new
+            install is not flagged) with no run started in its slot (from
             `early_minutes` before it up to the next scheduled time), once
             `grace_minutes` have passed;
 * failed  - the slot's runs all ended `failed` (a later ok re-run clears it);
-* stuck   - a run still open after `stuck_after_minutes`;
+* stuck   - a run still open after `stuck_after_minutes` (never for a desktop
+            task: sleep interrupts those normally, they show as interrupted);
 * partial / interrupted - listed under `notes`, not problems.
 
 Each problem has an `action`:
@@ -96,6 +97,7 @@ LOG_NAME = "runlog.json"
 RUN_DIR = "runlog"
 OUTCOMES = ("ok", "failed", "partial")
 MAX_REPORTED = 2000
+DESKTOP_TASKS = {"chrome_queue"}  # desktop-only even before config lists it in schedule.extra_tasks
 TASK_RE = re.compile(r"^[a-z][a-z0-9_]{1,40}$")
 ID_RE = re.compile(r"^[a-z][a-z0-9_]*-\d{8}T\d{6}Z-[0-9a-f]{4}$")
 
@@ -422,11 +424,13 @@ def analyze(log: dict, cfg: dict, now: datetime, days: int | None = None, late_b
         start, end = _run_times(r, tz)
         runs.append((r, start, end))
     superseded = {i for r, _, _ in runs for i in (r.get("supersedes") or [])}
+    # Only slots at or after the log's first run are expected (a fresh install is not "missed");
+    # an earlier slot still counts when a run covers it (a run up to `early_minutes` early).
     if log.get("created_at"):
-        log_start = parse_when(log["created_at"], tz, "created_at") - early
+        log_start = parse_when(log["created_at"], tz, "created_at")
     else:
         log_start = min((s for _, s, _ in runs), default=None)
-        log_start = log_start - early if log_start else None
+    desktop = DESKTOP_TASKS | {t["id"] for t in scheduled_tasks(cfg, include_desktop=True) if t.get("where") == "desktop"}
 
     problems: list[dict] = []
     notes: list[dict] = []
@@ -435,8 +439,8 @@ def analyze(log: dict, cfg: dict, now: datetime, days: int | None = None, late_b
     def run_state(r: dict, start: datetime) -> str:
         if r.get("outcome") in OUTCOMES:
             return r["outcome"]
-        if r["id"] in superseded:
-            return "interrupted"
+        if r["id"] in superseded or r["task"] in desktop:
+            return "interrupted"  # desktop runs end when the Mac sleeps: never "stuck"
         if (now - start) > timedelta(minutes=_stuck_after(r["task"], st)):
             return "stuck"
         return "running"
@@ -473,9 +477,9 @@ def analyze(log: dict, cfg: dict, now: datetime, days: int | None = None, late_b
         s = stats.setdefault(task, {"expected": 0, "ok": 0, "partial": 0, "failed": 0, "missed": 0,
                                     "stuck": 0, "running": 0, "late": 0, "name": t.get("name", task)})
         for i, fire in enumerate(utc_fires):
-            if fire < win_start or fire > now or (log_start is None or fire < log_start):
-                continue  # outside the window, or before the log existed (a new install is not a miss)
             got = slots.get(i, [])
+            if fire < win_start or fire > now or log_start is None or (fire < log_start and not got):
+                continue  # outside the window, or before the log existed and not covered (a new install)
             if not got and now < fire + grace:
                 continue  # not due yet
             s["expected"] += 1

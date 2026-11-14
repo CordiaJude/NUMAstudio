@@ -9,7 +9,7 @@ Usage:
     chrome_queue.py done   ID --claim RUN_ID --result TEXT [--state DIR] [--now ISO] [--json]
     chrome_queue.py fail   ID --claim RUN_ID --reason TEXT [--state DIR] [--now ISO] [--json]
     chrome_queue.py expire --run RUN_ID [--margin-minutes N] [--state DIR] [--now ISO] [--json]
-    chrome_queue.py merge  FILE [--state DIR] [--json]
+    chrome_queue.py merge-dir DIR [--state DIR] [--json]
 
 Claude in Chrome exists only while Katie's Mac is awake with the desktop app
 open, so a run that needs it queues the step instead of waiting:
@@ -26,7 +26,11 @@ Posting kinds are queued only after a person approved the post (DECISIONS
 D26), and no fallback ever publishes.
 
 The queue lives in `STATE/chrome_queue.json` (`--state DIR`, else $NUMA_STATE,
-else `~/NUMA Studio/_Plan`), synced to Drive `_Plan/`:
+else `~/NUMA Studio/_Plan`), the local view. Each item is also its own file,
+`STATE/chrome_queue/<id>.json`, and that folder is what is synced with Drive
+`_Plan/chrome_queue/` (one file per item, so two runs uploading at the same
+moment never drop each other's items). Every changing command lists the item
+files it wrote under `files` (`--json`): upload exactly those.
 
     {"schema_version": 1,
      "items": [{"id": "trial_reel-3be1c09a42", "kind": "trial_reel",
@@ -58,7 +62,7 @@ else `~/NUMA Studio/_Plan`), synced to Drive `_Plan/`:
   deadline is at least `--margin-minutes` (default
   `schedule.chrome_queue.expire_margin_minutes` or 60) in the past, and prints
   them with their fallbacks; it also lists the `conflict` items.
-* `merge FILE` folds the Drive copy in: union by id; done or expired beats
+* `merge-dir DIR` folds a downloaded copy of Drive `_Plan/chrome_queue/` in: union by id; done or expired beats
   pending and in_progress; done on one side and expired on the other becomes
   `conflict`; of two live claims the earlier one wins.
 
@@ -82,6 +86,7 @@ from runlog import local_iso, locked, now_arg, parse_when, state_dir, utc_iso, z
 
 QUEUE_SCHEMA_VERSION = 1
 QUEUE_NAME = "chrome_queue.json"
+ITEM_DIR = "chrome_queue"
 KINDS = ("scout_research", "competitor_log", "trial_reel", "collab_invite", "ai_label", "higgsfield_unlimited")
 POSTING_KINDS = ("trial_reel", "collab_invite", "ai_label")
 STATUSES = ("pending", "in_progress", "done", "expired", "conflict")
@@ -117,8 +122,25 @@ def load_queue(path: Path) -> dict:
     return data
 
 
-def save_queue(path: Path, data: dict) -> None:
+_CHANGED: list[str] = []  # item files written by this command (the ones to upload to Drive _Plan/chrome_queue/)
+
+
+def save_queue(path: Path, data: dict) -> list[str]:
+    """Write the local view and one file per item (`STATE/chrome_queue/<id>.json`) for every item that changed.
+    In Drive each item is its own file, so an upload never drops another item."""
     nc.write_json(path, data)
+    folder = path.parent / ITEM_DIR
+    for it in data["items"]:
+        f = folder / f"{it['id']}.json"
+        try:
+            same = f.exists() and json.loads(f.read_text(encoding="utf-8")) == it
+        except (OSError, ValueError):
+            same = False
+        if not same:
+            nc.write_json(f, it)
+            if str(f) not in _CHANGED:
+                _CHANGED.append(str(f))
+    return list(_CHANGED)
 
 
 def canonical(payload: dict) -> str:
@@ -213,7 +235,7 @@ def cmd_add(args) -> int:
             save_queue(path, data)
             added = True
     if args.json:
-        nc.print_json({"added": added, "item": _public(it)})
+        nc.print_json({"added": added, "item": _public(it), "files": _CHANGED})
     else:
         print(it["id"] if added else f"{it['id']} (already queued, {it['status']})")
         if deadline <= now:
@@ -265,7 +287,8 @@ def cmd_next(args) -> int:
         data = load_queue(path)
         it, ready, waiting = pick(data)
     if args.json:
-        nc.print_json({"item": _public(it), "pending": ready, "waiting": waiting, "claimed": bool(args.claim and it)})
+        nc.print_json({"item": _public(it), "pending": ready, "waiting": waiting, "claimed": bool(args.claim and it),
+                       "files": _CHANGED})
     else:
         print(json.dumps(_public(it), ensure_ascii=False) if it else "none")
     return 0
@@ -292,7 +315,7 @@ def cmd_done(args) -> int:
         it.update(status="done", done_at=utc_iso(now), result=result[:500], lease_until=None)
         save_queue(path, data)
     if args.json:
-        nc.print_json({"item": _public(it)})
+        nc.print_json({"item": _public(it), "files": _CHANGED})
     else:
         print(f"{it['id']}: done")
     return 0
@@ -316,7 +339,7 @@ def cmd_fail(args) -> int:
         _release(it)
         save_queue(path, data)
     if args.json:
-        nc.print_json({"item": _public(it)})
+        nc.print_json({"item": _public(it), "files": _CHANGED})
     else:
         print(f"{it['id']}: attempt {it['attempts']} failed; pending again until {it['deadline']}")
     return 0
@@ -341,7 +364,8 @@ def cmd_expire(args) -> int:
         save_queue(path, data)
         conflicts = [i for i in data["items"] if i["status"] == "conflict"]
     if args.json:
-        nc.print_json({"expired": [_public(i) for i in expired], "conflicts": [_public(i) for i in conflicts]})
+        nc.print_json({"expired": [_public(i) for i in expired], "conflicts": [_public(i) for i in conflicts],
+                       "files": _CHANGED})
     else:
         if not expired:
             print("nothing expired")
@@ -388,23 +412,35 @@ def merge_queues(mine: dict, other: dict, tz) -> int:
     return added
 
 
-def cmd_merge(args) -> int:
+def cmd_merge_dir(args) -> int:
     tz = _tz()
-    other_path = Path(args.file).expanduser()
-    if not other_path.exists():
-        raise nc.UserError(f"no file {other_path} to merge; merge only after a successful download (when Drive "
-                           "confirms there is no chrome_queue.json yet, skip the merge)")
-    other = load_queue(other_path)
+    src = Path(args.dir).expanduser()
+    if not src.is_dir():
+        raise nc.UserError(f"{src} is not a folder; download Drive _Plan/chrome_queue/ into it first (an empty "
+                           "folder only when Drive confirmed it does not exist yet)")
     path = state_dir(args.state) / QUEUE_NAME
+    skipped = 0
     with locked(path):
         data = load_queue(path)
-        added = merge_queues(data, other, tz)
+        added = 0
+        for f in sorted(src.glob("*.json")):
+            try:
+                it = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                it = None
+            if not isinstance(it, dict) or it.get("kind") not in KINDS or it.get("status") not in STATUSES \
+                    or not it.get("id") or not it.get("deadline"):
+                skipped += 1
+                nc.warn(f"skipped {f.name}: not a queue item (re-download it)")
+                continue
+            added += merge_queues(data, {"items": [it]}, tz)
         save_queue(path, data)
     conflicts = sum(1 for i in data["items"] if i["status"] == "conflict")
     if args.json:
-        nc.print_json({"queue": str(path), "items": len(data["items"]), "added": added, "conflicts": conflicts})
+        nc.print_json({"queue": str(path), "items": len(data["items"]), "added": added, "skipped": skipped,
+                       "conflicts": conflicts, "files": _CHANGED})
     else:
-        print(f"merged {other_path.name}: {added} new item(s), {len(data['items'])} in total"
+        print(f"merged {src.name}: {added} new item(s), {len(data['items'])} in total"
               + (f", {conflicts} conflict(s)" if conflicts else ""))
     return 0
 
@@ -456,16 +492,17 @@ def build_parser() -> nc.ArgParser:
     e.add_argument("--run", required=True, metavar="RUN_ID", help="the designated runner's run id (recorded)")
     e.add_argument("--margin-minutes", type=float, help="wait this long past a deadline (default config or 60)")
     common(e)
-    m = sub.add_parser("merge", help="fold another copy of chrome_queue.json (the Drive copy) into the local queue")
-    m.add_argument("file")
+    m = sub.add_parser("merge-dir", help="fold a downloaded copy of Drive _Plan/chrome_queue/ into the local queue")
+    m.add_argument("dir")
     common(m, now=False)
     return ap
 
 
 def main(argv: list[str] | None = None) -> int:
+    _CHANGED.clear()
     args = build_parser().parse_args(argv)
     return {"add": cmd_add, "list": cmd_list, "next": cmd_next, "done": cmd_done, "fail": cmd_fail,
-            "expire": cmd_expire, "merge": cmd_merge}[args.cmd](args)
+            "expire": cmd_expire, "merge-dir": cmd_merge_dir}[args.cmd](args)
 
 
 if __name__ == "__main__":
