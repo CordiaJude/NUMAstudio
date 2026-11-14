@@ -82,6 +82,8 @@
         "secondary_mark": { "$ref": "#/$defs/path_fact" },
         "endcard_background": { "$ref": "#/$defs/path_fact" },
         "brand_photos_dir": { "$ref": "#/$defs/path_fact" },
+        "logo_file": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": ["string", "null"] } } }], "description": "Optional. The designer's logo file (path relative to the plugin root, or an absolute local path); null until supplied. Read by the carousel renderer." },
+        "fonts_dir": { "allOf": [{ "$ref": "#/$defs/fact" }, { "properties": { "value": { "type": ["string", "null"] } } }], "description": "Optional. A local folder (outside the repo) holding Numa's licensed brand font files; null until set. Read by the carousel renderer." },
         "ownership": { "type": "string" }
       },
       "additionalProperties": { "$ref": "#/$defs/fact" }

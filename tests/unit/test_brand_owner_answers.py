@@ -201,6 +201,9 @@ def test_brand_fonts_recorded_never_bundled(brand, repo_root):
 def test_logo_and_voice(brand):
     logo = v(brand, "assets.logo")
     assert logo["mark"] == "phoenix" and logo["wordmark"] is True and logo["files_supplied"] is False
+    for key in ("logo_file", "fonts_dir"):
+        assert brand["assets"][key]["value"] is None and brand["assets"][key]["status"] == "needs_katie"
+    assert "discover.numawellness" not in json.dumps(brand["business"])
     assert v(brand, "voice.emoji") == "none"
     assert v(brand, "voice.people_words") == ["members", "our people", "the movement", "the collective"]
     assert {"transformation", "transformative", "journey"} == set(v(brand, "voice.words_ok"))

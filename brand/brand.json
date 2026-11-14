@@ -176,13 +176,11 @@
           "Mindbody",
           "the Numa Wellness Collective app"
         ],
-        "system": "Mindbody",
-        "trial_page": "https://discover.numawellness.org",
-        "trial_page_title": "Discover Numa: One Month for $49"
+        "system": "Mindbody"
       },
       "status": "confirmed",
       "source": "owners' setup answers, 2026-11-13 (Q3), owners' setup answers, 2026-11-13 (Q36); spec p.24",
-      "note": "Mindbody is the booking system (confirmed). Calls to action use the bio link (business.cta_link), not the trial page."
+      "note": "Mindbody is the booking system (confirmed). Every call to action uses the one bio link (business.cta_link, linktr.ee/numawc); the old website trial page is not used in public copy."
     },
     "cta_link": {
       "value": "https://linktr.ee/numawc",
@@ -1676,6 +1674,18 @@
       "status": "confirmed",
       "source": "owners' setup answers, 2026-11-13 (Q17)",
       "note": "A phoenix mark and a wordmark. The bundled files are the website copies (wordmark, secondary_mark); ask for the designer's files."
+    },
+    "logo_file": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "owners' setup answers, 2026-11-13 (Q17)",
+      "note": "The designer's logo file (phoenix mark and wordmark) for the carousel renderer; not supplied yet. Until set, renderers use the bundled website copies (wordmark, secondary_mark)."
+    },
+    "fonts_dir": {
+      "value": null,
+      "status": "needs_katie",
+      "source": "owners' setup answers, 2026-11-13 (Q17)",
+      "note": "A local folder of Numa's licensed brand font files (Domaine Sans Text Light, Avenir Next) for renders; never inside the repo. Until set, the bundled open stand-ins are used."
     }
   },
   "palette": {

@@ -246,7 +246,8 @@ def test_business_facts_r145(brand):
     assert "Finnish sauna" in biz["facility"]["value"]["sauna"] and "14" not in biz["facility"]["value"]["sauna"]
     assert [f["name"] for f in biz["founders"]["value"]] == ["Scott Moore", "Katie Moore"]
     assert biz["booking"]["value"]["platforms"] == ["Mindbody", "the Numa Wellness Collective app"]
-    assert biz["booking"]["value"]["trial_page"] == "https://discover.numawellness.org"
+    assert "trial_page" not in biz["booking"]["value"]  # owners: the one link is the bio link
+    assert biz["cta_link"]["value"] == "https://linktr.ee/numawc"
     assert biz["hours"]["value"]["regular"]["mon"] == ["05:30", "18:30"]
     phone = biz["phone"]
     assert phone["value"] == "251-310-3656" and phone["status"] == "confirmed"
