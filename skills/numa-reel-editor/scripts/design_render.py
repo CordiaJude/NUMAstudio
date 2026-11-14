@@ -98,6 +98,8 @@ LABELS = {"cover": "Cover", "cover_photo": "Cover photo", "photo": "Photo", "poi
           "cta": "End slide"}
 # Photo-led components (owners' brief): a quote only over that member's real photo, an offer only over a real photo.
 PHOTO_COMPONENTS = {"cover_photo", "photo", "quote", "offer"}
+MIN_ACCENT_CONTRAST = 3.0           # large accent numerals (WCAG large text)
+FILL_EXEMPT = {"cta"}                # the end slide is centred, not filled
 MIN_FILL = 0.6                       # text-led slides: content fills >= 60% of the band between header and footer
 SCHEMA = "carousel.schema.json"
 SIZE = (1080, 1350)
@@ -128,7 +130,7 @@ BUNDLED_FONTS = {
     "hanken grotesk": ("Hanken Grotesk", "HankenGrotesk.woff2", "display", "100 900"),
     "nunito sans": ("Nunito Sans", "NunitoSans.woff2", "body", "200 1000"),
 }
-FONT_EXTS = (".woff2", ".woff", ".otf", ".ttf")
+BRAND_FONT_EXTS = (".otf", ".ttf", ".woff")    # their cmap is read to check every slide character
 CHARSET_FILE = "carousel_charset.json"
 AUTO_FIELDS = {"component", "slide_title", "page", "brand_name", "brand_short", "logo", "photo", "photo_alt",
                "photo_position", "price", "price_note", "offer_details"}
@@ -143,6 +145,7 @@ BLOB_REF = re.compile(r"/_blob/([A-Za-z0-9_.-]+)")
 SAFE_BOARD = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]*(/[A-Za-z0-9_][A-Za-z0-9_.-]*)*\.dc\.html$")
 DOLLARS = re.compile(r"\$\s?\d+(?:,\d{3})*(?:\.\d{2})?")
 CAPS_NAME = re.compile(r"\bNUMA\b")
+PLACEHOLDER = re.compile(r"\[[^\]]+\]")
 
 
 # --------------------------------------------------------------------------- brand data
@@ -155,7 +158,32 @@ def palette(brand: dict) -> dict[str, str]:
         if not re.fullmatch(r"#[0-9A-Fa-f]{6}", str(value)):
             raise nc.UserError(f"brand.json palette.{key} must be a #RRGGBB colour")
         out[role] = value
+    out["accent_text"] = readable_accent(out["accent"], out["bg"])
     return out
+
+
+def _luminance(hex_color: str) -> float:
+    def ch(v: int) -> float:
+        c = v / 255
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = nc.hex_to_rgb(hex_color)
+    return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+
+
+def contrast(a: str, b: str) -> float:
+    la, lb = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def readable_accent(accent: str, bg: str, minimum: float = MIN_ACCENT_CONTRAST) -> str:
+    """The accent darkened in 2% steps until it reaches `minimum` contrast on bg (gold numerals stay gold)."""
+    r, g, b = nc.hex_to_rgb(accent)
+    for step in range(51):
+        k = 1 - step * 0.02
+        c = "#{:02X}{:02X}{:02X}".format(round(r * k), round(g * k), round(b * k))
+        if contrast(c, bg) >= minimum:
+            return c
+    return "#000000"
 
 
 def numa_case(text: str) -> str:
@@ -174,15 +202,90 @@ def brand_font_dir() -> Path | None:
     return Path(raw).expanduser() if raw else None
 
 
+def brand_fonts() -> dict[str, Path]:
+    """role -> Numa's own font file from NUMA_BRAND_FONTS. Unset: {}. Set but unusable: UserError (never a silent
+    fallback to the stand-ins)."""
+    folder = brand_font_dir()
+    if folder is None:
+        return {}
+    if not folder.is_dir():
+        raise nc.UserError(f"NUMA_BRAND_FONTS is set but the folder is missing: {folder} "
+                           f"(put display.otf / body.otf there, or unset NUMA_BRAND_FONTS)")
+    found: dict[str, Path] = {}
+    for role in ("display", "body"):
+        for ext in BRAND_FONT_EXTS:
+            if (folder / f"{role}{ext}").is_file():
+                found[role] = (folder / f"{role}{ext}").resolve()
+                break
+        else:
+            if (folder / f"{role}.woff2").is_file():
+                raise nc.UserError(f"{folder / (role + '.woff2')}: use the .otf, .ttf or .woff file for brand fonts "
+                                   f"(its characters are checked against the slide text)")
+    if not found:
+        raise nc.UserError(f"NUMA_BRAND_FONTS={folder} holds no display.<otf|ttf|woff> or body.<otf|ttf|woff> file "
+                           f"(or unset NUMA_BRAND_FONTS to use the bundled stand-ins)")
+    return found
+
+
 def font_file(family_key: str) -> Path:
     """The file served for a bundled family: the brand's own file from NUMA_BRAND_FONTS when present."""
     _name, file, role, _weights = BUNDLED_FONTS[family_key]
-    folder = brand_font_dir()
-    if folder and folder.is_dir():
-        for ext in FONT_EXTS:
-            if (folder / f"{role}{ext}").is_file():
-                return (folder / f"{role}{ext}").resolve()
-    return (nc.FONTS_DIR / file).resolve()
+    return brand_fonts().get(role) or (nc.FONTS_DIR / file).resolve()
+
+
+def sfnt_cmap(path: Path) -> set[int]:
+    """Code points a TrueType/OpenType (.ttf/.otf) or WOFF font maps (cmap formats 4 and 12)."""
+    import struct
+    import zlib
+    data = path.read_bytes()
+    tables: dict[bytes, bytes] = {}
+    try:
+        if data[:4] == b"wOFF":
+            num = struct.unpack(">H", data[12:14])[0]
+            for i in range(num):
+                tag, off, comp, orig, _ = struct.unpack(">4sIIII", data[44 + 20 * i: 64 + 20 * i])
+                raw = data[off:off + comp]
+                tables[tag] = zlib.decompress(raw) if comp < orig else raw
+        else:
+            num = struct.unpack(">H", data[4:6])[0]
+            for i in range(num):
+                tag, _, off, length = struct.unpack(">4sIII", data[12 + 16 * i: 28 + 16 * i])
+                tables[tag] = data[off:off + length]
+        cmap = tables[b"cmap"]
+        cps: set[int] = set()
+        n = struct.unpack(">H", cmap[2:4])[0]
+        for i in range(n):
+            pid, eid, off = struct.unpack(">HHI", cmap[4 + 8 * i: 12 + 8 * i])
+            fmt = struct.unpack(">H", cmap[off:off + 2])[0]
+            if fmt == 4 and pid in (0, 3):
+                segx2 = struct.unpack(">H", cmap[off + 6: off + 8])[0]
+                seg = segx2 // 2
+                base = off + 14
+                ends = struct.unpack(f">{seg}H", cmap[base: base + segx2])
+                starts = struct.unpack(f">{seg}H", cmap[base + segx2 + 2: base + 2 * segx2 + 2])
+                deltas = struct.unpack(f">{seg}h", cmap[base + 2 * segx2 + 2: base + 3 * segx2 + 2])
+                ro_pos = base + 3 * segx2 + 2
+                ros = struct.unpack(f">{seg}H", cmap[ro_pos: ro_pos + segx2])
+                for k in range(seg):
+                    for cp in range(starts[k], ends[k] + 1):
+                        if cp == 0xFFFF:
+                            continue
+                        if ros[k] == 0:
+                            gid = (cp + deltas[k]) & 0xFFFF
+                        else:
+                            at = ro_pos + 2 * k + ros[k] + 2 * (cp - starts[k])
+                            gid = struct.unpack(">H", cmap[at: at + 2])[0]
+                            gid = (gid + deltas[k]) & 0xFFFF if gid else 0
+                        if gid:
+                            cps.add(cp)
+            elif fmt == 12 and pid in (0, 3):
+                ngroups = struct.unpack(">I", cmap[off + 12: off + 16])[0]
+                for g in range(ngroups):
+                    a, b, _gid = struct.unpack(">III", cmap[off + 16 + 12 * g: off + 28 + 12 * g])
+                    cps.update(range(a, b + 1))
+        return cps
+    except (KeyError, struct.error, zlib.error, IndexError) as e:
+        raise nc.UserError(f"cannot read the character map of {path}: {type(e).__name__}") from None
 
 
 def font_overrides() -> dict[str, Path]:
@@ -201,22 +304,38 @@ def is_emoji(ch: str) -> bool:
             or unicodedata.category(ch) == "So")
 
 
-def text_rules(text: str, where: str, probs: Problems) -> None:
-    """Every character drawable by the bundled fonts (no silent system fallback), no emoji, "Numa" not "NUMA"."""
+def text_rules(text: str, where: str, probs: Problems, covered: set[str] | frozenset = frozenset()) -> None:
+    """Every character drawable by the fonts in use (no silent system fallback), no emoji, "Numa" not "NUMA",
+    no unfilled [placeholder]. `covered`: claims_scan rule ids already reported here (no_emoji, name_casing)."""
     ranges = charset_ranges()
+    brand = {role: sfnt_cmap(p) for role, p in brand_fonts().items()}
     bad: list[str] = []
+    missing: dict[str, list[str]] = {}
     for ch in dict.fromkeys(text):
-        if ch in "\n\t" or any(a <= ord(ch) <= b for a, b in ranges):
+        if ch in "\n\t":
             continue
-        if is_emoji(ch):
-            probs.error(f"{where}: emoji {ch!r} (U+{ord(ch):04X}): no emoji on slides")
-        else:
-            bad.append(f"{ch!r} (U+{ord(ch):04X})")
+        if not any(a <= ord(ch) <= b for a, b in ranges):
+            if is_emoji(ch):
+                if "no_emoji" not in covered:
+                    probs.error(f"{where}: emoji {ch!r} (U+{ord(ch):04X}): no emoji on slides")
+            else:
+                bad.append(f"{ch!r} (U+{ord(ch):04X})")
+            continue
+        for role, cmap in brand.items():
+            if not ch.isspace() and ord(ch) not in cmap:
+                missing.setdefault(role, []).append(f"{ch!r} (U+{ord(ch):04X})")
     if bad:
         probs.error(f"{where}: character {', '.join(bad)} is not in the bundled fonts and would render in a system "
                     f"font; use plain words")
-    if CAPS_NAME.search(text):
+    for role, chars in missing.items():
+        probs.error(f"{where}: character {', '.join(chars)} is not in the brand {role} font "
+                    f"({brand_fonts()[role].name}); use plain words")
+    if CAPS_NAME.search(text) and "name_casing" not in covered:
         probs.error(f'{where}: write the name as "Numa", never "NUMA"')
+    for m in dict.fromkeys(PLACEHOLDER.findall(text)):
+        if m != PRICE_PLACEHOLDER:  # price_rules reports that one with its fix
+            probs.error(f"{where}: placeholder {m} is not filled in; fill it from brand.json or the run's data "
+                        f"before it goes out")
 
 
 def _price_text(price: dict) -> str | None:
@@ -413,9 +532,13 @@ def count_rule(n: int, probs: Problems) -> None:
         probs.warn(f"{n} slides; config formats carousel count is {lo}-{hi}")
 
 
-def scan(text: str, where: str, probs: Problems) -> None:
+def scan(text: str, where: str, probs: Problems) -> set[str]:
+    """claims_scan over the text; returns the rule ids that fired (so text_rules does not repeat them)."""
+    fired = set()
     for hit in claims_scan.scan_text(text, where=where):
         (probs.error if hit.severity == "fail" else probs.warn)(hit.line())
+        fired.add(hit.rule)
+    return fired
 
 
 def price_rules(text: str, where: str, prices: set[str], probs: Problems) -> None:
@@ -481,13 +604,15 @@ def prepare(spec: dict, spec_dir: Path, brand: dict, probs: Problems, *, image: 
         # the offer field is a brand.json lookup key; it is shown (and scanned) in brand casing
         shown = {k: numa_case(v) if k == "offer" else v for k, v in fields.items()}
         text = " ".join(plain(v) for v in shown.values())
-        scan(text, where, probs)
-        text_rules("\n".join(shown.values()), where, probs)
+        fired = scan(text, where, probs)
+        text_rules("\n".join(shown.values()), where, probs, fired)
         link_rules("\n".join(shown.values()), where, links, probs)
         slides.append({"n": n, "component": comp, "values": values,
                        "present": (set(fields) & (required | optional)) | extra_present,
                        "text": text, "photo_key": s.get("photo")})
     scan(spec["caption"], "caption", probs)
+    for m in dict.fromkeys(PLACEHOLDER.findall(spec["caption"])):
+        probs.error(f"caption: placeholder {m} is not filled in")
     for tag in spec.get("hashtags") or []:
         scan(tag, "hashtags", probs)
     prices = known_prices(brand)
@@ -623,7 +748,7 @@ PROBE_JS = r"""
   const scope = slide || document.body;
   const r = scope.getBoundingClientRect();
   const out = {doc: [document.documentElement.scrollWidth, document.documentElement.scrollHeight],
-               root: [r.x, r.y, r.width, r.height], text: scope.innerText || '', raw: scope.textContent || '',
+               root: [r.x, r.y, r.width, r.height], component: scope.getAttribute('data-slide'), text: scope.innerText || '', raw: scope.textContent || '',
                used: [], failed: [], overflow: [], fill: null, photo: !!scope.querySelector('img[src]:not([alt="Numa"])')};
   const band = scope.querySelector('[data-fit="content"]');
   if (band && band.children.length) {
@@ -983,13 +1108,13 @@ def run_render(jobs: list[dict], browser: Browser, out: Path, slug: str, fmt: st
         png, probe, page_errors = browser.render(job["url"])
         fonts = check_probe(probe, page_errors, where, slide_probs)
         text = " ".join(probe["text"].split())
-        if scan_text:
-            scan(text, where, slide_probs)
+        fired = scan(text, where, slide_probs) if scan_text else set()
         price_rules(text, where, prices, slide_probs)
-        text_rules(probe["raw"], where, slide_probs)
+        text_rules(probe["raw"], where, slide_probs, fired)
         link_rules(probe["text"], where, links, slide_probs)  # innerText: block boundaries kept
         fill = probe.get("fill")
-        if fill is not None and not probe.get("photo") and fill < MIN_FILL:
+        if fill is not None and not probe.get("photo") and job["extra"].get("component") not in FILL_EXEMPT \
+                and probe.get("component") not in FILL_EXEMPT and fill < MIN_FILL:
             slide_probs.warn(f"{where}: the copy fills {fill:.0%} of the space between header and footer "
                              f"(aim for {MIN_FILL:.0%}+): add a line, or make it a photo slide")
         path = out / slide_name(slug, job["n"], fmt)
@@ -1174,8 +1299,9 @@ def selftest(work: Path) -> tuple[bool, str]:
             "slides": [{"component": "cover", "fields": {"kicker": "Setup check", "title": "Slides render here",
                                                          "subtitle": "Bundled fonts, no network."}},
                        {"component": "cta", "fields": {"title": "Ready for carousels."}}]}
-    fonts = "brand fonts" if brand_font_dir() and brand_font_dir().is_dir() else "the bundled fonts"
+    fonts = "the bundled fonts"
     work.mkdir(parents=True, exist_ok=True)
+    os.environ.pop("NUMA_BRAND_FONTS", None)  # the renderer itself, with the bundled fonts (brand fonts: own check)
     path = work / "carousel.json"
     nc.write_json(path, spec)
     out = work / "out"
@@ -1229,6 +1355,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--format", choices=("jpg", "png"), default="jpg")
     s.add_argument("--json", action="store_true", help="print one JSON report")
     args = ap.parse_args(argv)
+    brand_fonts()  # NUMA_BRAND_FONTS set but unusable: a clean ERROR before anything renders
 
     if args.cmd == "validate":
         path = Path(args.carousel).expanduser().resolve()

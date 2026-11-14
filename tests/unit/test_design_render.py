@@ -58,7 +58,7 @@ ALL_SLIDES = [
                                       "step4": "Notice how you feel."}},
     {"component": "quote", "photo": "skills/numa-reel-editor/assets/brand-photos/breathwork-class.jpg",
      "fields": {"kicker": "From the collective", "quote": "I come for the quiet and stay for the people.",
-                "name": "[Member first name]"}},
+                "name": "A Numa member"}},
     {"component": "offer", "photo": PLUNGE, "fields": {"kicker": "New here?", "title": "Your first month at Numa",
                                                        "offer": "Discover Numa"}},
     {"component": "cta", "fields": {"title": "Feel the difference for yourself.", "body": "Your reset starts here."}},
@@ -490,3 +490,81 @@ def test_logo_file_when_supplied(run_script, tmp_path):
     assert 'src="/_blob/ffff6666"' in end and ">Numa</p>" not in end
     bad = run_script("design_render.py", "validate", p, env={"NUMA_BRAND_LOGO": str(tmp_path / "none.png")})
     assert bad.returncode == 1 and "logo file is missing" in bad.stderr
+
+
+# --------------------------------------------------------------------------- T14 re-review
+@pytest.mark.parametrize("where", ["field", "caption"])
+def test_unfilled_placeholder_is_an_error(run_script, tmp_path, where):
+    d = spec([ALL_SLIDES[2], ALL_SLIDES[8]])
+    if where == "field":
+        d["slides"][1]["fields"]["name"] = "[Member first name]"
+    else:
+        d["caption"] = "Sauna in Mobile, AL. [ADD HOURS]"
+    proc = run_script("design_render.py", "validate", write_spec(tmp_path, d))
+    assert proc.returncode == 1 and "is not filled in" in proc.stderr
+    assert ("[Member first name]" if where == "field" else "[ADD HOURS]") in proc.stderr
+
+
+@needs_chromium
+def test_placeholder_typed_on_the_canvas_fails_the_render(run_script, tmp_path):
+    canvas = make_canvas(tmp_path, run_script)
+    main = canvas / "project" / "Main.dc.html"
+    main.write_text(main.read_text().replace("Two warm rooms", "[Katie: add a line] Two warm rooms"))
+    proc = run_script("design_render.py", "canvas", canvas, "--out", tmp_path / "out", "--json")
+    assert proc.returncode == 1
+    assert any("slide 1" in e and "[Katie: add a line] is not filled in" in e for e in json.loads(proc.stdout)["errors"])
+
+
+def test_emoji_and_name_errors_print_once(run_script, tmp_path):
+    d = spec()
+    d["slides"][0]["fields"]["subtitle"] = "Come to NUMA \U0001F525 today."
+    proc = run_script("design_render.py", "validate", write_spec(tmp_path, d))
+    assert proc.returncode == 1
+    errs = [ln for ln in proc.stderr.splitlines() if ln.startswith("ERROR:")]
+    assert sum("NUMA" in e for e in errs) == 1 and sum("\U0001F525" in e for e in errs) == 1, errs
+
+
+@pytest.mark.parametrize("setup, needle", [
+    (lambda d: None, "folder is missing"),
+    (lambda d: d.mkdir(), "holds no display"),
+    (lambda d: (d.mkdir(), (d / "notes.txt").write_text("x")), "holds no display"),
+])
+def test_brand_fonts_folder_must_be_usable(run_script, tmp_path, setup, needle):
+    folder = tmp_path / "fonts"
+    setup(folder)
+    proc = run_script("design_render.py", "validate", write_spec(tmp_path, spec()), env={"NUMA_BRAND_FONTS": str(folder)})
+    assert proc.returncode == 1 and needle in proc.stderr and "Traceback" not in proc.stderr
+
+
+def test_brand_font_must_cover_the_text(run_script, tmp_path):
+    fonts = tmp_path / "fonts"
+    fonts.mkdir()
+    shutil.copyfile(dr.nc.FONTS_DIR / "LiberationSerif-Regular.ttf", fonts / "display.ttf")
+    cmap = dr.sfnt_cmap(fonts / "display.ttf")
+    assert ord("a") in cmap and 0x2212 in cmap  # a real cmap was read
+    lacking = next(chr(c) for a, b in dr.charset_ranges() for c in range(a, b + 1) if c not in cmap and chr(c).strip())
+    d = spec()
+    d["slides"][0]["fields"]["subtitle"] = f"Plain words {lacking}"
+    proc = run_script("design_render.py", "validate", write_spec(tmp_path, d), env={"NUMA_BRAND_FONTS": str(fonts)})
+    assert proc.returncode == 1 and "is not in the brand display font" in proc.stderr
+    ok = run_script("design_render.py", "validate", write_spec(tmp_path, spec(), "ok.json"), env={"NUMA_BRAND_FONTS": str(fonts)})
+    assert ok.returncode == 0, ok.stderr
+
+
+def test_accent_numerals_reach_3_to_1():
+    p = dr.palette(dr.nc.load_brand())
+    assert dr.contrast(p["accent_text"], p["bg"]) >= 3.0
+    for comp in ("point", "steps"):
+        assert "{{color.accent_text}}" in dr.template_text(comp, "html")
+
+
+def test_generator_rejects_unknown_arguments(repo_root):
+    import subprocess
+    import sys
+    gen = str(repo_root / "tools" / "gen_carousel_components.py")
+    before = (dr.COMPONENTS_DIR / "cover.html").stat().st_mtime_ns
+    help_ = subprocess.run([sys.executable, gen, "--help"], capture_output=True, text=True)
+    bad = subprocess.run([sys.executable, gen, "--bogus"], capture_output=True, text=True)
+    assert help_.returncode == 0 and "--check" in help_.stdout
+    assert bad.returncode == 2 and "unrecognized arguments" in bad.stderr
+    assert (dr.COMPONENTS_DIR / "cover.html").stat().st_mtime_ns == before  # nothing rewritten

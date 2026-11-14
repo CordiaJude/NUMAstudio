@@ -14,7 +14,8 @@ Usage:
 --charset  also rewrite assets/fonts/carousel_charset.json from the bundled fonts' cmaps
            (needs fontTools: pip install fonttools brotli)
 
-Tokens: {{field}} spec fields; {{color.<role>}} brand palette roles (design_render.PALETTE_ROLES);
+Tokens: {{field}} spec fields; {{color.<role>}} brand palette roles (design_render.PALETTE_ROLES, plus accent_text: the
+accent darkened to >= 3:1 on the background, for gold numerals);
 {{component}}, {{slide_title}}, {{page}}, {{brand_name}}, {{brand_short}}, {{photo}}, {{photo_alt}},
 {{photo_position}}, {{logo}}, {{price}}, {{price_note}}, {{offer_details}} filled by design_render.py
 from brand.json (the end slide shows Numa's logo file when one is supplied, else "Numa" set in
@@ -126,7 +127,7 @@ C["point"] = ("Numbered point", slide(
     HEADER,
     content("\n".join([
         '<p data-fit="number" style="margin: 0; max-width: 400px; overflow: hidden; white-space: nowrap; font-family: '
-        + DISPLAY + '; font-weight: 300; font-size: 200px; line-height: 200px; color: {{color.accent}}">{{number}}</p>',
+        + DISPLAY + '; font-weight: 300; font-size: 200px; line-height: 200px; color: {{color.accent_text}}">{{number}}</p>',
         text("h2", "title", font=DISPLAY, size=88, lh=1.04, lines=3, weight=300, extra=TIGHT),
         text("p", "body", font=BODY, size=42, lh=1.45, lines=6),
     ]), gap=48),
@@ -180,7 +181,7 @@ def step(n: int) -> str:
     return "\n".join([
         '<div style="display: flex; align-items: baseline; gap: 36px">',
         '<p style="margin: 0; width: 64px; flex-shrink: 0; font-family: ' + DISPLAY + '; font-weight: 300; font-size: 72px; '
-        'line-height: 72px; color: {{color.accent}}">' + str(n) + '</p>',
+        'line-height: 72px; color: {{color.accent_text}}">' + str(n) + '</p>',
         text("p", f"step{n}", font=BODY, size=46, lh=1.36, lines=3, weight=400, extra="; flex: 1; min-width: 0"),
         '</div>',
     ])
@@ -239,7 +240,7 @@ C["cta"] = ("End slide", "\n".join([
         ('<p data-fit="button" style="margin: 0; max-width: 888px; box-sizing: border-box; overflow: hidden; '
          'white-space: nowrap; padding: 0 48px; border: 2px solid {{color.ink}}; border-radius: 48px; color: {{color.ink}}; '
          'font-size: 34px; line-height: 88px; font-weight: 600">{{button}}</p>'),
-    ]), justify="center", gap=48, extra="; align-items: center; padding-bottom: 96px"),
+    ]), justify="center", gap=48, extra="; align-items: center"),
     FOOTER,
     "</div>",
 ]))
@@ -343,8 +344,14 @@ def write_charset() -> None:
 
 
 def main(argv: list[str]) -> int:
+    import argparse
+    ap = argparse.ArgumentParser(prog="gen_carousel_components.py",
+                                 description="Generate the Numa carousel component library (.html + .dc.html).")
+    ap.add_argument("--check", action="store_true", help="exit 1 when a committed file differs; write nothing")
+    ap.add_argument("--charset", action="store_true", help="also rewrite assets/fonts/carousel_charset.json (fontTools)")
+    args = ap.parse_args(argv)
     files = outputs()
-    if "--check" in argv:
+    if args.check:
         stale = [p.name for p, text in files.items() if not p.is_file() or p.read_text(encoding="utf-8") != text]
         extra = sorted(p.name for p in OUT.glob("*.html") if p not in files)
         if stale or extra:
@@ -357,7 +364,7 @@ def main(argv: list[str]) -> int:
             old.unlink()
     for p, text in files.items():
         p.write_text(text, encoding="utf-8")
-    if "--charset" in argv:
+    if args.charset:
         write_charset()
     print(f"wrote {len(files)} files to {OUT}")
     return 0

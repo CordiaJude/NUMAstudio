@@ -257,3 +257,19 @@ def test_slide_renderer_without_playwright_warns(run_script, tmp_path):
     check = by_name(json.loads(proc.stdout))["slide renderer"]
     assert check["status"] == "warn" and "Playwright is not installed" in check["detail"]
     assert "pip install -r requirements.txt" in check["fix"]
+
+
+def test_brand_fonts_check_only_when_set(run_script, tmp_path):
+    proc = run_check(run_script, "--skip-render", "--json", env={"NUMA_BRAND_FONTS": str(tmp_path / "missing")}, tmp=tmp_path)
+    check = by_name(json.loads(proc.stdout))["brand fonts"]
+    assert check["status"] == "fail" and "folder is missing" in check["detail"] and "unset NUMA_BRAND_FONTS" in check["fix"]
+    assert proc.returncode == 1
+    assert by_name(json.loads(proc.stdout))["slide renderer"]["status"] in ("pass", "warn")  # renderer still checked
+
+
+def test_slide_renderer_fix_is_printed_once(run_script, tmp_path):
+    empty = tmp_path / "no-browsers"
+    empty.mkdir()
+    proc = run_check(run_script, "--skip-render", env={"PLAYWRIGHT_BROWSERS_PATH": str(empty)}, tmp=tmp_path)
+    line = next(ln for ln in proc.stdout.splitlines() if "slide renderer" in ln)
+    assert line.count("playwright install chromium") == 1, line

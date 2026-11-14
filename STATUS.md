@@ -19,7 +19,7 @@
 | T14 Claude Design carousels (v2.1) | REVISING (review: pass with fixes + new brand rules) | 2 | shared asks: README, CI playwright install, post-reel re-render → T16 |
 | T15 Photo posts + carousel/image posting (v2.1) | ACCEPTED (re-review PASS; consent-no always blocks) | 3 | shared asks: README, config instagram.tags post_type, CONTRACTS metrics → T16 |
 | T16 Planner/shoot cards/build/digest for new post types (v2.1) | PENDING | 0 | |
-| T17 Scheduling reliability: ensure_env, runlog watchdog, Chrome queue (v2.1) | REVISING (review FAIL R341/R342; approval-gated posting D26) | 2 | |
+| T17 Scheduling reliability: ensure_env, runlog watchdog, Chrome queue (v2.1) | ACCEPTED (re-review PASS all R339-R343; N1-N3 + D26 checks closed) | 3 | |
 | T18 Adaptive strategy engine + playbook (v2.1) | IN PROGRESS (re-seeding from real research R1-R7) | 1 | |
 | T19 Owners' answers into brand data (v2.1) | IN PROGRESS | 1 | people/consent stay private (STATE) |
 
