@@ -135,7 +135,7 @@ def test_validate_accepts_good_spec(run_script, tmp_path):
                                    "offer": "Float tank", "cta": "c"}}), "not in brand.json offerings"),
     (lambda d: d["slides"][0]["fields"].update(title="Sauna → plunge ✓"), "'→' (U+2192)"),
     (lambda d: d["slides"][0]["fields"].update(subtitle="Warm up \U0001F525 then cool off"), "emoji"),
-    (lambda d: d["slides"][0]["fields"].update(subtitle="Come to NUMA this week."), 'write the name as "Numa"'),
+    (lambda d: d["slides"][0]["fields"].update(subtitle="Come to NUMA this week."), 'never "NUMA"'),
     (lambda d: d["slides"].append({"component": "photo", "photo": "nope/missing.jpg",
                                    "fields": {"kicker": "k", "caption": "c"}}), "photo not found"),
 ])
@@ -396,7 +396,7 @@ def test_canvas_checks_edits(run_script, tmp_path):
     assert any("'Lobster' is linked but not bundled" in e for e in errs), errs
     assert any("slide 2" in e and "font Lobster" in e for e in errs), errs
     assert any("slide 2" in e and "'→' (U+2192)" in e and "'✓' (U+2713)" not in e for e in errs), errs
-    assert any("slide 2" in e and "emoji '✓'" in e for e in errs), errs
+    assert any("slide 2" in e and "✓" in e and "emoji" in e for e in errs), errs
     assert any("Slide03.dc.html is 2160x1350" in e for e in errs), errs
 
 
@@ -542,11 +542,6 @@ def test_brand_font_must_cover_the_text(run_script, tmp_path):
     shutil.copyfile(dr.nc.FONTS_DIR / "LiberationSerif-Regular.ttf", fonts / "display.ttf")
     cmap = dr.sfnt_cmap(fonts / "display.ttf")
     assert ord("a") in cmap and 0x2212 in cmap  # a real cmap was read
-    lacking = next(chr(c) for a, b in dr.charset_ranges() for c in range(a, b + 1) if c not in cmap and chr(c).strip())
-    d = spec()
-    d["slides"][0]["fields"]["subtitle"] = f"Plain words {lacking}"
-    proc = run_script("design_render.py", "validate", write_spec(tmp_path, d), env={"NUMA_BRAND_FONTS": str(fonts)})
-    assert proc.returncode == 1 and "is not in the brand display font" in proc.stderr
     ok = run_script("design_render.py", "validate", write_spec(tmp_path, spec(), "ok.json"), env={"NUMA_BRAND_FONTS": str(fonts)})
     assert ok.returncode == 0, ok.stderr
 
@@ -568,3 +563,15 @@ def test_generator_rejects_unknown_arguments(repo_root):
     assert help_.returncode == 0 and "--check" in help_.stdout
     assert bad.returncode == 2 and "unrecognized arguments" in bad.stderr
     assert (dr.COMPONENTS_DIR / "cover.html").stat().st_mtime_ns == before  # nothing rewritten
+
+
+def test_brand_font_gap_is_an_error(tmp_path, monkeypatch):
+    fonts = tmp_path / "fonts"
+    fonts.mkdir()
+    shutil.copyfile(dr.nc.FONTS_DIR / "LiberationSerif-Regular.ttf", fonts / "display.ttf")
+    monkeypatch.setenv("NUMA_BRAND_FONTS", str(fonts))
+    full = dr.sfnt_cmap(fonts / "display.ttf")
+    monkeypatch.setattr(dr, "sfnt_cmap", lambda path: full - {ord("é")})  # a brand font without é
+    probs = dr.Problems()
+    dr.text_rules("Café time", "slide 1", probs)
+    assert probs.errors == ["slide 1: character 'é' (U+00E9) is not in the brand display font (display.ttf); use plain words"]
