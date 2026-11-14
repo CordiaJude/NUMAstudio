@@ -64,13 +64,13 @@ if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then ex
 Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
 
 **Run start and end (R339-R342).** Run by hand, this is a `make_reel` run; from /build-today, skip this paragraph (build-today's `build_today` entry covers the run).
-1. Sync the run log and the Chrome queue from Drive `drive.plan_dir` exactly as commands/build-today.md "Run start and end" step 1 does (`merge-dir` of `_Plan/runlog/`, `merge` of `chrome_queue.json`; a failed download is never "absent"), then `python3 "$S/runlog.py" start make_reel --state "$STATE"`; keep the printed run id and upload `STATE/runlog/<run id>.json` to Drive `_Plan/runlog/`.
+1. Sync the run log and the Chrome queue from Drive `drive.plan_dir` exactly as commands/build-today.md "Run start and end" step 1 does (`merge-dir` of `_Plan/runlog/`, `merge-dir` of `_Plan/chrome_queue/`; a failed download is never "absent"), then `python3 "$S/runlog.py" start make_reel --state "$STATE"`; keep the printed run id and upload `STATE/runlog/<run id>.json` to Drive `_Plan/runlog/`.
 2. `python3 "$S/ensure_env.py" --json --with-model` (installs what is missing; a warm machine returns in seconds). Exit 1: send Jude its ERROR line's fix through the escalation channel in `STATE/brand.json` (DECISIONS D19), reschedule (section 4), finish `failed --rescheduled` and stop.
 3. At the end, **always, also on failure:** `python3 "$S/runlog.py" finish <run id> --outcome ok --note "<one line>" --state "$STATE"` (`partial` when something was left out, `failed` when the run stopped; add `--rescheduled` when the run moved the day itself), then upload `STATE/runlog/<run id>.json` again.
 
 **Claude in Chrome (R342).** When the `mcp__claude-in-chrome__*` tools are visible and answer a harmless call (read the open tab's title), drain the queue first (commands/chrome-queue.md section 3). Not visible: the scout works from cloud web search (F17) and this reel never waits. During a Higgsfield unlimited window (the scout's "Higgsfield unlimited-window drafts"), this reel drafts through the connector; Motion's draft prompts for the next planned days' hero stills are queued for the Mac instead, one item per day:
 ```
-python3 "$S/chrome_queue.py" add --kind higgsfield_unlimited --payload '{"day": "2026-12-11", "folder": "Day 11 - 2026-12-11 - Sauna season", "photos": ["photos/IMG_4410.HEIC"], "prompts": ["slow push-in on the sauna glow"]}' --deadline 2026-12-11T04:30:00-06:00 --fallback "Build day drafts through the Higgsfield connector at kling_std_5s" --state "$STATE"
+python3 "$S/chrome_queue.py" add --kind higgsfield_unlimited --payload '{"day": "2026-12-11", "folder": "Day 11 - 2026-12-11 - Sauna season", "photos": ["photos/IMG_4410.HEIC"], "prompts": ["slow push-in on the sauna glow"]}' --deadline 2026-12-11T04:30:00-06:00 --fallback "Build day drafts through the Higgsfield connector at kling_std_5s" --state "$STATE" --json
 ```
 
 **Find the folder (R13), first match wins:**
@@ -215,7 +215,7 @@ Any `fail` hit: F11. Any `WARN`: reword or keep with a logged reason. sources ch
 **13. Deliver (R41).**
 1. Send the reel file in this chat (in a scheduled run: the run's result and notification) with the delivery note (section 6). Chat delivery is primary.
 2. Upload everything in `out/` to the day folder's `Finished/` (brand.json `drive.finished`). Upload fails: F15 (the reel was already delivered in chat); keep the queued upload in `work/upload_queue.json`.
-3. Plan Sheet row: Status "Ready to post" and the Reel link. When brand.json `posting.auto_post.value` is true and `posting.legal_review_done.value` is true, hand off to the `post-reel` command with `JOB`; when auto-post is on but the legal review is not done, keep "Ready to post" and use the legal-review escalation.
+3. Plan Sheet row: Status "Ready to post" and the Reel link. Hand off to the `post-reel` command with `JOB` only when **the plan row is Approved by a person** (DECISIONS D26: nothing goes out without a person approving it) and brand.json `posting.auto_post.value` is true and `posting.legal_review_done.value` is true; not approved: keep "Ready to post", staged for approval, and the digest lists it; when auto-post is on but the legal review is not done, keep "Ready to post" and use the legal-review escalation.
 4. Add the new raw files to the media library (librarian) and sync `STATE` back to Drive.
 5. Write `work/delivered.json` (files, Drive links, row status).
 

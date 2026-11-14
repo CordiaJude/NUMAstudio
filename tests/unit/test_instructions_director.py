@@ -509,9 +509,9 @@ def test_r119_exemptions_are_setup_only():
 def test_librarian_merges_runlog_and_chrome_queue(texts):
     t = texts["librarian"]
     assert 'runlog.py" merge-dir "$STATE/runlog.drive" --state "$STATE"' in t
-    assert 'chrome_queue.py" merge "$STATE/chrome_queue.drive.json" --state "$STATE"' in t
-    assert "never overwritten" in t and "merge the Drive copy first" in t
-    assert "Never upload `runlog.json`" in t and 'never treated as "no file yet"' in t
+    assert 'chrome_queue.py" merge-dir "$STATE/chrome_queue.drive" --state "$STATE"' in t
+    assert "never overwritten" in t and "only its own `runlog/<run id>.json`" in t
+    assert "Never upload `runlog.json` or `chrome_queue.json`" in t and 'never treated as "no file yet"' in t
 
 
 def test_scout_chrome_queue_handback(texts):

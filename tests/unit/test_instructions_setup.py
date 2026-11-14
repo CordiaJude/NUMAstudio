@@ -539,4 +539,5 @@ def test_setup_guide_eight_tasks_and_runlog_check(texts):
                    "posts nothing", "**off** for the quarterly reminder and the Chrome queue"]:
         assert needle in t, needle
     assert "plan, build and post every reel" not in t and "built and posted" not in t
+    assert "**Who approves posts** (DECISIONS D26" in t and "A lawyer's one-time review" not in t
     assert "six scheduled tasks" not in t

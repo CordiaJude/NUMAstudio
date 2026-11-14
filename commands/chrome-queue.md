@@ -22,7 +22,7 @@ if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then ex
 ## 1. Run start
 
 1. **Sync, then log the start.** Download the Drive folder `drive.plan_dir`/`runlog/` (every file) into `STATE/runlog.drive/`, run `python3 "$S/runlog.py" merge-dir "$STATE/runlog.drive" --state "$STATE"`, then `python3 "$S/runlog.py" start chrome_queue --state "$STATE"`; keep the printed run id (`RUN_ID`) and upload `STATE/runlog/<RUN_ID>.json` to Drive `_Plan/runlog/`. An earlier run cut off by sleep is recorded as interrupted, not stuck.
-2. **Sync the queue.** Download Drive `chrome_queue.json` to `STATE/chrome_queue.drive.json`, then `python3 "$S/chrome_queue.py" merge "$STATE/chrome_queue.drive.json" --state "$STATE"`. **A failed download is never "absent":** if the Drive connector fails, skip section 3 this hour (no claims, no uploads of the queue) and go to section 4. Merge, and later upload, only after a download that worked or when Drive confirms there is no `chrome_queue.json` yet.
+2. **Sync the queue.** Download the Drive folder `drive.plan_dir`/`chrome_queue/` (one file per queued item) into `STATE/chrome_queue.drive/`, then `python3 "$S/chrome_queue.py" merge-dir "$STATE/chrome_queue.drive" --state "$STATE"`. **A failed download is never "absent":** if the Drive connector fails, skip section 3 this hour (no claims, no uploads of queue items) and go to section 4. Merge, and later upload, only after a download that worked or when Drive confirms the folder does not exist yet.
 3. `python3 "$S/ensure_env.py" --json`. Exit 1: send Jude its ERROR line's fix through the escalation channel in `STATE/brand.json` (DECISIONS D19), finish the run `failed` (section 5) and stop.
 
 ## 2. Is Chrome here?
@@ -35,12 +35,12 @@ Repeat until `next` returns `"item": null`:
 ```
 python3 "$S/chrome_queue.py" next --claim <RUN_ID> --state "$STATE" --json
 ```
-The claim is taken under a lock with a 45-minute lease (the `schedule.chrome_queue.lease_minutes` setting, once the config has it); right after claiming, upload `chrome_queue.json` (download and `merge` first) so the claim is visible. Do the item (table below), then:
+The claim is taken under a lock with a 45-minute lease (the `schedule.chrome_queue.lease_minutes` setting, once the config has it); right after claiming, upload the item file `next` lists under `files` to Drive `_Plan/chrome_queue/` so the claim is visible. Do the item (table below), then:
 - success: `python3 "$S/chrome_queue.py" done <id> --claim <RUN_ID> --result "<what Chrome did: permalink, file, count>" --state "$STATE"`;
 - a failed attempt (logged out, page changed): `python3 "$S/chrome_queue.py" fail <id> --claim <RUN_ID> --reason "<one line>" --state "$STATE"`; it is pending again for the next hour, until its deadline;
 - `done` exits 1 with "conflict" when the night check already ran the item's fallback: leave it, the conflict is in the queue for Jude's line.
 
-Upload `chrome_queue.json` after every `done` or `fail` (download and `merge` first). A cloud run that drains (it saw Chrome) adds `--kinds scout_research,competitor_log,higgsfield_unlimited` to `next`. Items held back by `not_before` (`waiting` in the output) are left for a later hour: a posting step's window opens 75 minutes before its posting time, so the hourly :47 run always lands inside it.
+After every `done` or `fail` (add `--json`), upload the item files it lists under `files`; only those, never the whole folder, so another run's items are never overwritten. A cloud run that drains (it saw Chrome) adds `--kinds scout_research,competitor_log,higgsfield_unlimited` to `next`. Items held back by `not_before` (`waiting` in the output) are left for a later hour: a posting step's window opens 75 minutes before its posting time, so the hourly :47 run always lands inside it.
 
 | Kind | Payload | Chrome does | Fallback when the deadline passes (night check; never publishes) |
 |---|---|---|---|

@@ -501,7 +501,9 @@ def test_every_scheduled_command_logs_and_bootstraps(cmd, texts, config):
     assert 'ensure_env.py" --json' in sec                                       # R339
     assert 'runlog.py" merge-dir "$STATE/runlog.drive"' in sec and 'chrome_queue.py" merge' in sec     # M2
     assert "upload `STATE/runlog/<RUN_ID>.json`" in sec and "a file only this run ever writes" in sec
-    assert 'A failed download is never "absent"' in sec and "never upload `chrome_queue.json` this run" in sec
+    assert 'A failed download is never "absent"' in sec and "upload no queue items this run" in sec
+    assert 'chrome_queue.py" merge-dir "$STATE/chrome_queue.drive"' in sec                        # N3: per-item files
+    assert "exactly the item files" in sec and "never the whole folder" in sec
     assert 'runlog.py" finish <RUN_ID> --outcome' in sec and f"--task {task}" in sec
     assert "always, also when the run fails" in sec                             # finish on failure too
     assert "escalation channel in `STATE/brand.json`" in sec and "D19" in sec    # env failure: Jude only
@@ -515,6 +517,7 @@ def test_build_today_bootstrap_flags(texts):
     assert "A late build the watchdog started adds `--late`" in t                               # M1
     assert "finish `failed --rescheduled`" in t and "add `--rescheduled` when this run already moved the day" in t  # B2
     assert "Nothing posts without a person's approval (DECISIONS D26)" in t
+    assert "only when **the plan row is Approved by a person**" in t                               # defense in depth
     assert "only after the post is approved" in t
 
 
@@ -524,6 +527,7 @@ def test_make_reel_bootstrap_when_run_by_hand():
     assert "always, also on failure" in t and 'runlog.py" finish' in t and "--rescheduled" in t
     assert "from /build-today, skip this paragraph" in t
     assert 'chrome_queue.py" add --kind higgsfield_unlimited' in t
+    assert "only when **the plan row is Approved by a person**" in t and "merge-dir` of `_Plan/chrome_queue/" in t
 
 
 @pytest.mark.parametrize("cmd", ["night-check", "dashboard-refresh"])
@@ -603,7 +607,8 @@ def test_chrome_queue_command(config):
     pos = [t.find(h) for h in order]
     assert -1 not in pos and pos == sorted(pos)
     for needle in ['runlog.py" merge-dir "$STATE/runlog.drive"', 'runlog.py" start chrome_queue',
-                   'ensure_env.py" --json', 'chrome_queue.py" merge',
+                   'ensure_env.py" --json', 'chrome_queue.py" merge-dir "$STATE/chrome_queue.drive"',
+                   "never the whole folder",
                    'chrome_queue.py" next --claim <RUN_ID>',                                     # B1
                    'chrome_queue.py" done <id> --claim <RUN_ID> --result',
                    'chrome_queue.py" fail <id> --claim <RUN_ID> --reason', "45-minute lease",
