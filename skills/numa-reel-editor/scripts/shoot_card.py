@@ -20,8 +20,10 @@ month   The deterministic skeleton of a calendar month: one row per day with
         output has the MONTH_JSON shape that `check` and `sheet` read.
 
 card    The phone-readable shoot card for one plan row (a script.json, or a
-        carousel/Stories row) in the spec p.36 format: "No filming needed" as
-        the first line when the day needs nothing from Katie, the header
+        carousel, photo-post or Stories row) in the spec p.36 format: "No
+        filming needed" as the first line when the day needs nothing from Katie
+        (a carousel row says how it is built from `carousel_source`: component,
+        photos or reel; an `image` row is a single-photo feed post on a topic), the header
         (DAY · date · title · FILM BY), the filing rules (where, voiceover,
         music, file names, phone settings, changes), numbered checkbox shots
         tied to script lines with framing and duration, "consent list only"
@@ -70,10 +72,14 @@ sheet   The plan as "NUMA 30-Day Reel Plan" Sheet rows with exactly the spec
 MONTH_JSON: {"month": "2026-12", "rows": [row, ...], "events": [{"name", "date"}],
 "closures": ["YYYY-MM-DD" | {"date", "name"}], "mix": {pillar: share},
 "mix_tolerance": 0.10} or a bare list of rows. A row has at least day, date and
-kind (reel, trial_reel, carousel, stories); reel rows carry the script.json
-fields once scripted. Defaults: topic = title; sales = goal is offer, or an
+kind (reel, trial_reel, carousel, image, stories; `image` = a single-photo feed
+post on a topic, nothing to film; carousel rows may carry `carousel_source`
+component|photos|reel); reel rows carry the script.json fields once scripted.
+Carousels and photo posts are the feed's statics (about a third of feed posts).
+Status: Planned, Shot, Ready to build, Ready to post, Approved (or "Approved -
+<name or initials>", set by a person: DECISIONS D26), Posted. Defaults: topic = title; sales = goal is offer, or an
 offer or booking ask ("book", "$49", a brand.json offer name such as Discover
-NUMA) in the CTA, hook, lines or on-screen text (`sales: true` forces it; false
+Numa) in the CTA, hook, lines or on-screen text (`sales: true` forces it; false
 never hides it); invites = sales, an event teaser, or a booking-style CTA; mix = brand.json
 positioning.content_mix. --closures FILE: JSON (list of dates or
 {"date", "name"} objects, or {"closures": [...]}) or CSV with a Date column;
