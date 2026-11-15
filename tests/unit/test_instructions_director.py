@@ -340,7 +340,7 @@ def test_decision_authority_and_escalation(texts, brand):
     t = texts["make-reel"]
     for needle in ["Never ask Katie anything", "No step waits", "Never stop", "Fixed limits are rules",
                    "Tell, don't ask", "Decision authority", "Meta error 190", "card payment fails",
-                   "legal_review_done", "`escalation.contact`", "work continues"]:
+                   "Approved by a person", "`escalation.contact`", "work continues"]:
         assert needle.lower() in t.lower(), needle
     assert len(brand["escalation"]["for"]) == 3
 

@@ -10,7 +10,7 @@ Nothing in the code can replace these (spec p.2):
 
 - [ ] **Katie's answers to the 51 setup questions.** Print or send her docs/QUESTIONS_FOR_KATIE.md (phone-friendly; short answers and "don't know" are fine). They become brand data in step 9.
 - [ ] **The accounts below** (Claude Max, Higgsfield Plus, Composio, NUMA's Instagram as a Business or Creator account, Google Drive, optionally Gmail).
-- [ ] **Who approves posts** (DECISIONS D26, which replaces the dropped lawyer review): nothing goes out without a person approving it. The owners (or Emma) mark a staged post Approved on its plan Sheet row; until then finished posts stay "Ready to post" and the Monday digest lists them. Agree who approves before the schedule goes on.
+- [ ] **Who approves posts** (DECISIONS D26, which replaces the dropped lawyer review): nothing goes out without a person approving it. The owners (or the social media lead) mark a staged post Approved on its plan Sheet row; until then finished posts stay "Ready to post" and the Monday digest lists them. Agree who approves before the schedule goes on.
 
 ## The afternoon checklist
 

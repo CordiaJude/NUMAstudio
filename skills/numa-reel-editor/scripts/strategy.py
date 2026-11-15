@@ -246,8 +246,57 @@ def pattern_text_hits(p: dict) -> list:
     return hits
 
 
+# Capitalised words that follow a person cue ("Meet X", "This is X", "with X") or take a possessive ("X's") and are not
+# names. Anything else in those positions is treated as a personal name: the public repo may name only the co-founders.
+NOT_NAMES = {"Numa", "Here", "It", "What", "That", "This", "There", "Discover", "Clock", "Father", "Mother", "Valentine",
+             "Year", "Men", "Member", "Members", "Mobile", "December", "January", "Step", "Instagram", "Reel", "Meta", "Today",
+             "Week", "Day", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Collective",
+             "Nights", "Recovery", "The", "Our", "Your", "Everyone", "Us", "Me", "You", "Them", "Friends", "New", "Thanksgiving", "Christmas", "Easter", "Mother's"}
+NAME_CUE = re.compile(r"\b(?:[Mm]eet|[Tt]his is|[Ww]ith|[Bb]y|[Ff]rom|[Aa]sk|[Tt]hanks to|[Nn]amed|guide|teacher|instructor|coach)"
+                      r"\s+([A-Z][a-z]+)\b|\b([A-Z][a-z]+)'s\b")
+
+
+def founder_names() -> set[str]:
+    out = set()
+    for f in nc.brand_value("business.founders", []) or []:
+        if isinstance(f, dict) and f.get("name"):
+            out.update(str(f["name"]).split())
+    return out
+
+
+def name_hits(text: str, where: str, allowed: set[str]) -> list[str]:
+    """Personal names other than the co-founders in playbook copy (examples, templates, calendar notes)."""
+    out = []
+    for m in NAME_CUE.finditer(text or ""):
+        word = m.group(1) or m.group(2)
+        if word not in NOT_NAMES and word not in allowed:
+            out.append(f"{where}: {word!r} looks like a personal name; only the co-founders may be named, "
+                       "use a role (a breathwork guide) or a placeholder ([guide name])")
+    return out
+
+
+def playbook_name_problems(pb: dict) -> list[str]:
+    allowed = founder_names()
+    errs = []
+    for pid in sorted(pb["patterns"]):
+        p = pb["patterns"][pid]
+        for i, t in enumerate(p.get("examples", [])):
+            errs += name_hits(t, f"pattern {pid} example {i + 1}", allowed)
+        for key in ("template", "name", "visual"):
+            if isinstance(p.get(key), str):
+                errs += name_hits(p[key], f"pattern {pid} {key}", allowed)
+    cal = pb["calendar"]
+    for m in cal["monthly"] + cal["seasonal"] + cal["holidays"]:
+        for i, t in enumerate(m.get("examples", [])):
+            errs += name_hits(t, f"calendar {m['id']} example {i + 1}", allowed)
+        if isinstance(m.get("what"), str):
+            errs += name_hits(m["what"], f"calendar {m['id']} what", allowed)
+    return errs
+
+
 def playbook_problems(pb: dict) -> tuple[list[str], list[str]]:
     errs, warns = [], []
+    errs += playbook_name_problems(pb)
     ids = set(pb["patterns"])
     for pid in sorted(ids):
         p = pb["patterns"][pid]
@@ -952,9 +1001,33 @@ def closure_items(items: list, where: str) -> dict[date, str]:
             for i in range((b - a).days + 1):
                 out[a + timedelta(days=i)] = str(it.get("what") or it.get("name") or "closed")
         elif isinstance(it, dict):
+            if it.get("open_until"):
+                continue                      # a half day (closures.partial): see partial_closures()
             out[sc.parse_date(it.get("date"), where)] = str(it.get("name") or it.get("what") or "closed")
         else:
             out[sc.parse_date(it, where)] = "closed"
+    return out
+
+
+def partial_closures(path: str | None = None) -> dict[date, dict]:
+    """Half days from brand.json closures.partial ({date, name, open_until HH:MM}), plus any in a JSON closures file.
+    The planner invites nobody in after open_until and posts that day before it."""
+    items = nc.brand_value("closures.partial")
+    items = list(items) if isinstance(items, list) else []
+    if path:
+        p = Path(path).expanduser()
+        if p.exists() and p.suffix.lower() != ".csv":
+            data = nc.read_json(p, "closures file")
+            data = data.get("closures") if isinstance(data, dict) else data
+            items += [x for x in (data or []) if isinstance(x, dict) and x.get("open_until")]
+    out: dict[date, dict] = {}
+    for it in items:
+        if not isinstance(it, dict) or not it.get("date"):
+            continue
+        until = str(it.get("open_until") or "")
+        if not re.fullmatch(r"\d{2}:\d{2}", until):
+            raise nc.UserError(f"brand.json closures.partial {it.get('date')}: open_until must be HH:MM, got {until!r}")
+        out[sc.parse_date(it["date"], "brand.json closures.partial")] = {"name": str(it.get("name") or "half day"), "open_until": until}
     return out
 
 
@@ -1003,9 +1076,10 @@ OFFER_EXPLORE_UNTIL = 3       # tries per week-of-month before the monthly offer
 
 class Planner:
     def __init__(self, pb: dict, fits: dict, year: int, month: int, seed: int, events: list[dict],
-                 closures: dict[date, str], posts: list[dict], diagnoses: list[dict]):
+                 closures: dict[date, str], posts: list[dict], diagnoses: list[dict], partial: dict[date, dict] | None = None):
         self.pb, self.fits, self.year, self.month, self.seed = pb, fits, year, month, seed
         self.events, self.closures, self.posts, self.diagnoses = events, closures, posts, diagnoses
+        self.partial = partial_closures(None) if partial is None else partial
         self.pol = pb["policies"]
         self.lp = self.pol["learning"]
         self.moments = month_moments(pb, year, month)
@@ -1062,6 +1136,8 @@ class Planner:
                 "mix": nc.brand_value("positioning.content_mix", {}), "mix_tolerance": sc.DEFAULT_MIX_TOLERANCE,
                 "events": [{"name": e["name"], "date": e["date"]} for e in self.events],
                 "closures": [{"date": d.isoformat(), "name": n} for d, n in sorted(self.closures.items())],
+                "partial_closures": [{"date": d.isoformat(), **v} for d, v in sorted(self.partial.items())
+                                     if d.year == self.year and d.month == self.month],
                 "rows": rows}
         plan["_draws"] = week_draws
         return plan
@@ -1078,7 +1154,8 @@ class Planner:
                 cands = [by_date[d.isoformat()] for d in window if d.isoformat() in by_date]
                 cands = [r for r in cands if not r.get("event_role")]
                 if role == "teaser":
-                    cands = [r for r in cands if date.fromisoformat(r["date"]) not in self.closures]
+                    cands = [r for r in cands if date.fromisoformat(r["date"]) not in self.closures
+                             and date.fromisoformat(r["date"]) not in self.partial]
                 feed = [r for r in cands if r["kind"] in ("reel", "carousel") and r["slot"] != "offer_event_collab_reel"]
                 pick = (feed or [r for r in cands if r["kind"] in ("reel", "carousel")] or cands or [None])[0]
                 if pick is None:
@@ -1105,7 +1182,7 @@ class Planner:
         for r in sales_rows:
             d = date.fromisoformat(r["date"])
             wk = sc.monday_of(d)
-            if wk in teaser_weeks or d in self.closures:
+            if wk in teaser_weeks or d in self.closures or d in self.partial:
                 continue
             dr = week_draws[wk]
             default_offer = (d.day - 1) // 7 % 2 == 0
@@ -1378,16 +1455,34 @@ class Planner:
                                                                      or r.get("signature") or r.get("_protect")
                                                                      or r["strategy"].get("tests"))]
             drop.sort(key=lambda r: (r["slot"] != "regulate_reel", r["slot"] != "community_reel", r["date"]), reverse=False)
-            drop += [r for r in feed if r["kind"] in ("carousel", "image") and r not in drop and not (
+            drop += [r for r in feed if r["kind"] == "reel" and r not in drop and r["strategy"].get("tests") not in (None, "format")
+                     and not (r.get("event_role") or r.get("sales") or r.get("collab") or r.get("signature") or r.get("_protect"))]
+            for r in feed:                        # a series reel can wait when the series runs again later this month
+                if (r["kind"] == "reel" and r.get("_protect") and r not in drop and not (r.get("event_role") or r.get("sales")
+                                                                                         or r.get("collab") or r.get("signature"))):
+                    later = [x for x in rows if x is not r and x["kind"] == "reel" and x.get("series") == r.get("series")
+                             and x["date"] > r["date"] and not x.get("_protect")]
+                    if later:
+                        r["_next_protect"] = later[0]
+                        drop.append(r)
+            keep_car = next((r for r in feed if r["kind"] == "carousel"), None)                # the weekly carousel stays
+            drop += [r for r in feed if r["kind"] in ("carousel", "image") and r not in drop and r is not keep_car and not (
                 r.get("event_role") or r.get("sales") or r["strategy"].get("tests"))]      # last resort
+            drop += [r for r in feed if r["strategy"].get("tests") == "format" and r not in drop]  # the test waits a week
             while len(feed) > target and drop:
                 r = drop.pop(0)
                 feed.remove(r)
                 for k in ("template", "length_class", "derived_from", "series", "goal", "pillar", "sales", "invites"):
                     r.pop(k, None)
+                r["strategy"].pop("tests", None)
+                nxt = r.pop("_next_protect", None)
+                if nxt is not None and r.get("_protect"):
+                    nxt["_protect"] = r.pop("_protect")
                 r.update({"kind": "stories", "post": "Stories", "slot_notes": "Stories (cadence test week)",
                           "film_by": None, "batch_session": None, "pillar": None, "series": None, "goal": None})
                 r["strategy"]["why"].append(f"Cadence: {target} feed posts this week. {note}")
+            for r in wrows:
+                r.pop("_next_protect", None)
 
     def time_plan(self) -> tuple[str, list[str], str]:
         """Blocked time-slot rotation outside the bandit (R6 section 6): (best band, rotation, reason)."""
@@ -1424,6 +1519,12 @@ class Planner:
             else:
                 band = best if (w % 4 != 3 or len(rot) < 2) else next(b for b in rot if b != best)
                 note = why + ("" if band == best else "; one week in four keeps rotating to watch the others")
+            half = self.partial.get(date.fromisoformat(r["date"]))
+            if half and bands[band]["post_at"] >= half["open_until"]:
+                early = [b for b in bands if bands[b]["post_at"] < half["open_until"]]
+                if early:
+                    band = max(early, key=lambda b: bands[b]["post_at"])
+                note = f"{half['name']}: open until {half['open_until']}, so it posts before then and invites nobody in after"
             r["hour_band"] = band
             r["post_time"] = bands[band]["post_at"]
             r["strategy"]["why"].append(f"Hour: {band.replace('_', ' ')} ({bands[band]['post_at']} Central): {note}")
@@ -1450,13 +1551,16 @@ class Planner:
         for r in format_tests:
             tested[id(r)] = "format"
         cap = float(self.lp["max_pattern_share_month"])
+        # video and static hooks are separate arms (STATIC_SUFFIX), so each pool carries its own 40% cap
+        pool_of = lambda r: "video" if r["kind"] in ("reel", "trial_reel") else "static"  # noqa: E731
         hook_rows = [r for r in rows if r["kind"] in ("reel", "trial_reel", "carousel", "image")]
-        limit = max(1, int(math.floor(cap * len(hook_rows) + 1e-9)))
-        week_rows: dict[str, int] = {}
+        limit_of = {pl: max(1, int(math.floor(cap * sum(pool_of(r) == pl for r in hook_rows) + 1e-9))) for pl in ("video", "static")}
+        week_rows: dict[tuple[str, str], int] = {}
         for r in hook_rows:
-            week_rows[r["strategy"]["week"]] = week_rows.get(r["strategy"]["week"], 0) + 1
-        used: dict[str, int] = {}
-        week_used: dict[tuple[str, str], int] = {}
+            key = (pool_of(r), r["strategy"]["week"])
+            week_rows[key] = week_rows.get(key, 0) + 1
+        used_of: dict[str, dict[str, int]] = {"video": {}, "static": {}}
+        week_used_of: dict[str, dict[tuple[str, str], int]] = {"video": {}, "static": {}}
         diag = self.diagnosis_bonus()
         draws = plan["_draws"]
         for r in rows:
@@ -1473,8 +1577,10 @@ class Planner:
             r["strategy"]["goal"] = goal
             chosen: list[str] = []
             if ptype != "story":
-                wk_limit = max(1, int(math.ceil(cap * week_rows.get(wk, 1) - 1e-9)))   # the 40% cap, spread over the weeks
-                hook = self.pick(r, dr, "hook", ptype, goal, var == "hook", diag, used, limit, week_used, wk_limit)
+                pl = pool_of(r)
+                used, week_used = used_of[pl], week_used_of[pl]
+                wk_limit = max(1, int(math.ceil(cap * week_rows.get((pl, wk), 1) - 1e-9)))   # the 40% cap, spread over the weeks
+                hook = self.pick(r, dr, "hook", ptype, goal, var == "hook", diag, used, limit_of[pl], week_used, wk_limit)
                 if hook:
                     used[hook] = used.get(hook, 0) + 1
                     week_used[(wk, hook)] = week_used.get((wk, hook), 0) + 1
@@ -1658,7 +1764,7 @@ def month_plan(pb: dict, fits: dict, month_text: str, seed: int | None, events: 
     year, month = sc.parse_month(month_text)
     seed = int(seed) if seed is not None else year * 100 + month
     closures = closure_dates(closures_file)
-    planner = Planner(pb, fits, year, month, seed, events, closures, posts, diagnoses)
+    planner = Planner(pb, fits, year, month, seed, events, closures, posts, diagnoses, partial_closures(closures_file))
     lam = fits["lambda"]
     tried = []
     plan = None
@@ -1799,12 +1905,18 @@ def insights(fits: dict, pb: dict) -> tuple[list[str], list[str]]:
     up = float(pb["policies"]["learning"]["promote"]["min_median_index"])
     down = float(pb["policies"]["learning"]["retire"]["max_median_index"])
     more, less = [], []
+    levels: dict[str, int] = {}
+    for var, _ in fits["arms"]:
+        levels[var] = levels.get(var, 0) + 1
     for (var, level), a in sorted(fits["arms"].items()):
         st = decision_stats(a["records"])
         if st["tries"] < ins["min_tries"] or not st["median_index"]:
             continue
         pb_ = prob_better(st["wins"], st["tries"])
+        need = float(ins["min_prob"])
         if var in VAR_LABEL:
+            # many levels are compared at once (7 weekdays, 21 format-days): Bonferroni keeps chance winners out
+            need = 1 - (1 - need) / max(1, levels.get(var, 1))
             label = level_text(var, level).capitalize()
             base = "the feed median" if var in ("format", "format_day") else "Numa's median"
         else:
@@ -1816,9 +1928,9 @@ def insights(fits: dict, pb: dict) -> tuple[list[str], list[str]]:
                 (" on carousels and images" if level.endswith(STATIC_SUFFIX) else "") + f" ({pid})"
             base = "Numa's median" if not level.startswith(TRIAL) else "the Trial Reel median"
         line = f"{label}: beat {base} in {st['wins']} of {st['tries']} posts, median {st['median_index']:.2f}x."
-        if pb_ >= ins["min_prob"] and st["median_index"] >= up:
+        if pb_ >= need and st["median_index"] >= up:
             more.append(line)
-        elif 1 - pb_ >= ins["min_prob"] and st["median_index"] <= down:
+        elif 1 - pb_ >= need and st["median_index"] <= down:
             less.append(line)
     collab = [p for p in fits["cohorts"].get("collab", []) if p["score"] is not None and p["status"] == "final"]
     if len(collab) >= ins["min_tries"]:
@@ -2482,10 +2594,11 @@ class Importer:
         examples = split_examples(f.get("examples", []))
         good, bad = [], []
         for ex in examples:
-            hits = [h for h in claims_scan.scan_text(ex, where=f"{where} example") if h.severity == "fail"]
+            hits = [h.line() for h in claims_scan.scan_text(ex, where=f"{where} example") if h.severity == "fail"]
+            hits += name_hits(ex, f"{where} example", founder_names())     # only the co-founders may be named
             (bad if hits else good).append((ex, hits))
         for ex, hits in bad:
-            self.reject(f"{where} example \"{ex[:50]}\"", hits[0].line())
+            self.reject(f"{where} example \"{ex[:50]}\"", hits[0])
         good_ex = [ex for ex, _ in good][:6]
         ev = parse_evidence(" ".join(f.get("evidence", [])) + " " + " ".join(f.get("confidence", [])), fname, f.get("sources", []))
         existing = pid if pid in self.ids else (self.aliases.get(pid) or self.names.get((kind, norm_text(name))))
@@ -2493,9 +2606,10 @@ class Importer:
             self.merge(existing, good_ex, ev, fname)      # sources and safe examples only
             return
         template = " ".join(f.get("template", [])).strip() or name
-        t_hits = [h for h in claims_scan.scan_text(template, where=f"{where} template") if h.severity == "fail"]
+        t_hits = [h.line() for h in claims_scan.scan_text(template, where=f"{where} template") if h.severity == "fail"]
+        t_hits += name_hits(template, f"{where} template", founder_names())
         if t_hits:
-            self.reject(where, t_hits[0].line())
+            self.reject(where, t_hits[0])
             return
         if not good_ex:
             self.reject(where, "no claims-safe example left")
@@ -2683,6 +2797,10 @@ def guardrails(mon: date, sun: date, plan: dict) -> list[str]:
     closed = [c for c in plan.get("closures", []) if mon.isoformat() <= str(c.get("date") if isinstance(c, dict) else c) <= sun.isoformat()]
     if closed:
         lines.append("Closed this week: " + ", ".join(f"{c['date']} ({c.get('name') or 'closed'})" if isinstance(c, dict) else str(c) for c in closed))
+    half = [c for c in plan.get("partial_closures", []) if mon.isoformat() <= c["date"] <= sun.isoformat()]
+    if half:
+        lines.append("Half day this week: " + ", ".join(f"{c['date']} ({c['name']}, open until {c['open_until']}; "
+                                                         "nothing that invites people in after then)" for c in half))
     return lines
 
 

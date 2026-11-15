@@ -1,5 +1,5 @@
 ---
-description: Auto-posting (addition #11) - posts reels, carousels and photos to Instagram through Composio at the best time, then Facebook, with the legal-review gate, the off-by-default approval switch, the AI label, Trial Reels and collab invites, marks the Sheet row Posted and schedules the insight pulls
+description: Auto-posting (addition #11) - posts reels, carousels and photos to Instagram through Composio at the best time, then Facebook, only after a person approves each post (the human-approval gate, DECISIONS D26) and a shown member's yes, the AI label, Trial Reels and collab invites, marks the Sheet row Posted and schedules the insight pulls
 argument-hint: "JOB [publish] | queue (JOB = the job folder make-reel step 13 or /build-today hands over: a reel, carousel or photo)"
 model: opus
 ---
@@ -33,9 +33,9 @@ Every script then reads brand facts, claims, consent and closures from it. When 
 |---|---|---|
 | 1 | `POST` status is `published` | Already posted: log it, stop. Never post the same reel twice. |
 | 2 | `posting.auto_post.value` is false | Sheet row "Ready to post"; final message "Ready to post: <title> is in Finished/ with its caption." Stop. |
-| 3 | `posting.legal_review_done.value` is false | **Stage** (section 2, steps 1-3 only; no public link), `POST` status `staged_legal`, row "Ready to post". Escalate to brand.json `escalation.contact` once (section 8; at most once every 7 days per `STATE/escalations.json`). Stop. Reels staged during the hold stay for manual posting; auto-posting starts with the first reel after the gate opens. |
-| 4 | The approval switch `posting.require_approval.value` is true (off by default), or the reel's type is in `posting.see_first.value` (offer = plan row `sales` true; members = any plan shot with `people: true`; collab = plan row `collab`; event = plan row `event`) | **Hold**: stage (section 2), `POST` status `held`, row "Ready to post"; final message "Ready to post: <title> (held by the posting setting) is in Finished/ with its caption; it goes up when it is published from the app." This is the only place the switch acts; it never turns into a question. |
-| 5 | Otherwise | Post it (sections 2-7). |
+| 3 | **Human approval** (DECISIONS D26): `posting.human_approval_required.value` or `posting.require_approval.value` is true, or the post's type is in `posting.see_first.value` (offer = plan row `sales` true; members = any plan shot with `people: true`; collab = plan row `collab`; event = plan row `event`) | Re-read the plan Sheet row now (never a cached copy). **Approved** = its Status is `Approved` or `Approved - <name or initials>`, set by a person. Approved: record `POST` `approval` = {`by`: the name or initials after "Approved - ", else the Sheet's last modifying user from the Drive file metadata; `at`: that file's `modifiedTime` when it is the approving edit, else the time this run first saw the row Approved; `source`: "plan Sheet row"} and go on to gate 4. Not approved: **Hold**: stage (section 2), `POST` status `held_for_approval`, row "Ready to post", and add the post to `STATE/digest_notes.json` `awaiting_approval`; final message "Ready to post: <title> is staged and waits for a person to mark its plan row Approved." Never a question, never an escalation. |
+| 4 | **Member's yes**: `posting.member_yes_required.value` is true and the post may show a member (any plan shot with `people: true`; for carousels and photos see section 12) | Every member shown must have a consent status of yes with a scope that covers this new post in `STATE/people.json` (or the Consent List row): `one_existing_post_only`, `no`, `unknown` or a child (until the owners decide) all fail. Missing yes: **Hold** as in gate 3 with `POST` status `held_member_yes` and the reason in the digest notes. |
+| 5 | Otherwise | Post it (sections 2-7). The approval in `POST` `approval` goes into the run log and the Sheet row's note. |
 
 ## 2. Stage the post
 
@@ -107,7 +107,7 @@ The copy file's `MUSIC:` line asking for a Sound Collection track at posting fol
 
 ## 8. Errors, retries and Jude-only escalations
 
-Send each escalation as one line to brand.json `escalation.contact` through `escalation.channel` (read from `STATE/brand.json`; an email address goes by Gmail when connected, anything else or no Gmail goes as the run's notification), at most once a day per kind (once every 7 days for the legal review), dated in `STATE/escalations.json`. Never to Katie.
+Send each escalation as one line to brand.json `escalation.contact` through `escalation.channel` (read from `STATE/brand.json`; an email address goes by Gmail when connected, anything else or no Gmail goes as the run's notification), at most once a day per kind, dated in `STATE/escalations.json`. Never to Katie.
 
 | Error | What to do |
 |---|---|
@@ -141,7 +141,7 @@ The reel is live on Instagram with the right settings (label, Trial, collab) and
 
 ## 12. Carousels and single photos (R333, R335)
 
-Same gates (section 1, in that order: `posting.auto_post.value`, `posting.legal_review_done.value`, the approval switch `posting.require_approval.value`, the `posting.see_first.value` types), same posting time (section 3), same errors and queue (sections 8-9), same AI-label rule (section 6). Never ask Katie anything; a carousel or photo that cannot go out stays "Ready to post" with its files in `Finished/`. For the see-first types, "members" means any slide that may show a person: every photo_post.py slide whose `people_basis` (in `work/photo_post.json`) is anything other than `people_free_flag` or `library_tag_no`, and any component slide whose photo shows a person when you LOOK at it.
+Same gates (section 1, in that order: `posting.auto_post.value`, human approval on the plan Sheet row (`posting.human_approval_required.value`, `posting.require_approval.value`, the `posting.see_first.value` types), the member's yes (`posting.member_yes_required.value`)), same posting time (section 3), same errors and queue (sections 8-9), same AI-label rule (section 6). Never ask Katie anything; a carousel or photo that cannot go out stays "Ready to post" with its files in `Finished/`. For the see-first types, "members" means any slide that may show a person: every photo_post.py slide whose `people_basis` (in `work/photo_post.json`) is anything other than `people_free_flag` or `library_tag_no`, and any component slide whose photo shows a person when you LOOK at it.
 
 **1. The slides.** Photo carousels are built from a folder of photos, not only from a reel (R333): pick 2-10 photos (the day's Drive `drive.photos` folder, else the media library, else the bundled brand photos), then
 ```

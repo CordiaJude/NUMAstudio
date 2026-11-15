@@ -275,3 +275,33 @@ def test_import_stores_deltas_so_bundled_fixes_still_apply(tmp_path):
     merged = S.load_playbook(str(pbdir), state)["patterns"]["temp-split"]
     assert merged["template"] == "A later plugin fix to this template."
     assert "https://example.org/hooks-2026" in merged["evidence"]["sources"]
+
+
+def test_playbook_names_only_the_co_founders():
+    pb = S.load_playbook(None, None)
+    assert S.playbook_name_problems(pb) == []
+    allowed = S.founder_names()
+    assert {"Scott", "Katie"} <= allowed
+    assert S.name_hits("Meet Katie, our co-founder.", "x", allowed) == []
+    for text in ("Breathe with Robin for 30 seconds.", "Meet Robin, one of our guides.", "Robin's breathwork for guys"):
+        assert S.name_hits(text, "x", allowed), text
+    assert S.name_hits("Breathe with [guide name] for 30 seconds.", "x", allowed) == []
+    bad = json.loads(json.dumps(pb["patterns"]["breathe-along"]))
+    bad["examples"] = ["Breathe with Robin for 30 seconds."]
+    pb["patterns"]["breathe-along"] = bad
+    errs, _ = S.playbook_problems(pb)
+    assert any("Robin" in e for e in errs)
+
+
+def test_half_day_closure_posts_early_and_invites_nobody_after():
+    half = S.partial_closures(None)
+    assert half[date(2026, 12, 31)] == {"name": "New Year's Eve", "open_until": "12:00"}
+    pb, posts, fits = fits_for({"reels": {}})
+    plan, v = S.month_plan(pb, fits, "2026-12", None, [], None, posts, [])
+    assert v == [] and plan["partial_closures"] == [{"date": "2026-12-31", "name": "New Year's Eve", "open_until": "12:00"}]
+    nye = [r for r in plan["rows"] if r["date"] == "2026-12-31"]
+    assert nye and all(not (r.get("sales") or r.get("invites")) for r in nye)
+    assert all(r["post_time"] < "12:00" for r in nye if r.get("post_time"))
+    assert date(2026, 12, 31) not in S.closure_dates(None)          # a half day is not a full closure
+    lines = S.guardrails(date(2026, 12, 28), date(2027, 1, 3), plan)
+    assert any("Half day" in x and "12:00" in x for x in lines)

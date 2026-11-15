@@ -340,8 +340,11 @@ def test_hook_cap_holds_in_every_month(sim, tmp_path):
     pb, posts, fits = fits_for(store, state, date(2026, 6, 21))
     for month in ("2026-07", "2026-08"):
         plan, v = S.month_plan(pb, fits, month, None, [], None, posts, [])
-        hooks = [x for r in plan["rows"] for x in r.get("pattern_ids", []) if pb["patterns"][x]["kind"] == "hook"]
-        assert v == [] and max(hooks.count(h) for h in set(hooks)) <= int(0.4 * len(hooks))
+        assert v == []
+        for video in (True, False):                                # video and static hooks are separate arms, capped apart
+            rows = [r for r in plan["rows"] if (r["post_type"] in ("reel", "trial_reel")) == video]
+            hooks = [x for r in rows for x in r.get("pattern_ids", []) if pb["patterns"][x]["kind"] == "hook"]
+            assert not hooks or max(hooks.count(h) for h in set(hooks)) <= max(1, int(0.4 * len(hooks)))
 
 
 def test_learn_cli_changelog_and_insights(sim, tmp_path):

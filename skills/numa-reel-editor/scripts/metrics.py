@@ -2,7 +2,7 @@
 """Instagram metrics store for the performance loop (spec p.47, DECISIONS D7: metrics.json).
 
 Usage:
-    metrics.py ingest   --store FILE --reel ID --pull 48h|72h|7d --data INSIGHTS_JSON [--tags TAGS_JSON]
+    metrics.py ingest   --store FILE --reel ID --pull 12h|22h|48h|72h|7d|14d|30d --data INSIGHTS_JSON [--tags TAGS_JSON]
                         [--pulled-at ISO]
     metrics.py account  --store FILE --data USER_INSIGHTS_JSON [--date YYYY-MM-DD]
     metrics.py tag      --store FILE --reel ID --tags TAGS_JSON

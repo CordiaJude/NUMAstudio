@@ -48,7 +48,7 @@ Closure day (`STATE/closures.json`): make-reel failure row F13 first; nothing th
 ## 3. Deliver and mark the row (R173, R263)
 
 1. Everything in `JOB/out/` goes to the day folder's `Finished/` (make-reel step 13).
-2. Sheet Status: `Ready to post` and the Reel link (the Finished/ file link). Posting happens per make-reel step 13, and the status becomes `Posted`, only when **the plan row is Approved by a person** (DECISIONS D26: nothing goes out without a person approving it) and brand.json `posting.auto_post.value` and `posting.legal_review_done.value` are both true. Not approved: the post stays staged as `Ready to post` and the digest lists it; nothing posts and nothing is asked.
+2. Sheet Status: `Ready to post` and the Reel link (the Finished/ file link). Posting happens per make-reel step 13, and the status becomes `Posted`, only when **the plan row is Approved by a person** (DECISIONS D26: nothing goes out without a person approving it) and brand.json `posting.auto_post.value` is true (post-reel records who approved it and when). Not approved: the post stays staged as `Ready to post` and the digest lists it; nothing posts and nothing is asked.
 3. Rescheduled day (make-reel "Reschedule"): the row moves, status back to `Ready to build`, and a line goes to `STATE/digest_notes.json` `heads_ups`.
 4. **Phone notification:** the run's final message is make-reel's delivery note (section 6), headed "NUMA reel ready: Day NN - Title". The scheduled task has notifications on (docs/SCHEDULED_TASKS.md), so it reaches Katie's phone. It is a statement, never a question.
 

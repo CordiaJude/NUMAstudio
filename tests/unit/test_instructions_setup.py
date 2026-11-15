@@ -348,19 +348,22 @@ def test_post_reel_composio_tools(texts, config):
 
 def test_post_reel_gates_and_flow(texts, brand):
     t = texts["post-reel"]
-    for key in ("posting.auto_post.value", "posting.legal_review_done.value",
-                "posting.require_approval.value", "posting.see_first.value"):
+    # owners' answers (2026-11-13, DECISIONS D26): the lawyer gate is gone; human approval, then the member's yes
+    keys = ("posting.auto_post.value", "posting.human_approval_required.value", "posting.require_approval.value",
+                "posting.see_first.value", "posting.member_yes_required.value")
+    for key in keys:
         assert f"`{key}`" in t and resolve(brand, key), key
-    gates = [t.find(k) for k in ("`posting.auto_post.value`", "`posting.legal_review_done.value`",
-                                 "`posting.require_approval.value`")]
+    gates = [t.find(f"`{k}`") for k in keys if k != "posting.see_first.value"]
     assert gates == sorted(gates)
+    assert "legal_review_done" not in t and "staged_legal" not in t
+    assert "Approved" in t and "held_for_approval" in t and "`approval`" in t
     # owners' answers (2026-11-13, DECISIONS D26): nothing goes out without a person approving it, and the
     # lawyer review is waived (kept as an open gate so post-reel's legacy gate 3 doesn't block)
     assert brand["posting"]["require_approval"]["value"] is True
     assert brand["posting"]["human_approval_required"]["value"] is True
     assert brand["posting"]["legal_review_done"]["value"] is True
     assert brand["posting"]["legal_review_done"]["waived"] is True
-    for needle in ["off by default", "escalation.contact", "`instagram.publishing_limit_per_24h`",
+    for needle in ["held_for_approval", "escalation.contact", "`instagram.publishing_limit_per_24h`",
                    "`instagram.container_max_age_hours`", "never reuse", "`instagram.publish_wait_minutes`",
                    "sleep 180", "Composio file staging", "Drive public link", "video/mp4", "publicly fetchable",
                    "`posting.posting_time`", "5:00 pm Central", "Facebook", "Meta Business Suite",
@@ -470,8 +473,9 @@ def test_post_reel_image_tools_and_fields(texts):
 
 def test_post_reel_image_gates_and_rules(texts, brand, config):
     sec = _section12(texts)
-    gates = [sec.find(f"`{k}`") for k in ("posting.auto_post.value", "posting.legal_review_done.value",
-                                           "posting.require_approval.value", "posting.see_first.value")]
+    gates = [sec.find(f"`{k}`") for k in ("posting.auto_post.value", "posting.human_approval_required.value",
+                                           "posting.require_approval.value", "posting.see_first.value",
+                                           "posting.member_yes_required.value")]
     assert all(g >= 0 for g in gates) and gates == sorted(gates)
     for key in ("instagram.publishing_limit_per_24h", "instagram.container_max_age_hours", "instagram.graph_api_version"):
         assert f"`{key}`" in sec and resolve(config, key), key

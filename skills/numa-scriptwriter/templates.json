@@ -431,7 +431,7 @@
       "id": "event_recap",
       "name": "Event recap",
       "kind": "template",
-      "what": "The night after an event (Numa Nights, Clinical Conversations): the arrival, the peak, the people, thank you and what's next. Within 2 days of the event.",
+      "what": "The night after an event (Numa Nights, Community Days): the arrival, the peak, the people, thank you and what's next. Within 2 days of the event.",
       "example_hook": "Last night at Numa Nights.",
       "arc": [
         {

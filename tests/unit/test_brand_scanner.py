@@ -1,7 +1,7 @@
 """claims_scan.py with the owners' rules (setup answers 2026-11-13, DECISIONS D25).
 
 Name casing, the owners' never-words, emojis, private and unconfirmed offers, facts Numa must not
-state, the owner-confirmed claims, the dosing line kept blocked with "source pending (Scott)", and
+state, the owner-confirmed claims, the dosing line kept blocked with "source pending", and
 no false positives on Numa's own everyday copy.
 """
 from __future__ import annotations
@@ -132,9 +132,9 @@ def test_brand_rules_carry_their_own_rewrite_and_kind():
 
 def test_dosing_line_reason_is_source_pending(nc):
     hits = [h for h in cs.scan_text("57 minutes of sauna and 11 of cold a week") if h.rule == "dosing_line"]
-    assert hits and "source pending (Scott)" in hits[0].label
+    assert hits and "source pending" in hits[0].label
     dl = nc.load_brand()["claims"]["dosing_line"]
-    assert dl["blocked"] is True and dl["reason"] == "source pending (Scott)"
+    assert dl["blocked"] is True and dl["reason"] == "source pending"
 
 
 def test_fda_cleared_needs_a_confirmed_clearance(nc, tmp_path, monkeypatch):
@@ -164,3 +164,42 @@ def test_cli_fails_on_owner_rules(run_script):
     assert r.returncode == 1 and "wrong_offer_name" in r.stderr + r.stdout
     r = run_script("claims_scan.py", "Take a deep breath. Return to yourself.")
     assert r.returncode == 0, r.stderr
+
+
+# --------------------------------------------------------------------------- review round 2 (M3)
+M3_FAIL = [
+    ("Cure your Monday stress", "cures"), ("cure the winter blues", "cures"),
+    ("A healing session", "heals"), ("Sweat out last night", "alcohol_recovery"),
+    ("Plunge away last night's drinks", "alcohol_recovery"), ("Steam off the booze", "alcohol_recovery"),
+    ("Plunges run 34 to 52°F", "plunge_temp_34"), ("The plunge was 34º", "plunge_temp_34"),
+    ("The plunge was 34˚", "plunge_temp_34"),
+    ("Fifty percent off", "half_off"), ("NEWBIEs welcome", "newbie_code"),
+    ("The sauna fits fourteen", "sauna_capacity"), ("Our sauna seats a dozen", "sauna_capacity"),
+    ("Room for 14 people in the heat", "sauna_capacity"),
+    ("TAKE A DEEP BREATH AT NUMA", "name_casing"),
+]
+
+
+@pytest.mark.parametrize("text, rule", M3_FAIL)
+def test_review_gaps_fail(text, rule):
+    assert rule in fails(text), (text, fails(text))
+
+
+M3_WARN = [
+    ("Hangover Sunday", "hangover"), ("Feeling hungover?", "hangover"),
+    ("#1 in Mobile", "superlative"), ("Mobile's best sauna", "superlative"),
+    ("Plunges at 39-52°F", "plunge_temp_low"),
+]
+
+
+@pytest.mark.parametrize("text, rule", M3_WARN)
+def test_review_gaps_warn(text, rule):
+    assert rule in warns(text), (text, warns(text))
+    assert fails(text) == [], (text, fails(text))
+
+
+@pytest.mark.parametrize("text", ["credits roll", "The end credits roll at 9.", "TAKE A DEEP BREATH. RETURN TO YOURSELF.",
+                                  "CALM IN THE CHAOS", "SHOW UP FOR YOURSELF", "Meet our neighbors at Healing Arts.",
+                                  "The cure for Monday: three minutes of cold."])
+def test_review_gaps_no_false_fail(text):
+    assert fails(text) == [], (text, fails(text))

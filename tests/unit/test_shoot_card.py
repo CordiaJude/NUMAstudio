@@ -25,8 +25,8 @@ TITLES = ["Why we plunge", "Sauna vs infrared", "Gulf water in winter", "Plunge 
           "What red light does", "Your first plunge", "Cold snap calm", "Sweat there recover here",
           "Numa Nights tease", "Numa Nights recap", "Contrast flow basics", "Member moment", "Midtown mornings",
           "Steam and stillness", "Desk breath reset", "Heat then cold", "Plunge buddy", "New Year reset",
-          "Meet Kandi", "Four count breath", "Sauna etiquette", "The front door", "Year in review",
-          "Free Flow explained", "Hold the exhale", "Breath before bed"]
+          "Meet the massage provider", "Four count breath", "Sauna etiquette", "The front door", "Year in review",
+          "Flow Space explained", "Hold the exhale", "Breath before bed"]
 
 SPEC_EXAMPLE = {
     "day": 9, "date": "2026-12-09", "title": "Your first plunge", "series": "first_plunge", "pillar": "community",
@@ -90,7 +90,7 @@ def december() -> dict:
         r["folder"] = sc.day_folder(r["day"], date.fromisoformat(r["date"]), r["title"])
     rows = {r["day"]: r for r in sk["rows"]}
     rows[11].update(collab="Mission Fitness")
-    rows[25].update(series="meet_the_collective", collab="Kandi Roemhildt", pillar="collective_collabs")
+    rows[25].update(series="meet_the_collective", collab="the massage provider", pillar="collective_collabs")
     rows[16].update(template="transformation", signature=True)
     rows[10].update(event="Numa Nights", event_role="teaser", template="event_teaser", goal="offer", sales=True,
                     pillar="offers_events", cta="Friday 7 pm. Book your spot.")
@@ -275,13 +275,13 @@ def test_card_for_non_reel_days(tmp_path, capsys, kind):
 
 def test_card_voice_reader_and_capture_moment(tmp_path, capsys):
     s = copy.deepcopy(SPEC_EXAMPLE)
-    s["voiceover_by"] = "Fallon Gleason"
+    s["voiceover_by"] = "a breathwork guide"
     s["shots"][0]["during"] = "Numa Nights"
     s["music"] = {"mood": "warm, slow", "bpm": [70, 80], "source": "library", "track": "calm_72_ember.mp3"}
     out = tmp_path / "cards" / "SHOOT CARD.txt"
     assert run(["card", write(tmp_path, s, "row.json"), "--out", str(out)]) == 0
     text = out.read_text(encoding="utf-8")
-    assert "READ THIS OUT LOUD (Fallon Gleason reads this)" in text
+    assert "READ THIS OUT LOUD (a breathwork guide reads this)" in text
     assert "(during Numa Nights; line 1)" in text
     assert 'Music Library "calm_72_ember.mp3"' in text
 
@@ -465,6 +465,17 @@ def test_rule8_closures_from_file_csv_and_plan(tmp_path, capsys):
     assert violations(tmp_path, capsys, p)[0] == 0
     p["closures"] = ["2026-12-10"]  # the teaser invites people in
     assert rules(violations(tmp_path, capsys, p)[1]) == {"8-closure"}
+
+
+def test_rule8_half_day_from_brand_partial_closures():
+    """brand.json closures.partial (New Year's Eve, open until 12:00): an invite that day is a WARN, not an error."""
+    assert sc.partial_closures()[date(2026, 12, 31)] == "New Year's Eve, open until 12:00"
+    plan = _loaded(december())
+    v, w, _ = sc.check_plan(plan, {}, {date(2026, 12, 10): "Half day, open until 12:00"})  # day 10 invites people in
+    assert "8-closure" not in {x["rule"] for x in v}
+    assert any("half day (Half day, open until 12:00)" in x for x in w), w
+    v, w, _ = sc.check_plan(plan, {}, {})
+    assert not any("half day" in x for x in w)
 
 
 def test_rule9_batch_sessions(tmp_path, capsys):

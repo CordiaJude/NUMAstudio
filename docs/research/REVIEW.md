@@ -23,7 +23,7 @@ Seven deep-research reports (R1–R7) seed the playbook. They are good on mechan
 
 - **No quote cards, designed flyers or posters.** These were Numa's flops. Member words go in the caption or over a real photo of that member, never as a standalone text card. R1 `member-experience-voice`, R4 C7/P6 and any "quote" component slide are photo-led only.
 - **No emojis** anywhere (R3 hooks such as "❌✅", "⏱", "👀", "🌙" lose the emoji).
-- **No trending or popular songs.** R1 `trend-audio-sync` and R3 "trending audio" become licensed library music or original sound (the real splash). Music source is still open (owner: Emma).
+- **No trending or popular songs.** R1 `trend-audio-sync` and R3 "trending audio" become licensed library music or original sound (the real splash). Music source is still open (owner: the social media lead).
 - **No salesy lines, fear, pressure or shaming, nothing that makes Numa the hero, no "optimized" talk.** "Recoverymaxxing" performed well but is a one-off; don't build a hook family on "-maxxing".
 - **Words.** Always: take a deep breath, calm in the chaos, show up, rhythm, return to yourself, Visit Passes. OK: transformation, transformative, journey (experience sense only). Never: NUMA, credits, Explore Numa, Discover Pass, cheap, heal, treats, cures.
 - **Claims (owner-confirmed):** never treats/heals/cures/prevents; no promised results; red light "supports"/"improves", never "restores elasticity"; no sauna-clears-alcohol; no plunge-lowers-inflammation; never "is HSA/FSA eligible"; no competitor comparisons. The "57 minutes sauna, 11 minutes cold" line is owner-approved; it stays out of posts until its source is recorded (open, owner: Scott).

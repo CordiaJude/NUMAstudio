@@ -243,7 +243,7 @@ def test_business_facts_r145(brand):
     assert biz["location"]["value"]["address"] == "1719 Dauphin St, Mobile, AL 36604"
     assert biz["facility"]["value"]["cold_plunge_tubs"] == 4
     # owners' answers 2026-11-13 (Q3, Q4, Q42, Q43): capacity unconfirmed, real prices, one phone
-    assert "Finnish sauna" in biz["facility"]["value"]["sauna"] and "14" not in biz["facility"]["value"]["sauna"]
+    assert biz["facility"]["value"]["sauna"].startswith("a sauna") and "14" not in biz["facility"]["value"]["sauna"]
     assert [f["name"] for f in biz["founders"]["value"]] == ["Scott Moore", "Katie Moore"]
     assert biz["booking"]["value"]["platforms"] == ["Mindbody", "the Numa Wellness Collective app"]
     assert "trial_page" not in biz["booking"]["value"]  # owners: the one link is the bio link
@@ -333,7 +333,7 @@ def test_brand_voice_lines_pass_the_scanner(brand, text):
     ("A little treat after work.", None),
     ("Cold brew and summer treats at the front desk.", "treat_ambiguous"),
     ("The cure for Monday: three minutes of cold.", "cure_ambiguous"),
-    ("Meet our neighbors at Healing Arts.", "healing_ambiguous"),
+    ("Meet our neighbors at Healing Arts.", None),  # "healing" now fails (owners); the proper name is in allow_exact
     ("Grip mats help prevent slipping.", "prevent_ambiguous"),
     ("Our guides are trauma-informed.", None),
     ("Hormone-free snacks after class.", None),

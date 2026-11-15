@@ -4,7 +4,7 @@
 
 These 51 questions are the only ones Numa Studio asks the owners (spec p.54-57). The owners answered them on **2026-11-13**; every answer is now brand data in `brand/brand.json` (or, for people and consent, the private `STATE/people.json`), and those answers override research and earlier defaults (DECISIONS D25). This page records what each answer became and what is still open.
 
-- **Public page.** It names only roles plus the co-founders (and, as question owners, Emma and Jodie). Staff, instructor, provider and member names, on-camera status, collab handles and consent details live in `STATE/people.json` (Drive `_Plan/people.json`), never in this repo.
+- **Public page.** It names only roles plus the co-founders (other people appear by role: "the social media lead", "another team member"). Staff, instructor, provider and member names, on-camera status, collab handles and consent details live in `STATE/people.json` (Drive `_Plan/people.json`), never in this repo.
 - **Open questions** are answered by the owner named on each one. Jude enters answers with `/brand-setup`; until then the crew follows the "Until answered" rule.
 - Under each question, "Fills" is where the answer is stored.
 
@@ -21,18 +21,19 @@ These 51 questions are the only ones Numa Studio asks the owners (spec p.54-57).
 | Q16 | Black Friday membership BOGO: "equal or lesser value" or "equal or greater"? | Scott and Katie |
 | Q16 | Black Friday membership BOGO: who cancels a gifted membership after the month, staff or the friend? (staff is safer) | Scott and Katie |
 | Q17 | Logo files (every colour version exists; none supplied yet) | Scott and Katie |
-| Q18 | More accounts you like | Emma or Jodie |
+| Q18 | More accounts you like | the social media lead or another team member |
 | Q20 | "Offer" or "deal"? | Scott and Katie |
-| Q23 | Music: source and taste | Emma |
+| Q23 | Music: source and taste | the social media lead |
 | Q27 | Children: never, or only with a parent's yes on record? | Scott and Katie |
-| Q32 | Instagram: Business or Creator account, Facebook Page link, admin | Scott or Emma |
+| Q32 | Instagram: Business or Creator account, Facebook Page link, admin | Scott or the social media lead |
 | Q33 | Who owns the Google Drive, Google Business Profile and Higgsfield accounts | Scott and Katie |
 | Q38 | Monday digest delivery: email, text, or the Claude app? | Scott and Katie |
-| Q42 | The sauna's capacity | Scott |
+| Q42 | The sauna's type and capacity ("14-person Finnish" is not confirmed) | unassigned |
 | Q45 | Ask the DPT: on camera? Topics, and never-comment topics | Katie |
 | Q46 | Red light panel: FDA-cleared, and for what? | Scott and Katie |
-| Q47 | Source of "57 minutes sauna, 11 minutes cold" for the Doc 04 science table | Scott |
+| Q47 | Source of "57 minutes sauna, 11 minutes cold" for the Doc 04 science table | unassigned |
 | Q49 | AMP agreement: posting terms | Scott and Katie |
+| Q49 | Follow up with the University of South Alabama soccer and other athletic teams (the partnership ended) | Scott and Katie |
 | Q50 | Student and over-60 offers | Scott and Katie |
 
 ## Open questions from the plugin
@@ -41,7 +42,7 @@ These 51 questions are the only ones Numa Studio asks the owners (spec p.54-57).
 |---|---|---|---|
 | Who approves each post, and how: a checkbox on the plan Sheet, a reply, or a Meta Business Suite draft? | Scott and Katie | `posting.approver` | posts are staged, never posted, until approved (DECISIONS D26) |
 | May a generic, non-cloned AI voice read the lines when Scott hasn't recorded? | Scott and Katie | `voice.generic_ai_allowed` | no AI voice: music plus on-screen text |
-| Where does the music come from (library, licence)? | Emma | `posting.music_source` | licensed library music or the real sound |
+| Where does the music come from (library, licence)? | the social media lead | `posting.music_source` | licensed library music or the real sound |
 | Where is Doc 04 (the consent log)? A Drive link. | Scott and Katie | `consent.log` | the _Plan Consent List is the copy the crew checks |
 | Does a person's yes cover sending their face to AI motion? | Scott and Katie | `consent.ai_processing_covered` | no member face goes to AI motion |
 | Do licensed brand font files (Domaine Sans Text Light, Avenir Next) exist on the Mac for local renders? | Scott and Katie | `fonts.brand_fonts` | the bundled open stand-ins |
@@ -92,7 +93,7 @@ _Answer (2026-11-13):_ Numa Nights and Community Days are special events, about 
 _Fills:_ `team.collective`, `team.on_camera`  
 _Status:_ Answered  
 
-_Answer (2026-11-13):_ Co-founders Scott and Katie Moore, plus a yoga teacher, two breathwork guides, studio staff, the person who posts to social (Emma), two counselors, a massage therapist, an esthetician and a partner physician. Names and who may be featured are in the private STATE/people.json, not in this repo. On camera: Scott, Katie, instructors and staff, and members who say yes.
+_Answer (2026-11-13):_ Co-founders Scott and Katie Moore, plus a yoga teacher, two breathwork guides, studio staff, the social media lead, two counselors, a massage therapist, an esthetician and a partner physician. Names and who may be featured are in the private STATE/people.json, not in this repo. On camera: Scott, Katie, instructors and staff, and members who say yes.
 
 **8.** The founding story in your words: why NUMA, the old house, the opening date, the hardest moment.  
 _Fills:_ `business.founding_story`  
@@ -163,7 +164,7 @@ _Answer (2026-11-13):_ Dark Teal #06272E, Tan/Gold #CA8B3A, Beige #F2EADB, Light
 
 **18.** Show us 3 Instagram accounts whose videos you love, and say what you love about each.  
 _Fills:_ `voice.inspiration_accounts`  
-_Status:_ Partly open (owner: Emma or Jodie)  
+_Status:_ Partly open (owner: the social media lead or another team member)  
 
 _Answer (2026-11-13):_ An adviser likes The Home Spruce on Instagram for its simple, clear messaging. Videos and real people perform best for Numa. Open: more examples.
 
@@ -194,7 +195,7 @@ _Answer (2026-11-13):_ None. The claims scanner flags any emoji.
 
 **23.** Music you picture under NUMA videos (calm piano, ambient, acoustic, upbeat), and anything you never want.  
 _Fills:_ `voice.music_taste`  
-_Status:_ Open (owner: Emma)  
+_Status:_ Open (owner: the social media lead)  
 _Until answered:_ licensed library music or the real sound  
 
 _Answer (2026-11-13):_ Music source and taste. Never trending or popular songs.
@@ -256,7 +257,7 @@ _Answer (2026-11-13):_ Never film counseling rooms when clients are in them or w
 
 **32.** Is NUMA's Instagram a Business or Creator account, and is it linked to the Facebook Page? Who's the admin?  
 _Fills:_ `socials.instagram_account`, `socials.facebook`  
-_Status:_ Partly open (owner: Scott or Emma)  
+_Status:_ Partly open (owner: Scott or the social media lead)  
 _Until answered:_ /numa-setup step 3 reads the account type  
 
 _Answer (2026-11-13):_ @numawellnessmobile; posts go out through Meta Business Suite to Instagram and Facebook. Open: Business or Creator account, the Facebook Page link, and who the admin is.
@@ -265,7 +266,7 @@ _Answer (2026-11-13):_ @numawellnessmobile; posts go out through Meta Business S
 _Fills:_ `business.account_owners`, `socials.google_business_profile`  
 _Status:_ Partly open (owner: Scott and Katie)  
 
-_Answer (2026-11-13):_ The Numa Wellness account, owned by Emma and Scott. Open: who owns the Google Drive, the Google Business Profile and Higgsfield.
+_Answer (2026-11-13):_ The Numa Wellness account, owned by Scott and the social media lead (the account co-owner). Open: who owns the Google Drive, the Google Business Profile and Higgsfield.
 
 **34.** Should reels post automatically, or land ready-to-post for someone to publish? (Default: post automatically.)  
 _Fills:_ `posting.auto_post`  
@@ -322,7 +323,7 @@ _Answer (2026-11-13):_ 807 followers on Aug 31, 2026; usual reach 400-700 views 
 
 **42.** Are these right: 1719 Dauphin St; a 14-person Finnish sauna; 4 cold plunges; opening 5:30 AM Monday to Thursday? What temperature are the plunges and the sauna?  
 _Fills:_ `business.location`, `business.facility`, `business.hours`, `business.temperatures`  
-_Status:_ Partly open (owner: Scott)  
+_Status:_ Partly open (owner: unassigned)  
 _Until answered:_ never state a sauna capacity  
 
 _Answer (2026-11-13):_ 1719 Dauphin St and 4 cold plunges: correct. Opens 5:30am Mon, Tue, Wed and Fri; Thursday 6:00am. Plunges are kept at 44-52°F (a 34° dip is rare: never state it). Sauna runs 175-190°F. Open: the sauna's capacity ("14-person" is not confirmed).
@@ -333,7 +334,7 @@ _Status:_ Answered
 
 _Answer (2026-11-13):_ 251-310-3656, everywhere.
 
-**44.** Is the team list right: counselors Scott Moore, LaJuan Humbert (LPC) and Matt Henson (ALC); massage Kandi Roemhildt; facials Natalia Lichtenberger; breathwork guides Fallon Gleason and Joseph Irby? Who would do collab posts?  
+**44.** Is the team list right: counselors (Scott Moore, an LPC and an ALC); a massage provider; an esthetician (facials); two breathwork guides? Who would do collab posts?  
 _Fills:_ `team.collective`  
 _Status:_ Answered  
 
@@ -355,8 +356,8 @@ _Answer (2026-11-13):_ Block Blu Light Red Light Therapy Panel Elite XL. Open: i
 
 **47.** Where does the website's "57 minutes of sauna and 11 of cold a week" line come from? (It's a dosing claim that needs a lawyer's OK before it's used in posts.)  
 _Fills:_ `claims.dosing_line`  
-_Status:_ Partly open (owner: Scott)  
-_Until answered:_ blocked: "source pending (Scott)"  
+_Status:_ Partly open (owner: unassigned)  
+_Until answered:_ kept blocked until the source is recorded (orchestrator decision)  
 
 _Answer (2026-11-13):_ Checked and approved by the owners. Open: add its source to the Doc 04 science table.
 

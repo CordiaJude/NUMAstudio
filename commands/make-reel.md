@@ -39,7 +39,6 @@ Only these situations go to a human, and only to brand.json `escalation.contact`
 |---|---|---|
 | Instagram returns Meta error 190 (token invalid) | "NUMA Studio: Instagram disconnected (Meta error 190). Fix: in the Composio dashboard, open the Instagram toolkit and reconnect NUMA's Instagram (Business or Creator, Instagram Login)." | Save the reel to `Finished/`, mark the row "Ready to post", queue the post |
 | A card payment fails on Claude or Higgsfield | "NUMA Studio: Higgsfield card declined. Fix: update the card at higgsfield.ai > Billing." | Finish the reel locally with engine motion only (F8 move 2), queue the uploads and posts (F15 move 2), and reschedule what cannot finish until the card is renewed |
-| Auto-posting is on but brand.json `posting.legal_review_done.value` is false | "NUMA Studio: auto-posting is waiting on the one-time claims legal review. Fix: send brand.json claims to counsel, then set posting.legal_review_done = true." | Mark the row "Ready to post"; send this once a week at most |
 
 Anything else is the Director's to solve.
 
@@ -215,7 +214,7 @@ Any `fail` hit: F11. Any `WARN`: reword or keep with a logged reason. sources ch
 **13. Deliver (R41).**
 1. Send the reel file in this chat (in a scheduled run: the run's result and notification) with the delivery note (section 6). Chat delivery is primary.
 2. Upload everything in `out/` to the day folder's `Finished/` (brand.json `drive.finished`). Upload fails: F15 (the reel was already delivered in chat); keep the queued upload in `work/upload_queue.json`.
-3. Plan Sheet row: Status "Ready to post" and the Reel link. Hand off to the `post-reel` command with `JOB` only when **the plan row is Approved by a person** (DECISIONS D26: nothing goes out without a person approving it) and brand.json `posting.auto_post.value` is true and `posting.legal_review_done.value` is true; not approved: keep "Ready to post", staged for approval, and the digest lists it; when auto-post is on but the legal review is not done, keep "Ready to post" and use the legal-review escalation.
+3. Plan Sheet row: Status "Ready to post" and the Reel link. Hand off to the `post-reel` command with `JOB` only when **the plan row is Approved by a person** (DECISIONS D26: nothing goes out without a person approving it) and brand.json `posting.auto_post.value` is true; post-reel re-checks the approval and records who approved it and when. Not approved: keep "Ready to post", staged for approval, and the digest lists it. There is no legal-review step (the owners dropped it).
 4. Add the new raw files to the media library (librarian) and sync `STATE` back to Drive.
 5. Write `work/delivered.json` (files, Drive links, row status).
 

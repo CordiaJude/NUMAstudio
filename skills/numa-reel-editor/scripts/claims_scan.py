@@ -297,7 +297,9 @@ _SPACED = re.compile(r"(?<![\w.])(?:[^\W\d_][\s.\-_*·•]+){2,}[^\W\d_](?![\w])
 
 
 def normalize(text: str) -> str:
-    """NFKC, look-alike Cyrillic/Greek letters mapped to Latin, invisible characters removed."""
+    """Degree look-alikes to "°", NFKC, look-alike Cyrillic/Greek letters mapped to Latin, invisible characters removed."""
+    # degree look-alikes first: NFKC turns the ordinal "º" into "o", which would hide "34º"
+    text = text.replace("º", "°").replace("˚", "°")
     return unicodedata.normalize("NFKC", text).translate(CONFUSABLES)
 
 

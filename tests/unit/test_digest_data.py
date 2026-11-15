@@ -121,16 +121,16 @@ def test_errors(nc, tmp_path):
 def test_us_dates_and_tidy_shots(nc, tmp_path):
     csv_f = tmp_path / "plan.csv"
     csv_f.write_text("Day,Date,Title,Status,Shot list\n"
-                     "15,11/16/2026,Ask the DPT,Planned,\"[class studio] Fallon on the mat, morning\nroom: sauna | wide of the benches\"\n"
+                     "15,11/16/2026,Ask the DPT,Planned,\"[class studio] A guide on the mat, morning\nroom: sauna | wide of the benches\"\n"
                      "16,11/17/26,Carousel,Planned,No filming needed\n")
     rows = dd.load_rows(str(csv_f))
     assert [r["date"] for r in rows] == [dd.date(2026, 11, 16), dd.date(2026, 11, 17)]
     d = dd.assemble(store(), rows, None, {}, dd.date(2026, 11, 15))
     shots = {g["room"]: [s["shot"] for s in g["shots"]] for g in d["shoot_list"]["rooms"]}
-    assert shots == {"sauna": ["wide of the benches"], "class studio": ["Fallon on the mat, morning"]}
+    assert shots == {"sauna": ["wide of the benches"], "class studio": ["A guide on the mat, morning"]}
     text = dd.text_draft(d)
     assert "[class studio]" not in text and "morning · morning" not in text
-    assert "Fallon on the mat, morning · Day 15" in text
+    assert "A guide on the mat, morning · Day 15" in text
     best = d["last_week"]["best"]["signals"]
     assert all(not any(len(n.split(".")[-1]) > 1 for n in sig.replace("%", "").split() if n[:1].isdigit() and "." in n)
                for sig in best)

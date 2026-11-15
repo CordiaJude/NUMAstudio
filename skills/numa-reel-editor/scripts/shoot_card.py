@@ -37,7 +37,7 @@ check   The planning rules on a month plan (spec p.33-35), where they are
           rule 4   at least one collab reel and one Meet the Collective a month
           rule 6   one signature transformation/reveal reel a month
           rule 7   every event: teaser 2-3 days before, recap within 2 days after
-          rule 8   nothing that invites people in on a closure day
+          rule 8   nothing that invites people in on a closure day (a WARN on a brand.json closures.partial half day)
           rule 9   filming grouped into at most 2 batch sessions a week, each before its day
           cadence  4-5 feed posts and 1-2 Trial Reels a week, never a week dark
           series   all five series every month; Ask the DPT never sells
@@ -367,6 +367,17 @@ def closure_dates(plan: dict, closures_file: str | None) -> dict[date, str]:
     return out
 
 
+def partial_closures() -> dict[date, str]:
+    """Half days from brand.json closures.partial ({date, name, open_until}): date -> "name, open until HH:MM"."""
+    out: dict[date, str] = {}
+    items = nc.brand_value("closures.partial")
+    for it in items if isinstance(items, list) else []:
+        if isinstance(it, dict) and it.get("date"):
+            until = f", open until {it['open_until']}" if it.get("open_until") else ""
+            out[parse_date(it["date"], "partial closure")] = f"{it.get('name') or 'half day'}{until}"
+    return out
+
+
 def row_topic(r: dict) -> str | None:
     t = r.get("topic") or r.get("title")
     if not t:
@@ -526,7 +537,8 @@ def full_months(rows: list[dict]) -> list[tuple[int, int]]:
     return [ym for ym, days in sorted(have.items()) if len(days) == calendar.monthrange(*ym)[1]]
 
 
-def check_plan(plan: dict, closures: dict[date, str]) -> tuple[list[dict], list[str], dict]:
+def check_plan(plan: dict, closures: dict[date, str],
+               partial: dict[date, str] | None = None) -> tuple[list[dict], list[str], dict]:
     rows = plan["rows"]
     V: list[dict] = []
     W: list[str] = []
@@ -619,6 +631,15 @@ def check_plan(plan: dict, closures: dict[date, str]) -> tuple[list[dict], list[
                 bad("8-closure", f"{label(r)}: invites people in on a closure day ({why})", [r["day"]])
             elif r["kind"] == "stories" and truthy(r.get("invites")):
                 bad("8-closure", f"{label(r)}: Stories invite people in on a closure day ({why})", [r["day"]])
+
+    # rule 8 (half days, brand.json closures.partial): open only in the morning, so an invite is a WARN
+    for d, why in sorted((partial_closures() if partial is None else partial).items()):
+        if d in closures:
+            continue
+        for r in by_date.get(d, []):
+            if (r["kind"] != "stories" and is_invite(r)) or (r["kind"] == "stories" and truthy(r.get("invites"))):
+                W.append(f"{label(r)}: invites people in on a half day ({why}): post it early or invite for "
+                         "another day")
 
     # rule 9: batch sessions
     sessions: dict[date, set[date]] = {}

@@ -82,7 +82,7 @@
     },
     "facility": {
       "value": {
-        "sauna": "Finnish sauna the owners built themselves (capacity not confirmed: never state a number)",
+        "sauna": "a sauna the owners built themselves (type and capacity not confirmed: never state a number or call it Finnish)",
         "cold_plunge_tubs": 4,
         "also": [
           "red light",
@@ -194,14 +194,14 @@
       "source": "spec p.50 (account fixes; Instagram search reads the name field)"
     },
     "bio_draft": {
-      "value": "Guided contrast therapy + breathwork in Midtown Mobile · Finnish sauna · 4 cold plunges · red light · yoga · Discover Numa: one month for $49",
+      "value": "Guided contrast therapy + breathwork in Midtown Mobile · sauna · 4 cold plunges · red light · yoga · Discover Numa: one month for $49",
       "status": "research",
       "source": "spec p.50; owners' answers",
       "note": "Along these lines, with the Dauphin St address, a Book button and the bio link linktr.ee/numawc. No sauna capacity (not confirmed)."
     },
     "account_owners": {
       "value": {
-        "instagram_and_facebook": "the Numa Wellness account, owned by Scott Moore and the person who posts to social (Emma)",
+        "instagram_and_facebook": "the Numa Wellness account, owned by Scott Moore and the person the social media lead (the account co-owner)",
         "drive_google_business_higgsfield": null
       },
       "status": "confirmed",
@@ -242,7 +242,7 @@
       "value": null,
       "status": "needs_katie",
       "source": "owners' setup answers, 2026-11-13 (Q32)",
-      "note": "Open: Business or Creator account, the Facebook Page link, and who the admin is (ask Scott or Emma). /numa-setup step 3 reads the account type."
+      "note": "Open: Business or Creator account, the Facebook Page link, and who the admin is (ask Scott or the social media lead). /numa-setup step 3 reads the account type."
     },
     "publishing_tool": {
       "value": "Meta Business Suite (Instagram and Facebook)",
@@ -343,7 +343,7 @@
       "value": null,
       "status": "needs_katie",
       "source": "owners' setup answers, 2026-11-13 (Q23)",
-      "note": "Open: ask Emma. Never trending or popular songs (posting.music_rule)."
+      "note": "Open: ask the social media lead. Never trending or popular songs (posting.music_rule)."
     },
     "inspiration_accounts": {
       "value": [
@@ -355,7 +355,7 @@
       ],
       "status": "confirmed",
       "source": "owners' setup answers, 2026-11-13 (Q18)",
-      "note": "Videos and real people perform best for Numa. Open: more examples from Emma or Jodie."
+      "note": "Videos and real people perform best for Numa. Open: more examples from the social media lead or another team member."
     },
     "off_limits_topics": {
       "value": [
@@ -1096,7 +1096,7 @@
           "name": "Member Appreciation Party",
           "start": "2026-12-01",
           "end": "2026-12-01",
-          "public": true,
+          "public": null,
           "confirmed": false,
           "details": "To confirm: don't promote until confirmed."
         },
@@ -1105,7 +1105,7 @@
           "name": "Winter Solstice (with a breathwork guide)",
           "start": "2026-12-22",
           "end": "2026-12-22",
-          "public": true,
+          "public": null,
           "confirmed": false,
           "details": "To confirm: don't promote until confirmed."
         },
@@ -1114,7 +1114,7 @@
           "name": "February community event",
           "start": "2027-02",
           "end": null,
-          "public": true,
+          "public": null,
           "confirmed": false,
           "details": "To confirm: don't promote until confirmed."
         },
@@ -1123,14 +1123,14 @@
           "name": "Student and over-60 offers",
           "start": null,
           "end": null,
-          "public": true,
+          "public": null,
           "confirmed": false,
           "details": "To confirm: never promote an unconfirmed rate."
         }
       ],
       "status": "confirmed",
       "source": "owners' setup answers, 2026-11-13 (Q16)",
-      "note": "Only items with confirmed true may be promoted, and only inside their start/end window; public false means never in a public post. Not promoted at all: offerings.do_not_promote. No price changes."
+      "note": "Only items with confirmed true may be promoted, and only inside their start/end window; public false means never in a public post; public null means not decided (unconfirmed items). Not promoted at all: offerings.do_not_promote. No price changes."
     }
   },
   "team": {
@@ -1966,22 +1966,14 @@
       },
       {
         "id": "heals",
-        "label": "heal or heals (owners: never \"heal\")",
+        "label": "heal, heals or healing (owners: never \"heal\"; a business's proper name goes in allow_exact)",
         "severity": "fail",
         "patterns": [
           "\\bheal\\b",
           "\\bheal(s|ed)\\b",
           "\\bheal\\s+(your|the|my|our|their)\\b",
-          "\\bheal(ing)?\\s+(\\w+\\s+){0,2}?(pain|aches?|injur\\w*|depression|anxiety|stress|insomnia|sleep|conditions?|symptoms?|diseases?|illness\\w*|inflamm\\w*|arthritis|ptsd|trauma|muscles?|soreness|joints?|headaches?|migraines?|fatigue|burnout|wounds?)\\b"
-        ],
-        "applies_to": "all"
-      },
-      {
-        "id": "healing_ambiguous",
-        "label": "\"healing\" can read as a health claim; keep it only in proper names (e.g. a business called Healing Arts)",
-        "severity": "warn",
-        "patterns": [
-          "\\bhealing"
+          "\\bheal(ing)?\\s+(\\w+\\s+){0,2}?(pain|aches?|injur\\w*|depression|anxiety|stress|insomnia|sleep|conditions?|symptoms?|diseases?|illness\\w*|inflamm\\w*|arthritis|ptsd|trauma|muscles?|soreness|joints?|headaches?|migraines?|fatigue|burnout|wounds?)\\b",
+          "\\bhealing\\b"
         ],
         "applies_to": "all"
       },
@@ -1992,7 +1984,8 @@
         "patterns": [
           "\\bcur(es|ed|ing)\\b",
           "\\b(to|will|can|may|might|that|which|it|they|we|could|helps?|helps? to)\\s+cure\\b",
-          "#cure\\w*"
+          "#cure\\w*",
+          "\\bcure\\s+(your|the|my|a)\\b"
         ],
         "applies_to": "all"
       },
@@ -2250,7 +2243,7 @@
         "label": "\"credits\" is a word the owners never use (say classes or Visit Passes)",
         "rewrite": "Visit Passes",
         "patterns": [
-          "\\bcredits\\b",
+          "\\bcredits\\b(?!\\s+rolls?\\b)",
           "\\bclass\\s+credit\\b"
         ],
         "applies_to": "all"
@@ -2288,7 +2281,7 @@
         "label": "NEWBIE (50% off a first class) is for emails and the front desk only, never public posts",
         "rewrite": "Discover Numa: one month for $49",
         "patterns": [
-          "\\bnewbie\\b"
+          "\\bnewbies?\\b"
         ],
         "applies_to": "all"
       },
@@ -2302,7 +2295,9 @@
           "\\b50\\s*%\\s*off\\b",
           "\\b50\\s*percent\\s+off\\b",
           "\\bhalf[ -]off\\b",
-          "\\bhalf[ -]price\\b"
+          "\\bhalf[ -]price\\b",
+          "\\bfifty\\s*(%|percent|per\\s+cent)\\s+off\\b",
+          "\\b50\\s*per\\s+cent\\s+off\\b"
         ],
         "applies_to": "all"
       },
@@ -2311,11 +2306,13 @@
         "kind": "fact",
         "severity": "fail",
         "label": "a sauna capacity (\"14-person\" is not confirmed; never state a number)",
-        "rewrite": "our Finnish sauna",
+        "rewrite": "our sauna",
         "patterns": [
           "\\b14[ -]?(person|people|seat\\w*)\\b",
           "\\bfourteen[ -]?(person|people|seat\\w*)\\b",
-          "\\b(sauna|it)\\s+(holds|fits|seats)\\s+(up\\s+to\\s+)?\\d+\\b"
+          "\\b(sauna|it)\\s+(holds|fits|seats|takes|sits)\\s+(up\\s+to\\s+)?(\\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|eighteen|twenty|a\\s+dozen)\\b",
+          "\\b(room|space|seats?)\\s+for\\s+(up\\s+to\\s+)?(\\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|eighteen|twenty|a\\s+dozen)\\s+(people|of\\s+you|guests|bodies)\\b",
+          "\\b(\\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|eighteen|twenty|a\\s+dozen)\\s+(people|of\\s+you|guests)\\s+(fit|at\\s+once)\\b"
         ],
         "applies_to": "all"
       },
@@ -2337,8 +2334,8 @@
         "label": "34° (a rare dip; never state it): plunges are kept at 44 to 52°F",
         "rewrite": "Our plunges are kept at 44 to 52°F.",
         "patterns": [
-          "\\b34\\s*(°|º|degrees?\\b|deg\\b)",
-          "\\b34\\s*f\\b"
+          "\\b34\\s*(°|degrees?\\b|deg\\b|f\\b)",
+          "\\b34\\s*(-|–|—|to)\\s*\\d+\\s*(°|degrees?\\b|f\\b)"
         ],
         "applies_to": "all"
       },
@@ -2348,7 +2345,8 @@
         "severity": "warn",
         "label": "a temperature under 44°: Numa's plunges are kept at 44 to 52°F (sauna 175 to 190°F)",
         "patterns": [
-          "\\b(3\\d|4[0-3])\\s*(°|º|degrees?\\b)"
+          "\\b(3\\d|4[0-3])\\s*(°|degrees?\\b)",
+          "\\b(3\\d|4[0-3])\\s*(-|–|—|to)\\s*\\d+\\s*(°|degrees?\\b|f\\b)"
         ],
         "applies_to": "all"
       },
@@ -2418,7 +2416,8 @@
         "severity": "warn",
         "label": "a \"best in Mobile\" superlative reads as a comparison; describe the experience instead",
         "patterns": [
-          "\\b(best|#1|number\\s+one)\\s+(\\w+\\s+){0,2}?in\\s+(mobile|town|alabama|the\\s+gulf)\\b"
+          "(\\b(best|number\\s+one)|#1)\\s+(\\w+\\s+){0,2}?in\\s+(mobile|town|alabama|the\\s+gulf)\\b",
+          "\\b(mobile|alabama|midtown|the\\s+gulf\\s+coast)['’]s\\s+(best|#1|number\\s+one|top|only)\\b"
         ],
         "applies_to": "all"
       },
@@ -2433,6 +2432,28 @@
           "\\b60[ -]?min(ute)?\\s+(session|circuit|experience)s?\\b"
         ],
         "applies_to": "all"
+      },
+      {
+        "id": "alcohol_recovery",
+        "kind": "claim",
+        "severity": "fail",
+        "label": "sweating or plunging away last night's drinks (no alcohol-recovery claims)",
+        "patterns": [
+          "\\b(sweat|plunge|soak|steam|breathe)\\w*\\s+(it\\s+)?(out|away|off)\\s+([\\w'’]+\\s+){0,3}?(last\\s+night|the\\s+night\\s+before|drinks?|booze|wine|beers?|cocktails?|tequila|shots)\\b",
+          "\\b(after|from|undo|erase)\\s+(\\w+\\s+){0,2}?(last\\s+night'?s|those|the)\\s+(drinks|cocktails|beers|shots)\\b"
+        ],
+        "applies_to": "all"
+      },
+      {
+        "id": "hangover",
+        "kind": "claim",
+        "severity": "warn",
+        "label": "\"hangover\" invites an alcohol-recovery claim; describe the experience instead",
+        "patterns": [
+          "\\bhangovers?\\b",
+          "\\bhung\\s*over\\b"
+        ],
+        "applies_to": "all"
       }
     ],
     "allow_patterns": [
@@ -2440,7 +2461,8 @@
       "\\ba\\s+(\\w+\\s+)?treat\\b(?!\\s+(for|of)\\b)"
     ],
     "allow_exact": [
-      "Talk to your doctor first if you have a heart, blood pressure or breathing condition."
+      "Talk to your doctor first if you have a heart, blood pressure or breathing condition.",
+      "Healing Arts"
     ],
     "modalities": {
       "cold_plunge": {
@@ -2462,7 +2484,6 @@
       "sauna": {
         "say": [
           "Deep, quiet heat to unwind.",
-          "A centuries-old Finnish ritual.",
           "Relax, breathe, disconnect.",
           "Our sauna runs 175 to 190°F."
         ],
@@ -2546,7 +2567,7 @@
       },
       {
         "id": "dosing",
-        "text": "The \"57 minutes of sauna and 11 of cold a week\" line is owner-approved, but its source isn't recorded yet (Doc 04 science table; owner: Scott). It stays out of posts until claims.dosing_line.blocked is false."
+        "text": "The \"57 minutes of sauna and 11 of cold a week\" line is owner-approved, but its source isn't recorded yet (Doc 04 science table). It stays out of posts until claims.dosing_line.blocked is false."
       },
       {
         "id": "ai_disclosure",
@@ -2596,8 +2617,8 @@
         "\\b11\\s*(min|mins|minutes)?\\b[^.!?\\n]{0,30}\\b(cold|plunge|ice)\\b[^.!?\\n]{0,20}\\b(a|per|each)\\s+week\\b"
       ],
       "source": "spec p.22; owners' setup answers, 2026-11-13 (Q47)",
-      "note": "Owner-approved, but its source is not recorded yet (add it to the Doc 04 science table; owner: Scott). While 'blocked' is true, scanners treat these patterns as banned. Flip 'blocked' to false only once the source is recorded.",
-      "reason": "source pending (Scott)"
+      "note": "Owner-approved, but its source is not recorded yet; kept blocked by orchestrator decision (T19 review) (add it to the Doc 04 science table). While 'blocked' is true, scanners treat these patterns as banned. Flip 'blocked' to false only once the source is recorded.",
+      "reason": "source pending"
     }
   },
   "consent": {
@@ -2719,7 +2740,7 @@
         },
         {
           "date": "2027-03-27",
-          "name": "Easter Saturday"
+          "name": "Holy Saturday"
         },
         {
           "date": "2027-03-28",
@@ -2808,7 +2829,7 @@
       "note": "Re-tuned to Numa's own data after the first 30 reels."
     },
     "ai_label_rule": "Switch on Instagram's AI label for any reel with AI-animated people or AI-generated scenes (spec p.22, p.50).",
-    "music_rule": "Numa posts as a business: never trending or popular songs. Music is Numa's own or licensed, and each reel's sources.txt records the source (spec p.19). The music source is open (ask Emma).",
+    "music_rule": "Numa posts as a business: never trending or popular songs. Music is Numa's own or licensed, and each reel's sources.txt records the source (spec p.19). The music source is open (ask the social media lead).",
     "digest_destination": {
       "value": null,
       "status": "needs_katie",
@@ -2836,13 +2857,13 @@
       "value": null,
       "status": "needs_katie",
       "source": "plugin open question; DECISIONS D26",
-      "note": "Open: who approves each post, and how (a Sheet checkbox, a reply, or a Meta Business Suite draft)? Default per D26: an Approved status on the plan Sheet row, set by the owners or Emma."
+      "note": "Open: who approves each post, and how (a Sheet checkbox, a reply, or a Meta Business Suite draft)? Default per D26: an Approved status on the plan Sheet row, set by the owners or the social media lead."
     },
     "music_source": {
       "value": null,
       "status": "needs_katie",
       "source": "owners' setup answers, 2026-11-13 (Q23)",
-      "note": "Open: where the music comes from (ask Emma)."
+      "note": "Open: where the music comes from (ask the social media lead)."
     },
     "publishing_tool": {
       "value": "Meta Business Suite (Instagram and Facebook)",
@@ -2850,7 +2871,7 @@
       "source": "owners' setup answers, 2026-11-13 (Q32)"
     },
     "poster": {
-      "value": "Emma posts to social",
+      "value": "the social media lead posts to social",
       "status": "confirmed",
       "source": "owners' setup answers, 2026-11-13 (Q7)"
     },

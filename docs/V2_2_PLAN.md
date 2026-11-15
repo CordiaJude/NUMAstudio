@@ -38,13 +38,13 @@ Load check (what each agent touches per day, typical): Publisher 1–3 posts + 1
 
 **T20 Approval inbox + Publisher (v2.2 item 1).**
 - Inbox lives on the plan Google Sheet as an "Approvals" tab built for a phone: one row per item (post, reply, review response, collab message, email), thumbnail/preview link to the Drive file, the caption or text, the reason, deadline, and a dropdown Approve / Edit (with a note) / Skip. Sheets works from every scheduled cloud run; a richer artifact inbox page is a later option once it is verified that scheduled runs can read its data.
-- One notification per batch to the approver (who is an open question; default the owners or Emma), never one per item.
+- One notification per batch to the approver (who is an open question; default the owners or the social media lead), never one per item.
 - Publisher reads decisions each run: Approve → posts at the planned time (or next slot); Edit → back to the crew with the note, re-staged; Skip → archived, and the Strategist logs it. Unapproved items past their deadline roll to the next slot once, then drop and appear in the digest.
 - Posting moves from the Director to the Publisher (post-reel becomes the Publisher's procedure). Re-render of Claude Design carousels right before posting stays (D21).
 - Approval times are logged so the system can learn when the approver usually responds and schedule staging earlier.
 
 **T21 Link and CTA health check (item 4).**
-- Before staging and again right before posting anything with a call to action: check linktr.ee/numawc loads, its Discover Numa and Numa Reset entries resolve, and the booking page answers. Broken → the post is held, the fix goes to Jude/Emma in one line, the post is not published with a dead link.
+- Before staging and again right before posting anything with a call to action: check linktr.ee/numawc loads, its Discover Numa and Numa Reset entries resolve, and the booking page answers. Broken → the post is held, the fix goes to Jude and the social media lead in one line, the post is not published with a dead link.
 - Weekly scan of all brand.json links.
 
 **T22 Consent Clerk + consent workflow (item 8).**
@@ -101,7 +101,7 @@ Load check (what each agent touches per day, typical): Publisher 1–3 posts + 1
 | "How did you hear about us" field at booking | T25 | Scott/Katie |
 | Google Business Profile manager access, Google Cloud login, Business Profile API approval | T24 | Scott/Katie + Jude |
 | Doc 04 location; OK to use a consent form | T22 | Scott and Katie |
-| Whether Numa has TikTok and YouTube accounts | T28 | Emma |
+| Whether Numa has TikTok and YouTube accounts | T28 | the social media lead |
 | Email tool | T28 | Scott and Katie |
 | Where partner agreements live (AMP terms) | T27 | Scott |
 

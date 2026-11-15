@@ -56,7 +56,7 @@ Write `JOB/work/ratings.json` and return it:
     "lines": [], "people": "not_on_list", "flags": ["dark"], "best_window": null, "note": "guest not on the Consent List"}],
  "ranked": ["P2", "C0", "P1"],
  "uncovered_lines": [4],
- "transcript_fix_requests": [{"to": "Roemhildt", "variants": ["Rombilt", "Roam Hilt"]}],
+ "transcript_fix_requests": [{"to": "Dauphin", "variants": ["Dolphin", "Doffin"]}],
  "warnings": ["offline pad used: no audio in the folder"]}
 ```
 `ranked` lists every non-reject item, best first. `uncovered_lines` are script lines no usable item illustrates (the Director sends the Scout for them). No plan.json edits: that is the Director's and Editor's job.

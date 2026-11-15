@@ -1101,20 +1101,34 @@ first pull at/after `provisional_hours` (weight `provisional_weight`), FINAL
 from the pull at/after `final_hours` (or the last configured pull), never
 counted twice; metric `exceptions` (saves/shares final at 336 h, Reel skip and
 watch time final at 72 h) read that metric at its own pull. Pull labels it
-understands: `22h`, `48h`, `72h`, `7d`, `14d`, `30d`. `plan` writes a
+understands: `12h`, `22h` (Stories), `48h`, `72h`, `7d`, `14d`, `30d`; a post is judged by its real
+pull age (`pulled_at` minus posting time); a zero-reach or metric-missing read is missing data, not a loss. `plan` writes a
 MONTH_JSON (shoot_card.py shape; an `image` row is a single-photo feed post)
 whose rows add `post_type`, `post_time` (Central HH:MM), `hour_band`,
 `pattern_ids`, `strategy_arm`, `strategy` {mode exploit|explore|rule, goal,
-why[]} and `moments`, plus a top-level `strategy` summary (data-led share,
-explore slots, violations). It exits 1 when a planning rule fails even with the
-bandit off. `learn` updates statuses (promote/retire/demote/start_testing), the
-dated changelog and Do more/Do less lines; `--text` writes the plain-text
+tests (hook|structure|cta|format), feed_per_week, why[]}, `story_frames` on Stories rows and `moments`, plus
+`partial_closures` (brand.json `closures.partial`: posts that day go out before `open_until`, no sales post or
+teaser) and a top-level `strategy` summary (data-led share, explore slots, explore variable, time slot,
+violations). Format arms are judged on the pooled feed score; R2's feed shares are soft and widen with evidence
+(`feed_mix.*.max_with_evidence`); one image format-test slot a week until images have 8 tries. Offer weeks:
+untried weeks are drawn and one offer-week test a month runs until every week has 3 tries. Cadence
+(feed posts a week), Story frames a day and the lighter weekend day are blocked 4-week rotations
+(policies `cadence`, `rotations`; a level wins at 1.25x over 8 each, then holds 3 blocks in 4); planning
+rules and `approval_capacity_per_week` cap volume. Video and static hooks are separate arms with their own
+40% cap. It exits 1 when a planning rule fails even with the
+bandit off. `learn` updates statuses (promote/retire/demote/start_testing; counts restart
+at each change via `counts_from`; fast track only under 10 tries; Trial Reels decide in their own
+`trial:` pool and inform the main arm at half weight), the dated changelog and Do more/Do less lines
+(P(win rate > 0.5) >= 0.9 over 6+ tries and a median of 1.25x / 0.8x); `--text` writes the plain-text
 changelog for the digest. `brief` writes `schemas/strategy_brief.schema.json`.
 `import-research` parses the R1-R7 deep-research outputs (markdown or Google
 Doc text): pattern blocks, "symptom -> cause -> fix" tables, post-type share
 tables, rule tables and the R7 judging-window tables; claims-scans every
 example (a failing example is rejected; a pattern with none left is rejected),
-de-duplicates by id and name, never changes a status or NUMA's own data.
+rejects examples and templates that name a person other than the co-founders (`validate`
+checks the bundled playbook the same way), de-duplicates by id and name, stores only deltas against the
+bundled playbook (`pattern_deltas`), skips a file whose content it already imported (sha), and never changes a
+status or Numa's own data.
 
 **Pattern tagging contract (plan row -> script.json -> metrics tags).**
 
@@ -1122,7 +1136,13 @@ de-duplicates by id and name, never changes a status or NUMA's own data.
 |---|---|---|---|
 | `pattern_ids` | list of playbook pattern ids (kebab-case), in the order hook, structure, CTA or offer | strategy.py plan (row); Scriptwriter (script.json, the ids actually used) | build-today -> metrics.py tag; strategy.py learn/score |
 | `boosted` | bool (tag) | /post-reel or the Director when a post is paid or boosted | strategy.py: kept out of decisions |
+| `story_frames` | int (tag) | strategy.py plan (Stories rows); build-today copies it | strategy.py: the Story frames rotation |
 | `strategy_arm` | string `type=<post_type>;pillar=<p>;series=<s>;day=<Mon..Sun>;band=<hour band>;hook=<id>;structure=<id>;offer_week=<w1..w5>;goal=<reach\|saves\|conversion>;mode=<exploit\|explore\|rule>;plan=<YYYY-MM>` (keys always in this order; empty value = none) | strategy.py plan; copied unchanged | metrics.py tag (text); strategy.py (`parse_arm`) |
+
+build-today copies `pattern_ids`, `strategy_arm`, `boosted` and `story_frames` from script.json (or the plan row) into
+`metrics.py tag --store STORE --post ID --tags TAGS_JSON`; dashboard-refresh pulls each post at the hours `metrics.py due` lists (Stories at
+`12h` and `22h`, never after 24 h; other posts at `48h`, `72h`, `7d`, `14d`, `30d`; config `insight_pulls_hours`),
+storing each with `metrics.py ingest --store STORE --post ID --pull LABEL --data INSIGHTS_JSON --pulled-at ISO`.
 
 The weekday and hour credited to a post come from its `posting_time` tag (what
 really happened), not from the arm. Posts without these tags are still learned

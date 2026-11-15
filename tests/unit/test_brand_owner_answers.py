@@ -137,8 +137,8 @@ PROMOS = {
     "friday_escape_noon": ("2027-01-01", None, True, True),
     "polished_and_prepped": ("2027-01-08", "2027-01-11", True, True),
     "date_night": ("2027-01-15", "2027-01-15", True, True),
-    "member_appreciation_party": ("2026-12-01", "2026-12-01", True, False),
-    "winter_solstice": ("2026-12-22", "2026-12-22", True, False),
+    "member_appreciation_party": ("2026-12-01", "2026-12-01", None, False),
+    "winter_solstice": ("2026-12-22", "2026-12-22", None, False),
 }
 
 
@@ -154,6 +154,9 @@ def test_promotions_with_windows_and_confirmation(brand):
     assert promos["polished_and_prepped"]["dates"] == ["2027-01-08", "2027-01-11"]
     assert promos["super_escape"]["open_questions"]
     assert promos["student_and_over_60_offers"]["confirmed"] is False
+    for p in promos.values():  # unconfirmed items have no public decision yet
+        if not p["confirmed"]:
+            assert p["public"] is None, p["id"]
 
 
 def test_newbie_never_public(brand):
@@ -231,7 +234,7 @@ def test_owner_confirmed_claims_in_policy(brand):
     kinds = {r.get("kind", "claim") for r in brand["claims"]["banned"]}
     assert kinds == {"claim", "brand", "fact", "offer"}
     dl = brand["claims"]["dosing_line"]
-    assert dl["blocked"] is True and dl["status"] == "blocked_source_pending" and dl["reason"] == "source pending (Scott)"
+    assert dl["blocked"] is True and dl["status"] == "blocked_source_pending" and dl["reason"] == "source pending"
 
 
 # --------------------------------------------------------------------------- posting
@@ -321,7 +324,7 @@ def test_questions_doc_marks_answers_and_open_items(repo_root):
     t = (repo_root / "docs" / "QUESTIONS_FOR_KATIE.md").read_text(encoding="utf-8")
     assert t.count("_Answer (2026-11-13):_") == 51
     assert "## Still open" in t and "## Open questions from the plugin" in t
-    for owner in ("Katie", "Scott and Katie", "Scott", "Emma", "Emma or Jodie"):
+    for owner in ("Katie", "Scott and Katie", "Scott", "the social media lead", "unassigned"):
         assert f"| {owner} |" in t, owner
     for needle in ("`posting.approver`", "`voice.generic_ai_allowed`", "`posting.music_source`", "`consent.log`",
                    "`fonts.brand_fonts`", "`assets.logo`", "`posting.email_tool`", "Mindbody"):
@@ -332,7 +335,7 @@ def test_project_instructions_match_the_owners(repo_root):
     t = (repo_root / "docs" / "PROJECT_INSTRUCTIONS.md").read_text(encoding="utf-8")
     for needle in ("Always \"Numa\", never \"NUMA\"", "Scott records the voiceovers", "No cloned voices",
                    "Human approval before posting", "No emojis", "No quote cards",
-                   "Children never appear until the owners decide", "Never film", "Emma",
+                   "Children never appear until the owners decide", "Never film", "social media lead",
                    "answered them in setup", "people.json"):
         assert needle in t, needle
     assert "legal_review_done` is true" not in t

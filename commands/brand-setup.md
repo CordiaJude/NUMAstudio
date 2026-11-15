@@ -40,13 +40,13 @@ Every key in section 6 is a fact `{"value", "status", "source", "note"}` (except
 
 | Answer | Rule |
 |---|---|
-| Q34 "post automatically" | `posting.auto_post` true never bypasses `posting.legal_review_done`; auto-posting stays gated until counsel's review is recorded (section 3) |
+| Q34 "post automatically" | `posting.auto_post` true never bypasses human approval: `posting.human_approval_required` stays true (owners: nothing goes out without a person approving it; DECISIONS D26) |
 | Q35 types to see first | Those types are held as "Ready to post" by /post-reel; `posting.require_approval` becomes true only when she wants **every** reel held |
 | Q24 a claim she was told not to make | Add a `claims.banned` rule (see below); never remove or weaken an existing rule |
 | Q27 children | Anything short of a clear "yes, with a parent's written consent" stays `never` |
 | Q28 cloned voice | `consent.voice_clone` true only with the 1-minute sample recorded and her written consent row on the Consent List (scope `voice clone`) |
 | Q46 red light | Never write "FDA-approved" or "FDA-cleared" into any say-line, whatever the answer |
-| Q47 the 57/11 line | `claims.dosing_line.blocked` stays true; only counsel's OK unblocks it (section 3) |
+| Q47 the 57/11 line | `claims.dosing_line.blocked` stays true until its source is recorded (owner-approved line, source pending) |
 | Q48 consent coverage | true only if the signed form's wording covers it |
 | Q17 fonts | A new font needs its files under `skills/numa-reel-editor/assets/fonts/` and a license; without them keep the current fonts and note her choice |
 
@@ -58,7 +58,7 @@ Every key in section 6 is a fact `{"value", "status", "source", "note"}` (except
 
 The same command changes any brand value later, outside the questionnaire: colours, fonts, logos (light and dark), the end-card tagline and sign-offs (`endcard`), hashtags (`captions.hashtags`), transcript fixes, prices, offers, events, team, partners. `$ARGUMENTS` names the key or the topic ("new logo", "price change"); change only that, with `status`, `source` and `note` as in section 2, then validate and save (section 4).
 
-**Opening the auto-posting gate.** When counsel has reviewed the claims policy, Jude runs `/brand-setup posting.legal_review_done`: set `value` true, `status` confirmed, `source` "<counsel name>, review dated YYYY-MM-DD", and the reviewed brand.json version in `note`. Counsel's written OK of the 57/11 line (Q47) is the only thing that sets `claims.dosing_line.blocked` to false.
+**Posting approval.** There is no lawyer review (the owners dropped it, Q51); `posting.legal_review_done` stays as a waived legacy key. Posting is gated by a person marking each plan Sheet row Approved (`posting.human_approval_required`, DECISIONS D26); `/brand-setup posting.approver` records who approves and how once the owners decide. `claims.dosing_line.blocked` becomes false only when the 57/11 line's source is recorded (Q47).
 
 ## 4. Validate and save (every time)
 
@@ -142,7 +142,7 @@ The same command changes any brand value later, outside the questionnaire: colou
 |---|---|---|---|---|
 | 32 | Is NUMA's Instagram a Business or Creator account, and is it linked to the Facebook Page? Who's the admin? | `socials.instagram_account`, `socials.facebook` | instagram_account value = {type, facebook_page_linked, admin}; facebook = the Page link | null: /numa-setup step 3 reads the account type |
 | 33 | Who owns the Google Drive, the Google Business profile and the Higgsfield account? | `business.account_owners`, `socials.google_business_profile` | owners value = {drive, google_business_profile, higgsfield}; google_business_profile = the profile link | null |
-| 34 | Should reels post automatically, or land ready-to-post for someone to publish? (Default: post automatically.) | `posting.auto_post` | value = true (post automatically) or false (land ready-to-post); never overrides `posting.legal_review_done` | true |
+| 34 | Should reels post automatically, or land ready-to-post for someone to publish? (Default: post automatically.) | `posting.auto_post` | value = true (post automatically) or false (land ready-to-post); never overrides human approval (`posting.human_approval_required`) | true |
 | 35 | Is there any post type you always want to see first, such as offers or anything showing members? (Default: none.) | `posting.see_first`, `posting.require_approval` | see_first value = list of post types (offer, members, collab, event); require_approval = true only if she wants every reel held | see_first []; require_approval false |
 | 36 | Where should every call to action point: the Discover NUMA page, the app, or the link in bio? | `business.cta_link` | value = the URL (or "link in bio") | https://discover.numawellness.org |
 | 37 | Are you running paid ads? If so, budget and goal. | `positioning.paid_ads` | value = {running, monthly_budget_usd, goal} | not running |
@@ -162,14 +162,14 @@ The same command changes any brand value later, outside the questionnaire: colou
 |---|---|---|---|---|
 | 42 | Are these right: 1719 Dauphin St; a 14-person Finnish sauna; 4 cold plunges; opening 5:30 AM Monday to Thursday? What temperature are the plunges and the sauna? | `business.location`, `business.facility`, `business.hours`, `business.temperatures` | flip each confirmed item to confirmed, correct the wrong ones; temperatures value = {plunge_f, sauna_f} | keep research; no temperatures in reels |
 | 43 | Which phone number should be used everywhere? (Listings show 251-289-1758, 251-310-3656 and 251-423-8238.) | `business.phone` | value = the one number; keep `candidates` | null: no phone number in any post |
-| 44 | Is the team list right: counselors Scott Moore, LaJuan Humbert (LPC) and Matt Henson (ALC); massage Kandi Roemhildt; facials Natalia Lichtenberger; breathwork guides Fallon Gleason and Joseph Irby? Who would do collab posts? | `team.collective` | fix names, roles and credentials; `collab: true` on each person who would do collab posts | keep research list; no collab with a provider |
+| 44 | Is the team list right: counselors (Scott Moore, an LPC and an ALC); a massage provider; an esthetician (facials); two breathwork guides? Who would do collab posts? | `team.collective` | roles and credentials only (names go to the private STATE/people.json); `collab: true` on each role that does collab posts | keep research list; no collab with a provider |
 | 45 | Katie: are you comfortable being the on-camera expert for "Ask the DPT"? What topics would you want to cover, and what would you never comment on? | `positioning.ask_the_dpt` | value = {comfortable, topics: [...], never: [...]} | comfortable unknown: Ask the DPT runs as text-on-screen answers |
 | 46 | Which red light panels does NUMA use (make and model), and do they have an FDA clearance? For what exactly? | `claims.modalities.red_light.device_facts` | value = {make, model, wavelengths_nm, fda_clearance: what exactly or null}; "FDA-cleared" is never said in a post either way | null: no device facts in reels |
 | 47 | Where does the website's "57 minutes of sauna and 11 of cold a week" line come from? (It's a dosing claim that needs a lawyer's OK before it's used in posts.) | `claims.dosing_line` | write her answer into `note`; `blocked` stays true (only counsel's OK, recorded by Jude in edit mode, unblocks it) | blocked stays true |
 | 48 | Does the member consent form cover appearing in social posts and AI processing of photos? If not, can that wording be added? | `consent.social_posts_covered`, `consent.ai_processing_covered` | two booleans (true only if the signed form says so) | both false: no member face in posts or AI motion without a Consent List row covering it |
 | 49 | Would NUMA partner with Mission Fitness, barre3 Mobile, Pure Barre Mobile, run clubs or University of South Alabama teams for collab posts? Any existing relationships? | `positioning.collab_partners` | keep yes-partners in her order, drop no's; add `relationship` to each existing one | keep the research order |
 | 50 | Would NUMA offer a rate for healthcare workers or students, or a bring-a-friend first plunge? | `offerings.rates_considered`, `offerings.offers` | rates_considered value = [{name, yes_no_maybe}]; a confirmed offer with price also goes into `offerings.offers` | null: never promote an unconfirmed rate |
-| 51 | Is there an advertising lawyer NUMA already works with to review the claims policy once? | `posting.legal_counsel` | value = {name, firm, contact}; `posting.legal_review_done` stays false until that review is done (edit mode) | null: Jude finds counsel; auto-posting stays gated |
+| 51 | Is there an advertising lawyer NUMA already works with to review the claims policy once? | `posting.legal_counsel` | value = the owners' answer (they said skip: no lawyer review); `posting.legal_review_done` stays a waived legacy key | none: human approval gates posting |
 
 ## 7. Done means
 
