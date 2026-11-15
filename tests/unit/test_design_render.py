@@ -46,7 +46,7 @@ ALL_SLIDES = [
     {"component": "photo", "photo": PHOTO, "photo_position": "50% 38%",
      "fields": {"kicker": "Red light", "caption": "Red light is *light*, not heat."}},
     {"component": "point", "fields": {"kicker": "The sauna", "number": "1", "title": "Heat that surrounds you",
-                                      "body": "Our Finnish sauna holds the air at 175–190°F. Deep, quiet heat to unwind."}},
+                                      "body": "Our sauna holds the air at 175–190°F. Deep, quiet heat to unwind."}},
     {"component": "stat", "fields": {"kicker": "Cold plunge", "stat": "44–52°F", "label": "is where our plunge water sits",
                                      "body": "Cold enough to wake you up.", "source": "Numa, Midtown Mobile"}},
     {"component": "myth_fact", "fields": {"kicker": "Common mix-up", "myth": "Red light is a sauna with colored bulbs.",

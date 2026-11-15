@@ -320,7 +320,7 @@ def test_dashboard_refresh(texts):
     for needle in ['metrics.py" due', 'metrics.py" ingest', 'metrics.py" compute', 'metrics.py" account',
                    'metrics.py" tag', 'dashboard.py"', "graph_api_version", "instagram.graph_api_version",
                    "Never request plays or impressions", "INSTAGRAM_GET_IG_MEDIA_INSIGHTS",
-                   "INSTAGRAM_GET_USER_INSIGHTS", "republish", "same dashboard artifact", "NUMA Reel Metrics",
+                   "INSTAGRAM_GET_USER_INSIGHTS", "republish", "same dashboard artifact", "Numa Reel Metrics",
                    "Do more of / Do less of", "Meta error 190", "10 pm"]:
         assert needle in t, needle
 

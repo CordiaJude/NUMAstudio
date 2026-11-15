@@ -61,7 +61,7 @@ script  The card rules and timing for one script.json (spec p.35-36): the
         shots, photos, on-screen text, CTA, share line, caption, hashtags).
         Exit 1 on any ERROR; WARN lines never change the exit code.
 
-sheet   The plan as "NUMA 30-Day Reel Plan" Sheet rows with exactly the spec
+sheet   The plan as "Numa 30-Day Reel Plan" Sheet rows with exactly the spec
         p.33 columns, in order: Day, Date, Title, Goal, Template, Hook (first 2
         seconds), Voiceover script, Shot list, Music mood + BPM, Call to
         action, Status, Folder link, Reel link. JSON (a list of row objects) by
@@ -74,7 +74,9 @@ MONTH_JSON: {"month": "2026-12", "rows": [row, ...], "events": [{"name", "date"}
 "mix_tolerance": 0.10} or a bare list of rows. A row has at least day, date and
 kind (reel, trial_reel, carousel, image, stories; `image` = a single-photo feed
 post on a topic, nothing to film; carousel rows may carry `carousel_source`
-component|photos|reel); reel rows carry the script.json fields once scripted.
+component|photos|reel, default carousel_source_of(): component when its
+pattern_ids name a carousel pattern, else reel when derived_from, else
+component; strategy.py plan writes it on every carousel row); reel rows carry the script.json fields once scripted.
 Carousels and photo posts are the feed's statics (about a third of feed posts).
 Status: Planned, Shot, Ready to build, Ready to post, Approved (or "Approved -
 <name or initials>", set by a person: DECISIONS D26), Posted. Defaults: topic = title; sales = goal is offer, or an
@@ -119,7 +121,8 @@ TOPIC_KINDS = {"reel", "trial_reel", "carousel", "image"}
 CAROUSEL_SOURCES = ("component", "photos", "reel")
 # Plan-row fields strategy.py plan adds (docs/CONTRACTS.md section 9, strategy.py): kept on the row, never part of
 # script.json's schema, so they are set aside before the schema check.
-PLAN_ROW_FIELDS = {"post_type", "post_time", "hour_band", "strategy", "moments", "story_frames", "carousel_source"}
+PLAN_ROW_FIELDS = {"post_type", "post_time", "hour_band", "strategy", "moments", "story_frames", "carousel_source",
+                   "build_evening_before"}
 SHEET_COLUMNS = ["Day", "Date", "Title", "Goal", "Template", "Hook (first 2 seconds)", "Voiceover script",
                  "Shot list", "Music mood + BPM", "Call to action", "Status", "Folder link", "Reel link"]
 STATUSES = ["Planned", "Shot", "Ready to build", "Ready to post", "Approved", "Posted"]
@@ -804,6 +807,18 @@ def shot_text(s: dict) -> str:
     return f"{body} ({'; '.join(tags)})"
 
 
+def carousel_source_of(r: dict) -> str:
+    """How a carousel row is built, one rule everywhere (strategy.py plan, /build-today, the card): the row's
+    `carousel_source`; else component when its pattern_ids name a carousel pattern (new copy from the playbook);
+    else reel when it is derived_from a reel; else component."""
+    src = r.get("carousel_source")
+    if src:
+        return str(src)
+    if any(str(p).startswith("carousel-") for p in r.get("pattern_ids") or []):
+        return "component"
+    return "reel" if r.get("derived_from") else "component"
+
+
 CAROUSEL_WHAT = {
     "reel": "Claude builds this carousel from this week's reel and the library.",
     "component": "Claude designs this carousel in Claude Design from the plan; photos from the library.",
@@ -834,7 +849,7 @@ def render_card(r: dict) -> str:
     nothing = not fresh and not reading
     L: list[str] = []
     if nothing:
-        what = {"carousel": CAROUSEL_WHAT.get(str(r.get("carousel_source") or "reel"), CAROUSEL_WHAT["reel"]),
+        what = {"carousel": CAROUSEL_WHAT.get(carousel_source_of(r), CAROUSEL_WHAT["component"]),
                 "image": "Claude builds this photo post from the day's photos, the media library and brand photos.",
                 "stories": "Claude cuts today's Stories from this week's material."}.get(
             kind, "Claude builds this reel from the media library and brand photos.")
@@ -846,7 +861,7 @@ def render_card(r: dict) -> str:
         film_by = f"    FILM BY: {short_date(fb)} (batch shoot{room})"
     L.append(f"DAY {int(r['day']):02d} · {short_date(d)} · \"{r['title']}\"{film_by}")
     L.append("")
-    root = nc.brand_value("drive.root", "NUMA Reels")
+    root = nc.brand_value("drive.root", "Numa Reels")
     L.append("WHERE TO PUT FILES")
     L.append(f"  Drive > {root} > {month_folder(d)} > {folder}")
     L += [f"  {x}".replace("{nn}", f"{int(r['day']):02d}") for when, x in FILING_RULES

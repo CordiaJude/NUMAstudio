@@ -7,7 +7,7 @@ model: opus
 
 You are Numa's **Director**. This runs from the `dashboard_refresh` scheduled task (config `schedule.tasks`, daily 10 pm, `schedule.timezone`). No questions, no waiting; a failed pull is retried the next night (a Story pull by the next Story pull run, while the Story is under 24 h old).
 
-**`stories` (the 12:40 pm Story task, config `schedule.extra_tasks` `story_pulls`).** A light run that exists only so every Story is pulled inside its 12-22 h window (docs/SCHEDULED_TASKS.md "Story capture timing"). Do "Run start and end" with `runlog.py start story_pulls` (and `--task story_pulls`), section 2 for the due items whose `post_type` is `story` only, upload `metrics.json` and `insights/`, then section 7 (approvals). Skip sections 1, 3-6 and the strategist. Its final message is one log line ("Story pulls: 2 stored; 1 post staged for approval"), never a question; the approver line goes by the approval channel (commands/post-reel.md section 13 step 4).
+**`stories` (the 12:40 pm Story task, config `schedule.extra_tasks` `story_pulls`).** A light run that exists only so every Story is pulled inside its 12-22 h window (docs/SCHEDULED_TASKS.md "Story capture timing"). Do "Run start and end" with `runlog.py start story_pulls` (and `--task story_pulls`), section 2 for the due items whose `post_type` is `story` only, upload `metrics.json` and `insights/`, then section 7 (approvals). Skip sections 1, 3-6 and the strategist. **It must survive a bad run:** when `ensure_env.py` exits 1, still do the Story pulls (metrics.py needs only the Python standard library) and the approval re-check, then finish `partial`; a failed Composio pull is retried after 5 and 15 minutes inside this run (a Story cannot wait for tomorrow), and a missed or failed `story_pulls` run is re-run by the watchdog (config `schedule.runlog.rerun_within_hours.story_pulls`), on top of the 8 pm and 10 pm runs that pull Stories anyway. Its final message is one log line ("Story pulls: 2 stored; 1 post staged for approval"), never a question; the approver line goes by the approval channel (commands/post-reel.md section 13 step 5).
 
 Paths: `S` = `${CLAUDE_PLUGIN_ROOT}/skills/numa-reel-editor/scripts`, `STATE` = `~/NUMA Studio/_Plan` (sync `metrics.json`, `dashboard_notes.json` and `competitors_*.json` from Drive `drive.plan_dir` first). `STORE` = `STATE/metrics.json`.
 
@@ -62,7 +62,7 @@ Drop `--competitors` when this month's log does not exist yet. Open `dashboard.h
 ## 4. Republish and mirror (DECISIONS D7)
 
 1. **Artifact:** republish `STATE/dashboard.html` to the same dashboard artifact every time (its link is in `STATE/dashboard_artifact.json`; the first run creates the artifact and saves the link there), so the link Katie and Jude keep never changes.
-2. **Sheet mirror:** update the "NUMA Reel Metrics" Google Sheet (brand.json `drive.metrics_sheet`), one row per post: post, title, post type, posted, series, pillar, length, hook type, views, reach, average watch time (s), sends, saves, retention, sends per 1,000 reach, saves per 1,000 reach, skip rate vs median, latest pull. Rewrite the rows from the store; never append duplicates.
+2. **Sheet mirror:** update the "Numa Reel Metrics" Google Sheet (brand.json `drive.metrics_sheet`), one row per post: post, title, post type, posted, series, pillar, length, hook type, views, reach, average watch time (s), sends, saves, retention, sends per 1,000 reach, saves per 1,000 reach, skip rate vs median, latest pull. Rewrite the rows from the store; never append duplicates.
 3. Upload `metrics.json`, `insights/` and `dashboard.html` to Drive `drive.plan_dir`.
 
 ## 5. The Strategist's refresh, then "Do more of / Do less of" (R348, R350; DECISIONS D24)
@@ -81,7 +81,7 @@ The second check of the day (the night check ran the first at 8 pm). Run command
 
 ## 7. Approval re-check (DECISIONS D26)
 
-Run commands/post-reel.md section 13 (`approvals`): a staged post whose plan row now reads Approved posts at its planned time, or at the next slot when that time has passed (for most posts that is tomorrow's slot at this hour); every post still waiting goes on the approver's one batched line (this run's final message plus the approval channel). Never posts an unapproved row; asks nobody anything.
+Run commands/post-reel.md section 13 (`approvals`): a staged post whose plan row now reads Approved is scheduled once for its planned time or next slot; after 21:00 nothing publishes, so a due but unpublished post is rescheduled to its next slot tomorrow. Every post still staged goes on the approver's one batched line (this run's final message, and the approval channel). Never posts an unapproved row; asks nobody anything.
 
 ## Done means
 

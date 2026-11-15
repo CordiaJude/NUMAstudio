@@ -102,7 +102,7 @@ Never hand-write it: `python3 "$S/shoot_card.py" card script.json --out "SHOOT C
 DAY 09 · Wed Dec 9 · "Your first plunge"    FILM BY: Mon Dec 7 (batch shoot: plunge room)
 
 WHERE TO PUT FILES
-  Drive > NUMA Reels > 2026-12 December > Day 09 - 2026-12-09 - Your first plunge
+  Drive > Numa Reels > 2026-12 December > Day 09 - 2026-12-09 - Your first plunge
   Photos -> photos/  Videos -> clips/
   Voice memo -> "voiceover 09"; re-record by replacing it. Music optional.
   Any file names. Sheet edits optional.

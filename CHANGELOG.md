@@ -21,8 +21,8 @@ before anything posts.
   transformation`): 0 validator errors, before/after wipe at 14.63 s, cuts within one frame of a beat
   (25/25 and 26/26), every caption word within 0.1 s, output spec met, 39.0 s vs the reference's
   39.0 s, drop-to-file 1.5 min each (limit 15); formats 17 and 16 files with two-digit carousel names.
-- M3 five-folder suite (`tests/run_tests.py`): 5/5 PASS (590 s).
-- Unit suite (`python -m pytest tests/unit -q`): all green (1,690 passed, 5 skipped); privacy guard
+- M3 five-folder suite (`tests/run_tests.py`): 5/5 PASS (543 s).
+- Unit suite (`python -m pytest tests/unit -q`): all green (1,702 passed, 5 skipped); privacy guard
   (`tests/unit/test_brand_privacy.py` with the private people file): passed.
 - Jude's rating against the hand-built reference (the manual M2 step) is pending; record it here
   before tagging.
@@ -79,6 +79,19 @@ before anything posts.
   Sheet, and creates and verifies nine scheduled tasks.
 - `shoot_card.py` sets aside the plan-row fields strategy.py adds before the script.json schema
   check, and no longer assumes Katie reads the voiceover.
+- Approved posts are scheduled once and published once (T16 review): staged records carry a
+  `status` enum (staged, held_for_approval, held_member_yes, scheduled, publishing, queued,
+  published, expired) with `publish_at`, `task_id` and a publish `claim` on the Drive record; the
+  one-time task runs `/post-reel approvals` (slug-based, any machine); a duplicate check runs before
+  every publish; the 8 pm night check is the guaranteed publish slot for approved posts due by 9 pm.
+  Nothing posts before `approval.earliest_post_time` (12:00): strategy.py no longer plans 7 am posts
+  (rotation late afternoon, midday, evening); a half day that must post earlier is built and staged
+  the evening before (`build_evening_before`). Approver notices count only when delivered.
+- Jude-only escalations go by email or `_Plan/escalations.md`, never as a run notification.
+- New claims rule `sauna_type_finnish` (the sauna's type is unconfirmed); playbook examples reworded.
+- Drive names are "Numa Reels", "Numa 30-Day Reel Plan" and "Numa Reel Metrics" (nothing existed on
+  Drive yet: /numa-setup creates them, and asks for an existing material folder by name).
+- A canvas carousel whose slide text changed after approval is held for re-approval (DECISIONS D29).
 - Version 2.1.0 (plugin.json, marketplace.json).
 
 ## [2.0.0] - 2026-11-12

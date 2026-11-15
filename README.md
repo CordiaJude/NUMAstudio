@@ -40,7 +40,7 @@ approves the connector tools so scheduled runs never stop on a permission prompt
 ## Daily use
 
 After setup Katie types no commands. `/plan-month` writes a 30-day plan Sheet and a dated Drive folder
-with a SHOOT CARD for every day (`NUMA Reels/Day 07 - 2026-12-09 - Your first plunge/`); days with a
+with a SHOOT CARD for every day (`Numa Reels/Day 07 - 2026-12-09 - Your first plunge/`); days with a
 carousel, photo post or Stories say "No filming needed". Katie films what the card asks and drops
 the files in that folder. The scheduled tasks do everything else and send a phone notification when
 the day's post is in its `Finished/` folder, staged for approval.

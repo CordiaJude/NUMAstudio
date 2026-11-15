@@ -314,7 +314,7 @@ def test_banned_claims_catch_every_spec_item(brand, text):
 
 @pytest.mark.parametrize("text", [
     "Three minutes of cold. Walk out wide awake.", "A challenge that leaves many people feeling energized.",
-    "Pairs well with the sauna for contrast.", "Deep, quiet heat to unwind.", "A centuries-old Finnish ritual.",
+    "Pairs well with the sauna for contrast.", "Deep, quiet heat to unwind.", "Our sauna runs 175 to 190°F.",
     "Relax, breathe, disconnect.", "our panels use 660 nm and 850 nm light", "A warm, calming session",
     "Guided breathing to help you slow down.", "Feel more centered.", "Learn techniques people use to relax.",
     "Find a collective rhythm in the chaos of life.", "Your reset starts here.", "Take your first deep breath.",
@@ -381,10 +381,10 @@ def test_claims_structure(brand):
 
 
 def test_consent_drive_posting_escalation(brand):
-    assert brand["consent"]["list"]["location"] == "NUMA Reels/_Plan/Consent List"
+    assert brand["consent"]["list"]["location"] == "Numa Reels/_Plan/Consent List"
     assert brand["consent"]["children"]["value"] == "never"
-    assert brand["closures"]["location"] == "NUMA Reels/_Plan/Closures"
-    assert brand["drive"]["plan_sheet"] == "NUMA 30-Day Reel Plan"
+    assert brand["closures"]["location"] == "Numa Reels/_Plan/Closures"
+    assert brand["drive"]["plan_sheet"] == "Numa 30-Day Reel Plan"
     assert brand["drive"]["music_library"] == "_Plan/Music Library"
     assert brand["captions"]["hashtags"]["count"] == [3, 5]
     assert brand["captions"]["hashtags"]["base"] == ["#MobileAL", "#MidtownMobile", "#GulfCoastWellness"]

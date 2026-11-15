@@ -1157,6 +1157,15 @@ def closure_items(items: list, where: str) -> dict[date, str]:
     return out
 
 
+def earliest_post_time() -> str:
+    """config approval.earliest_post_time (HH:MM Central, default 12:00): every post waits for a person's approval
+    after the 5 am build (DECISIONS D26), so no band before it is planned (a half day excepted, built the evening before)."""
+    v = str(nc.config_value("approval.earliest_post_time", "12:00") or "12:00")
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", v):
+        raise nc.UserError(f"config approval.earliest_post_time must be HH:MM, got {v!r}")
+    return v
+
+
 def partial_closures(path: str | None = None) -> dict[date, dict]:
     """Half days from brand.json closures.partial ({date, name, open_until HH:MM}), plus any in a JSON closures file.
     The planner invites nobody in after open_until and posts that day before it."""
@@ -1686,7 +1695,8 @@ class Planner:
         ts = self.lp["time_slots"]
         bands = self.pol["hour_bands"]["bands"]
         default = self.pol["hour_bands"]["default"]
-        rot = [b for b in ts["rotation"] if b in bands] or [default]
+        earliest = earliest_post_time()
+        rot = [b for b in ts["rotation"] if b in bands and bands[b]["post_at"] >= earliest] or [default]
         stats = {b: decision_stats(arm(self.fits, self.pb, "band", b)["records"]) for b in bands}
         best, why = default, f"{default.replace('_', ' ')} is the default (spec p.34) until a slot wins"
         d = stats[default]
@@ -1716,12 +1726,18 @@ class Planner:
             else:
                 band = best if (w % 4 != 3 or len(rot) < 2) else next(b for b in rot if b != best)
                 note = why + ("" if band == best else "; one week in four keeps rotating to watch the others")
+            if bands[band]["post_at"] < earliest_post_time():
+                band = default
             half = self.partial.get(date.fromisoformat(r["date"]))
             if half and bands[band]["post_at"] >= half["open_until"]:
                 early = [b for b in bands if bands[b]["post_at"] < half["open_until"]]
                 if early:
                     band = max(early, key=lambda b: bands[b]["post_at"])
                 note = f"{half['name']}: open until {half['open_until']}, so it posts before then and invites nobody in after"
+            if bands[band]["post_at"] < earliest_post_time():
+                # only a half day gets here: built and staged by the night check the evening before (DECISIONS D26)
+                r["build_evening_before"] = True
+                note += "; built and staged the evening before so a person can approve it in time"
             r["hour_band"] = band
             r["post_time"] = bands[band]["post_at"]
             r["strategy"]["why"].append(f"Hour: {band.replace('_', ' ')} ({bands[band]['post_at']} Central): {note}")
@@ -1978,6 +1994,9 @@ def month_plan(pb: dict, fits: dict, month_text: str, seed: int | None, events: 
             break
     assert plan is not None
     planner.pattern_slots(plan)
+    for r in plan["rows"]:
+        if r["kind"] == "carousel":
+            r["carousel_source"] = sc.carousel_source_of(r)   # one rule with shoot_card.py and /build-today
     plan.pop("_draws", None)
     test_note = plan.pop("_test_note", "")
     for r in plan["rows"]:

@@ -202,7 +202,7 @@ def test_card_matches_the_spec_example_structure(tmp_path, capsys):
     heads = ["WHERE TO PUT FILES", "WHAT TO FILM", "READ THIS OUT LOUD", "MUSIC:"]
     pos = [next(i for i, ln in enumerate(lines) if ln.startswith(h)) for h in heads]
     assert pos == sorted(pos)
-    assert "Drive > NUMA Reels > 2026-12 December > Day 09 - 2026-12-09 - Your first plunge" in text
+    assert "Drive > Numa Reels > 2026-12 December > Day 09 - 2026-12-09 - Your first plunge" in text
     # filing rules at the top: where, voiceover naming and re-record, music, file names, changes
     filing = "\n".join(lines[pos[0]:pos[1]])
     for needle in ["photos/", "clips/", '"voiceover 09"', "re-record", "Music optional", "Any file names",

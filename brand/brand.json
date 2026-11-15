@@ -1,5 +1,5 @@
 {
-  "_readme": "Single source of truth for the brand. Every skill, agent and script reads this file (scripts via numa_common.load_brand()). Most entries are facts: {\"value\": ..., \"status\": ..., \"source\": ..., \"note\": ...}. Prefer values whose status is 'confirmed'; never present a 'needs_katie' value as fact in public copy. The owners answered the setup questions on 2026-11-13 (docs/QUESTIONS_FOR_KATIE.md lists what is still open); their answers override research and earlier defaults (DECISIONS D25). The business name is \"Numa\" in every user-facing text; \"NUMA\" survives only in the plugin's own names (numa-studio, Drive folder and file names). People data (staff, providers, members, consent) is private: it lives in STATE/people.json (schemas/people.schema.json), never here; this file names only roles plus the co-founders. Asset and font paths are relative to the plugin root. Operational numbers (model tiers, Higgsfield prices and budget, Instagram API version, render targets, schedule) live in config/studio.json, not here.",
+  "_readme": "Single source of truth for the brand. Every skill, agent and script reads this file (scripts via numa_common.load_brand()). Most entries are facts: {\"value\": ..., \"status\": ..., \"source\": ..., \"note\": ...}. Prefer values whose status is 'confirmed'; never present a 'needs_katie' value as fact in public copy. The owners answered the setup questions on 2026-11-13 (docs/QUESTIONS_FOR_KATIE.md lists what is still open); their answers override research and earlier defaults (DECISIONS D25). The business name is \"Numa\" in every user-facing text; \"NUMA\" survives only in the plugin's own name (NUMA Studio, numa-studio); the Drive folder and Sheets are named \"Numa ...\" (drive.*). People data (staff, providers, members, consent) is private: it lives in STATE/people.json (schemas/people.schema.json), never here; this file names only roles plus the co-founders. Asset and font paths are relative to the plugin root. Operational numbers (model tiers, Higgsfield prices and budget, Instagram API version, render targets, schedule) live in config/studio.json, not here.",
   "_status_legend": {
     "confirmed": "The owners (setup answers) or the brief confirmed it; use freely.",
     "from_website": "Taken from numawellness.org or Numa's own channels; use, the owners confirm at setup.",
@@ -20,7 +20,7 @@
       },
       "status": "confirmed",
       "source": "owners' setup answers, 2026-11-13 (Q1)",
-      "note": "Always \"Numa\", never \"NUMA\", in captions, on-screen text, slides, voiceover scripts and hashtags (claims_scan rule name_casing; the Critic's hard gate). Full name: Numa Wellness Collective. The free track is always \"The Numa Reset\". The plugin's own name (numa-studio) and Drive folder and file names keep their spelling."
+      "note": "Always \"Numa\", never \"NUMA\", in captions, on-screen text, slides, voiceover scripts and hashtags (claims_scan rule name_casing; the Critic's hard gate). Full name: Numa Wellness Collective. The free track is always \"The Numa Reset\". The plugin's own name (numa-studio) keeps its spelling; the Drive folder and Sheets use \"Numa\" (drive.root \"Numa Reels\")."
     },
     "name_usage": {
       "value": "Write \"Numa\" (short) or \"Numa Wellness Collective\" (full); never \"NUMA\". Offer names: \"Discover Numa\" (never Discover Pass or Explore Numa) and \"The Numa Reset\".",
@@ -2454,6 +2454,15 @@
           "\\bhung\\s*over\\b"
         ],
         "applies_to": "all"
+      },
+      {
+        "id": "sauna_type_finnish",
+        "label": "calling Numa's sauna Finnish (the sauna's type is not confirmed: business.facility)",
+        "severity": "fail",
+        "patterns": [
+          "\\bfinnish\\b"
+        ],
+        "applies_to": "all"
       }
     ],
     "allow_patterns": [
@@ -2623,7 +2632,7 @@
   },
   "consent": {
     "list": {
-      "location": "NUMA Reels/_Plan/Consent List",
+      "location": "Numa Reels/_Plan/Consent List",
       "kind": "Google Sheet",
       "columns": [
         "name",
@@ -2705,7 +2714,7 @@
     }
   },
   "closures": {
-    "location": "NUMA Reels/_Plan/Closures",
+    "location": "Numa Reels/_Plan/Closures",
     "kind": "Google Sheet or calendar",
     "rule": "Nothing that invites people in is scheduled on a closure day.",
     "known": {
@@ -2767,15 +2776,15 @@
   },
   "drive": {
     "_source": "spec p.32 (Drive structure), p.45 and p.49 (Digests, Consent List, Closures), DECISIONS D7 (metrics sheet)",
-    "root": "NUMA Reels",
+    "root": "Numa Reels",
     "plan_dir": "_Plan",
-    "plan_sheet": "NUMA 30-Day Reel Plan",
+    "plan_sheet": "Numa 30-Day Reel Plan",
     "music_library": "_Plan/Music Library",
     "music_naming": "mood_bpm_title.mp3",
     "digests": "_Plan/Digests",
     "consent_list": "_Plan/Consent List",
     "closures": "_Plan/Closures",
-    "metrics_sheet": "_Plan/NUMA Reel Metrics",
+    "metrics_sheet": "_Plan/Numa Reel Metrics",
     "month_folder": "YYYY-MM Month",
     "month_folder_example": "2026-12 December",
     "day_folder": "Day NN - YYYY-MM-DD - Title",
@@ -2813,7 +2822,7 @@
       "value": true,
       "status": "confirmed",
       "source": "owners' setup answers, 2026-11-13 (Q51)",
-      "note": "No longer needed: the owners said to skip the advertising lawyer (Q51). No lawyer reviewed the policy. Kept, set true, because post-reel still reads it as a gate; human approval (human_approval_required) replaces it.",
+      "note": "No longer needed: the owners said to skip the advertising lawyer (Q51). No lawyer reviewed the policy. Kept, set true and waived, only as a legacy key the schema still lists; no command reads it as a gate. Human approval of every post (human_approval_required, DECISIONS D26) replaces it.",
       "required": false,
       "waived": true
     },

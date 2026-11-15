@@ -266,12 +266,18 @@ def question_rows(text: str) -> dict[int, str]:
     return rows
 
 
+# brand-setup asks these reworded (owners' answers 2026-11-13, D25/D26/D27): never the clone or lawyer questions again
+ASK_NOW = {28: "Who records the voiceovers", 47: "57 minutes of sauna", 51: "the owners skipped the advertising-lawyer review"}
+
+
 @pytest.mark.parametrize("doc", ["brand-setup", "questions"])
 def test_all_51_questions_in_order_with_keys(doc, texts, brand):
     text = texts[doc]
     rows = question_rows(text)
     assert sorted(rows) == list(range(1, 52)), doc
     for n, phrase in enumerate(QUESTIONS, 1):
+        if doc == "brand-setup" and n in ASK_NOW:
+            phrase = ASK_NOW[n]
         assert phrase in rows[n], f"{doc} Q{n}: {phrase!r} missing"
     # every question names at least one brand.json key
     if doc == "brand-setup":
@@ -287,6 +293,11 @@ def test_all_51_questions_in_order_with_keys(doc, texts, brand):
 def test_question_texts_match_between_docs(texts):
     a, b = question_rows(texts["brand-setup"]), question_rows(texts["questions"])
     for n in range(1, 52):
+        if n in ASK_NOW:   # QUESTIONS_FOR_KATIE keeps the original question; brand-setup asks the reworded one
+            cell = a[n].split(" | ")[0].strip()
+            assert cell.startswith(("**Ask now:**", "**Do not ask:**")), f"Q{n}"
+            assert "cloned version of your voice" not in cell and "lawyer's OK" not in cell, f"Q{n}"
+            continue
         assert a[n].split(" | ")[0].strip() == b[n].rstrip(" ").rstrip(), f"Q{n} differs"
 
 

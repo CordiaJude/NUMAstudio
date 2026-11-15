@@ -52,7 +52,7 @@ TESTIMONIALS = ["It fixed my back pain", "My anxiety is gone since I started", "
 
 CLEAN = [
     "Three minutes of cold. Walk out wide awake.", "A challenge that leaves many people feeling energized.",
-    "Pairs well with the sauna for contrast.", "Deep, quiet heat to unwind.", "A centuries-old Finnish ritual.",
+    "Pairs well with the sauna for contrast.", "Deep, quiet heat to unwind.", "Our sauna runs 175 to 190°F.",
     "Relax, breathe, disconnect.", "our panels use 660 nm and 850 nm light", "A warm, calming session",
     "Guided breathing to help you slow down.", "Feel more centered.", "Learn techniques people use to relax.",
     "Your reset starts here.", "Year one. Thank you, Mobile.", "Treat yourself to a Friday contrast session.",

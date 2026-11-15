@@ -7,7 +7,7 @@ Usage:
 
 Inputs:
 * METRICS_JSON: the metrics store (metrics.py).
-* ROWS: the "NUMA 30-Day Reel Plan" Sheet exported as JSON (a list of row
+* ROWS: the "Numa 30-Day Reel Plan" Sheet exported as JSON (a list of row
   objects, or {"rows": [...]}) or CSV with a header row. Column names are
   matched loosely (case and punctuation ignored; dates YYYY-MM-DD or M/D/YYYY): Day, Date, Title, Goal,
   Template, Hook, Voiceover script, Shot list (or Shots), Music, Call to action,

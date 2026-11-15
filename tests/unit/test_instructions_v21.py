@@ -107,10 +107,12 @@ def test_post_reel_section_13_approval_recheck():
     t = read("commands/post-reel.md")
     sec = t[t.find("## 13. Approval re-check"):]
     assert sec, "post-reel section 13"
-    for needle in ["`approvals`", "Download Drive `_Plan/staged/`", "a failed download is never \"absent\"",
-                   "`Approved` or `Approved - <name or initials>`", "planned time or at the next slot",
-                   "**One notice per run, never one per post.**", "the owners and the social media lead, by role",
-                   "`STATE/approval_notices.json`", "A statement, never a question", "`approval_notify`"]:
+    for needle in ["`approvals`", "Download Drive `_Plan/staged/`", "`_Plan/approval_notices.json` into `STATE/`",
+                   "a failed download is never \"absent\"", "`Approved` or `Approved - <name or initials>`",
+                   "**Schedule, once.**", "never scheduled again and never gets a second task",
+                   "**Publish what is due, exactly once.**", "**One notice per run, never one per post.**",
+                   "the owners and the social media lead, by role", "`STATE/approval_notices.json`",
+                   "A statement, never a question", "`approval_notify`"]:
         assert needle in sec, needle
     assert "No fallback anywhere in this command may publish" in t
     assert "`STATE/staged/<SLUG>.json`" in t and "_Plan/staged/" in t
@@ -118,9 +120,139 @@ def test_post_reel_section_13_approval_recheck():
     assert "--not-before <posting time - 75 min> --deadline <posting time>" in t   # T17 M4
     assert "do **not** publish and do **not** expire it" in t
     when = t[t.find("## 3. When to post"):t.find("## 4. Publish")]
-    for needle in ["**Approved before the planned time:**", "**Approved after the planned time", "**next slot**",
-                   "`approval.min_lead_minutes`", "`approval.latest_post_time`", "**Not approved:** nothing is scheduled"]:
+    for needle in ["**Approved, record not yet `scheduled`:** compute `publish_at` once",
+                   "**Approved, record already `scheduled`:** nothing to do before `publish_at`: no second task",
+                   "**next slot**", "`approval.min_lead_minutes`", "`approval.earliest_post_time` (12:00)",
+                   "`approval.latest_post_time` (21:00)", "**Not approved:** nothing is scheduled",
+                   "upload it **before** creating anything", "first free slot **today**", "first free slot **tomorrow**",
+                   "tomorrow's own planned post keeps its time"]:
         assert needle in when, needle
+
+
+STATUS_ENUM = ["staged", "held_for_approval", "held_member_yes", "scheduled", "publishing", "queued", "published", "expired"]
+
+
+def test_staged_record_status_enum_and_fields():
+    t = read("commands/post-reel.md")
+    table = t[t.find("**`status`** is exactly one of:"):t.find("Section 13 reads only this file")]
+    assert re.findall(r"^\| `([a-z_]+)` \|", table, re.M)[1:] == STATUS_ENUM   # [0] is the header
+    for field in ['"publish_at"', '"task_id"', '"scheduled_by"', '"claim" ({"run_id", "at"}', '"slide_text_hash"']:
+        assert field in t, field
+    contracts = read("docs/CONTRACTS.md")
+    for s in STATUS_ENUM:
+        assert s in contracts[contracts.find("`staged/<slug>.json`"):contracts.find("`approval_notices.json`")], s
+
+
+def test_publish_claim_wording():
+    t = read("commands/post-reel.md")
+    step = t[t.find("4. **Publish what is due, exactly once.**"):t.find("5. **One notice per run")]
+    for needle in ["**Claim.** Download this record from Drive again.", "`status: publishing`",
+                   '`claim` = `{"run_id": "<this run\'s id>", "at": "<now, Central ISO>"}`', "Wait one minute",
+                   "**re-read the claim**", "another run won", "exactly one run publishes", "younger than 30 minutes",
+                   "**Duplicate check**", "caption starts with this caption's first line", "Re-read the plan row",
+                   "Rebuild `JOB` on this machine", "In the 8 pm night check only", "at or before 21:00 today",
+                   "After 21:00 nothing publishes"]:
+        assert needle in step, needle
+    assert "Before **every** publish call, the first and each retry" in t   # section 8
+
+
+def test_one_time_task_is_slug_based_and_single():
+    t = read("commands/post-reel.md")
+    assert "Run /post-reel approvals with the NUMA Studio plugin (numa-studio)" in t
+    assert "Run /post-reel <JOB> publish" not in t                        # a local path a fresh machine lacks
+    assert "less than an hour away" not in t                               # the rule that never matched
+    assert "create **one** one-time scheduled task at `publish_at`" in t
+    nc_ = read("commands/night-check.md")
+    assert "**guaranteed 8 pm publish slot**" in nc_ and "due by 21:00 today" in nc_
+
+
+def test_approver_notice_recorded_only_when_delivered():
+    t = read("commands/post-reel.md")
+    sec = t[t.find("5. **One notice per run"):t.find("6. Upload every staged record")]
+    assert "only when it was delivered" in sec and "sent by Gmail" in sec and "notifications on" in sec
+    assert "do **not** record the posts as notified" in sec and "late build" in sec
+    assert "sentences only, never objects" in sec
+
+
+def test_escalations_never_reach_run_notifications():
+    """Jude-only lines go by email or STATE/escalations.md, never as a run notification (make-reel section 0)."""
+    bad = re.compile(r"(escalation|Jude)[^.|]*(goes|go|sent) as the run's notification|Claude app notification\?", re.I)
+    for rel in INSTRUCTION_FILES:
+        for line in read(rel).splitlines():
+            assert not bad.search(line), (rel, line[:160])
+    assert "**Never as a run notification:**" in read("commands/post-reel.md")
+    assert "Never the Claude app notification" in read("commands/numa-setup.md")
+
+
+def test_earliest_post_time_respected_by_strategy(config, nc):
+    import strategy
+    import subprocess
+    import sys
+    earliest = config["approval"]["earliest_post_time"]
+    assert earliest == "12:00" and strategy.earliest_post_time() == "12:00"
+    pol = json.loads(read("skills/numa-scriptwriter/playbook/policies.json"))["policies"]
+    bands = pol["hour_bands"]["bands"]
+    assert all(bands[b]["post_at"] >= earliest for b in pol["learning"]["time_slots"]["rotation"])
+    script = REPO / "skills" / "numa-reel-editor" / "scripts" / "strategy.py"
+    for month in ("2026-12", "2027-03"):
+        r = subprocess.run([sys.executable, str(script), "plan", "--month", month, "--json"], capture_output=True, text=True)
+        assert r.returncode == 0, r.stdout + r.stderr
+        plan = json.loads(r.stdout)
+        plan = plan.get("plan", plan)
+        for row in plan["rows"]:
+            if row.get("post_time") and row["post_time"] < earliest:
+                assert row.get("build_evening_before") is True, row
+        for row in plan["rows"]:
+            if row["kind"] == "carousel":
+                assert row["carousel_source"] in ("component", "photos", "reel"), row
+    assert "build_evening_before" in read("commands/night-check.md")
+
+
+def test_carousel_source_one_rule(nc):
+    import shoot_card as sc
+    assert sc.carousel_source_of({"pattern_ids": ["x", "carousel-what-to-bring"], "derived_from": 7}) == "component"
+    assert sc.carousel_source_of({"derived_from": 7}) == "reel"
+    assert sc.carousel_source_of({}) == "component"
+    assert sc.carousel_source_of({"carousel_source": "photos", "derived_from": 7}) == "photos"
+    assert "carousel_source_of" in read("commands/build-today.md")
+
+
+def test_finnish_is_a_banned_claim_and_gone_from_the_playbook(nc):
+    import claims_scan
+    import subprocess
+    import sys
+    script = REPO / "skills" / "numa-reel-editor" / "scripts" / "claims_scan.py"
+    bad = subprocess.run([sys.executable, str(script), "Step into our Finnish sauna."], capture_output=True, text=True)
+    assert bad.returncode == 1 and "sauna_type_finnish" in bad.stdout + bad.stderr
+    ok = subprocess.run([sys.executable, str(script), "Our sauna runs 175 to 190°F."], capture_output=True, text=True)
+    assert ok.returncode == 0
+    for name in ("patterns.json", "calendar.json", "diagnosis.json"):
+        assert "finnish" not in read(f"skills/numa-scriptwriter/playbook/{name}").lower(), name
+
+
+def test_story_pulls_survive_a_bad_run(config):
+    assert config["schedule"]["runlog"]["rerun_within_hours"]["story_pulls"] > 0
+    dr = read("commands/dashboard-refresh.md")
+    assert "when `ensure_env.py` exits 1, still do the Story pulls" in dr and "retried after 5 and 15 minutes" in dr
+
+
+def test_publish_tags_come_from_the_staged_record():
+    t = read("commands/post-reel.md")
+    assert "the tags come first from the staged record's `tags`" in t and "Graph `timestamp`" in t
+
+
+def test_canvas_text_change_holds_for_reapproval():
+    t = read("commands/post-reel.md")
+    assert "**Different hash (DECISIONS D29):**" in t and "`status: held_for_approval`" in t
+    assert "canvas text changed after approval: re-approve" in t
+
+
+def test_brand_setup_never_reasks_clone_or_lawyer():
+    t = read("commands/brand-setup.md")
+    rows = {m.group(1): m.group(2) for m in re.finditer(r"^\| (28|47|51) \| ([^|]+)\|", t, re.M)}
+    assert rows["28"].startswith("**Ask now:**") and "cloned version of your voice" not in rows["28"]
+    assert rows["47"].startswith("**Ask now:**") and "lawyer's OK" not in rows["47"]
+    assert rows["51"].startswith("**Do not ask:**")
 
 
 @pytest.mark.parametrize("rel", ["commands/night-check.md", "commands/dashboard-refresh.md", "commands/chrome-queue.md"])
@@ -261,7 +393,7 @@ def test_photo_flows_honour_people_json(rel):
 INSTRUCTION_FILES = sorted(p.relative_to(REPO).as_posix() for p in
                            list(CMD.glob("*.md")) + list(AGENTS.glob("*.md")) + list(SKILLS.glob("*/SKILL.md")))
 # Allowed: the plugin's name, Drive folder and Sheet names, env vars, and the rule that names the banned spelling.
-ALLOWED_CAPS = re.compile(r'NUMA(?= Studio| Reels| 30-Day| Reel Metrics|_)|"NUMA"|never NUMA|Never: NUMA|any "NUMA"|never "NUMA"')
+ALLOWED_CAPS = re.compile(r'NUMA(?= Studio|_)|"NUMA"|never NUMA|Never: NUMA|any "NUMA"|never "NUMA"')
 EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B50\u2B55\u2705\u274C]")
 
 

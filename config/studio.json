@@ -114,7 +114,7 @@
         "job": "A line of voiceover",
         "model": "Seed Audio",
         "tool": "generate_audio",
-        "options": "preset or consented cloned voice",
+        "options": "a generic, non-cloned preset voice, only when brand.json voice.generic_ai_allowed is true (never a cloned voice, DECISIONS D25)",
         "seconds": null,
         "credits": 0.5
       },
@@ -502,6 +502,7 @@
       "late_build_by": "15:00",
       "_late_build_by": "Latest Central time a late build may start: it only builds and stages; a person still has to approve and post the same day.",
       "rerun_within_hours": {
+        "story_pulls": 8,
         "plan_month": 144,
         "night_check": 8,
         "digest": 18,
@@ -620,9 +621,11 @@
       "chrome_queue"
     ],
     "min_lead_minutes": 20,
+    "earliest_post_time": "12:00",
+    "_earliest_post_time": "No post is planned or published before this Central time: the build runs at 5 am and a person approves after it (DECISIONS D26). strategy.py never plans an earlier band; a half day that must post before it is built and staged by the night check the evening before (row build_evening_before).",
     "latest_post_time": "21:00",
     "min_gap_between_feed_posts_minutes": 120,
-    "next_slot_rule": "Approved before its planned posting time: posts at that time. Approved after it: posts at the next slot, the next posting time (plan row post_time, else the default posting time) at least min_lead_minutes away, never after latest_post_time, and min_gap_between_feed_posts_minutes from any other feed post; a Story set takes the next slot too.",
+    "next_slot_rule": "Approved with the planned time still at least min_lead_minutes away: publish_at = the planned time. Otherwise the next slot: the first free time today between max(now + min_lead_minutes, earliest_post_time) and latest_post_time that is min_gap_between_feed_posts_minutes from every other feed post that day (posted, scheduled or planned); none left today: the first free time tomorrow between earliest_post_time and latest_post_time, where tomorrow's own planned post keeps its time. Scheduled once (one publish_at, at most one one-time task running /post-reel approvals); published once under the Drive-record claim; the 8 pm night check publishes any approved post due by latest_post_time that no task published.",
     "stale_after_days": 7,
     "notify": "One batched line per run to the approver, listing every post newly waiting; never one per post and never a question.",
     "notify_until_approver_named": [
@@ -810,6 +813,6 @@
         "films": false
       }
     ],
-    "carousel_source_default": "component when the row has a carousel pattern or new copy; reel when it is derived_from a reel; photos when the day folder or library has 2+ fitting photos and no copy"
+    "carousel_source_default": "shoot_card.carousel_source_of: the row's carousel_source (strategy.py plan writes it); else component when pattern_ids name a carousel pattern; else reel when derived_from; else component. photos only when the Director sets it."
   }
 }

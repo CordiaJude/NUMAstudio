@@ -265,7 +265,10 @@ def test_cold_start_plan_is_the_default_week_and_valid(month):
         assert row["kind"] == base["kind"], row["date"]       # default week types and days at cold start
     first_week = [r for r in plan["rows"] if r["strategy"]["week"] == plan["rows"][0]["strategy"]["week"]]
     assert {r["post_time"] for r in first_week} == {"16:30"}                 # late afternoon first (spec p.34)
-    assert {r["post_time"] for r in plan["rows"]} <= {"16:30", "07:00", "12:00"}   # then the blocked rotation (R6)
+    # then the blocked rotation (R6): late afternoon, midday, evening; never before approval.earliest_post_time (D26),
+    # except a half day built and staged the evening before
+    assert {r["post_time"] for r in plan["rows"] if not r.get("build_evening_before")} <= {"16:30", "12:00", "18:00"}
+    assert all(r["post_time"] >= "12:00" for r in plan["rows"] if not r.get("build_evening_before"))
     retired = {pid for pid, p in pb["patterns"].items() if p["status"] == "retired"}
     for r in plan["rows"]:
         arm = S.parse_arm(r["strategy_arm"])

@@ -105,7 +105,7 @@ cp "$STATE/plans/strategy_YYYY-MM.json" "$STATE/plans/plan_YYYY-MM.json"
 | `image` | Single photo post on a topic | photo_post.py single | none (a still from the day folder or the library) |
 | `stories` | Story set (`story_frames` 3-5 from `SPLAN`) | formats.py from the latest reel | none |
 
-Pick `carousel_source` by the slot's pattern: a carousel pattern with new copy is `component`; a member, class or room moment told in pictures is `photos`; a saveable recap of a reel is `reel`. Statics (carousels and photos) are about a third of feed posts unless `SPLAN` moved them (format arms).
+`SPLAN` already sets `carousel_source` on every carousel row with the one rule of `shoot_card.carousel_source_of` (component when `pattern_ids` name a carousel pattern, else reel when `derived_from`, else component); change it to `photos` only for a member, class or room moment told in pictures, and log why. Statics (carousels and photos) are about a third of feed posts unless `SPLAN` moved them (format arms).
 
 | Day | Post (default week, the cold start) | Notes |
 |---|---|---|

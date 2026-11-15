@@ -165,7 +165,7 @@
       "stickiness": 0.1,
       "underperform_index": 0.8,
       "insight": {"min_tries": 6, "min_prob": 0.9},
-      "time_slots": {"rotation": ["late_afternoon", "morning", "midday"], "min_posts_each": 8, "min_ratio": 1.25},
+      "time_slots": {"rotation": ["late_afternoon", "midday", "evening"], "min_posts_each": 8, "min_ratio": 1.25},
       "evidence": {"level": "opinion", "sources": ["docs/research/R6_Learning_loop.md sections 5-9 (Beta-Bernoulli posteriors, Russo et al. 2018; discounted Thompson sampling, Raj & Kalyani 2017; sign-test arithmetic)", "docs/research/REVIEW.md (owners' data outranks research)"], "notes": "heuristic (R6): thresholds, the 0.97 discount, the 70/30 split and the 40% cap are reasoned starting settings. Owner priors count as 4 tries, research priors 1-2, so Numa's data leads after a few posts. data-led share = min(1, judged posts / 30) gates format changes (spec p.34 rule 10). Trial Reels learn in a trial-only pool; holiday-week, boosted and collab posts are scored but kept out of the posteriors and decisions; January wins must repeat in February-March before a promotion.", "confidence": "medium"}
     },
     "rotations": {
