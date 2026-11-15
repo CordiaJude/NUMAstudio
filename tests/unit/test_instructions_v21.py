@@ -209,7 +209,7 @@ def test_one_time_task_is_slug_based_and_single():
 def test_chrome_posts_are_queued_at_scheduling_and_expire_to_a_new_day():
     t = read("commands/post-reel.md")
     sec5 = t[t.find("**Chrome posting steps"):t.find("## 6. The AI label")]
-    for needle in ["At scheduling time (section 13 step 3", "`status: awaiting_chrome`", "--not-before <publish_at - 75 min>",
+    for needle in ["At scheduling time (section 13 step 3", "`status: awaiting_chrome`", "--not-before <max(publish_at - 75 min, approval.earliest_post_time)>",
                    "--deadline <publish_at + 180 min, never after 21:00>", "**Expiry (the 8 pm night check only",
                    "a new day", "After the second expiry it stops rolling"]:
         assert needle in sec5, needle
@@ -526,3 +526,31 @@ def test_readme_names_the_v21_parts():
 def test_ci_installs_chromium():
     ci = read(".github/workflows/ci.yml")
     assert ci.count("python -m playwright install --with-deps chromium") >= 2
+
+
+def test_dead_chrome_run_is_taken_over_or_rolled_never_stuck():
+    """A Chrome post interrupted mid-post (Mac asleep, lease ran out) never stays `publishing` forever."""
+    t = read("commands/post-reel.md")
+    sec5 = t[t.find("**Chrome posting steps"):t.find("## 6. The AI label")]
+    for needle in ["**Takeover of a dead Chrome run:**", "older than the queue lease", "runs the duplicate check first",
+                   "A younger claim from another run: leave the item pending for the next hour (never `done`)",
+                   "with no open queue item (pending or in progress)", "`chrome_expiries` + 1",
+                   "After the second expiry it stops rolling", "--not-before <max(publish_at - 75 min, approval.earliest_post_time)>"]:
+        assert needle in sec5, needle
+    row = next(l for l in read("commands/chrome-queue.md").splitlines() if l.startswith("| `trial_reel` |"))
+    assert "older than the lease" in row and "take it over after the duplicate check" in row and "`fail` the item" in row
+    assert "has no open (pending or in progress) queue item" in read("commands/night-check.md")
+
+
+def test_duplicate_check_container_first_post_type_aware_and_story_frames():
+    t = read("commands/post-reel.md")
+    s8 = next(l for l in t.splitlines() if l.startswith("Before **every** publish call, the first and each retry:"))
+    for needle in ["**re-read the plan row**", "the record has a `container_id`: ask Graph whether that container was published",
+                   "**of the same post type**", "a reel and the carousel cut from it never match each other",
+                   "**Record `container_id` in the staged record and upload it before the publish call.**"]:
+        assert needle in s8, needle
+    assert s8.find("container_id") < s8.find("INSTAGRAM_GET_IG_USER_MEDIA")
+    stories = next(l for l in t.splitlines() if l.startswith("5. **Stories:**"))
+    assert "`story_frames_posted`" in stories and "skips the frames already listed there" in stories
+    step = t[t.find("4. **Publish: only the designated publisher"):t.find("5. **One notice per run")]
+    assert "**re-read the plan row**" in step and "record the `container_id`" in step

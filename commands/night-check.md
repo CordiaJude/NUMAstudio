@@ -75,7 +75,7 @@ After section 5's Sheet update and before the run's final message (Katie's heads
 ```
 python3 "$S/runlog.py" check --state "$STATE" --json --mark-reported <RUN_ID>
 ```
-Then expire what the Chrome queue can no longer do. This 8 pm run is the **only** one that expires (one designated runner, so a fallback runs once), and it waits an hour past each deadline so a Chrome step finishing just in time is not undone: `python3 "$S/chrome_queue.py" expire --run <RUN_ID> --state "$STATE" --json`. Run each returned item's fallback (commands/chrome-queue.md table, last column; no fallback ever publishes, DECISIONS D26) and upload the item files it lists under `files` to Drive `_Plan/chrome_queue/`. Each item under `conflicts` (Chrome did it after its fallback ran) goes into Jude's line below.
+Then expire what the Chrome queue can no longer do. This 8 pm run is the **only** one that expires (one designated runner, so a fallback runs once), and it waits an hour past each deadline so a Chrome step finishing just in time is not undone: `python3 "$S/chrome_queue.py" expire --run <RUN_ID> --state "$STATE" --json`. Run each returned item's fallback (commands/chrome-queue.md table, last column; no fallback ever publishes, DECISIONS D26). Also treat as expired every staged record with `publisher: chrome_queue` in `publishing` or `awaiting_chrome` that has no open (pending or in progress) queue item: commands/post-reel.md section 5 step 4 (duplicate check first; then a new day, after two expiries held for re-approval) and upload the item files it lists under `files` to Drive `_Plan/chrome_queue/`. Each item under `conflicts` (Chrome did it after its fallback ran) goes into Jude's line below.
 
 Act on every problem with `"new": true` by its `action`:
 
