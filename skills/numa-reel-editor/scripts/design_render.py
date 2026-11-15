@@ -7,6 +7,17 @@ Usage:
                               [--design-system URL [--design-system-title T] [--design-system-version V]] [--json]
     design_render.py canvas   DIR --out OUT [--slug SLUG] [--runtime FILE] [--format jpg|png] [--list-blobs] [--json]
     design_render.py spec     CAROUSEL_JSON --out OUT [--format jpg|png] [--json]
+    design_render.py text-hash REPORT [--json]
+
+text-hash  The slide-text hash of a render (DECISIONS D29): REPORT is a report.json
+          (or the folder holding it) written by `canvas` or `spec`; its
+          `design_render.slides[].text`, in slide order, normalised by
+          `slide_text_hash()` (Unicode NFKC, `*` emphasis markers dropped, every
+          run of whitespace one space, trimmed; case, digits and punctuation kept;
+          slides joined with U+241E), then sha256. Prints the 64-hex digest (or
+          {"hash", "slides"} with --json). /post-reel compares the hash at staging
+          with the hash after its posting-time re-render: a different hash means
+          the words changed after the approval.
 
 A component carousel is designed on a Claude Design canvas (Artifact type "Design"):
 one canvas per carousel, one 1080x1350 artboard (`project/*.dc.html`) per slide.
@@ -1323,6 +1334,35 @@ def selftest(work: Path) -> tuple[bool, str]:
     return True, f"headless Chromium rendered {len(files)} slides at {SIZE[0]}x{SIZE[1]} with {fonts} ({out})"
 
 
+# --------------------------------------------------------------------------- D29 slide-text hash
+SLIDE_SEP = "\u241e"
+
+
+def normalise_slide_text(text: str) -> str:
+    """One slide's words as compared for D29: NFKC, no `*` emphasis markers, whitespace runs -> one space, trimmed."""
+    import unicodedata
+    t = unicodedata.normalize("NFKC", str(text or "")).replace("*", "")
+    return " ".join(t.split())
+
+
+def slide_text_hash(texts: list[str]) -> str:
+    """sha256 hex of the slides' normalised text in order (DECISIONS D29). Visual-only edits keep it; any word,
+    number, punctuation or case change, a slide added, removed or moved changes it."""
+    import hashlib
+    joined = SLIDE_SEP.join(normalise_slide_text(x) for x in texts)
+    return hashlib.sha256(f"{len(texts)}{SLIDE_SEP}{joined}".encode("utf-8")).hexdigest()
+
+
+def report_slide_texts(path: Path) -> list[str]:
+    p = path / "report.json" if path.is_dir() else path
+    data = nc.read_json(p, "render report")
+    slides = ((data or {}).get("design_render") or {}).get("slides") if isinstance(data, dict) else None
+    if not isinstance(slides, list) or not slides:
+        raise nc.UserError(f"{p}: no design_render.slides (run design_render.py canvas or spec first)")
+    slides = sorted(slides, key=lambda s: int(s.get("n") or 0))
+    return [str(s.get("text") or "") for s in slides]
+
+
 # --------------------------------------------------------------------------- CLI
 def main(argv: list[str] | None = None) -> int:
     ap = nc.ArgParser(prog="design_render.py", description="Build and render Numa component carousels "
@@ -1354,7 +1394,18 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--out", required=True, help="output folder for the slides and report.json")
     s.add_argument("--format", choices=("jpg", "png"), default="jpg")
     s.add_argument("--json", action="store_true", help="print one JSON report")
+    h = sub.add_parser("text-hash", help="the slide-text hash of a render (DECISIONS D29)")
+    h.add_argument("report", metavar="REPORT", help="report.json, or the folder holding it")
+    h.add_argument("--json", action="store_true", help="print {hash, slides}")
     args = ap.parse_args(argv)
+    if args.cmd == "text-hash":
+        texts = report_slide_texts(Path(args.report).expanduser().resolve())
+        digest = slide_text_hash(texts)
+        if args.json:
+            nc.print_json({"hash": digest, "slides": len(texts)})
+        else:
+            print(digest)
+        return 0
     brand_fonts()  # NUMA_BRAND_FONTS set but unusable: a clean ERROR before anything renders
 
     if args.cmd == "validate":

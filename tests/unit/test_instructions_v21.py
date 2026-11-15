@@ -108,62 +108,137 @@ def test_post_reel_section_13_approval_recheck():
     sec = t[t.find("## 13. Approval re-check"):]
     assert sec, "post-reel section 13"
     for needle in ["`approvals`", "Download Drive `_Plan/staged/`", "`_Plan/approval_notices.json` into `STATE/`",
+                   "`_Plan/people.json` into `STATE/`", "`STATE/consent_list.json`",
                    "a failed download is never \"absent\"", "`Approved` or `Approved - <name or initials>`",
-                   "**Schedule, once.**", "never scheduled again and never gets a second task",
-                   "**Publish what is due, exactly once.**", "**One notice per run, never one per post.**",
+                   "**Schedule, once; drain the queue**", "never scheduled again and never gets a second task",
+                   "**Publish: only the designated publisher, only when due.**",
+                   "**One notice per run, never one per post.**",
                    "the owners and the social media lead, by role", "`STATE/approval_notices.json`",
                    "A statement, never a question", "`approval_notify`"]:
         assert needle in sec, needle
     assert "No fallback anywhere in this command may publish" in t
     assert "`STATE/staged/<SLUG>.json`" in t and "_Plan/staged/" in t
     assert "approved a plan, not this post" in t                         # approval before staging does not count
-    assert "--not-before <posting time - 75 min> --deadline <posting time>" in t   # T17 M4
-    assert "do **not** publish and do **not** expire it" in t
     when = t[t.find("## 3. When to post"):t.find("## 4. Publish")]
     for needle in ["**Approved, record not yet `scheduled`:** compute `publish_at` once",
-                   "**Approved, record already `scheduled`:** nothing to do before `publish_at`: no second task",
+                   "**Approved, record already `scheduled`:** nothing to do: no second task",
                    "**next slot**", "`approval.min_lead_minutes`", "`approval.earliest_post_time` (12:00)",
                    "`approval.latest_post_time` (21:00)", "**Not approved:** nothing is scheduled",
                    "upload it **before** creating anything", "first free slot **today**", "first free slot **tomorrow**",
-                   "tomorrow's own planned post keeps its time"]:
+                   "tomorrow's own planned post keeps its time", "**`JOB publish` by hand:** never publishes in the hand run"]:
         assert needle in when, needle
 
 
-STATUS_ENUM = ["staged", "held_for_approval", "held_member_yes", "scheduled", "publishing", "queued", "published", "expired"]
+STATUS_ENUM = ["staged", "held_for_approval", "held_member_yes", "scheduled", "publishing", "awaiting_chrome",
+               "queued", "published", "expired"]
+PUBLISHERS = ["task:<slug>@<publish_at>", "night_check:<YYYY-MM-DD>", "chrome_queue"]
 
 
-def test_staged_record_status_enum_and_fields():
+def test_staged_record_status_enum_and_publisher_field():
     t = read("commands/post-reel.md")
     table = t[t.find("**`status`** is exactly one of:"):t.find("Section 13 reads only this file")]
-    assert re.findall(r"^\| `([a-z_]+)` \|", table, re.M)[1:] == STATUS_ENUM   # [0] is the header
-    for field in ['"publish_at"', '"task_id"', '"scheduled_by"', '"claim" ({"run_id", "at"}', '"slide_text_hash"']:
+    rows = re.findall(r"^\| `([^`]+)` \|", table, re.M)
+    assert rows[1:1 + len(STATUS_ENUM)] == STATUS_ENUM
+    assert rows[-len(PUBLISHERS):] == PUBLISHERS
+    for field in ['"publish_at"', '"publisher" (below)', '"task_id"', '"scheduled_by"', '"claim" ({"run_id", "at"}',
+                  '"slide_text_hash"', '"queue_reason"', '"chrome_expiries"']:
         assert field in t, field
+    assert "never a stale-claim takeover" in table                      # awaiting_chrome
     contracts = read("docs/CONTRACTS.md")
+    seg = contracts[contracts.find("`staged/<slug>.json`"):contracts.find("`approval_notices.json`")]
     for s in STATUS_ENUM:
-        assert s in contracts[contracts.find("`staged/<slug>.json`"):contracts.find("`approval_notices.json`")], s
+        assert s in seg, s
+    assert "`night_check:<YYYY-MM-DD>`" in seg and "`chrome_queue`" in seg and "compare-and-swap" in seg
+    assert "post_queue" not in t and "post_queue" not in contracts      # no shared queue file
 
 
-def test_publish_claim_wording():
+def test_only_the_designated_publisher_publishes():
     t = read("commands/post-reel.md")
-    step = t[t.find("4. **Publish what is due, exactly once.**"):t.find("5. **One notice per run")]
-    for needle in ["**Claim.** Download this record from Drive again.", "`status: publishing`",
-                   '`claim` = `{"run_id": "<this run\'s id>", "at": "<now, Central ISO>"}`', "Wait one minute",
-                   "**re-read the claim**", "another run won", "exactly one run publishes", "younger than 30 minutes",
-                   "**Duplicate check**", "caption starts with this caption's first line", "Re-read the plan row",
-                   "Rebuild `JOB` on this machine", "In the 8 pm night check only", "at or before 21:00 today",
-                   "After 21:00 nothing publishes"]:
+    sec = t[t.find("## 13. Approval re-check"):]
+    for needle in ["**Only the post's designated `publisher` publishes it (step 4); every other run only reads it**",
+                   "**Who this run is (its publisher identity).**", "`night_check:<today's date>`",
+                   "has no publisher identity: it never publishes",
+                   "whose `publisher` equals **this run's identity**", "A run whose identity matches no record publishes nothing",
+                   "**Claim (an audit trail and a same-run guard).**", "**never publishes in the same run**",
+                   "more than 90 minutes ago", "finished or failed, or no run of it started at all"]:
+        assert needle in sec, needle
+    assert "Drive has no compare-and-swap" in t
+    assert 'Run /post-reel approvals as publisher task:<SLUG>@<publish_at>' in t
+    for rel, needle in [("commands/night-check.md", "publishes **only** the records whose `publisher` is `night_check:<today>`"),
+                        ("commands/chrome-queue.md", "it publishes **only** the records whose `publisher` is `chrome_queue`"),
+                        ("commands/dashboard-refresh.md", "no publisher identity, so it **never publishes**")]:
+        assert needle in read(rel), rel
+
+
+def test_reread_before_every_create_and_publish_call():
+    t = read("commands/post-reel.md")
+    step = t[t.find("4. **Publish: only the designated publisher"):t.find("5. **One notice per run")]
+    for needle in ["**Re-read before every create and publish call.**", "Before each container create",
+                   "abort without calling", "**duplicate check**", "refresh `claim.at`",
+                   "Every hold or stop sets an explicit status and clears `claim`", "gate 2 off (auto-post) -> `staged`",
+                   "gate 3 holds -> `held_for_approval`", "gate 4 holds -> `held_member_yes`"]:
         assert needle in step, needle
-    assert "Before **every** publish call, the first and each retry" in t   # section 8
+    assert "Before **every** publish call, the first and each retry" in t       # section 8
+    assert "Before every wait, refresh `claim.at` and upload" in t
+
+
+def test_no_publish_path_outside_section_13_step_4():
+    """Scheduling, reassignment, the queue drain, Chrome expiry and hand runs never publish; publishing is 13.4 only."""
+    t = read("commands/post-reel.md")
+    assert re.search(r"publish now|publishes now|post it now", t, re.I) is None
+    q = t[t.find("## 9. The queue"):t.find("## 10.")]
+    assert "**The drain never publishes:**" in q and "post_queue.json" not in q
+    sec5 = t[t.find("**Chrome posting steps"):t.find("## 6. The AI label")]
+    assert "No fallback publishes." in sec5 and "No other run ever posts a `chrome_queue` post" in sec5
+    s13 = t[t.find("## 13."):]
+    assert "**Close and reassign** (any run; never publishes)" in s13 and "**Schedule, once; drain the queue** (any run; never publishes)" in s13
+    for rel in ("commands/build-today.md", "commands/make-reel.md"):
+        assert re.search(r"never posts? an unapproved row", read(rel), re.I), rel
+    assert "Every other record it only reads" in read("commands/chrome-queue.md")
 
 
 def test_one_time_task_is_slug_based_and_single():
     t = read("commands/post-reel.md")
-    assert "Run /post-reel approvals with the NUMA Studio plugin (numa-studio)" in t
-    assert "Run /post-reel <JOB> publish" not in t                        # a local path a fresh machine lacks
-    assert "less than an hour away" not in t                               # the rule that never matched
+    assert "Run /post-reel <JOB> publish" not in t and "less than an hour away" not in t
     assert "create **one** one-time scheduled task at `publish_at`" in t
+    assert "`build_evening_before` post (a half day that posts before closing) may only have its own one-time task" in t
     nc_ = read("commands/night-check.md")
-    assert "**guaranteed 8 pm publish slot**" in nc_ and "due by 21:00 today" in nc_
+    assert "the guaranteed 8 pm publish slot" in nc_ and "due by 21:00" in nc_
+
+
+def test_chrome_posts_are_queued_at_scheduling_and_expire_to_a_new_day():
+    t = read("commands/post-reel.md")
+    sec5 = t[t.find("**Chrome posting steps"):t.find("## 6. The AI label")]
+    for needle in ["At scheduling time (section 13 step 3", "`status: awaiting_chrome`", "--not-before <publish_at - 75 min>",
+                   "--deadline <publish_at + 180 min, never after 21:00>", "**Expiry (the 8 pm night check only",
+                   "a new day", "After the second expiry it stops rolling"]:
+        assert needle in sec5, needle
+
+
+def test_slide_text_hash(nc):
+    import design_render as dr
+    a = dr.slide_text_hash(["Sauna vs *red light*", "Heat  that\nsurrounds you"])
+    assert a == dr.slide_text_hash(["Sauna vs red light", "Heat that surrounds you "])      # visual/markup only
+    assert a != dr.slide_text_hash(["Sauna vs red light", "Heat that surrounds you."])      # punctuation
+    assert a != dr.slide_text_hash(["Heat that surrounds you", "Sauna vs red light"])       # order
+    assert a != dr.slide_text_hash(["Sauna vs red light", "heat that surrounds you"])       # case
+    assert dr.slide_text_hash(["ab"]) != dr.slide_text_hash(["a", "b"])                     # slide boundaries
+    assert len(a) == 64 and all(c in "0123456789abcdef" for c in a)
+
+
+def test_text_hash_cli(tmp_path, nc):
+    import subprocess
+    import sys
+    (tmp_path / "report.json").write_text(json.dumps({"design_render": {"slides": [
+        {"n": 2, "text": "Second"}, {"n": 1, "text": "First"}]}}))
+    script = REPO / "skills" / "numa-reel-editor" / "scripts" / "design_render.py"
+    r = subprocess.run([sys.executable, str(script), "text-hash", str(tmp_path), "--json"], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    import design_render as dr
+    assert json.loads(r.stdout) == {"hash": dr.slide_text_hash(["First", "Second"]), "slides": 2}
+    bad = subprocess.run([sys.executable, str(script), "text-hash", str(tmp_path / "none.json")], capture_output=True, text=True)
+    assert bad.returncode == 1
+    assert 'design_render.py" text-hash' in read("commands/post-reel.md")
 
 
 def test_approver_notice_recorded_only_when_delivered():
@@ -171,6 +246,7 @@ def test_approver_notice_recorded_only_when_delivered():
     sec = t[t.find("5. **One notice per run"):t.find("6. Upload every staged record")]
     assert "only when it was delivered" in sec and "sent by Gmail" in sec and "notifications on" in sec
     assert "do **not** record the posts as notified" in sec and "late build" in sec
+    assert "**only when it was delivered**" in read("commands/build-today.md")
     assert "sentences only, never objects" in sec
 
 

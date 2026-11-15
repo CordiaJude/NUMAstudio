@@ -81,7 +81,7 @@ The second check of the day (the night check ran the first at 8 pm). Run command
 
 ## 7. Approval re-check (DECISIONS D26)
 
-Run commands/post-reel.md section 13 (`approvals`): a staged post whose plan row now reads Approved is scheduled once for its planned time or next slot; after 21:00 nothing publishes, so a due but unpublished post is rescheduled to its next slot tomorrow. Every post still staged goes on the approver's one batched line (this run's final message, and the approval channel). Never posts an unapproved row; asks nobody anything.
+Run commands/post-reel.md section 13 (`approvals`). This run has no publisher identity, so it **never publishes**: it schedules newly approved posts once, drains `queued` records back to `scheduled` (section 9), and reassigns a record whose designated publisher clearly failed (more than 90 minutes past `publish_at`, its run finished, failed or never started) to tomorrow's night check. Every post still staged goes on the approver's one batched line (this run's final message, and the approval channel). Never posts an unapproved row; asks nobody anything.
 
 ## Done means
 

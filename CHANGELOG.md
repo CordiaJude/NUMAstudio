@@ -79,11 +79,16 @@ before anything posts.
   Sheet, and creates and verifies nine scheduled tasks.
 - `shoot_card.py` sets aside the plan-row fields strategy.py adds before the script.json schema
   check, and no longer assumes Katie reads the voiceover.
-- Approved posts are scheduled once and published once (T16 review): staged records carry a
-  `status` enum (staged, held_for_approval, held_member_yes, scheduled, publishing, queued,
-  published, expired) with `publish_at`, `task_id` and a publish `claim` on the Drive record; the
-  one-time task runs `/post-reel approvals` (slug-based, any machine); a duplicate check runs before
-  every publish; the 8 pm night check is the guaranteed publish slot for approved posts due by 9 pm.
+- Approved posts are scheduled once and published by exactly one designated run (T16 reviews):
+  staged records carry a `status` enum (staged, held_for_approval, held_member_yes, scheduled,
+  publishing, awaiting_chrome, queued, published, expired) with `publish_at` and a `publisher`
+  (`task:<slug>@<time>`, `night_check:<date>` or `chrome_queue`). Drive has no compare-and-swap, so
+  only that publisher may create containers or publish; it re-reads the record before every call
+  and runs a duplicate check; every other run only reads. A clearly failed publisher is reassigned
+  to the next night check by the 8 pm or 10 pm run, which never publishes it itself. The shared
+  post queue is gone (per-record `queued`, rescheduled, never published by the drain). Chrome-only
+  posts are queued at scheduling and expire to a new day, never to a publish. `design_render.py
+  text-hash` defines the D29 slide-text hash.
   Nothing posts before `approval.earliest_post_time` (12:00): strategy.py no longer plans 7 am posts
   (rotation late afternoon, midday, evening); a half day that must post earlier is built and staged
   the evening before (`build_evening_before`). Approver notices count only when delivered.
