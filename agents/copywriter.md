@@ -1,6 +1,6 @@
 ---
 name: copywriter
-description: Writes the copy for one Numa reel with the numa-caption skill - three Instagram caption options in Numa's voice with one recommended, 3-5 hashtags, a one-line Story text and a short email paragraph - and runs claims_scan on all of it, hashtags included. Use in /make-reel as soon as the script and hook are fixed, in parallel with motion and rendering.
+description: Writes the copy for one Numa post (reel, Trial Reel, carousel, photo or Story set) with the numa-caption skill - three Instagram caption options in Numa's voice with one recommended, 3-5 hashtags, a one-line Story text and a short email paragraph - and runs claims_scan on all of it, hashtags included. Use in /make-reel as soon as the script and hook are fixed, in parallel with motion and rendering.
 model: haiku
 tools: Bash, Read
 ---
@@ -20,5 +20,7 @@ Steps:
    EOF
    ```
    Rewrite every `ERROR:` hit into experience language and scan again until exit 0.
+
+**Post types.** A carousel or photo post gets the same three options, written for a still post (no "watch", "listen" or sound cues; "Save this" or "Send this" fit carousels), plus the alt text per slide when the Director asks (what the picture shows, then the slide's words verbatim). A Story set gets only the Story lines, one per frame. Copy `pattern_ids` and the CTA pattern from the slot (skills/numa-scriptwriter/ADAPTIVE.md): the `cta-*` or `offer-*` pattern names the call to action.
 
 Hand back the copy file text (skill section 5) with the recommended option named and why, plus the last claims_scan result. Never a question, never "pick one".

@@ -410,7 +410,7 @@ def test_critic_pass_rule_and_output(texts, config):
 PROMPTS = {
     "Cold plunge, nobody in it": ("Kling 3.0", ["one slow push-in of about ten percent", "gentle ripples",
                                                 "keep vertical lines straight"]),
-    "Sauna glow": ("Kling 3.0", ["soft steam drifts up", "NUMA sign unchanged and frontal", "no people added"]),
+    "Sauna glow": ("Kling 3.0", ["soft steam drifts up", "Numa sign unchanged and frontal", "no people added"]),
     "Real room move": ("Kling 3.0, start + end frame", ["first image as the first frame", "one smooth dolly forward",
                                                          "no geometry warp"]),
     "Member or guide": ("Kling 3.0, person as Element", ["@Person sits on the sauna bench", "0-2 s a slow breath out",
@@ -444,7 +444,7 @@ def test_motion_workflow(texts, config):
                    "start + end frame", "Never Reframe", "Reframe (245 credits", "never buy",
                    "by day 15, at most 55% spent", "at most 150 credits", "600", "140", "160", "120", "170",
                    "Outpaint", '"9:16"', "Upscale to 2K", "LOOK at all three frames", "Drop", "only the hero photos",
-                   "`consent.ai_processing_covered`", "`consent.voice_clone`", "Music bed", "Voice", "instrumental",
+                   "`consent.ai_processing_covered`", "voice.generic_ai_allowed", "never a cloned voice", "Music bed", "Voice", "instrumental",
                    'sources.py" add', "higgsfield_paid", "virality predictor", "Trial Reel", "Scout",
                    "Claude in Chrome", "work/motion.json", 'ledger.py" sheet --ledger "$STATE/credit_ledger" --month',
                    "ledger_sheet_rows", "about 15 s", "slower queue", "describe the motion, not the room".lower()]:
@@ -463,7 +463,7 @@ LADDER = {
                "F8": ["`ledger.py check` exits 1", "1 strongest clip", "Engine motion only", "Never buy credits"],
                "F4": ["Landscape", "Outpaint to 9:16", "pan-across", "Blurred-fill"],
                "F5": ["Low-resolution", "Upscale to 2K", "montage", "Drop it"],
-               "F1": ["No voiceover", "consent.voice_clone", "preset voice", "music-only"],
+               "F1": ["No voiceover", "voice.generic_ai_allowed", "never a cloned voice", "preset voice", "music plus on-screen text"],
                "F2": ["No music", "exact length and tempo", "Music Library", "pad"],
                "F15": ["connector down", "15 minutes", "without motion clips", "Monday digest"]},
     "editor": {"F14": ["Render or encode crash", "--workers 1", "--draft", "one hour"],

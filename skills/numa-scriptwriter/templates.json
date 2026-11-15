@@ -1413,5 +1413,124 @@
       "cta_style": "None or 'see you after the holiday'; nothing inviting on the closed days",
       "invites": false
     }
-  ]
+  ],
+  "post_types": [
+    {
+      "id": "component_carousel",
+      "kind": "carousel",
+      "carousel_source": "component",
+      "name": "Component carousel (Claude Design)",
+      "what": "A saveable carousel of new copy: an explainer, a protocol, myth vs fact, a first-timer FAQ, or an offer, built by the designer agent in Claude Design (skills/numa-carousel/SKILL.md).",
+      "slides": [
+        5,
+        8
+      ],
+      "outline": [
+        "cover_photo: the hook over a real photo",
+        "point, steps, myth_fact, faq or stat slides: one idea each",
+        "photo: a real room or member moment (yes on record only)",
+        "cta: Numa and the bio link"
+      ],
+      "rules": [
+        "Photo-led: at least half the slides carry a real photo",
+        "Never a standalone quote card, flyer or poster; a member's words only over that member's photo",
+        "Prices only from brand.json offerings; a needs_katie price drops the offer slide",
+        "No emoji; always Numa"
+      ],
+      "goal": "education",
+      "built_by": "designer + design_render.py",
+      "files": "<slug>_carousel_NN.jpg"
+    },
+    {
+      "id": "photo_carousel",
+      "kind": "carousel",
+      "carousel_source": "photos",
+      "name": "Photo carousel",
+      "what": "Two to ten real photos of one moment (a class, a member's first plunge, the rooms at dawn) with one short line each, graded and framed by photo_post.py.",
+      "slides": [
+        2,
+        10
+      ],
+      "outline": [
+        "the strongest photo with the hook line",
+        "the moment in order, one short line each",
+        "the last photo with the share line"
+      ],
+      "rules": [
+        "Every person has a yes on record that covers new posts (agents/librarian.md section 5)",
+        "Lines at most 60 characters, one *gold* word",
+        "No emoji; always Numa"
+      ],
+      "goal": "community",
+      "built_by": "photo_post.py carousel",
+      "files": "<slug>_carousel_NN.jpg"
+    },
+    {
+      "id": "reel_carousel",
+      "kind": "carousel",
+      "carousel_source": "reel",
+      "name": "Carousel from a reel",
+      "what": "The saveable recap of a reel posted earlier in the week (derived_from), cut by formats.py from the same plan.",
+      "slides": [
+        5,
+        8
+      ],
+      "outline": [
+        "cover frame with the reel's hook",
+        "one whole sentence of the voiceover per slide"
+      ],
+      "rules": [
+        "No two slides with the same picture side by side",
+        "Whole sentences only"
+      ],
+      "goal": "education",
+      "built_by": "formats.py --only carousel,cover",
+      "files": "<slug>_carousel_NN.jpg"
+    },
+    {
+      "id": "single_photo",
+      "kind": "image",
+      "name": "Single photo post",
+      "what": "One 1080x1350 photo on a topic with an optional short line in the brand serif: a room, the steam, a calm moment, a member with a yes on record.",
+      "slides": [
+        1,
+        1
+      ],
+      "outline": [
+        "one strong real photo",
+        "optional line, at most 60 characters"
+      ],
+      "rules": [
+        "A real photo, never a designed graphic or quote card",
+        "People only with a yes on record",
+        "No emoji; always Numa"
+      ],
+      "goal": "awareness",
+      "built_by": "photo_post.py single",
+      "files": "<slug>_photo.jpg"
+    },
+    {
+      "id": "story_set",
+      "kind": "stories",
+      "name": "Story set",
+      "what": "Three to five Story frames cut from the latest reel, one short line each; posted after approval, pulled at 12 h and 22 h.",
+      "slides": [
+        3,
+        5
+      ],
+      "outline": [
+        "frame 1: the hook moment",
+        "frames 2-4: behind the scenes, class energy",
+        "last frame: the soft call to action"
+      ],
+      "rules": [
+        "story_frames from the plan slot",
+        "Nothing inviting on a closure day"
+      ],
+      "goal": "community",
+      "built_by": "formats.py --only story",
+      "files": "<slug>_story_<N>.jpg|mp4"
+    }
+  ],
+  "_post_types": "Non-reel post types (config post_types, R336): what each is, its slide outline and rules. Reels and Trial Reels use the templates and presets above."
 }

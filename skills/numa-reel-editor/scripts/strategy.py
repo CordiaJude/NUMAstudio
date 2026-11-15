@@ -251,9 +251,13 @@ def pattern_text_hits(p: dict) -> list:
 NOT_NAMES = {"Numa", "Here", "It", "What", "That", "This", "There", "Discover", "Clock", "Father", "Mother", "Valentine",
              "Year", "Men", "Member", "Members", "Mobile", "December", "January", "Step", "Instagram", "Reel", "Meta", "Today",
              "Week", "Day", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Collective",
-             "Nights", "Recovery", "The", "Our", "Your", "Everyone", "Us", "Me", "You", "Them", "Friends", "New", "Thanksgiving", "Christmas", "Easter", "Mother's"}
-NAME_CUE = re.compile(r"\b(?:[Mm]eet|[Tt]his is|[Ww]ith|[Bb]y|[Ff]rom|[Aa]sk|[Tt]hanks to|[Nn]amed|guide|teacher|instructor|coach)"
-                      r"\s+([A-Z][a-z]+)\b|\b([A-Z][a-z]+)'s\b")
+             "Nights", "Recovery", "Storm", "The", "Our", "Your", "Everyone", "Us", "Me", "You", "Them", "Friends", "New", "Thanksgiving", "Christmas", "Easter", "Mother's"}
+NAME_CUE = re.compile(r"\b(?:[Mm]eet|[Tt]his is|[Ww]ith|[Bb]y|[Ff]rom|[Ff]or|[Aa]sk|[Tt]hanks to|[Nn]amed|[Hh]ook:|guide|teacher|"
+                      r"instructor|coach)\s+([A-Z][a-z]+)\b|\b([A-Z][a-z]+)'s\b")
+# a capitalised word followed by a verb or preposition ("Jessica tried", "Priya walks in", "Dana on her first round")
+NAME_VERB = re.compile(r"\b([A-Z][a-z]+)\s+(?:[a-z]+ed|is|was|has|had|says|said|tries|walks|runs|leads|guides|teaches|loves|"
+                       r"shares|joins|joined|takes|took|does|did|gets|got|came|comes|goes|went|on|in|at|after|before|about)\b")
+FULL_NAME = re.compile(r"\b([A-Z][a-z]+)\s+([A-Z][a-z]{2,})\b")      # "Dana Whitfield"
 
 
 def founder_names() -> set[str]:
@@ -264,33 +268,95 @@ def founder_names() -> set[str]:
     return out
 
 
-def name_hits(text: str, where: str, allowed: set[str]) -> list[str]:
-    """Personal names other than the co-founders in playbook copy (examples, templates, calendar notes)."""
-    out = []
-    for m in NAME_CUE.finditer(text or ""):
-        word = m.group(1) or m.group(2)
-        if word not in NOT_NAMES and word not in allowed:
-            out.append(f"{where}: {word!r} looks like a personal name; only the co-founders may be named, "
-                       "use a role (a breathwork guide) or a placeholder ([guide name])")
+def private_names() -> set[str]:
+    """Names from the private people file (NUMA_PEOPLE_FILE, else STATE/people.json with STATE = $NUMA_STATE or
+    ~/NUMA Studio/_Plan), founders left out. Empty when the file is not on this machine (the public repo has none)."""
+    import json
+    import os
+    path = os.environ.get("NUMA_PEOPLE_FILE", "").strip()
+    if not path:
+        path = str(Path(os.environ.get("NUMA_STATE", "").strip() or "~/NUMA Studio/_Plan").expanduser() / "people.json")
+    p = Path(path).expanduser()
+    if not p.is_file():
+        return set()
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        nc.warn(f"people file {p} is not readable JSON; the private-name check is skipped")
+        return set()
+    out = set()
+    for person in data.get("people", []) if isinstance(data, dict) else []:
+        if isinstance(person, dict) and person.get("kind") != "founder" and person.get("name"):
+            name = re.sub(r"^Dr\.?\s+", "", str(person["name"]).strip())
+            out.add(name)
+            out.update(x for x in name.split() if len(x) > 2)
+    return out
+
+
+_VOCAB: set[str] | None = None
+
+
+def vocabulary() -> set[str]:
+    """Words the playbook and the research use in lower case: a capitalised word found here is an ordinary word
+    ("Breathe in", "Storm on the way"), not a name. Names (Jessica, Dana) never appear in lower case."""
+    global _VOCAB
+    if _VOCAB is None:
+        root = Path(__file__).resolve().parents[3]
+        texts = [f.read_text(encoding="utf-8", errors="replace") for f in (root / "skills" / "numa-scriptwriter" / "playbook").glob("*.json")]
+        texts += [f.read_text(encoding="utf-8", errors="replace") for f in (root / "docs" / "research").glob("*.md")]
+        _VOCAB = {w for txt in texts for w in re.findall(r"\b[a-z]+\b", txt)}
+    return _VOCAB
+
+
+def name_hits(text: str, where: str, allowed: set[str], private: set[str] | None = None) -> list[str]:
+    """Personal names other than the co-founders in playbook copy (examples, templates, calendar notes):
+    names from the private people file, plus capitalised words after a person cue ("Meet X", "for X"), before a verb
+    or preposition ("X tried", "X on"), as a possessive ("X's") or as a first-and-last pair ("X Y")."""
+    text = text or ""
+    found: list[str] = []
+    for name in sorted(private or set()):
+        if " " not in name and name.lower() in vocabulary():
+            continue                                  # a first name that is also a word ("Grace"): full name only
+        if name not in allowed and re.search(rf"\b{re.escape(name)}\b", text):
+            found.append(name)
+    for m in NAME_CUE.finditer(text):
+        found.append(m.group(1) or m.group(2))
+    for m in NAME_VERB.finditer(text):
+        found.append(m.group(1))
+    for m in FULL_NAME.finditer(text):
+        if m.group(1) not in NOT_NAMES and m.group(2) not in NOT_NAMES:
+            found.append(f"{m.group(1)} {m.group(2)}")
+    vocab = vocabulary()
+    private = private or set()
+    out, seen = [], set()
+    for word in found:
+        parts = word.split()
+        if word in seen or word in allowed or all(w in NOT_NAMES or w in allowed for w in parts):
+            continue
+        if word not in private and any(w.lower() in vocab or w in NOT_NAMES for w in parts):
+            continue                                   # an ordinary word (or a pair with one), not a name
+        seen.add(word)
+        out.append(f"{where}: {word!r} looks like a personal name; only the co-founders may be named, "
+                   "use a role (a breathwork guide) or a placeholder ([guide name])")
     return out
 
 
 def playbook_name_problems(pb: dict) -> list[str]:
-    allowed = founder_names()
+    allowed, private = founder_names(), private_names()
     errs = []
     for pid in sorted(pb["patterns"]):
         p = pb["patterns"][pid]
         for i, t in enumerate(p.get("examples", [])):
-            errs += name_hits(t, f"pattern {pid} example {i + 1}", allowed)
+            errs += name_hits(t, f"pattern {pid} example {i + 1}", allowed, private)
         for key in ("template", "name", "visual"):
             if isinstance(p.get(key), str):
-                errs += name_hits(p[key], f"pattern {pid} {key}", allowed)
+                errs += name_hits(p[key], f"pattern {pid} {key}", allowed, private)
     cal = pb["calendar"]
     for m in cal["monthly"] + cal["seasonal"] + cal["holidays"]:
         for i, t in enumerate(m.get("examples", [])):
-            errs += name_hits(t, f"calendar {m['id']} example {i + 1}", allowed)
+            errs += name_hits(t, f"calendar {m['id']} example {i + 1}", allowed, private)
         if isinstance(m.get("what"), str):
-            errs += name_hits(m["what"], f"calendar {m['id']} what", allowed)
+            errs += name_hits(m["what"], f"calendar {m['id']} what", allowed, private)
     return errs
 
 
@@ -605,6 +671,7 @@ def weighted(post: dict, pool: list[dict], weights: dict, clip: float, substitut
 
 
 LAO_MIN_OTHERS = 8     # a leave-arm-out baseline needs this many other posts, else the full baseline is used
+LAO_MAX_SHARE = 0.7    # ...and the arm must be at most 70% of the trailing pool (a default CTA leaves a skewed remainder)
 
 
 def decision_score(p: dict, others: list[dict], pb: dict, pooled: bool) -> float | None:
@@ -786,11 +853,17 @@ def fit_models(posts: list[dict], pb: dict) -> dict:
                 mine = members.get((var, lv[len(TRIAL):] if lv.startswith(TRIAL) else lv), set())
                 # format arms already compare a format with the whole feed (pooled); a feed-without-reels baseline
                 # would compare unlike metric sets, so they keep the pooled score
-                ds = None if kind == "pooled" else decision_score(p, [q for q in all_judged if q["id"] not in mine], pb, False)
+                # an arm on most posts (the default CTA) would leave a skewed remainder as its baseline: full baseline then
+                full_pool = [] if kind == "pooled" else baseline(p, all_judged, pb["policies"], pooled=False)
+                share = sum(q["id"] in mine for q in full_pool) / len(full_pool) if full_pool else 1.0
+                ds = None if kind == "pooled" or share > LAO_MAX_SHARE else \
+                    decision_score(p, [q for q in all_judged if q["id"] not in mine], pb, False)
                 rec = {"post": p["id"], "date": p["posted"].date().isoformat() if p["posted"] else None,
                        "S": round(ds, 4) if ds is not None else s, "win": bool(ds > win_above) if ds is not None else bool(won),
                        "S_full": s, "leave_arm_out": ds is not None, "final": p["status"] == "final", "january": p["january"]}
+                rec["_hook"] = (TRIAL if lv.startswith(TRIAL) else "") + hook_key(p["hook"], p["post_type"]) if p["hook"] else None
                 records.setdefault((var, lv), []).append(rec)
+    separate_hook_credit(records, win_above)
     n = len(judged)
     arms: dict[tuple[str, str], dict] = {}
     for key in set(ev) | set(records):
@@ -799,6 +872,40 @@ def fit_models(posts: list[dict], pb: dict) -> dict:
     return {"arms": arms, "cohorts": cohort, "lambda": min(1.0, n / float(lp["data_led_after_posts"])), "judged": n,
             "weeks": weekly_outcomes(posts, pb),
             "final": sum(p["status"] == "final" for p in judged), "provisional": sum(p["status"] == "provisional" for p in judged)}
+
+
+def separate_hook_credit(records: dict[tuple[str, str], list[dict]], win_above: float) -> None:
+    """R6 tests one variable at a time: a structure or CTA must not be promoted on the back of the hook it rode with.
+
+    When the co-assigned hook shows an effect (3+ final posts and P(win rate > 0.5) >= 0.8 or <= 0.2), each
+    structure/CTA decision record is compared within the hook's stratum: the hook's effect (the median decision score of
+    that hook's posts *without* this structure/CTA) is subtracted. With fewer than 6 such posts the two cannot be told
+    apart and the record is kept out of decisions (confounded)."""
+    hook_recs: dict[str, list[dict]] = {}
+    for (var, lv), recs in records.items():
+        if var == "hook":
+            hook_recs[lv] = recs
+    members = {key: {r["post"] for r in recs} for key, recs in records.items()}
+    for (var, lv), recs in records.items():
+        for r in recs:
+            hk = r.pop("_hook", None)
+            if var not in ("structure", "pattern") or not hk or not r["final"]:
+                continue
+            hrec = [h for h in hook_recs.get(hk, []) if h["final"]]
+            hp = prob_better(sum(h["win"] for h in hrec), len(hrec)) if hrec else 0.5
+            if len(hrec) < 3 or 0.2 < hp < 0.8:
+                continue                                  # no sign of a hook effect (noise is not subtracted)
+            other = [h["S"] for h in hrec if h["post"] not in members[(var, lv)]]
+            if len(other) < 6:                        # too few posts to estimate the hook's own effect
+                r["confounded"] = hk
+                continue
+            eff = statistics.median(other)
+            r["hook_effect"] = round(eff, 4)
+            r["S"] = round(r["S"] - eff, 4)
+            r["win"] = r["S"] > win_above
+    for recs in records.values():
+        for r in recs:
+            r.pop("_hook", None)
 
 
 def weekly_outcomes(posts: list[dict], pb: dict) -> list[dict]:
@@ -847,9 +954,21 @@ def prob_better(wins: float, tries: float) -> float:
     return sum(math.comb(m, k) for k in range(0, a)) / 2 ** m
 
 
+def prob_greater(w1: int, n1: int, w2: int, n2: int) -> float:
+    """P(rate1 > rate2) for independent Beta(1 + w, 1 + n - w) posteriors (exact sum for whole counts)."""
+    a1, b1, a2, b2 = 1 + int(w1), 1 + int(n1) - int(w1), 1 + int(w2), 1 + int(n2) - int(w2)
+    lb = math.lgamma
+    total = 0.0
+    for i in range(a1):                      # P(X > Y) = sum_{i<a1} B(a2+i, b1+b2) / ((b1+i) B(1+i, b1) B(a2, b2))
+        total += math.exp(lb(a2 + i) + lb(b1 + b2) - lb(a2 + i + b1 + b2) - math.log(b1 + i)
+                          - (lb(1 + i) + lb(b1) - lb(1 + i + b1)) - (lb(a2) + lb(b2) - lb(a2 + b2)))
+    return min(1.0, max(0.0, total))
+
+
 def decision_stats(records: list[dict], january: bool = True, since: str | None = None) -> dict:
     """Final tries, wins and the median index, from `since` (the last status change) on."""
-    rec = [r for r in records if r["final"] and (january or not r["january"]) and (since is None or (r["date"] or "") >= since)]
+    rec = [r for r in records if r["final"] and not r.get("confounded") and (january or not r["january"])
+           and (since is None or (r["date"] or "") >= since)]
     s = [r["S"] for r in rec]
     return {"tries": len(rec), "wins": sum(r["win"] for r in rec),
             "median_index": round(2 ** statistics.median(s), 4) if s else None, "records": rec}
@@ -1334,16 +1453,27 @@ class Planner:
         wd = row["weekday"]
         return lam * (dr.informed("format", t) + dr.informed("format_day", f"{t}|{wd}")) + (stick if t == default_type(row) else 0.0)
 
+    def format_beats_reels(self, t: str) -> bool:
+        """R6-grade evidence that a format beats reels: >= 1.5 x promote.min_tries (12) final posts each, P(its pooled
+        win rate is above the reels') >= 0.95 (insight.min_prob, corrected for two formats), and a median index
+        >= promote.min_median_index (and above the reels')."""
+        need = int(math.ceil(1.5 * int(self.lp["promote"]["min_tries"])))   # a mix change needs more than a promote: 12
+        a = decision_stats(arm(self.fits, self.pb, "format", t)["records"])
+        r = decision_stats(arm(self.fits, self.pb, "format", "reel")["records"])
+        if a["tries"] < need or r["tries"] < need or not a["median_index"] or not r["median_index"]:
+            return False
+        p = prob_greater(a["wins"], a["tries"], r["wins"], r["tries"])
+        need = 1 - (1 - float(self.lp["insight"]["min_prob"])) / 2      # two formats are compared with reels at once
+        return (p >= need and a["median_index"] >= float(self.lp["promote"]["min_median_index"])
+                and a["median_index"] > r["median_index"])
+
     def format_bounds(self, n: int) -> dict:
         """Feed-mix bounds for one week: R2's shares are soft; evidence that a format beats reels widens them."""
         mix = self.pol["feed_mix"]
-        reel = arm(self.fits, self.pb, "format", "reel")
-        need = float(self.lp["fast_track"]["first"])
         out, widened = {}, False
         for t in ("carousel", "image"):
-            a = arm(self.fits, self.pb, "format", t)
             mx = float(mix[t]["max"])
-            if len(a["records"]) >= need and a["mean"] > reel["mean"] and mix[t].get("max_with_evidence"):
+            if self.format_beats_reels(t) and mix[t].get("max_with_evidence"):
                 mx = float(mix[t]["max_with_evidence"])
                 widened = True
             out[t] = int(math.floor(n * mx + 1e-9))
@@ -1434,6 +1564,14 @@ class Planner:
         stats = self.rotation_stats(var, levels)
         best, why = default, f"{var.replace('_', ' ')} rotates in {rot['block_weeks']}-week blocks ({' / '.join(levels)}) until one level wins"
         d = stats.get(default) or {"n": 0, "index": None}
+        if var == "cadence":
+            best, why = self.cadence_winner(stats, levels, cfg, default, why)
+            levels_ok = all((stats.get(lv) or {"n": 0})["n"] >= cfg["min_each"] for lv in levels)
+            if not levels_ok:
+                return levels[block % len(levels)], why
+            if block % 4 == 3 and len(levels) > 1:
+                return next(lv for lv in levels if lv != best), why + "; one block in four keeps rotating"
+            return best, why
         for lv in levels[1:]:
             s = stats.get(lv) or {"n": 0, "index": None}
             if s["n"] >= cfg["min_each"] and d["n"] >= cfg["min_each"] and s["index"] and d["index"]:
@@ -1448,17 +1586,47 @@ class Planner:
             return best, why
         return levels[block % len(levels)], why
 
+    def cadence_winner(self, stats: dict, levels: list[str], cfg: dict, default: str, why: str) -> tuple[str, str]:
+        """Marginal value, not volume: the higher cadence wins only if its posts hold up per post (per-post reach
+        index >= min_per_post_ratio x the lower cadence's) and the weekly outcome (follows, else reach) does not fall."""
+        have = [lv for lv in levels if (stats.get(lv) or {"n": 0})["n"] >= cfg["min_each"]]
+        if len(have) < 2:
+            return default, why
+        ordered = sorted(have, key=int)
+        best = ordered[0]
+        for hi in ordered[1:]:
+            lo, h = stats[best], stats[hi]
+            per_post = h["per_post"] / max(lo["per_post"], 1e-9)
+            weekly = h["weekly"] / max(lo["weekly"], 1e-9)
+            need = float(cfg.get("min_per_post_ratio", 0.8))
+            if per_post >= need and weekly >= 1.0:
+                why = (f"{hi} a week holds up: per post {per_post:.2f}x of {best} a week (needs {need}x) and weekly "
+                       f"{h['outcome']} {weekly:.2f}x, over {h['n']} and {lo['n']} weeks")
+                best = hi
+            else:
+                why = (f"{best} a week: the extra post does not pay (per post {per_post:.2f}x of {best} a week, needs {need}x; "
+                       f"weekly {h['outcome']} {weekly:.2f}x), over {h['n']} and {lo['n']} weeks")
+        return best, why
+
     def rotation_stats(self, var: str, levels: list[str]) -> dict[str, dict]:
         out: dict[str, dict] = {}
         if var == "cadence":
             weeks = [w for w in self.fits.get("weeks", []) if w["final"] and not w["excluded"] and w["judged"]]
+            use_follows = sum(w["follows"] for w in weeks) > 0
+            key = "follows" if use_follows else "reach"
+            per: dict[str, list[tuple[float, float]]] = {}
             for i, w in enumerate(weeks):
-                prev = [x["reach"] for x in weeks[max(0, i - 8):i]]
+                prev = weeks[max(0, i - 8):i]
                 if len(prev) < 3:
                     continue
-                s = math.log2(max(w["reach"], 1e-9) / max(statistics.median(prev), 1e-9))
+                pp = statistics.median(x["reach"] / x["judged"] for x in prev)
+                wk = statistics.median(x[key] for x in prev)
+                a = (w["reach"] / w["judged"]) / max(pp, 1e-9)
+                b = w[key] / max(wk, 1e-9) if wk > 0 else 1.0
                 lv = str(min(max(w["feed"], min(int(x) for x in levels)), max(int(x) for x in levels)))
-                out.setdefault(lv, []).append(max(-2.0, min(2.0, s)))
+                per.setdefault(lv, []).append((a, b))
+            return {lv: {"n": len(v), "index": statistics.median(x[0] for x in v), "per_post": statistics.median(x[0] for x in v),
+                         "weekly": statistics.median(x[1] for x in v), "outcome": key} for lv, v in per.items()}
         else:
             arm_var = {"story_frames": "story_frames", "off_day": "weekday"}[var]
             for lv in levels:
@@ -1939,7 +2107,12 @@ def insights(fits: dict, pb: dict) -> tuple[list[str], list[str]]:
         levels[var] = levels.get(var, 0) + 1
     for (var, level), a in sorted(fits["arms"].items()):
         st = decision_stats(a["records"])
-        if st["tries"] < ins["min_tries"] or not st["median_index"]:
+        min_tries = ins["min_tries"]
+        if var in ("format", "format_day"):          # a mix line needs the same bar as widening the mix (12 posts)
+            min_tries = max(min_tries, int(math.ceil(1.5 * float(pb["policies"]["learning"]["promote"]["min_tries"]))))
+        elif var in ("offer_week", "weekday", "band"):  # timing lines need the promote bar (8 posts)
+            min_tries = max(min_tries, int(pb["policies"]["learning"]["promote"]["min_tries"]))
+        if st["tries"] < min_tries or not st["median_index"]:
             continue
         pb_ = prob_better(st["wins"], st["tries"])
         need = float(ins["min_prob"])
@@ -2553,7 +2726,11 @@ class Importer:
             if not 0 <= val <= 1:
                 continue
             ev = parse_evidence(" ".join(rec.get(h, "") for h in headers if "evidence" in h or "source" in h or "confidence" in h), fname, [])
-            self.st["priors"] = [p for p in self.st["priors"] if p["level"] != types[0]]
+            mine = [p for p in self.st["priors"] if p.get("dimension") == "feed_share" and p["level"] == types[0]]
+            if any((p.get("evidence") or {}).get("level") == "numa" for p in mine):
+                self.reject(f"{fname} feed_share {types[0]}", "Numa's own feed-share prior is never replaced by research")
+                continue
+            self.st["priors"] = [p for p in self.st["priors"] if not (p.get("dimension") == "feed_share" and p["level"] == types[0])]
             self.st["priors"].append({"dimension": "feed_share", "level": types[0], "value": round(val, 4), "evidence": ev,
                                       "added": self.today.isoformat()})
             self.report["priors"].append(f"feed_share:{types[0]}={val:.2f}")
@@ -2621,10 +2798,14 @@ class Importer:
                 f[key] = [brand_text(x) for x in f[key]]
         name = brand_text(name)
         examples = split_examples(f.get("examples", []))
+        allowed, private = founder_names(), private_names()
+        named = lambda txt: bool(name_hits(txt, where, allowed, private))  # noqa: E731
         good, bad = [], []
-        for ex in examples:
+        for i, ex in enumerate(examples):
+            if named(ex):                    # only the co-founders may be named; the text is not logged
+                self.reject(f"{where} example {i + 1}", "names a person other than the co-founders (use a role or [guide name])")
+                continue
             hits = [h.line() for h in claims_scan.scan_text(ex, where=f"{where} example") if h.severity == "fail"]
-            hits += name_hits(ex, f"{where} example", founder_names())     # only the co-founders may be named
             (bad if hits else good).append((ex, hits))
         for ex, hits in bad:
             self.reject(f"{where} example \"{ex[:50]}\"", hits[0])
@@ -2636,7 +2817,13 @@ class Importer:
             return
         template = " ".join(f.get("template", [])).strip() or name
         t_hits = [h.line() for h in claims_scan.scan_text(template, where=f"{where} template") if h.severity == "fail"]
-        t_hits += name_hits(template, f"{where} template", founder_names())
+        for key in ("visual", "beats", "when_not"):
+            if any(named(x) for x in f.get(key, [])):
+                self.reject(where, f"{key} names a person other than the co-founders (use a role or [guide name])")
+                return
+        if named(template) or named(name):
+            self.reject(where, "template or name names a person other than the co-founders (use a role or [guide name])")
+            return
         if t_hits:
             self.reject(where, t_hits[0])
             return

@@ -4,7 +4,7 @@ description: Build a Numa component carousel (explainer, protocol, myth vs fact,
 ---
 # Numa component carousels in Claude Design (R328-R332, DECISIONS D21)
 
-**When:** a plan row whose `kind` is carousel and whose content is new copy (an explainer, a protocol, a myth vs fact, a first-timer FAQ, an offer). A carousel cut from a reel uses formats.py; a photo carousel uses photo_post.py (commands/post-reel.md section 12). **Who:** the designer agent. **Never** ask Katie anything and never add an approval step: the canvas is where Katie and Jude look and edit, and the post is rendered from whatever the canvas holds at posting time.
+**When:** a plan row whose `kind` is carousel and whose content is new copy (an explainer, a protocol, a myth vs fact, a first-timer FAQ, an offer). A carousel cut from a reel uses formats.py; a photo carousel uses photo_post.py (commands/post-reel.md section 12). **Who:** the designer agent. **Never** ask Katie anything and never add an approval step of your own: the canvas is where Katie and Jude look and edit, and the post is rendered from whatever the canvas holds at posting time. Posting itself waits for a person to mark the plan row Approved (DECISIONS D26); /post-reel handles that, and re-renders the canvas right before it publishes.
 
 **D21 overrides the Design type's instructions in two places:** its "never verify / never render" rule (we always read the canvas back and render it locally, because the slides are made from it) and its "one artboard per call" pacing (step 3 below).
 
@@ -54,7 +54,7 @@ Worked example (an explainer, 6 slides):
  "caption": "Sauna vs red light in Mobile, AL: what's actually different? ... Link in bio. Talk to your doctor first if you have a heart, blood pressure or breathing condition.\n\n#MobileAL #MidtownMobile #GulfCoastWellness",
  "slides": [
   {"component": "cover_photo", "photo": "skills/numa-reel-editor/assets/brand-photos/sauna-logo.jpg", "photo_position": "50% 42%", "fields": {"kicker": "Know the difference", "title": "Sauna vs red light: what's *different*?"}},
-  {"component": "point", "fields": {"kicker": "The sauna", "number": "1", "title": "Heat that surrounds you", "body": "Our Finnish sauna holds the air at 175–190°F. Deep, quiet heat to unwind, the way Finns have for centuries."}},
+  {"component": "point", "fields": {"kicker": "The sauna", "number": "1", "title": "Heat that surrounds you", "body": "Our sauna holds the air at 175–190°F. Deep, quiet heat to unwind, with nothing to do but breathe."}},
   {"component": "photo", "photo": "skills/numa-reel-editor/assets/brand-photos/red-light.jpg", "photo_position": "50% 38%", "fields": {"kicker": "Red light", "caption": "Red light is *light*, not heat. You sit in front of a panel's warm glow."}},
   {"component": "myth_fact", "fields": {"kicker": "Common mix-up", "myth": "Red light is just a sauna with colored bulbs.", "fact": "A sauna heats the air. A red light panel shines light on you. Two different tools."}},
   {"component": "steps", "fields": {"kicker": "Try both", "title": "One easy way to start", "step1": "Begin in the sauna and let yourself settle.", "step2": "Step out, cool down and drink some water.", "step3": "Finish with a calm, warm red light session."}},
@@ -133,7 +133,7 @@ Open `JOB/out/carousel_sheet.jpg`, then every slide at full size. Check: the sli
 
 ## 8. Hand to posting
 
-`report.json` `design_render.ok` true: hand `JOB` to /post-reel with the caption from carousel.json (alt text per slide: the slide's `text` in report.json). **Before posting (D21):** right before /post-reel publishes, run steps 4, 5 and 7 again so Katie's latest canvas edits go out; when that read or render fails, post the slides already in `JOB/out` and log it.
+`report.json` `design_render.ok` true: hand `JOB` to /post-reel with the caption from carousel.json (alt text per slide: the slide's `text` in report.json). /post-reel stages it as "Ready to post" with `canvas_url` in its staged record; it posts only after a person marks the plan row Approved. **Before posting (D21):** right before /post-reel publishes, run steps 4, 5 and 7 again so Katie's latest canvas edits go out; when that read or render fails, post the slides already in `JOB/out` and log it.
 
 ## Fallbacks (in order; log each `fallback carousel.<n>`)
 

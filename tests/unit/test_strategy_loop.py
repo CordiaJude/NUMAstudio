@@ -206,7 +206,7 @@ def test_format_tests_and_evidence_widens_the_image_share():
     planner = S.Planner(pb, fits, 2027, 3, 1, [], {}, posts, [])
     assert planner.format_bounds(5)["image"] == 1
     store = {"reels": {}}
-    for i in range(14):                                       # images beat the feed median again and again
+    for i in range(18):                                       # images beat the feed median again and again
         d = date(2026, 9, 21) + timedelta(days=i)              # clear of the Labor Day week
         store["reels"][f"r{i}"] = post(d)
         store["reels"][f"i{i}"] = post(d, 2.0, pt="image")
@@ -244,16 +244,27 @@ def test_blocked_rotations_for_cadence_story_frames_and_off_day():
         assert all(r["story_frames"] in (1, 2, 3) for r in stories)
 
 
-def test_cadence_winner_after_enough_weeks():
+def _cadence(reach_per_post_5, reach_per_post_4=1000.0):
     pb, posts, _ = fits_for({"reels": {}})
     weeks = []
-    for k in range(20):                                       # 4-post weeks reach more than 5-post weeks
+    for k in range(20):
         feed = 4 if k % 2 else 5
+        per = reach_per_post_4 if feed == 4 else reach_per_post_5
         weeks.append({"week": (date(2026, 1, 5) + timedelta(weeks=k)).isoformat(), "feed": feed, "judged": feed,
-                      "reach": 6000.0 if feed == 4 else 2500.0, "follows": 0.0, "final": True, "excluded": False})
+                      "reach": per * feed, "follows": 0.0, "final": True, "excluded": False})
     fits = {"arms": {}, "weeks": weeks, "lambda": 1.0}
-    level, why = S.Planner(pb, fits, 2026, 7, 1, [], {}, posts, []).rotation("cadence", date(2026, 7, 6))
-    assert "4 beat 5" in why
+    return S.Planner(pb, fits, 2026, 7, 1, [], {}, posts, []).rotation("cadence", date(2026, 7, 6))
+
+
+def test_cadence_is_judged_on_marginal_value_not_volume():
+    level, why = _cadence(1000.0)                             # the fifth post holds up per post: 5 a week pays
+    assert level == "5" and "holds up" in why
+    level, why = _cadence(700.0)                              # a weak fifth post: more volume, less per post and per week
+    assert level == "4" and "does not pay" in why
+    level, why = _cadence(780.0)                              # per post 0.78x and weekly 3900 < 4000: 4 a week
+    assert level == "4"
+    level, why = _cadence(850.0)                              # per post 0.85x and weekly 4250 > 4000: 5 still pays
+    assert level == "5"
 
 
 # --------------------------------------------------------------------------- import keeps bundled fixes
@@ -277,20 +288,69 @@ def test_import_stores_deltas_so_bundled_fixes_still_apply(tmp_path):
     assert "https://example.org/hooks-2026" in merged["evidence"]["sources"]
 
 
-def test_playbook_names_only_the_co_founders():
+def test_playbook_names_only_the_co_founders(tmp_path, monkeypatch):
+    monkeypatch.setenv("NUMA_PEOPLE_FILE", str(tmp_path / "none.json"))
     pb = S.load_playbook(None, None)
     assert S.playbook_name_problems(pb) == []
     allowed = S.founder_names()
     assert {"Scott", "Katie"} <= allowed
-    assert S.name_hits("Meet Katie, our co-founder.", "x", allowed) == []
-    for text in ("Breathe with Robin for 30 seconds.", "Meet Robin, one of our guides.", "Robin's breathwork for guys"):
+    for ok in ("Meet Katie, our co-founder.", "Scott Moore records the voiceovers.", "Breathe in for four.",
+               "Storm on the way? Our hours are in Stories.", "Breathe with [guide name] for 30 seconds.", "Discover Numa this weekend."):
+        assert S.name_hits(ok, "x", allowed) == [], ok
+    for text in ("Breathe with Robin for 30 seconds.", "Meet Robin, one of our guides.", "Robin's breathwork for guys",
+                 "Jessica tried her first plunge today.", "Dana Whitfield on her first round.", "First round for Dana.",
+                 "Hook: Priya walks in"):
         assert S.name_hits(text, "x", allowed), text
-    assert S.name_hits("Breathe with [guide name] for 30 seconds.", "x", allowed) == []
     bad = json.loads(json.dumps(pb["patterns"]["breathe-along"]))
     bad["examples"] = ["Breathe with Robin for 30 seconds."]
     pb["patterns"]["breathe-along"] = bad
     errs, _ = S.playbook_problems(pb)
     assert any("Robin" in e for e in errs)
+
+
+def test_private_people_file_names_are_caught(tmp_path, monkeypatch):
+    people = tmp_path / "people.json"
+    people.write_text(json.dumps({"people": [{"name": "Ozzie Quill", "kind": "instructor"},
+                                             {"name": "Katie Moore", "kind": "founder"}]}))
+    monkeypatch.setenv("NUMA_PEOPLE_FILE", str(people))
+    priv = S.private_names()
+    assert "Ozzie" in priv and "Katie" not in priv
+    assert S.name_hits("the sauna with ozzie vibes and Quill", "x", S.founder_names(), priv)     # surname alone
+    monkeypatch.delenv("NUMA_PEOPLE_FILE")
+    monkeypatch.setenv("NUMA_STATE", str(tmp_path))                  # STATE/people.json is the default
+    assert "Quill" in S.private_names()
+
+
+def test_import_rejects_named_examples_without_logging_them(tmp_path, monkeypatch):
+    monkeypatch.setenv("NUMA_PEOPLE_FILE", str(tmp_path / "none.json"))
+    md = tmp_path / "R1 names.md"
+    md.write_text("# R1 hooks\n### 1. **Guide Intro** `guide-intro-x`\n- Template: \"Meet [guide name], who runs the 6 pm class\"\n"
+                  "- Examples: \"Meet Jessica, our breathwork guide.\" / \"Jessica tried her first plunge today.\"\n- Evidence: opinion\n"
+                  "### 2. **Member Voice X** `member-voice-x`\n- Template: \"[member] on the plunge\"\n"
+                  "- Examples: \"Dana Whitfield on her first round.\" / \"First round for [member name].\"\n"
+                  "- Beats: Hook: Priya walks in\n- Evidence: opinion\n")
+    st = tmp_path / "st.json"
+    r = cli("strategy.py", "import-research", md, "--state", st, "--today", "2026-11-15", "--json")
+    assert r.returncode == 0, r.stderr
+    rep = json.loads(r.stdout)
+    assert rep["added"] == [] and len(rep["rejected"]) >= 3
+    text = st.read_text() + r.stdout
+    assert not any(n in text for n in ("Jessica", "Dana", "Whitfield", "Priya"))
+
+
+def test_import_never_replaces_a_numa_feed_share_prior(tmp_path):
+    st = tmp_path / "st.json"
+    state = S.empty_state()
+    state["priors"] = [{"dimension": "feed_share", "level": "reel", "value": 0.5, "added": "2026-11-01",
+                        "evidence": {"level": "numa", "sources": ["Numa's own results"], "notes": "owners"}}]
+    st.write_text(json.dumps(state))
+    fixture = Path(__file__).resolve().parent / "fixtures" / "strategy" / "R2 Formats and mix.md"
+    r = cli("strategy.py", "import-research", fixture, "--state", st, "--today", "2026-11-15", "--json")
+    assert r.returncode == 0, r.stderr
+    priors = {p["level"]: p for p in json.loads(st.read_text())["priors"] if p["dimension"] == "feed_share"}
+    assert priors["reel"]["value"] == 0.5 and priors["reel"]["evidence"]["level"] == "numa"
+    assert priors["carousel"]["evidence"]["level"] == "measured"
+    assert any("feed_share reel" in x for x in json.loads(r.stdout)["rejected"])
 
 
 def test_half_day_closure_posts_early_and_invites_nobody_after():
@@ -311,16 +371,54 @@ def test_decisions_use_a_leave_arm_out_baseline():
     """A winning hook that fills the trailing median is not diluted toward 1.0x in its own decisions."""
     store = {"reels": {}}
     start = date(2026, 9, 21)
-    for i in range(66):
+    for i in range(80):
         d = start + timedelta(days=i)
-        hook = i % 3 != 2                                     # two in three reels carry the winner
+        hook = i % 5 in (0, 1, 2)                             # three in five reels carry the winner
         store["reels"][f"r{i}"] = post(d, 1.6 if hook else 1.0, ["steam-pour"] if hook else ["timer-challenge"])
     pb, posts, fits = fits_for(store)
     recs = fits["arms"][("hook", "steam-pour")]["records"]
     lao = [r for r in recs if r["leave_arm_out"]]
-    assert lao and all(r["S"] > r["S_full"] for r in lao)     # judged against the other posts, not itself
+    assert lao and all(r["S"] >= r["S_full"] for r in lao) and any(r["S"] > r["S_full"] for r in lao)   # not against itself
     st = S.decision_stats(recs)
     shown = 2 ** sorted(r["S_full"] for r in st["records"])[len(st["records"]) // 2]
     assert st["median_index"] >= 1.25 > shown
     early = [r for r in recs if not r["leave_arm_out"]]       # fewer than 8 other posts: the full baseline
     assert early and all(r["S"] == r["S_full"] for r in early)
+
+
+def test_structure_is_not_credited_with_its_hooks_win():
+    """R6 tests one variable at a time: a structure that rides a winning hook is judged within the hook's stratum."""
+    store = {"reels": {}}
+    start = date(2026, 9, 21)
+    for i in range(100):
+        d = start + timedelta(days=i)
+        k = i % 10
+        if k in (0, 1, 2, 3):                                  # the winning hook (40%), mostly with one structure
+            pids, mult = (["steam-pour", "struct-myth-vs-fact"] if k < 3 else ["steam-pour"]), 2.0
+        elif k in (4, 5):                                      # a structure that really wins, on a plain hook
+            pids, mult = ["timer-challenge", "struct-micro-ritual-loop"], 2.0
+        else:
+            pids, mult = ["timer-challenge"], 1.0
+        store["reels"][f"r{i}"] = post(d, mult, pids)
+    pb, posts, fits = fits_for(store, today=date(2027, 1, 20))
+    rode = S.decision_stats(fits["arms"][("structure", "struct-myth-vs-fact")]["records"])
+    real = S.decision_stats(fits["arms"][("structure", "struct-micro-ritual-loop")]["records"])
+    hook = S.decision_stats(fits["arms"][("hook", "steam-pour")]["records"])
+    lp = pb["policies"]["learning"]
+    assert hook["wins"] >= 0.75 * hook["tries"] >= 6
+    assert rode["tries"] >= 6 and rode["wins"] <= rode["tries"] // 2          # no credit for the hook's lift
+    assert S.decide(pb["patterns"]["struct-myth-vs-fact"], fits["arms"][("structure", "struct-myth-vs-fact")], lp)[0] != "proven"
+    assert real["tries"] >= 6 and real["wins"] >= 0.75 * real["tries"]       # a real structure winner still wins
+    assert all("hook_effect" in r for r in rode["records"])
+
+
+def test_feed_mix_widens_only_on_r6_grade_evidence():
+    store = {"reels": {}}
+    for i in range(20):                                        # images a touch better: noise-level, not R6-grade
+        d = date(2026, 9, 21) + timedelta(days=i)
+        store["reels"][f"r{i}"] = post(d)
+        store["reels"][f"i{i}"] = post(d, 1.15 if i % 2 else 0.95, pt="image")
+    pb, posts, fits = fits_for(store)
+    planner = S.Planner(pb, fits, 2026, 12, 1, [], {}, posts, [])
+    assert not planner.format_beats_reels("image") and not planner.format_bounds(5)["widened"]
+    assert 0.99 < S.prob_greater(12, 12, 2, 12) <= 1 and S.prob_greater(5, 10, 5, 10) == pytest.approx(0.5, abs=1e-9)

@@ -971,12 +971,25 @@
           "properties": {
             "offer_week_outcome": {
               "type": "object",
-              "required": ["metric", "note"],
+              "required": [
+                "metric",
+                "note"
+              ],
               "additionalProperties": false,
               "properties": {
-                "metric": {"enum": ["composite"]},
-                "next": {"enum": ["bookings_per_1000_reach"]},
-                "note": {"type": "string"}
+                "metric": {
+                  "enum": [
+                    "composite"
+                  ]
+                },
+                "next": {
+                  "enum": [
+                    "bookings_per_1000_reach"
+                  ]
+                },
+                "note": {
+                  "type": "string"
+                }
               }
             },
             "max_sales_per_week": {
@@ -1511,7 +1524,8 @@
               "required": [
                 "levels",
                 "min_each",
-                "min_ratio"
+                "min_ratio",
+                "min_per_post_ratio"
               ],
               "additionalProperties": false,
               "properties": {
@@ -1538,6 +1552,12 @@
                 },
                 "evidence": {
                   "$ref": "#/$defs/evidence"
+                },
+                "min_per_post_ratio": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 1,
+                  "description": "A higher cadence wins only if its posts hold up per post (per-post reach index at least this times the lower cadence's) and the weekly follows (reach until follows exist) do not fall."
                 }
               }
             },

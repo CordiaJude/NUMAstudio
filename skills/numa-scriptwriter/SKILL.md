@@ -5,7 +5,7 @@ description: Pre-production for Numa Wellness Collective reels - hook, voiceover
 
 # Numa Scriptwriter
 
-You plan each reel before anything is filmed, so the edit has the right material. Output: one `script.json` per reel (schemas/script.schema.json) and its SHOOT CARD, rendered by `shoot_card.py`. `S` = `${CLAUDE_PLUGIN_ROOT}/skills/numa-reel-editor/scripts`. Nothing here asks Katie anything: an unknown means the safe choice and a line in `notes`.
+You plan each post before anything is filmed, so the edit has the right material. **Adaptive writing:** every slot comes from the Strategist's plan and brief; read [ADAPTIVE.md](ADAPTIVE.md) first (the playbook patterns, the `pattern_ids` and `strategy_arm` tags, what to do when a post underperformed). You execute the brief; you never pick a retired pattern or invent one. Output: one `script.json` per reel (schemas/script.schema.json) and its SHOOT CARD, rendered by `shoot_card.py`. `S` = `${CLAUDE_PLUGIN_ROOT}/skills/numa-reel-editor/scripts`. Nothing here asks Katie anything: an unknown means the safe choice and a line in `notes`.
 
 ## Read first
 
@@ -18,7 +18,10 @@ You plan each reel before anything is filmed, so the edit has the right material
 | Collab partners (in order) | `positioning.collab_partners` |
 | Claims policy | `claims.banned`, `claims.modalities`, `claims.rules`, `claims.safety_line` |
 | Timing | config `render.words_per_second` (2.3), `render.outro_music_only_s` (6-8 s, default 7.5), `render.length_s` |
-| Templates and presets | `skills/numa-scriptwriter/templates.json` |
+| Templates and presets (reels) and the non-reel post types | `skills/numa-scriptwriter/templates.json` (`templates`, `presets`, `post_types`) |
+| The slot: post type, time, patterns, test | `STATE/strategy_brief.json` / `STATE/plans/strategy_YYYY-MM.json` ([ADAPTIVE.md](ADAPTIVE.md)) |
+| Who may appear (private) | `STATE/people.json` (agents/librarian.md section 5): never `do_not_feature`, `one_existing_post_only`, a child, or a never-film place (`consent.never_film`); in script.json and cards, people by role |
+| Who reads the voiceover | brand.json `voice.voiceover_by` (Scott); never a cloned voice (`voice.clone_allowed` false) |
 | Feedback memory | `python3 "$S/prefs.py" list --file "$STATE/preferences.json" --json` |
 
 ## What each reel gets (spec p.35)
@@ -27,7 +30,7 @@ You plan each reel before anything is filmed, so the edit has the right material
 2. **Voiceover script** (`lines`): one short sentence per story beat, in Numa's voice. Words in all lines <= 2.3 x (`length_s` - `outro_s`): a 30 s voiced part is about 65-70 words, then 6-8 s of music-only outro.
 3. **Shot list** (`shots`): numbered, each tied to a line (`line`), with framing (wide, medium, close, overhead), hold (`seconds`, 5 by default), `people`, and exactly one `ai_motion` hero shot. Example: `3. Close-up: hand breaking the water surface of the plunge, 5 s, slow`.
 4. **Photos** (`photos`): stills worth grabbing when they beat video (finished space, people mid-laugh, steam, a candle).
-5. **Audio direction** (`music`): mood and tempo ("calm, warm piano", `bpm` [90, 100]) and source: `generate` (Higgsfield makes it), `library` (Music Library by mood, files named mood_bpm_title.mp3), `folder` (Katie may drop a track), `natural`. Never a trending song. Who reads (`voiceover_by`). Recording tips (the card prints them short): a quiet room with soft surfaces (a closet or carpeted bedroom), phone about 12 inches from the mouth, a normal talking voice, one take of the whole script, 1 second of silence at the start and end.
+5. **Audio direction** (`music`): mood and tempo ("calm, warm piano", `bpm` [90, 100]) and source: `generate` (Higgsfield makes it), `library` (Music Library by mood, files named mood_bpm_title.mp3), `folder` (Katie may drop a track), `natural`. Never a trending song. Who reads (`voiceover_by`: "Scott", who records every voiceover; no cloned voice, and a generic AI voice only when brand.json `voice.generic_ai_allowed` is true). Recording tips (the card prints them short): a quiet room with soft surfaces (a closet or carpeted bedroom), phone about 12 inches from the mouth, a normal talking voice, one take of the whole script, 1 second of silence at the start and end.
 6. **On-screen text and CTA** (`cta`, `on_screen`) matched to the day's goal (table below).
 7. **Draft caption and hashtags** (`caption`): follow skills/numa-caption/SKILL.md for one recommended caption and 3-5 hashtags; the Copywriter finalizes on build day.
 
@@ -50,6 +53,21 @@ You plan each reel before anything is filmed, so the edit has the right material
 8. **Breathwork** staff are guides or facilitators; only licensed counselors talk about mental health, within their scope. Never show breath-holding in or near water.
 9. **Offers:** at most one sales-focused reel a week (`sales: true`); nothing inviting on a closure day. **Collabs** are posted as collabs with the partner, never reposts.
 10. **No questions to Katie.** Unknown fact: leave it out or choose the safe option, note it in `notes`.
+
+## Post types (config `post_types`, R336)
+
+The slot's `kind` decides what you write; `templates.json` `post_types` holds each non-reel type's outline and rules.
+
+| `kind` | You write | Built on its day by |
+|---|---|---|
+| `reel`, `trial_reel` | the full script.json below (hook, lines, shots, music, CTA, caption) and the SHOOT CARD | /make-reel |
+| `carousel` (`carousel_source` component) | title, topic, the slide outline from the slot's carousel pattern (5-8 slides: `cover_photo` first, `cta` last, one idea a slide) and a caption draft | the designer (numa-carousel skill) |
+| `carousel` (`carousel_source` photos) | title, topic, the moment to show and 2-10 short lines (at most 60 characters, one `*gold*` word) and a caption draft; optional stills for the card's `photos` | photo_post.py carousel |
+| `carousel` (`carousel_source` reel) | title and caption draft; slides come from the reel it is `derived_from` | formats.py |
+| `image` | title, topic, the photo idea from the slot's photo pattern, one optional line (at most 60 characters) and a caption draft | photo_post.py single |
+| `stories` | nothing to film; one line per frame comes from the reel (`story_frames` from the slot) | formats.py |
+
+Carousel, image and Stories rows have nothing to film; their SHOOT CARD says "NO FILMING NEEDED" (`shoot_card.py card` handles `image` and `carousel_source`). Copy `pattern_ids` and `strategy_arm` into every row you write, whatever its type.
 
 ## Templates (templates.json)
 
@@ -115,7 +133,7 @@ python3 "$S/shoot_card.py" script script.json --json
 
 ## Modes
 
-- **Month pass (/plan-month):** all reel rows of the plan in one pass, in date order. Keep topics distinct for 14 days, rotate the five series, group each week's new shots into the batch rooms, reuse repeat shots from earlier cards, and give the week's voiceovers to one reader where possible so they are read back to back. Check every row (`rows/day_NN.json`).
+- **Month pass (/plan-month):** all rows of the plan in one pass, in date order, each from its slot's `pattern_ids` (ADAPTIVE.md): reels get the full script, carousels and photo posts the outline and caption above. Keep topics distinct for 14 days, rotate the five series, group each week's new shots into the batch rooms, reuse repeat shots from earlier cards, and give the week's voiceovers to one reader where possible so they are read back to back. Check every row (`rows/day_NN.json`).
 - **Missing material (night check or build day):** rewrite only the lines that lost their shot so the reel works with what exists (Scout finds, library shots, brand photos); keep the length target, keep line 1 and the hook unless the hook shot itself is gone, re-run the check, return the new script.json.
 - **One-off ("help me plan a reel for Numa Nights"):** pick the template (`numa_nights_recap` for a recap, `event_teaser` before), write script.json into the day folder (or the folder you were given), render the card, and show the card text. Same rules and checks.
 

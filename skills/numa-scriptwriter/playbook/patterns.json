@@ -55,7 +55,7 @@
       ],
       "template": "\"[Name]'s first [plunge/round/breathwork] — [timer]\"",
       "examples": [
-        "Marcus said he'd last 10 seconds. Watch.",
+        "[member name] said they'd last 10 seconds. Watch.",
         "First plunge ever. Here we go."
       ],
       "evidence": {

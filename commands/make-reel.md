@@ -10,7 +10,7 @@ You are Numa's **Director** (top tier, high effort; `models.agents.director` and
 ## 0. Rules that never bend (spec p.3-4)
 
 1. **Never ask Katie anything.** Missing information: make the best call, write it in the Decisions log (section 5), continue.
-2. **Never block.** No build step waits for approval or a reply; there is no confirm step anywhere in the build. Posting is different: nothing goes out until a person marks the plan row Approved (DECISIONS D26), so the run ends with the reel staged as "Ready to post", and this command never posts an unapproved row.
+2. **Never block.** No step waits for approval or a reply; there is no confirm step anywhere in the pipeline. Posting is different: nothing goes out until a person marks the plan row Approved (DECISIONS D26), so the run ends with the reel staged as "Ready to post", and this command never posts an unapproved row.
 3. **Never stop.** Every failure has a row in the failure table (section 4). The run ends with a finished reel in Drive `Finished/` or a rescheduled day.
 4. **Fixed limits are rules, not questions** (set once at setup):
    - Credits: `ledger.py check` must pass before any Higgsfield spend (config `budget`). Never buy credits.
@@ -214,7 +214,7 @@ Any `fail` hit: F11. Any `WARN`: reword or keep with a logged reason. sources ch
 **13. Deliver (R41).**
 1. Send the reel file in this chat (in a scheduled run: the run's result and notification) with the delivery note (section 6). Chat delivery is primary.
 2. Upload everything in `out/` to the day folder's `Finished/` (brand.json `drive.finished`). Upload fails: F15 (the reel was already delivered in chat); keep the queued upload in `work/upload_queue.json`.
-3. Plan Sheet row: Status "Ready to post" and the Reel link. Hand `JOB` to the `post-reel` command to **stage** it (sections 1-2: `work/post.json` and the staged record in `STATE/staged/`, uploaded to Drive `_Plan/staged/`). It publishes only when **the plan row reads Approved, set by a person after the post was staged** (DECISIONS D26: nothing goes out without a person approving it) and brand.json `posting.auto_post.value` is true; post-reel re-checks the approval and records who approved it and when. Not approved (the usual case): it stays "Ready to post", the digest lists it, and every scheduled re-check (commands/post-reel.md section 13) posts it at its planned time, or at the next slot, once a person approves it. This command never posts an unapproved row and never asks for the approval.
+3. Plan Sheet row: Status "Ready to post" and the Reel link. Hand `JOB` to the `post-reel` command to **stage** it (sections 1-2: `work/post.json` and the staged record in `STATE/staged/`, uploaded to Drive `_Plan/staged/`). It publishes only when **the plan row is Approved by a person** (its Status reads Approved, set after the post was staged) (DECISIONS D26: nothing goes out without a person approving it) and brand.json `posting.auto_post.value` is true; post-reel re-checks the approval and records who approved it and when. Not approved (the usual case): it stays "Ready to post", the digest lists it, and every scheduled re-check (commands/post-reel.md section 13) posts it at its planned time, or at the next slot, once a person approves it. This command never posts an unapproved row and never asks for the approval.
 4. Add the new raw files to the media library (librarian) and sync `STATE` back to Drive.
 5. Write `work/delivered.json` (files, Drive links, row status).
 
@@ -235,7 +235,7 @@ Work each row left to right; move on only when the move before it failed. Log ev
 | F9 | Transcript mishears words | `fix_transcript.py ... --script work/script.txt` (the script is the truth) | Correct names from brand.json `transcript_fixes` (fix_transcript applies them) | Captions from the script timed to the audio (fix_transcript does this when the transcript is unusable) |
 | F10 | Critic fails 3 rounds | Ship the best-scoring version (`critic_score.py best`) and log what is still weak | Shorten to the strongest 10-15 s (edit plan.json `duration`/shots, re-render, `critic_score.py score`) | Move the topic to a later day (reschedule, below) |
 | F11 | Health or results claim in the script, captions or copy | Rewrite to experience language ("feel reset", not "cures stress") | Remove the line | Never ship it: if the claim is the reel's point, reschedule with a new topic |
-| F12 | Person in a shot without a yes on record (`STATE/people.json` / the Consent List) | Crop (`crop`) or blur (`blur: [[x,y,w,h]]`) them, only when nobody in the shot has a recorded "no", is `do_not_feature` or is a child | Use a different shot | Drop the shot (always, for a recorded "no", `do_not_feature`, a child or a never-film place) |
+| F12 | Person in a shot not on the Consent List (no yes on record in `STATE/people.json` or the Consent List) | Crop (`crop`) or blur (`blur: [[x,y,w,h]]`) them, only when nobody in the shot has a recorded "no", is `do_not_feature` or is a child | Use a different shot | Drop the shot (always, for a recorded "no", `do_not_feature`, a child or a never-film place) |
 | F13 | Closure or holiday day | Swap in an evergreen reel that does not invite people in (no booking CTA, no "come in") | Post a Story instead (formats.py `--only story` from an evergreen plan) | Skip the day (Sheet status note "closed") |
 | F14 | Render or encode crash | Re-run that stage from its saved files (`engine.py ... --workers 1`, or finish.py again) | Draft-quality render: `engine.py work/plan.json --draft --size 2160x3840` (draft preset at full 1080x1920), then `finish.py work out/SLUG_reel.mp4 --video work/video_noaudio_draft.mp4` | Retry in one hour (one-time scheduled retry of `/make-reel <folder>`), then reschedule |
 | F15 | Drive or Higgsfield connector down | Retry after 15 minutes | Work from the local copy in `STUDIO`; queue uploads in `work/upload_queue.json` (the next run uploads them first) | Reschedule the day and add a line for the Monday digest |
@@ -271,7 +271,7 @@ Decided (full log in work/decisions.md):
 - Blurred a guest not on the Consent List (shot 6)
 Critic: 86/100, round 2
 Status: in Finished/, marked Ready to post
-Waiting for approval: mark the plan row Approved to post it at 5:00 pm.
+Staged for approval: mark the plan row Approved to post it at 5:00 pm.
 ```
 One-line story, the 3 caption options with the one you post, and the Decisions list: what was made, what you decided and why, every fallback used. No questions, no "let me know", no options for her to pick.
 

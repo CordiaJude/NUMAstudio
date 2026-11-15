@@ -270,7 +270,7 @@ def test_plan_month(texts):
         "credits_planned", "budget.split",                                          # credit split per day
     ]:
         assert needle in t, needle
-    order = ["## 1. Gather inputs", "## 2. Re-weight", "## 3. The skeleton", "## 4. Scripts and cards",
+    order = ["## 1. Gather inputs", "## 2. The Strategist plans the month", "## 3. The skeleton", "## 4. Scripts and cards",
              "## 5. Batch the shoot", "## 6. Credits per day", "## 7. Check until clean", "## 8. Write Drive"]
     pos = [t.find(h) for h in order]
     assert -1 not in pos and pos == sorted(pos)
@@ -653,7 +653,8 @@ def test_chrome_queue_command_scripts_lint_and_keys(brand, config):
 def test_scheduled_prompts_are_self_contained(config):
     t = SCHEDULED.read_text(encoding="utf-8")
     prompts = _prompts(t)
-    names = [x["name"] for x in config["schedule"]["tasks"]] + ["Quarterly research re-check", "Chrome queue"]
+    names = [x["name"] for x in config["schedule"]["tasks"]] + ["Quarterly research re-check",
+                                                                "Story insights + approval re-check", "Chrome queue"]
     assert list(prompts) == names
     for task in config["schedule"]["tasks"]:
         p = prompts[task["name"]]
@@ -670,16 +671,25 @@ def test_scheduled_prompts_are_self_contained(config):
     assert "never post anything by yourself" in c and "posting steps only for posts a person approved" in c
     assert "Nothing is posted until a person approves it" in prompts[config["schedule"]["tasks"][2]["name"]]
     assert "merge-dir" in q and "runlog/<run id>.json" in q
+    s = prompts["Story insights + approval re-check"]
+    assert s.startswith("Run /dashboard-refresh stories ") and "runlog.py start story_pulls" in s and "runlog.py finish" in s
+    assert "before 24 h" in s and "post-reel section 13" in s and "never post an unapproved one" in s
+    for name in ("Tomorrow's material check + Scout", "Dashboard refresh"):    # the approval re-check (D26)
+        assert "re-check every staged post for approval" in prompts[name] and "never post an unapproved one" in prompts[name]
+    assert "strategy.py plan --month" in prompts["Plan next month"]                    # R346: strategist before scripting
+    assert "metrics.py due" in prompts["Dashboard refresh"] and "12h and 22h" in prompts["Dashboard refresh"]
     for p in prompts.values():
         assert "?" not in p, "a scheduled prompt never asks anything"
 
 
 def test_scheduled_doc_seventh_and_desktop_tasks(config):
     t = SCHEDULED.read_text(encoding="utf-8")
-    assert "## The eight tasks" in t and "## Cloud or desktop: where a task runs" in t
+    assert "## The nine tasks" in t and "## Cloud or desktop: where a task runs" in t
     assert ("| 7 | Quarterly research re-check | The 12th of Feb, May, Aug and Nov, 10 am | "
             "`CRON_TZ=America/Chicago 0 10 12 2,5,8,11 *` |") in t
-    assert "| 8 | Chrome queue | Hourly at :47, while the Mac is awake | `CRON_TZ=America/Chicago 47 * * * *` | " \
+    assert "| 8 | Story insights + approval re-check | Daily, 12:40 pm | `CRON_TZ=America/Chicago 40 12 * * *` | " \
+           "`/dashboard-refresh stories` | Cloud |" in t
+    assert "| 9 | Chrome queue | Hourly at :47, while the Mac is awake | `CRON_TZ=America/Chicago 47 * * * *` | " \
            "`/chrome-queue` | **Desktop** |" in t
     for needle in ["fresh machine every time", "Only while the Mac is awake", "local/desktop scheduled task",
                    "not in the cloud", "runlog.py check --since", "`OK:`", "`WARN:`", "Watchdog (R341)", "ensure_env.py",
@@ -691,7 +701,7 @@ def test_scheduled_doc_seventh_and_desktop_tasks(config):
     assert "never an hour off" not in t and "can still post the same day" not in t
     notif = {m.group(1): m.group(2) for m in re.finditer(r"^\| (\d) \| .*\| ([^|]+) \|$", t, re.M)}
     assert all(notif[n].startswith("On") for n in "123456")                                       # minor 2
-    assert notif["7"].startswith("**Off**") and notif["8"].startswith("**Off**")
+    assert notif["7"].startswith("**Off**") and notif["8"].startswith("**Off**") and notif["9"].startswith("**Off**")
     for extra in config["schedule"].get("extra_tasks", []):   # once config carries tasks 7 and 8
         assert f"| {extra['name']} | {extra['when']} | `CRON_TZ=America/Chicago {extra['cron']}` |" in t, extra["id"]
         if extra.get("where") == "desktop":

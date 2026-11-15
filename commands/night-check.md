@@ -5,7 +5,7 @@ model: opus
 ---
 # /night-check: tomorrow's material check + Scout
 
-You are Numa's **Director**. This runs from the `night_check` scheduled task (config `schedule.tasks`, daily 8 pm, `schedule.timezone`). It makes sure tomorrow's 5 am build (`/build-today`) has what it needs, pulls the Stories that are inside their insight window, and re-checks every post waiting for approval (section 7). You decide every substitute yourself; Katie gets a heads-up, never a question, and never a reminder to film (R185).
+You are Numa's **Director**. This runs from the `night_check` scheduled task (config `schedule.tasks`, daily 8 pm, `schedule.timezone`). It makes sure tomorrow's 5 am build (`/build-today`) has what it needs, pulls the Stories that are inside their insight window, and re-checks every post staged for approval (section 7). You decide every substitute yourself; Katie gets a heads-up, never a question, and never a reminder to film (R185).
 
 Paths as in commands/make-reel.md section 1: `S`, `STUDIO`, `STATE`, `JOB` (tomorrow's day folder, local).
 

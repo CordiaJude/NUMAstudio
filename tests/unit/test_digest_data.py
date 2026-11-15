@@ -173,7 +173,7 @@ def test_waiting_for_approval_learned_and_post_types(nc, tmp_path):
                             "do_more": ["Hot/cold contrast hooks"], "do_less": []}
     assert {r["reel"]: r["post_type"] for r in d["last_week"]["reels"]}["b"] == "carousel"
     text = dd.text_draft(d)
-    assert text.index("WAITING FOR APPROVAL") < text.index("1. LAST WEEK")
+    assert text.index("STAGED FOR APPROVAL") < text.index("1. LAST WEEK")
     assert "- Sun Nov 15: Steam at dawn (photo)" in text
     assert "Next week" not in text.split("1. LAST WEEK")[0]          # only up to the end of this week... (Nov 22)
     assert "Sauna vs infrared (carousel): 900 views, 2 saves" in text   # no watch time for a carousel

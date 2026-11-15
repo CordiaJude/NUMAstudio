@@ -124,7 +124,8 @@ Drive folder name, e.g. `Day 07 - 2026-12-09 - Your first plunge`).
     <slug>_reel.mp4         main reel (finish.py)
     <slug>_reach.mp4        reach cut-down, 8-12 s (formats.py)
     <slug>_story_<N>.jpg    story stills, or <slug>_story_<N>.mp4 5 s clips (formats.py)
-    <slug>_carousel_<N>.jpg 1080x1350 carousel slides (formats.py)
+    <slug>_carousel_NN.jpg  1080x1350 carousel slides, 01, 02, ... (formats.py, photo_post.py, design_render.py)
+    <slug>_photo.jpg        1080x1350 single photo post (photo_post.py)
     <slug>_cover.jpg        1080x1920 cover, title inside the centre square (formats.py)
     <slug>_hook_<N>.mp4     hook-variant openings (formats.py)
     <slug>.srt              voiceover captions (formats.py)
@@ -137,7 +138,10 @@ Drive folder name, e.g. `Day 07 - 2026-12-09 - Your first plunge`).
 
 - `<slug>` = `plan.meta.slug` if set, else `slugify(<job folder name>)`
   (lowercase ASCII letters, digits and hyphens). `numa_common.JobPaths` and
-  `deliverable_name()` build these names; N counts from 1.
+  `deliverable_name()` build these names; N counts from 1. Carousel slides
+  always use two digits (`_carousel_01.jpg`), whoever renders them
+  (formats.py, photo_post.py, design_render.py), so /post-reel reads one name
+  pattern.
 - A plan's `out_dir` is `<job>/work` (renders); finished deliverables go to
   `<job>/out`.
 - `numa_common.JobPaths(job).make()` creates `raw/`, `work/`, `out/`.
@@ -147,7 +151,12 @@ Drive folder name, e.g. `Day 07 - 2026-12-09 - Your first plunge`).
 ### Local state folder and run files (instruction layer)
 
 - `STUDIO` = `~/NUMA Studio` (the desktop/sandbox working root); `STATE` = `STUDIO/_Plan`, mirrored to Drive `NUMA Reels/_Plan/`. It holds `preferences.json` (prefs.py), `credit_ledger/` (ledger.py folder mode, `ledger_YYYY-MM.json`), `media_library.json` (library.py), `consent_list.json` (export of the Consent List Sheet), `competitors_YYYY-MM.json` (Scout log read by dashboard.py), `metrics.json` (metrics.py), `plans/` (month JSON per month), `closures.json`, `digest_notes.json`, `digest/`, `trends/`, `insights/` (raw Composio pulls), `dashboard.html`, `dashboard_notes.json` (Do more of / Do less of), `dashboard_artifact.json` (published artifact URL).
-- Per-reel work files written by the crew: `work/script.txt` (shoot-card script), `work/plan_row.json`, `work/inventory.json` (librarian), `work/ratings.json` (analyst), `work/scout.json`, `work/material.json`, `work/motion.json` (motion crew), `work/decisions.md` (Decisions log), `work/critic_r<N>.json` + `work/critic_rounds.json` (critic_score.py), `work/versions/r<N>/`, `work/upload_queue.json`, `work/delivered.json`; extra material under `raw/scout/`, `raw/library/`, `raw/generated/`.
+- Run log and Chrome queue (R340, R342): `runlog/` (per-run files plus `reported-<run_id>.json`, mirrored one-to-one to Drive `_Plan/runlog/`); `runlog.json` (local merged view; never uploaded); `runlog.drive/` (the downloaded Drive folder before `merge-dir`); `chrome_queue/` (one file per queued item, mirrored to Drive `_Plan/chrome_queue/`; a run uploads only the item files its commands listed under `files`), `chrome_queue.drive/` (the downloaded Drive folder before `merge-dir`), and `chrome_queue.json` (local merged view; never uploaded).
+- Approval (DECISIONS D26): `staged/<slug>.json`, one file per staged post, mirrored one-to-one to Drive `_Plan/staged/` (written by /post-reel section 2 step 5; read by its section 13 re-check): `{slug, job, date, post_type, carousel_source?, canvas_url?, title, planned_time, finished {file: Drive link}, caption_file, caption_final, alt_text?, ai_label_required, trial_reel, collab, shows_members, tags, status staged|held_for_approval|held_member_yes|queued|published|expired, staged_at, media_id?, permalink?}`; `approval_notices.json` (`{"last": ISO, "posts": [slug, ...]}`: the posts named in the last batched approver line, so each run notifies only about posts newly waiting); `setup.json` `approval_notify` (`{approver, emails, roles}`, private, set by /numa-setup). A plan Sheet row is approved when its Status reads `Approved` or `Approved - <name or initials>`, set by a person after the post was staged.
+- People (DECISIONS D25): `people.json` (private, schemas/people.schema.json, synced from Drive `_Plan/people.json`, never committed): who may appear, consent status and scope, `do_not_feature`, `one_existing_post_only`, kids never; read by the librarian, the designer, the critic and photo flows (agents/librarian.md section 5).
+- Strategy (T18; written by the Strategist): `strategy.json`, `strategy_changes.txt` (the dated changelog, read by the digest's "What we learned"), `strategy_brief.json` + `.md`, `plans/strategy_YYYY-MM.json`, `plans/events_YYYY-MM.json`.
+- Insights: `insights/tags_<slug|media_id>.json` (a post's tags, written at build time, stored with `metrics.py tag --post <media_id>` when it publishes), `insights/<media_id>_<LABEL>.json` (one Composio pull).
+- Per-post work files written by the crew: `work/post.json` (/post-reel state), `work/carousel.json` + `work/canvas/` (designer), `work/photo_post.json` and `work/slide_texts.json` (photo posts), `work/alt_text.json`; `work/script.txt` (shoot-card script), `work/plan_row.json`, `work/inventory.json` (librarian), `work/ratings.json` (analyst), `work/scout.json`, `work/material.json`, `work/motion.json` (motion crew), `work/decisions.md` (Decisions log), `work/critic_r<N>.json` + `work/critic_rounds.json` (critic_score.py), `work/versions/r<N>/`, `work/upload_queue.json`, `work/delivered.json`; extra material under `raw/scout/`, `raw/library/`, `raw/generated/`.
 
 ## 3. analysis.json
 
@@ -581,8 +590,11 @@ satisfied by the corresponding sections here.
 | `budget` | `monthly_credits` 1200, `reels_per_month` 20, `split` {kling_motion 600, seedance_people_free 140, photo_prep 160, music 120, voice 10, reserve 170}, `pacing` {by_day 15, max_fraction_spent 0.55}, `max_credits_per_reel` 150, `rollover` false |
 | `critic` | `rubric[]` {id, label, weight, five_looks_like} (weights sum to 100), `score_formula`, `pass` {min_total 80, min_category_score 3, min_hook_score 4}, `hard_gates[]`, `frames` {count 12}, `max_rounds` 3 |
 | `render` | `fps` 30, `size` [1080,1920], `captions` {font_px 92, rise_px 22, fade_in_s 0.28, max_rows 2, default_y 1420}, `safe_area` {top_fraction 0.12, bottom_fraction 0.10}, `hook` {min_visible_s 1.5, max_black_fade_in_s 0.2}, `endcard` {min_hold_s 3.5, max_hold_s 5}, `outro_music_only_s`, `beat_tolerance_frames` 1, `max_shot_beats` 4, `words_per_second` 2.3, `length_s`, `video` {libx264, high, yuv420p, crf 19, maxrate 14M, bufsize 28M, faststart, max_file_mb 100}, `audio` {aac, 192k, 48000, 2}, `loudness` {integrated_lufs -15, tolerance_lu 1, true_peak_db -1.5, lra 9, mean_level_warn_db -28}, `draft` {scale 0.5, preset, crf} |
-| `schedule` | `timezone` America/Chicago, `tasks[]` {id, name, when, cron, command}: plan_month `0 21 24 * *`, night_check `0 20 * * *`, build_today `0 5 * * *`, dashboard_refresh `0 22 * * *`, trend_check `0 19 * * 5`, digest `0 18 * * 0` |
-| `instagram` | `scopes`, `graph_api_version` v26.0, `tools` {media_insights, user_insights, create_media, publish_media}, `media_type` REELS, `publish_wait_minutes` [3,5], `publishing_limit_per_24h` 100, `container_max_age_hours` 24, `insight_pulls_hours` [48, 72, 168], `metrics[]`, `never_request` [plays, impressions], `tags[]`, `computed`, `judge_at_hours` 72 |
+| `schedule` | `timezone` America/Chicago, `tasks[]` {id, name, when, cron, command} (exactly the 6 cloud tasks): plan_month `0 21 24 * *`, night_check `0 20 * * *`, build_today `0 5 * * *`, dashboard_refresh `0 22 * * *`, trend_check `0 19 * * 5`, digest `0 18 * * 0`; `extra_tasks[]` {id, name, when, cron, command, where cloud\|desktop, notifications}: quarterly_research `0 10 12 2,5,8,11 *` (cloud), story_pulls `40 12 * * *` (cloud, `/dashboard-refresh stories`), chrome_queue `47 * * * *` (desktop, `/chrome-queue`); `runlog` {window_days, grace_minutes, early_minutes, stuck_after_minutes, late_build_by, rerun_within_hours}; `chrome_queue` {lease_minutes 45, expire_margin_minutes 60}; `story_pulls` {window_hours [12, 22], insights_expire_hours 24, pull_runs, max_gap_hours} |
+| `instagram` | `scopes`, `graph_api_version` v26.0, `tools` {media_insights, user_insights, create_media, publish_media}, `media_type` REELS, `publish_wait_minutes` [3,5], `publishing_limit_per_24h` 100, `container_max_age_hours` 24, `insight_pulls_hours` [12, 22, 48, 72, 168, 336, 720] (Stories 12 h and 22 h; other posts 48 h to 30 d), `metrics[]`, `never_request` [plays, impressions], `tags[]` (incl. boosted, pattern_ids, strategy_arm, story_frames, post_type), `computed`, `judge_at_hours` 72 |
+| `approval` | DECISIONS D26: `approved_status`, `staged_status`, `recheck_in` (night_check, dashboard_refresh, story_pulls, chrome_queue), `min_lead_minutes` 20, `latest_post_time` 21:00, `min_gap_between_feed_posts_minutes` 120, `next_slot_rule`, `stale_after_days` 7, `notify`, `notify_until_approver_named` |
+| `carousel` | `design_system_url` (null = the bundled components) |
+| `post_types` | `types[]` {id, row_kind, carousel_source?, metrics_post_type, built_by, files, films}: reel, trial_reel, component_carousel, photo_carousel, reel_carousel, single_photo, story |
 | `formats` | `outputs[]` {id, label, size, length_s or count, kind, file, rule}, `hook_variants`, `crop_rule` |
 
 ---
@@ -826,7 +838,7 @@ formats.py PLAN_JSON REEL_MP4 [--out DIR] [--slug SLUG] [--only reach,story,caro
 ```
 Renders the plan's `formats` from the same plan (crops in the engine, never
 Higgsfield Reframe): `<slug>_reach.mp4`, `<slug>_story_<N>.jpg|.mp4`,
-`<slug>_carousel_<N>.jpg` (1080x1350), `<slug>_cover.jpg`,
+`<slug>_carousel_NN.jpg` (1080x1350; two digits, 01, 02, ..., the same names as photo_post.py and design_render.py), `<slug>_cover.jpg`,
 `<slug>_hook_<N>.mp4`, and `<slug>.srt` (from plan `lines`; one cue per line).
 `DIR` defaults to the reel's folder; slug defaults to `plan.meta.slug` or the
 job folder name. Missing `formats` entries get sensible defaults derived from
@@ -856,13 +868,37 @@ rows for the plan Sheet mirror.
 
 ### metrics.py [T7]
 ```
-metrics.py ingest   --store FILE --reel ID --pull 48h|72h|7d --data INSIGHTS_JSON [--tags TAGS_JSON]
+metrics.py ingest   --store FILE --post ID --pull 12h|22h|48h|72h|7d|14d|30d --data INSIGHTS_JSON [--tags TAGS_JSON] [--pulled-at ISO]
+metrics.py account  --store FILE --data USER_INSIGHTS_JSON [--date YYYY-MM-DD]
+metrics.py tag      --store FILE --post ID --tags TAGS_JSON
+metrics.py due      --store FILE [--now ISO] [--json]
 metrics.py compute  --store FILE [--json]
 metrics.py validate --store FILE
 ```
-Stores per-reel pulls (`config.instagram.metrics`) and NUMA tags; rejects
-`plays`/`impressions` (exit 1); `compute` adds retention, sends and saves per
-1,000 reach, and skip rate against NUMA's median.
+`--post` and `--reel` are the same flag (every post type is stored the same
+way, keyed by its media id). Stores per-post pulls (`config.instagram.metrics`)
+and Numa tags; rejects `plays`/`impressions` (exit 1); `compute` adds
+retention, sends and saves per 1,000 reach, and skip rate against Numa's
+median (reels only).
+
+**Post type (R337).** Tag `post_type` is one of reel, carousel, image, story,
+trial_reel (`metrics.POST_TYPES`); a post without it is a reel (a trial_reel
+when its `trial_reel` tag is true); `post_type` trial_reel sets `trial_reel`
+true, and `trial_reel` true with any type other than reel or trial_reel is an
+error. Only video posts (reel, trial_reel, story) have watch time and skip
+rate: a carousel's or image's `avg_watch_time_ms`, `total_watch_time_ms` or
+`skip_rate` is dropped at ingest with a WARN and rejected by `validate`; their
+retention and skip rate compute as null. Each post's `computed` carries its
+`post_type`, and the dashboard and digest break results down by it.
+
+**Pulls and `due`.** `due` lists the posts whose next pull is due at `--now`
+(posting_time + each configured age, not yet pulled), with `pull_now` = the
+label to store. A Story is due at `12h` and `22h` and **never after 24 h**
+(Instagram keeps a Story's insights only while it is live; the four pull runs
+at 05:00, 12:40, 20:00 and 22:00 Central guarantee one pull inside 12-22 h,
+docs/SCHEDULED_TASKS.md); every other post at `48h`, `72h`, `7d`, `14d` and
+`30d`. `--pulled-at` records the real pull time (strategy.py judges by the
+real age).
 
 ### dashboard.py [T7]
 ```
@@ -913,11 +949,17 @@ best-scoring version. Exit 1 on FAIL for `score`.
 ### digest_data.py [T7]
 ```
 digest_data.py --metrics F --plan-rows ROWS.json|.csv [--ledger PATH] [--notes F]
+               [--learned STRATEGY_CHANGES_TXT] [--brief STRATEGY_BRIEF_JSON]
                [--today YYYY-MM-DD] [--out F] [--text F] [--json]
 ```
-Deterministic numbers for the Monday digest (last week's reels, best reel,
-credits used/left, this week's schedule, batched shoot list by room) as JSON,
-plus a plain-text phone-readable draft.
+Deterministic numbers for the Monday digest (last week's posts with their
+post type, best post, credits used/left, this week's schedule, batched shoot
+list by room) as JSON, plus a plain-text phone-readable draft. Also:
+`awaiting_approval` (DECISIONS D26: rows up to the end of this week whose
+Status is "Ready to post", plus the notes' `awaiting_approval` lines; shown
+first, as "STAGED FOR APPROVAL") and `learned` ({as_of, changes, do_more,
+do_less} from `strategy.py learn --text` and the brief's lines and dated
+changes of the last week; shown as "What we learned" inside section 2).
 
 ### setup_check.py [T10]
 ```
@@ -936,6 +978,14 @@ shoot_card.py check MONTH_JSON [--closures FILE] [--json]
 shoot_card.py script SCRIPT_JSON [--json]
 shoot_card.py sheet MONTH_JSON [--csv] [--out FILE]
 ```
+Row kinds: reel, trial_reel, carousel, image (a single-photo feed post on a
+topic: nothing to film), stories; a carousel row may carry `carousel_source`
+component|photos|reel (how it is built; the card says so). Status: Planned,
+Shot, Ready to build, Ready to post, Approved (or `Approved - <name>`), Posted.
+The plan-row fields strategy.py adds (`post_type`, `post_time`, `hour_band`,
+`strategy`, `moments`, `story_frames`, `carousel_source`) are set aside
+before the script.json schema check. Carousels and photo posts are the feed's
+statics in the cadence check.
 `script`: checks one script.json (schemas/script.schema.json) against the card
 rules and timing. `sheet`: exports the month as the 13 "NUMA 30-Day Reel Plan"
 columns (JSON or CSV), the shape digest_data.py reads. MONTH_JSON is the
@@ -1068,6 +1118,80 @@ beige, blue, light_blue (`design_render.PALETTE_ROLES`, with the owners' hex
 values until those keys exist). The library is generated by
 `tools/gen_carousel_components.py` (never edit the .html files by hand).
 
+### ensure_env.py [T17]
+```
+ensure_env.py [--check-only] [--json] [--with-model] [--with-chromium] [--requirements FILE]
+```
+Idempotent bootstrap every command runs first (R339). Checks Python >= 3.10. Checks that requirements.txt is
+importable at satisfying versions; a `pkg @ <url>` line is a presence check only. Runs `pip install --quiet -r` only
+when something is missing or the requirements hash changed, retrying with --break-system-packages and then --user.
+Finds ffmpeg (system or imageio-ffmpeg). `--with-model` makes sure the faster-whisper small.en model is cached;
+offline it fails with a clear ERROR. `--with-chromium` makes sure Playwright's Chromium is installed. Fast path: a
+stamp in `$NUMA_CACHE` (default `~/.cache/numa-studio`)/ensure_env.json, keyed by sha256(requirements.txt) plus the
+Python version. `--check-only` changes nothing. Exit 0 = ready; exit 1 = not ready (`ERROR: <what>. Fix: <command>`).
+`--json` prints `{ready, fast_path, key, python, cache_dir, seconds, installed, checks: [{name, ok, level, detail, fix}]}`.
+
+### runlog.py [T17]
+```
+runlog.py start TASK [--late] [--state DIR] [--now ISO] [--json]
+runlog.py finish [RUN_ID] [--task TASK] --outcome ok|failed|partial [--note TEXT] [--rescheduled] [--state DIR] [--now ISO] [--json]
+runlog.py check [--days N] [--late-build-by HH:MM] [--mark-reported RUN_ID] [--since ISO [--tasks a,b]] [--state DIR] [--now ISO] [--json]
+runlog.py summary --week [--state DIR] [--now ISO] [--json]
+runlog.py merge-dir DIR [--state DIR] [--json]
+```
+**Storage.** Only one run ever writes each file:
+- `STATE/runlog/<run_id>.json` is one run's record, uploaded to Drive `_Plan/runlog/`. Fields: `{id, task, started_at,
+  finished_at, outcome, note, late, rescheduled, supersedes}`.
+- `STATE/runlog/reported-<run_id>.json` holds the watchdog's reported keys.
+- `STATE/runlog.json` is the local merged view.
+
+**Merging.** `merge-dir` folds a downloaded copy of Drive `_Plan/runlog/` into the local view (union by id; a finished
+record wins). `--state` defaults to `$NUMA_STATE`, else `~/NUMA Studio/_Plan`.
+
+**`check`.** Evaluates every cron of `schedule.tasks` plus the non-desktop `schedule.extra_tasks` in
+`schedule.timezone` (zoneinfo, so DST is handled). A run belongs to a slot from `early_minutes` before it.
+It returns `{healthy, problems, notes, tasks}`:
+- `problems`: `[{kind missed|failed|stuck, task, slot, date, run_id?, runs, late_runs, action, key, new}]`.
+- `action` is one of:
+  - `late_build`: build_today only, when the slot has no run at all, it is today, and it is before `late_build_by`. It only builds and stages.
+  - `reschedule`
+  - `rerun`
+  - `skip`: for anything a run already marked `--rescheduled`.
+- `notes`: partial runs, and runs interrupted by a later run (`supersedes`) or by sleep (a desktop task is never
+  reported `stuck`).
+- Only slots at or after the log's first run (`created_at`) are expected, unless a run covers the slot.
+
+**`check --since`** is the setup verification. A `partial` run counts as having run, with a warning.
+
+### chrome_queue.py [T17]
+```
+chrome_queue.py add --kind KIND --payload JSON --deadline ISO --fallback TEXT [--not-before ISO] [--state DIR] [--now ISO] [--json]
+chrome_queue.py list [--status pending|in_progress|done|expired|conflict|all] [--state DIR] [--json]
+chrome_queue.py next [--claim RUN_ID] [--lease-minutes N] [--kinds a,b] [--state DIR] [--now ISO] [--json]
+chrome_queue.py done ID --claim RUN_ID --result TEXT [--state DIR] [--now ISO] [--json]
+chrome_queue.py fail ID --claim RUN_ID --reason TEXT [--state DIR] [--now ISO] [--json]
+chrome_queue.py expire --run RUN_ID [--margin-minutes N] [--state DIR] [--now ISO] [--json]
+chrome_queue.py merge-dir DIR [--state DIR] [--json]
+```
+`STATE/chrome_queue.json` is the local view of the steps that need Claude in Chrome (R342). Each item is also
+its own file, `STATE/chrome_queue/<id>.json`, mirrored to Drive `_Plan/chrome_queue/`. Every changing command lists
+the item files it wrote under `files` (`--json`); runs upload only those, so a near-simultaneous upload never drops
+another item. `merge-dir` folds a downloaded copy of the folder in.
+
+**Kinds.** scout_research, competitor_log, higgsfield_unlimited, and the posting kinds trial_reel, collab_invite and
+ai_label. Posting kinds are queued only for approved posts (D26). No fallback publishes.
+
+**Behaviour.**
+- Identical items are deduped. A dedupe that would put `not_before` at or after the deadline is refused.
+- `next --claim` takes the item under the lock, with a lease (default 45 min). A lapsed lease returns the item to pending.
+- `done` and `fail` require the claim.
+- `expire` is called only by the designated runner (the 8 pm night check). It waits `--margin-minutes` (default 60)
+  past each deadline and records `expired_by`.
+- A `done` after an expiry, or a done/expired split found by `merge-dir`, becomes `conflict` and is reported.
+- In `merge-dir`, of two live claims the earlier one wins.
+
+**Exit codes.** 1 = bad input, a missing claim or a conflict; 2 = usage error.
+
 ### strategy.py [T18]
 ```
 strategy.py plan    --month YYYY-MM [--metrics FILE] [--state FILE] [--playbook DIR] [--events FILE] [--closures FILE]
@@ -1109,16 +1233,22 @@ whose rows add `post_type`, `post_time` (Central HH:MM), `hour_band`,
 tests (hook|structure|cta|format), feed_per_week, why[]}, `story_frames` on Stories rows and `moments`, plus
 `partial_closures` (brand.json `closures.partial`: posts that day go out before `open_until`, no sales post or
 teaser) and a top-level `strategy` summary (data-led share, explore slots, explore variable, time slot,
-violations). Format arms are judged on the pooled feed score; R2's feed shares are soft and widen with evidence
-(`feed_mix.*.max_with_evidence`); one image format-test slot a week until images have 8 tries. Offer weeks:
+violations). Format arms are judged on the pooled feed score; R2's feed shares are soft and widen only on R6-grade evidence
+(>= 12 final posts each, P(beats reels) >= 0.95, median index >= 1.25x; `feed_mix.*.max_with_evidence`); one image format-test slot a week until images have 8 tries. Offer weeks:
 untried weeks are drawn and one offer-week test a month runs until every week has 3 tries. Cadence
 (feed posts a week), Story frames a day and the lighter weekend day are blocked 4-week rotations
-(policies `cadence`, `rotations`; a level wins at 1.25x over 8 each, then holds 3 blocks in 4); planning
+(policies `cadence`, `rotations`; story frames and the off day win at 1.25x over 8 each; cadence is judged on marginal
+value: the higher cadence wins only if its posts hold up per post (>= `min_per_post_ratio` 0.8x) and weekly
+follows, else reach, do not fall; a winner holds 3 blocks in 4); planning
 rules and `approval_capacity_per_week` cap volume. Video and static hooks are separate arms with their own
 40% cap. It exits 1 when a planning rule fails even with the
 bandit off. Decisions (promote, retire, demote, Do more/Do less) judge each arm's posts against a leave-arm-out baseline (the
-same-format median without that arm's own posts; the full baseline while fewer than 8 others exist), so a
-winner that fills the trailing median is not diluted toward 1.0x; shown scores keep the full baseline.
+same-format median without that arm's own posts; the full baseline while fewer than 8 others exist or the arm is more
+than 70% of the pool, e.g. the default CTA), so a
+winner that fills the trailing median is not diluted toward 1.0x; shown scores keep the full baseline. A structure
+or CTA is judged within its hook's stratum when that hook shows an effect (3+ posts, P >= 0.8 or <= 0.2): the
+hook's effect on its posts without that structure is subtracted;
+records whose hook has fewer than 6 posts without it are kept out as confounded), so it is never promoted on a hook's win.
 `learn` updates statuses (promote/retire/demote/start_testing; counts restart
 at each change via `counts_from`; fast track only under 10 tries; Trial Reels decide in their own
 `trial:` pool and inform the main arm at half weight), the dated changelog and Do more/Do less lines
@@ -1128,8 +1258,10 @@ changelog for the digest. `brief` writes `schemas/strategy_brief.schema.json`.
 Doc text): pattern blocks, "symptom -> cause -> fix" tables, post-type share
 tables, rule tables and the R7 judging-window tables; claims-scans every
 example (a failing example is rejected; a pattern with none left is rejected),
-rejects examples and templates that name a person other than the co-founders (`validate`
-checks the bundled playbook the same way), de-duplicates by id and name, stores only deltas against the
+rejects examples, templates, beats and visuals that name a person other than the co-founders (names from the private
+people file, NUMA_PEOPLE_FILE or STATE/people.json, plus a heuristic: after a person cue, before a verb or
+preposition, possessives and first-last pairs, ignoring words the playbook and research use in lower case; the
+rejected text is not logged; `validate` checks the bundled playbook the same way), de-duplicates by id and name, stores only deltas against the
 bundled playbook (`pattern_deltas`), skips a file whose content it already imported (sha), and never changes a
 status or Numa's own data.
 

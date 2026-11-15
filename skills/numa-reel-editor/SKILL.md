@@ -25,7 +25,7 @@ Read brand.json before writing a single line. Facts carry a `status`: prefer `co
 | Need | Key |
 |---|---|
 | Name and spelling (always "Numa" on screen, never "NUMA"; full name Numa Wellness Collective; "Numa Nights" and the iOS app keep theirs) | `business.name` |
-| Address, area, facility (Finnish sauna 175-190°F, cold plunges 44-52°F; never state the sauna's capacity) | `business.location`, `business.facility` |
+| Address, area, facility (the sauna 175-190°F, never its capacity and never "Finnish"; 4 cold plunges at 44-52°F; only amenities brand.json lists) | `business.location`, `business.facility` |
 | Prices and offers (Discover Numa, $49 one month) | `offerings.offers`, `offerings.sessions` |
 | Never show or imply (IV drips, cryotherapy, compression boots, float tanks, reformer Pilates) | `offerings.not_offered` |
 | Voice, reference lines, share line example | `voice.description`, `voice.reference_lines`, `voice.share_line_example` |
@@ -63,7 +63,7 @@ Sell the experience, never the outcome. The FTC judges the overall impression: v
 | Modality | Say | Never say |
 |---|---|---|
 | Cold plunge | "Three minutes of cold. Walk out wide awake." · "A challenge that leaves many people feeling energized." · "Pairs well with the sauna for contrast." | Reduces inflammation · boosts immunity · burns fat · heals injuries · treats depression |
-| Sauna | "Deep, quiet heat to unwind." · "A centuries-old Finnish ritual." · "Relax, breathe, disconnect." | Detox or sweat out toxins · burns calories · lowers blood pressure · prevents heart disease or dementia |
+| Sauna | "Deep, quiet heat to unwind." · "Our sauna runs 175 to 190°F." · "Relax, breathe, disconnect." | Detox or sweat out toxins · burns calories · lowers blood pressure · prevents heart disease or dementia |
 | Red light | Accurate device facts ("our panels use 660 nm and 850 nm light") only when `claims.modalities.red_light.device_facts` confirms them · "A warm, calming session" | Anti-aging, wrinkles, collagen · heals or reduces inflammation · "FDA-approved" · "FDA-cleared" unless it names the exact device and its exact cleared use |
 | Breathwork | "Guided breathing to help you slow down." · "Feel more centered." · "Learn techniques people use to relax." | Cures anxiety · treats depression · heals trauma · boosts immunity · "breathwork therapy" from anyone not licensed for it |
 
@@ -90,7 +90,7 @@ These rules are the product's IP. The validator enforces the ones marked (rule N
 |---|---|---|
 | Transformation | before -> struggle -> turn -> payoff -> gratitude -> logo | Year One, a first plunge, a renovation |
 | Offer | problem -> modality -> feeling -> call to action | Discover Numa $49, a new class |
-| Event recap | arrival -> energy -> faces (yes on record only) -> community -> logo | Numa Nights (Clinical Conversations is cancelled: never promote it) |
+| Event recap | arrival -> energy -> faces -> community -> logo (faces with a yes on record only) | Numa Nights (Clinical Conversations is cancelled: never promote it) |
 
 ### 4.2 The hook and the first second
 

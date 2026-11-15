@@ -702,3 +702,15 @@ def test_image_rows_count_as_feed_statics_in_check(tmp_path, capsys):
     assert not [e for e in out.get("errors", []) if "kind must be" in e]
     assert not [e for e in out.get("errors", []) if "feed posts" in e], out.get("errors")
     assert rc in (0, 1)
+
+
+def test_strategy_plan_row_fields_are_set_aside_for_the_schema(tmp_path, capsys):
+    """strategy.py plan adds post_type, post_time, hour_band, strategy, moments, story_frames to a row; a scripted
+    reel row carrying them still passes `script` (they are not script.json fields)."""
+    row = {**SPEC_EXAMPLE, "post_type": "reel", "post_time": "16:30", "hour_band": "late_afternoon",
+           "strategy": {"mode": "explore", "tests": "hook", "why": ["test"]}, "moments": [],
+           "pattern_ids": ["plunge-entry"], "strategy_arm": "type=reel;pillar=community"}
+    assert run(["script", write(tmp_path, row, "row.json"), "--json"]) == 0, capsys.readouterr().out
+    capsys.readouterr()
+    assert run(["card", write(tmp_path, row, "row.json")]) == 0
+    capsys.readouterr()

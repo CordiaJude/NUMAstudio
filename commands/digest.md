@@ -43,7 +43,7 @@ Every script then reads brand facts, claims, consent and closures from it. When 
 
 | # | Section | Content |
 |---|---|---|
-| top | Waiting for approval | First, above section 1, only when `awaiting_approval` is not empty: each staged post with its day, title, post type and planned time, then one line: "Mark a plan row Approved to post it; it goes out at its planned time, or the next slot if that has passed." A statement for the approver, never a question. |
+| top | Staged for approval | First, above section 1, only when `awaiting_approval` is not empty: each staged post with its day, title, post type and planned time, then one line: "Mark a plan row Approved to post it; it goes out at its planned time, or the next slot if that has passed." A statement for the approver, never a question. |
 | 1 | Last week | Each post (reels, Trial Reels, carousels, photos, Stories; its post type named): thumbnail (metrics tag `thumbnail`, else the reel's `_cover.jpg` in `Finished/`), link, views, average watch time, sends. Then the best one and **why you think it worked**, in one sentence, from its tags and the signals digest_data gives (hook type, length, series, retention vs Numa's median). |
 | 2 | What changed | The `changes` list: what you changed because of last week's results ("Shorter hooks on education reels", "Moved offers to Thursday"). |
 | 2a | What we learned | Inside section 2, headed "What we learned": the strategy changelog lines from `STATE/strategy_changes.txt` (`learned.changes`: what was promoted, retired or started testing, in plain sentences) plus the brief's `do_more` and `do_less`. Quote them; add no numbers of your own. Nothing learned yet: "Too early to tell: the first posts are still being judged." |
@@ -65,7 +65,7 @@ Rules: plain sentences, no jargon, no questions, nothing for Katie to decide. A 
 
 ```
 Numa Monday digest · week of Dec 14
-WAITING FOR APPROVAL (mark the plan row Approved to post it)
+STAGED FOR APPROVAL (mark the plan row Approved to post it)
 - Tue Dec 15: Sauna vs red light (carousel), posting 4:30 pm
 1. LAST WEEK
 - Your first plunge: 2,140 views, 14.2 s avg watch, 38 sends · <link>
@@ -89,4 +89,4 @@ PLUNGE ROOM (~9 min) ... SAUNA (~7 min) ... Voiceovers back to back: Day 14, 16,
 
 ## Done means
 
-The Doc is in `_Plan/Digests/` with the posts waiting for approval, what we learned and the week's run health, the notification or email is sent, the notes are archived, and the run is finished in the run log. Nobody was asked anything.
+The Doc is in `_Plan/Digests/` with the posts staged for approval, what we learned and the week's run health, the notification or email is sent, the notes are archived, and the run is finished in the run log. Nobody was asked anything.

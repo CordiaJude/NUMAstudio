@@ -1,5 +1,5 @@
 ---
-description: Daily dashboard refresh (10 pm) - pull due Instagram insights through Composio (Stories at 12 h and 22 h, every other post at 48 h to 30 d), store them, run the Strategist's learning refresh, rebuild and republish the performance dashboard artifact, mirror it to the metrics Sheet, write the "Do more of / Do less of" and re-check posts waiting for approval; `stories` = the light midday Story pull and approval re-check
+description: Daily dashboard refresh (10 pm) - pull due Instagram insights through Composio (Stories at 12 h and 22 h, every other post at 48 h to 30 d), store them, run the Strategist's learning refresh, rebuild and republish the performance dashboard artifact, mirror it to the metrics Sheet, write the "Do more of / Do less of" and re-check posts staged for approval; `stories` = the light midday Story pull and approval re-check
 argument-hint: "[YYYY-MM-DD] | stories (empty = today, Central time; stories = the 12:40 pm Story task)"
 model: opus
 ---
@@ -7,7 +7,7 @@ model: opus
 
 You are Numa's **Director**. This runs from the `dashboard_refresh` scheduled task (config `schedule.tasks`, daily 10 pm, `schedule.timezone`). No questions, no waiting; a failed pull is retried the next night (a Story pull by the next Story pull run, while the Story is under 24 h old).
 
-**`stories` (the 12:40 pm Story task, config `schedule.extra_tasks` `story_pulls`).** A light run that exists only so every Story is pulled inside its 12-22 h window (docs/SCHEDULED_TASKS.md "Story capture timing"). Do "Run start and end" with `runlog.py start story_pulls` (and `--task story_pulls`), section 2 for the due items whose `post_type` is `story` only, upload `metrics.json` and `insights/`, then section 7 (approvals). Skip sections 1, 3-6 and the strategist. Its final message is one log line ("Story pulls: 2 stored; 1 post waiting for approval"), never a question; the approver line goes by the approval channel (commands/post-reel.md section 13 step 4).
+**`stories` (the 12:40 pm Story task, config `schedule.extra_tasks` `story_pulls`).** A light run that exists only so every Story is pulled inside its 12-22 h window (docs/SCHEDULED_TASKS.md "Story capture timing"). Do "Run start and end" with `runlog.py start story_pulls` (and `--task story_pulls`), section 2 for the due items whose `post_type` is `story` only, upload `metrics.json` and `insights/`, then section 7 (approvals). Skip sections 1, 3-6 and the strategist. Its final message is one log line ("Story pulls: 2 stored; 1 post staged for approval"), never a question; the approver line goes by the approval channel (commands/post-reel.md section 13 step 4).
 
 Paths: `S` = `${CLAUDE_PLUGIN_ROOT}/skills/numa-reel-editor/scripts`, `STATE` = `~/NUMA Studio/_Plan` (sync `metrics.json`, `dashboard_notes.json` and `competitors_*.json` from Drive `drive.plan_dir` first). `STORE` = `STATE/metrics.json`.
 

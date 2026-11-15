@@ -27,7 +27,7 @@ Inputs:
   do_more / do_less lines, and its dated `changes` from the last seven days,
   go into "What we learned".
 
-Waiting for approval (D26): every plan row up to the end of this week whose
+Staged for approval (D26): every plan row up to the end of this week whose
 Status is "Ready to post" (built and staged, not yet marked Approved by a
 person), plus the notes' `awaiting_approval` lines that name another post.
 Approved rows ("Approved" or "Approved - <name>") are not listed.
@@ -417,7 +417,7 @@ def text_draft(d: dict) -> str:
     lw, tw = d["last_week"], d["this_week"]
     L: list[str] = [f"Numa Monday digest · week of {date.fromisoformat(tw['start']).strftime('%b %-d')}", ""]
     if d.get("awaiting_approval"):
-        L.append("WAITING FOR APPROVAL (mark the plan row Approved to post it)")
+        L.append("STAGED FOR APPROVAL (mark the plan row Approved to post it)")
         for a in d["awaiting_approval"]:
             if a.get("note"):
                 L.append(f"- {a['note']}")

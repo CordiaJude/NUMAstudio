@@ -389,7 +389,7 @@ def test_setup_guide(texts, config):
     for needle in ["Max", "Keep computer awake", "Run on startup", "CordiaJude/numa-studio", "Google Drive",
                    "Higgsfield", "Composio", "Business or Creator", "Gmail", "Claude in Chrome", "Consent List",
                    "Closures", "voice sample", "/numa-setup", "/brand-setup", "Golden test", "SCHEDULED_TASKS.md",
-                   "Account fixes", "NUMA | Sauna + Cold Plunge Mobile AL", "One phone number everywhere",
+                   "Account fixes", "Numa | Sauna + Cold Plunge Mobile AL", "One phone number everywhere",
                    "Google Business Profile", "AI label", "Monthly cost", "$100", "$0 (free Hobby plan)",
                    "about $150-160 a month", "blocking inputs", "lawyer", "Verify these first",
                    "Research prompts", "every quarter", "`higgsfield.prices_verified_on`"]:
@@ -494,10 +494,11 @@ def test_post_reel_image_gates_and_rules(texts, brand, config):
 
 
 def test_post_reel_reel_flow_unchanged(texts):
-    """The reel sections keep their numbers and order; the new section comes last."""
+    """The reel sections keep their numbers and order; the new sections come last (12 carousels and photos,
+    13 the approval re-check, DECISIONS D26)."""
     t = texts["post-reel"]
     heads = re.findall(r"^## (\d+)\. ", t, re.M)
-    assert heads == [str(i) for i in range(1, 13)]
+    assert heads == [str(i) for i in range(1, 14)]
     assert "media_type` = config `instagram.media_type` (REELS)" in t
 
 
@@ -522,7 +523,8 @@ def test_numa_setup_bootstrap_and_task_verification(texts):
     step1 = t[t.find("## 1."):t.find("## 2.")]
     assert 'ensure_env.py" --with-model --with-chromium' in step1 and "--break-system-packages" in step1
     sec = t[t.find("## 10. Scheduled tasks"):t.find("## 11.")]
-    for needle in ["eight scheduled tasks", "Quarterly research re-check", "0 10 12 2,5,8,11 *", "Chrome queue",
+    for needle in ["nine scheduled tasks", "Quarterly research re-check", "0 10 12 2,5,8,11 *", "Chrome queue",
+                   "Story insights + approval re-check", "40 12 * * *",
                    "local (desktop) scheduled task", "never in the cloud", "Run now", "`SINCE`",
                    'runlog.py" check --since "<SINCE>" --tasks', "(not run)", "Leave the schedule off",
                    "do not expand", "copied **exactly**", 'runlog.py" merge-dir "$STATE/runlog.drive"',
@@ -531,12 +533,14 @@ def test_numa_setup_bootstrap_and_task_verification(texts):
         assert needle in sec, needle
     ids = re.search(r"--tasks ([a-z_,]+)", sec).group(1).split(",")
     assert ids == ["plan_month", "night_check", "build_today", "dashboard_refresh", "trend_check", "digest",
-                   "quarterly_research", "chrome_queue"]
+                   "quarterly_research", "story_pulls", "chrome_queue"]
 
 
-def test_setup_guide_eight_tasks_and_runlog_check(texts):
+def test_setup_guide_nine_tasks_and_runlog_check(texts):
     t = texts["guide"]
-    for needle in ["Create the eight scheduled tasks", "| Quarterly research re-check |", "| Chrome queue |",
+    for needle in ["Create the nine scheduled tasks", "| Quarterly research re-check |", "| Chrome queue |",
+                   "| Story insights + approval re-check |", "12-22 h insight window", "playwright install --with-deps chromium",
+                   "**Approval on the plan Sheet**", "_Plan/people.json", "no cloned voices",
                    "**Desktop** (Katie's Mac)", "Cloud or desktop.", "only while the Mac is awake",
                    "Check the run log", "runlog.py check --since", "`ensure_env.py`", "`WARN:`",
                    "a post goes out only after a person approves it", "fallback that never publishes",

@@ -33,8 +33,8 @@ Write 3 options, each from a different angle, and mark one **Recommended** with 
 
 Every option:
 1. **Line 1 opens with a plain searchable phrase** ("cold plunge in Mobile, AL", "sauna near Midtown Mobile", "breathwork in Mobile"), then the hook; under about 12 words so it shows before "more". Instagram search reads it.
-2. **2-4 short body lines** with concrete details (the Finnish sauna at 175-190°F, cold plunges at 44-52°F; never the sauna's capacity; a guide or provider by role, or by name only from the private `STATE/people.json` when they said yes; only the co-founders are named otherwise).
-3. **One soft call to action**, rotated: "Try Discover Numa: one month, $49 (link in bio)", "Come breathe with us", "See you at Numa Nights". Ask the DPT reels carry no booking pitch (education only).
+2. **2-4 short body lines** with concrete details (the sauna at 175-190°F, the cold plunges at 44-52°F; never the sauna's capacity, never "Finnish" (brand.json `business.facility`); a guide or provider by role, or by name only from the private `STATE/people.json` when they said yes; only the co-founders are named otherwise).
+3. **One soft call to action**, rotated: "Try Discover Numa: one month, $49, ends on its own (link in bio)", "Come breathe with us", "See you at Numa Nights" (only in an event's teaser window; events run about every four months). Only offers in brand.json `offerings.offers`; never an invented offer or code. Ask the DPT reels carry no booking pitch (education only).
 4. **The share line** when the reel has one: echo it ("Send this to the friend who needs a reset."). Sends reach new people.
 5. **Safety line** (`claims.safety_line.text`) on cold and heat reels.
 6. **Hashtags on the last line: 3-5** = the `captions.hashtags.base` tags (#MobileAL #MidtownMobile #GulfCoastWellness) + one topic tag (#coldplunge, #sauna, #breathwork) + the Numa community tag from `captions.hashtags.community_tag` when it has a value (while it is null, leave it out; never invent one). Never a tag from `captions.hashtags.never` or one that states a benefit.

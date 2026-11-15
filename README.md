@@ -1,15 +1,18 @@
 # NUMA Studio
 
-Numa Wellness Collective's in-house video studio, as a Claude plugin. Katie films; NUMA Studio does
+Numa Wellness Collective's in-house content studio, as a Claude plugin. Katie films; NUMA Studio does
 the rest. Every day it takes the photos, clips, voiceover and music in that day's Google Drive
-folder and turns them into a finished, on-brand 1080x1920 Instagram reel with captions, a reach
-cut-down, Stories, a carousel, a cover and the post copy. Nobody makes a decision along the way:
-a Director agent plans the month, a crew of agents builds each reel, a Critic agent checks it, and
-six scheduled tasks run the whole thing.
+folder and turns them into a finished, on-brand post: a 1080x1920 Instagram reel (with captions, a
+reach cut-down, Stories, a cover and the post copy), a Claude Design component carousel, a photo
+carousel, a single photo post or a Story set. Nobody makes a decision along the way: a Strategist
+agent learns from Numa's own results, a Director agent plans the month, a crew of agents builds
+each post, a Critic agent checks it, and nine scheduled tasks run the whole thing. **Nothing posts
+until a person approves it** (DECISIONS D26): each post is staged as "Ready to post" and goes out
+at its planned time once someone marks its plan Sheet row Approved.
 
 It is a Claude plugin, not a server or a web app: Markdown instructions (commands, agents, skills),
 Python scripts that do every exact step (analysis, planning checks, rendering, mastering, output
-checks), and JSON data (brand, config, schemas). Version 2.0.0; see [CHANGELOG.md](CHANGELOG.md).
+checks), and JSON data (brand, config, schemas). Version 2.1.0; see [CHANGELOG.md](CHANGELOG.md).
 
 ## Install
 
@@ -26,8 +29,9 @@ In Claude Code:
 Then connect **Google Drive**, **Google Sheets**, **Higgsfield** (Plus plan) and **Composio**
 (Instagram toolkit; Gmail optional) under Settings → Connectors, install Claude in Chrome in a
 Chrome profile signed in to Numa's accounts, and run `/numa-setup` once. `/numa-setup` checks
-Python and every package, ffmpeg, fonts and brand data, renders a 3-second test reel, pre-downloads
-the speech model, confirms each connector with one harmless call, builds the Drive folders and
+Python and every package, ffmpeg, fonts and brand data, installs headless Chromium for carousel
+slides (`python -m playwright install --with-deps chromium`), renders a 3-second test reel,
+pre-downloads the speech model, confirms each connector with one harmless call, builds the Drive folders and
 approves the connector tools so scheduled runs never stop on a permission prompt. Then run
 `/brand-setup` to record Katie's brand answers. The full afternoon checklist for Jude is
 [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md); the questions only Katie can answer are in
@@ -36,9 +40,17 @@ approves the connector tools so scheduled runs never stop on a permission prompt
 ## Daily use
 
 After setup Katie types no commands. `/plan-month` writes a 30-day plan Sheet and a dated Drive folder
-with a SHOOT CARD for every day (`NUMA Reels/Day 07 - 2026-12-09 - Your first plunge/`). Katie
-films what the card asks and drops the files in that folder. The scheduled tasks do everything else
-and send her a phone notification when the reel is in the day's `Finished/` folder.
+with a SHOOT CARD for every day (`NUMA Reels/Day 07 - 2026-12-09 - Your first plunge/`); days with a
+carousel, photo post or Stories say "No filming needed". Katie films what the card asks and drops
+the files in that folder. The scheduled tasks do everything else and send a phone notification when
+the day's post is in its `Finished/` folder, staged for approval.
+
+**Approving a post.** The owners or the social media lead (until the owners name one approver) look
+at the finished post in `Finished/` and set its plan Sheet row's Status to `Approved` (or
+`Approved - <initials>`). The night check, the dashboard refresh, the midday Story task and the
+desktop Chrome queue task re-check staged rows; an approved post goes out at its planned time, or at
+the next slot when that time has passed. Unapproved posts stay staged, are listed in the Monday
+digest, and the approver gets one batched line per run, never one per post.
 
 To make a reel by hand: drop photos, clips, music and a voiceover in a Drive folder (names like
 `music.mp3` and `voiceover.m4a` help; one combined track works too) and run
@@ -49,30 +61,40 @@ To make a reel by hand: drop photos, clips, music and a voiceover in a Drive fol
 | Command | What it does |
 |---|---|
 | `/make-reel` | The Director's run: one reel and all its outputs from a Drive day folder, hands-off |
-| `/build-today` | Daily 5 am: resolves today's plan row and folder, runs the `/make-reel` procedure (or cuts the carousel or Stories), marks the Sheet and notifies Katie |
-| `/plan-month` | The 24th, 9 pm: plans next month (research, re-weighting from results, plan Sheet, day folders, SHOOT CARDs); nobody approves it |
-| `/night-check` | Daily 8 pm: checks tomorrow's folder against its shoot card, sends the Scout for anything missing, swaps the topic if needed, gives Katie a heads-up |
-| `/dashboard-refresh` | Daily 10 pm: pulls Instagram insights through Composio, rebuilds and republishes the performance dashboard |
+| `/build-today` | Daily 5 am: resolves today's plan row, brief slot and folder, builds the post for its type (reel or Trial Reel via the `/make-reel` procedure, component carousel via the designer, photo carousel or single photo via `photo_post.py`, Stories via `formats.py`), stages it for approval, marks the Sheet and notifies Katie |
+| `/plan-month` | The 24th, 9 pm: plans next month (research, the Strategist's `strategy.py plan`, every post type, plan Sheet, day folders, SHOOT CARDs); nobody approves the plan, each post is approved before it goes out |
+| `/night-check` | Daily 8 pm: checks tomorrow's folder against its shoot card, sends the Scout for anything missing, swaps the topic if needed, pulls due Stories, re-checks posts staged for approval, runs the watchdog, gives Katie a heads-up |
+| `/dashboard-refresh` | Daily 10 pm: pulls due Instagram insights through Composio (Stories at 12 h and 22 h, other posts at 48 h to 30 d), runs the Strategist's refresh, rebuilds and republishes the performance dashboard, re-checks approvals; `stories` is the light 12:40 pm Story pull and approval re-check |
 | `/trend-check` | Fridays 7 pm: three trend ideas that fit Numa plus a weather check of the coming week |
 | `/digest` | Sundays 6 pm: the Monday digest (results, schedule, batched shoot list, credits) as a phone-readable Google Doc |
-| `/post-reel` | Auto-posting through Composio at the best time, with the legal-review gate, the approval switch (off by default), the AI label and Trial Reels |
+| `/post-reel` | Stages every post and publishes it through Composio only after a person marks its plan row Approved (the human-approval gate, DECISIONS D26; the owners dropped the lawyer review): reels, Trial Reels, carousels, single photos and Story sets, the member's-yes gate, the AI label, collab invites, the planned time or the next slot, and `approvals`, the re-check every scheduled run does |
 | `/numa-setup` | One-time setup and self-check on Katie's Mac (run by Jude), and `recheck` after updates |
+| `/chrome-queue` | Desktop-only, hourly while Katie's Mac is awake: claims and does the queued Claude in Chrome steps (signed-in research, competitor log, Higgsfield unlimited drafts, and for approved posts only the Trial Reel, collab invite or AI label), starts a late build that stages the day's post for approval when today's build was missed, and re-checks staged posts for approval |
 | `/brand-setup` | The brand questionnaire: writes each answer into `brand/brand.json` and the synced copy in `_Plan/` |
 
 ## How it runs
 
-- **Scheduled tasks.** Six cloud scheduled tasks (Central time) run `/plan-month`, `/night-check`,
-  `/build-today`, `/dashboard-refresh`, `/trend-check` and `/digest`. Times live in
-  `config/studio.json` `schedule`; the exact prompts to paste are in
-  [docs/SCHEDULED_TASKS.md](docs/SCHEDULED_TASKS.md). The daily reel ships with Katie's Mac asleep;
-  only the Scout's Claude in Chrome research needs the desktop app awake, and it falls back to web
-  search, the media library and the bundled brand photos.
+- **Scheduled tasks.** Eight cloud tasks build, check and stage posts with the Mac off: the six
+  core tasks (`/plan-month`, `/night-check`, `/build-today`, `/dashboard-refresh`, `/trend-check`,
+  `/digest`), the quarterly research re-check and the 12:40 pm Story task
+  (`/dashboard-refresh stories`, which keeps every Story's insights inside their 12-22 h window).
+  The desktop "Chrome queue" task (`/chrome-queue`) does the Chrome steps while the Mac is awake.
+  Times live in `config/studio.json` `schedule`; the exact prompts to paste are in
+  [docs/SCHEDULED_TASKS.md](docs/SCHEDULED_TASKS.md).
+- **Nothing posts until a person approves it (D26).** Every post is built and staged with no
+  questions; it goes out only after its plan Sheet row reads Approved, at its planned time or the
+  next slot. No fallback ever publishes.
+- **Every run starts with `ensure_env.py`** (it installs what a fresh cloud machine lacks) and
+  writes its own file in Drive `_Plan/runlog/` (`runlog.py`); the night check and the dashboard
+  refresh run the watchdog, which starts a late build or reschedules a missed day.
 - **Connectors.** Google Drive (material in, finished files out), Google Sheets (plan Sheet, consent
   list, metrics), Higgsfield (motion clips, outpaint/upscale, music beds; credits tracked by
   `ledger.py` against the 1,200-credit monthly budget), Composio Instagram (posting and insights),
   Claude in Chrome (the Scout), Gmail (optional digest e-mail).
 - **The crew.** The Director (the main session) decides everything and never asks Katie anything;
-  every failure follows the failure table in `commands/make-reel.md`. Agents:
+  every failure follows the failure table in `commands/make-reel.md`. The Strategist owns the
+  learning loop (`strategy.py`: scores, judging windows, the month allocation and the weekly brief;
+  [skills/numa-scriptwriter/ADAPTIVE.md](skills/numa-scriptwriter/ADAPTIVE.md)). Agents:
 
   | Agent | Job |
   |---|---|
@@ -80,14 +102,27 @@ To make a reel by hand: drop photos, clips, music and a voiceover in a Drive fol
   | `analyst` | Runs analyze, fix_transcript, vision and prep_media; rates every photo and clip |
   | `scout` | Finds missing photos, clips, music and facts (Numa's channels first, then licensed stock) |
   | `motion` | Higgsfield: outpaint, upscale, Kling/Seedance motion clips, music beds, within budget |
-  | `scriptwriter` | Hook, voiceover script, shot list and SHOOT CARD with the claims check |
+  | `scriptwriter` | Hook, voiceover script, shot list and SHOOT CARD with the claims check, written from the Strategist's patterns |
+  | `designer` | Component carousels in Claude Design (one canvas per carousel), rendered to 1080x1350 slides with `design_render.py`; re-renders the canvas right before posting |
+  | `strategist` | The learning loop: `strategy.py learn`, `diagnose`, `plan` and `brief`; writes the weekly strategy brief |
   | `copywriter` | Three caption options, hashtags, Story line and e-mail paragraph, claims-scanned |
   | `editor` | Writes plan.json, validates, previews, renders, finishes, checks the output |
   | `critic` | Fresh-context judge of every render: hard gates plus the weighted rubric, up to 3 rounds |
 
 - **Skills.** `numa-reel-editor` (edit grammar, plan building and every script),
-  `numa-scriptwriter` (pre-production and `templates.json`, the reel templates), `numa-caption`
-  (copy in Numa's voice) and `numa-brand-check` (the pre-post review).
+  `numa-scriptwriter` (pre-production, `templates.json` with the reel templates and the non-reel
+  post types, `ADAPTIVE.md` and the playbook), `numa-carousel` (component carousels in Claude
+  Design), `numa-caption` (copy in Numa's voice) and `numa-brand-check` (the pre-post review).
+
+## What v2.1 adds
+
+Claude Design component carousels (the `designer` agent, the `numa-carousel` skill,
+`design_render.py` and the component library generated by `tools/gen_carousel_components.py`),
+photo carousels and single photo posts (`photo_post.py`) and post types in the metrics store,
+scheduling that survives a Mac that is on and off (`ensure_env.py`, `runlog.py` with a watchdog,
+`chrome_queue.py` and the desktop Chrome queue task), the adaptive strategy engine (`strategy.py`,
+the playbook and the `strategist` agent), the owners' setup answers (Numa, no emojis, no cloned
+voices, people rules in the private `STATE/people.json`) and human approval before anything posts.
 
 ## What v2 adds
 
@@ -128,8 +163,9 @@ The fixtures are synthetic (bundled brand photos, ffmpeg-generated audio and voi
 reads the test pack from a path you pass and never copies it into the repo. CI
 ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs, on every push and pull request: the
 unit tests on Python 3.10 and 3.12 (Linux) and on Python 3.12 on macOS (the primary platform, with
-Homebrew's ffmpeg); a parse of every `.py` file with a real Python 3.10; and the five-folder suite
-(Linux only, to keep CI cost down).
+Homebrew's ffmpeg), each after installing headless Chromium for the carousel tests
+(`python -m playwright install --with-deps chromium`); a parse of every `.py` file with a real
+Python 3.10; and the five-folder suite (Linux only, to keep CI cost down).
 
 ### Release checklist
 
@@ -150,20 +186,26 @@ does not ship.
 
 ```
 .claude-plugin/          plugin.json, marketplace.json (source "./")
-.github/workflows/ci.yml unit tests (3.10/3.12 Linux, 3.12 macOS), 3.10 parse check, five-folder suite
+.github/workflows/ci.yml unit tests (3.10/3.12 Linux, 3.12 macOS, with Playwright's Chromium),
+                         3.10 parse check, five-folder suite
 brand/brand.json         brand facts with a status each (confirmed, needs_katie, ...)
 config/studio.json       model tiers, Higgsfield prices and budget, render and loudness targets,
-                         Critic rubric, schedule, Instagram settings, output formats
-schemas/                 analysis, plan, brand and script JSON Schemas (draft 2020-12)
+                         Critic rubric, schedule (+ extra tasks, run log, Chrome queue, Story pulls),
+                         Instagram settings, approval, carousel, output formats, post types
+schemas/                 analysis, plan, brand, script, carousel, people, playbook and strategy
+                         brief JSON Schemas (draft 2020-12)
 commands/                the slash commands above
 agents/                  the crew above
 skills/numa-reel-editor/ SKILL.md, scripts/ (every pipeline script), assets/ (wordmark, phoenix,
-                         hero image, 6 brand photos, fonts, face model, example plans)
-skills/numa-scriptwriter/ SKILL.md, templates.json
+                         hero image, 6 brand photos, fonts, face model, example plans, carousel/
+                         components)
+skills/numa-scriptwriter/ SKILL.md, templates.json, ADAPTIVE.md, playbook/
+skills/numa-carousel/    SKILL.md
 skills/numa-caption/     SKILL.md
 skills/numa-brand-check/ SKILL.md
-docs/                    CONTRACTS.md, SETUP_GUIDE.md, SCHEDULED_TASKS.md, QUESTIONS_FOR_KATIE.md,
-                         examples/ (metrics.example.json)
+docs/                    CONTRACTS.md, SETUP_GUIDE.md, SCHEDULED_TASKS.md, PROJECT_INSTRUCTIONS.md,
+                         QUESTIONS_FOR_KATIE.md, research/, examples/ (metrics, people placeholders)
+tools/                   gen_carousel_components.py (developer tool: the carousel component library)
 tests/                   unit/, run_tests.py (M3), golden_year_one.py (M2), conftest.py
 ```
 
@@ -172,7 +214,10 @@ Scripts (in `skills/numa-reel-editor/scripts/`, each with `--help`; command line
 `prep_media.py`, `baseline_plan.py`, `validate_plan.py`, `claims_scan.py`, `engine.py`, `finish.py`,
 `check_output.py`, `qa_frames.py`, `formats.py`, `ledger.py`, `metrics.py`, `dashboard.py`,
 `library.py`, `prefs.py`, `sources.py`, `critic_score.py`, `digest_data.py`, `setup_check.py`,
-`shoot_card.py`; shared helpers in `numa_common.py`.
+`shoot_card.py`, `ensure_env.py`, `runlog.py`, `chrome_queue.py`, `photo_post.py`, `design_render.py`,
+`strategy.py`; shared helpers in `numa_common.py` (and `engine_media.py`, `engine_text.py`). The
+carousel component library is generated by `tools/gen_carousel_components.py` (never edit the
+generated `assets/carousel/*.html` by hand).
 
 ### Environment variables
 
@@ -183,6 +228,13 @@ Scripts (in `skills/numa-reel-editor/scripts/`, each with `--help`; command line
 | `NUMA_FFMPEG`, `NUMA_FFPROBE` | Paths to the ffmpeg / ffprobe binaries |
 | `NUMA_RENDER_CACHE` | Engine video-frame cache folder. Default: a hidden temp folder under the plan's out_dir, except when out_dir is inside a Drive-synced folder, where the cache goes to the system temp folder instead so gigabytes of frames are never uploaded. Set it to put the cache on a specific disk |
 | `NUMA_DEBUG=1` | Show Python tracebacks for unexpected errors (scripts otherwise print one `ERROR:` line) |
+| `NUMA_STATE` | The `_Plan` state folder `runlog.py` and `chrome_queue.py` use without `--state` (default `~/NUMA Studio/_Plan`) |
+| `NUMA_CACHE` | Cache folder for `ensure_env.py`'s fast-path stamp (default `~/.cache/numa-studio`) |
+| `NUMA_BRAND_FONTS` | Folder with Numa's own font files (`display.otf` or .ttf/.woff/.woff2, and `body.*` the same) for carousel slides; unset = the bundled open stand-ins (`design_render.py`) |
+| `NUMA_BRAND_LOGO` | Numa's logo file for the carousel end slide; unset = brand.json `assets.logo_file`, else "Numa" in the display font |
+| `NUMA_DC_RUNTIME` | Claude Design's `dc-runtime.js` (from a canvas read, never committed) for the optional canvas-render test in `tests/unit/test_design_render.py` |
+| `NUMA_PEOPLE_FILE` | Path to the private `people.json` for the privacy test `tests/unit/test_brand_privacy.py` (the repo names nobody but the co-founders) |
+| `NUMA_PRIVATE_NAMES` | Names (separated by commas or vertical bars) for the same privacy test, instead of `NUMA_PEOPLE_FILE` |
 | `NUMA_TEST_PACK` | Year One test pack folder for `tests/golden_year_one.py` |
 | `NUMA_REFERENCE_REEL` | Hand-built reference reel for the golden comparison sheet |
 
@@ -191,7 +243,10 @@ Scripts (in `skills/numa-reel-editor/scripts/`, each with `--help`; command line
 - [docs/CONTRACTS.md](docs/CONTRACTS.md): data contracts, work-folder layout, deliverable names,
   validation rules and every script's command line (authoritative).
 - [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md): Jude's one-afternoon setup.
-- [docs/SCHEDULED_TASKS.md](docs/SCHEDULED_TASKS.md): the six scheduled tasks and their prompts.
+- [docs/SCHEDULED_TASKS.md](docs/SCHEDULED_TASKS.md): the nine scheduled tasks, their prompts and the
+  Story capture timing.
+- [docs/PROJECT_INSTRUCTIONS.md](docs/PROJECT_INSTRUCTIONS.md): the project instructions for working
+  with Numa Studio in a Claude project.
 - [docs/QUESTIONS_FOR_KATIE.md](docs/QUESTIONS_FOR_KATIE.md): the brand questions only Katie can answer.
 - [docs/examples/](docs/examples/README.md): sample data in the exact shape the scripts write;
   [metrics.example.json](docs/examples/metrics.example.json) is a metrics store generated by `metrics.py`.
@@ -205,8 +260,12 @@ Scripts (in `skills/numa-reel-editor/scripts/`, each with `--help`; command line
   scans for both.
 - Raw files stay in Katie's Drive and on her machine. Only chosen hero photos go to Higgsfield, and
   never a member's face without consent on the Consent List.
+- People and consent data (names, `do_not_feature`, consent scopes, collab handles) live only in the
+  private `STATE/people.json` (Drive `_Plan/people.json`). The repo names nobody but the co-founders,
+  Scott and Katie Moore; `tests/unit/test_brand_privacy.py` checks it against that private file.
 - Music must be Katie's or licensed; every outside file is recorded in `sources.txt`.
-- Fonts: Liberation Serif (SIL Open Font License, `skills/numa-reel-editor/assets/fonts/LICENSE`).
+- Fonts: Liberation Serif (SIL Open Font License, `skills/numa-reel-editor/assets/fonts/LICENSE`);
+  Hanken Grotesk and Nunito Sans for carousel slides (SIL OFL, `OFL-HankenGrotesk.txt`, `OFL-NunitoSans.txt`).
   Face detection model: YuNet (`skills/numa-reel-editor/assets/models/LICENSE`). Brand assets ©
   Numa Wellness Collective.
 

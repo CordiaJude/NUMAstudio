@@ -234,7 +234,7 @@
         "id": "hook",
         "label": "Hook (first 1.5 s)",
         "weight": 20,
-        "five_looks_like": "Movement, a contrast visual and full-opacity hook text in frame zero; works muted; built to beat NUMA's median skip rate"
+        "five_looks_like": "Movement, a contrast visual and full-opacity hook text in frame zero; works muted; built to beat Numa's median skip rate"
       },
       {
         "id": "retention_pacing",
@@ -270,7 +270,7 @@
         "id": "brand_look",
         "label": "Brand look",
         "weight": 10,
-        "five_looks_like": "NUMA's warm grade, type, logo end card; feels like the same studio every time"
+        "five_looks_like": "Numa's warm grade, type, logo end card; feels like the same studio every time"
       },
       {
         "id": "audio_mix",
@@ -289,9 +289,9 @@
       "A recognizable person who isn't on the consent list.",
       "Music with no recorded license source, or any trending song.",
       "Audio silent, clipped, or not 48 kHz; video not 1080x1920.",
-      "NUMA misspelled, a wrong price, date or offer.",
-      "An AI shot with a warped face, hand, logo or text, or an AI shot that shows equipment or rooms NUMA doesn't have.",
-      "Black bars, mirrored edges or a frozen frame; content NUMA didn't make (collabs excepted); an AI-animated person without Instagram's AI label."
+      "Numa misspelled (any \"NUMA\" in captions or on-screen text), a wrong price, date or offer.",
+      "An AI shot with a warped face, hand, logo or text, or an AI shot that shows equipment or rooms Numa doesn't have.",
+      "Black bars, mirrored edges or a frozen frame; content Numa didn't make (collabs excepted); an AI-animated person without Instagram's AI label."
     ],
     "frames": {
       "count": 12,
@@ -533,7 +533,7 @@
   "instagram": {
     "_source": "spec p.11 (publishing limits, container expiry), p.47-48 (Composio toolkit, scopes, API version, insights, metrics, posting), REQUIREMENTS interpretation 9 (72 h pull)",
     "connector": "Composio Instagram toolkit (managed app)",
-    "login": "Instagram Login (no Facebook Page, no Meta app review for NUMA's own account)",
+    "login": "Instagram Login (no Facebook Page, no Meta app review for Numa's own account)",
     "account_type": "Business or Creator",
     "scopes": [
       "instagram_business_basic",
@@ -601,13 +601,13 @@
       "retention": "avg_watch_time_ms / 1000 / length_s",
       "sends_per_1k_reach": "shares / reach * 1000",
       "saves_per_1k_reach": "saves / reach * 1000",
-      "skip_rate_vs_median": "skip_rate - median(skip_rate over NUMA's reels)"
+      "skip_rate_vs_median": "skip_rate - median(skip_rate over Numa's reels)"
     },
     "judge_at_hours": 72,
     "competitors_tracked_posts": 12
   },
   "approval": {
-    "_source": "DECISIONS D26 (nothing posts until a person approves it); owners' answers Q34/Q35",
+    "_source": "DECISIONS D26 (nothing posts until a person approves it); owners' answers Q34/Q35; times and gaps are engineering defaults",
     "approved_status": [
       "Approved",
       "Approved - <name or initials>"
@@ -633,7 +633,7 @@
   "carousel": {
     "_source": "DECISIONS D21 (Claude Design carousels); engineering default",
     "design_system_url": null,
-    "design_system_note": "Link of NUMA's Claude Design design system (Artifact type \"Design System\"), e.g. https://claude.ai/artifact/<id>. When set, skills/numa-carousel installs it on every carousel canvas and builds with it; null = the bundled NUMA components (skills/numa-reel-editor/assets/carousel)."
+    "design_system_note": "Link of Numa's Claude Design design system (Artifact type \"Design System\"), e.g. https://claude.ai/artifact/<id>. When set, skills/numa-carousel installs it on every carousel canvas and builds with it; null = the bundled Numa components (skills/numa-reel-editor/assets/carousel)."
   },
   "formats": {
     "_source": "spec p.46 (one reel, many outputs); REQUIREMENTS interpretation 1 (main reel 15-60 s); file names from docs/CONTRACTS.md",
@@ -733,7 +733,7 @@
         "label": "Copy",
         "kind": "text",
         "file": "<slug>_copy.txt",
-        "rule": "Instagram caption, a one-line Story text, and a short paragraph for NUMA's email",
+        "rule": "Instagram caption, a one-line Story text, and a short paragraph for Numa's email",
         "used_on": "Posting and newsletter"
       }
     ],
@@ -748,7 +748,7 @@
     "crop_rule": "Crops for other formats are done in the engine, never with Higgsfield Reframe."
   },
   "post_types": {
-    "_source": "R336, DECISIONS D21, D26; strategy.py plan row kinds",
+    "_source": "spec p.34 (post mix), R336, DECISIONS D21, D26; strategy.py plan row kinds",
     "types": [
       {
         "id": "reel",

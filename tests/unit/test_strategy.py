@@ -325,7 +325,7 @@ def test_learning_curve_shifts_to_the_true_winners(sim):
     curve, _, _ = sim
     early, late = curve[:4], curve[8:]
     mean = lambda rows, k: sum(r[k] for r in rows) / len(rows)  # noqa: E731
-    assert mean(late, "carousel_share") >= mean(early, "carousel_share") + 0.08   # carousels grow past R2's soft share
+    assert mean(late, "carousel_share") >= mean(early, "carousel_share") + 0.06   # carousels grow (R2's shares widen only on R6-grade evidence)
     assert all(r["tuesday_carousel"] for r in curve)             # the Tuesday carousel is never given up
     assert mean(early, "hook_share") <= 0.25                    # R1's test-first hook #2, one arm of five
     assert mean(late, "hook_share") >= max(0.3, mean(early, "hook_share") + 0.15)

@@ -117,6 +117,9 @@ TOPIC_KINDS = {"reel", "trial_reel", "carousel", "image"}
 # How a carousel row is built (config post_types): component = the designer in Claude Design
 # (design_render.py), photos = photo_post.py carousel, reel = formats.py from the reel it is derived_from.
 CAROUSEL_SOURCES = ("component", "photos", "reel")
+# Plan-row fields strategy.py plan adds (docs/CONTRACTS.md section 9, strategy.py): kept on the row, never part of
+# script.json's schema, so they are set aside before the schema check.
+PLAN_ROW_FIELDS = {"post_type", "post_time", "hour_band", "strategy", "moments", "story_frames", "carousel_source"}
 SHEET_COLUMNS = ["Day", "Date", "Title", "Goal", "Template", "Hook (first 2 seconds)", "Voiceover script",
                  "Shot list", "Music mood + BPM", "Call to action", "Status", "Folder link", "Reel link"]
 STATUSES = ["Planned", "Shot", "Ready to build", "Ready to post", "Approved", "Posted"]
@@ -453,7 +456,7 @@ def label(r: dict) -> str:
 def script_problems(s: dict, templates: dict | None = None, where: str = "script") -> tuple[list[str], list[str]]:
     """(errors, warnings) for one script.json / reel row."""
     errs, warns = [], []
-    clean = {k: v for k, v in s.items() if not k.startswith("_")}
+    clean = {k: v for k, v in s.items() if not k.startswith("_") and k not in PLAN_ROW_FIELDS}
     for e in nc.schema_errors("script.schema.json", clean):
         errs.append(f"{where}: {e}")
     if errs:
@@ -821,7 +824,7 @@ def render_card(r: dict) -> str:
         raise nc.UserError(f"plan row Day {r['day']}: carousel_source {src!r} needs kind carousel and one of "
                            f"{', '.join(CAROUSEL_SOURCES)}")
     if kind in REEL_KINDS:
-        clean = {k: v for k, v in r.items() if not k.startswith("_")}
+        clean = {k: v for k, v in r.items() if not k.startswith("_") and k not in PLAN_ROW_FIELDS}
         errs = nc.schema_errors("script.schema.json", clean)
         if errs:
             raise nc.UserError(f"plan row Day {r['day']}: {errs[0]}" + (f" (+{len(errs) - 1} more)" if len(errs) > 1 else ""))
@@ -857,8 +860,9 @@ def render_card(r: dict) -> str:
             L.append(f"  Also snap: {'; '.join(r['photos'])}")
         L.append("")
     if reading:
-        who = str(r.get("voiceover_by") or "Katie")
-        reader = "" if who.lower() == "katie" else f" ({who} reads this)"
+        # who reads it: the row's voiceover_by (owners: Scott records the voiceovers, brand.json voice.voiceover_by)
+        who = str(r.get("voiceover_by") or "")
+        reader = "" if who.lower() in ("", "katie") else f" ({who} reads this)"
         L.append(f"READ THIS OUT LOUD{reader}  ({RECORDING_TIPS})")
         n_lines = len(r["lines"])
         for i, line in enumerate(r["lines"]):
