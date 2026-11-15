@@ -604,6 +604,22 @@ def weighted(post: dict, pool: list[dict], weights: dict, clip: float, substitut
     return acc / tw, parts
 
 
+LAO_MIN_OTHERS = 8     # a leave-arm-out baseline needs this many other posts, else the full baseline is used
+
+
+def decision_score(p: dict, others: list[dict], pb: dict, pooled: bool) -> float | None:
+    """S against a baseline that leaves out the arm's own posts (no self-dilution: a winning hook that fills the
+    trailing median would otherwise drift toward 1.0x). None when fewer than LAO_MIN_OTHERS other posts exist."""
+    pol = pb["policies"]
+    scp = pol["scoring"]
+    pool = baseline(p, others, pol, pooled=pooled)
+    if len(pool) < int(scp["baseline"].get("leave_arm_out_min_posts", LAO_MIN_OTHERS)):
+        return None
+    w = {k: v for k, v in scp["composite"].items() if k != "watch_through"} if pooled else scp["composite"]
+    s, _ = weighted(p, pool, w, float(scp["index_clip_log2"]), scp.get("static_watch_substitute"))
+    return s
+
+
 def score_posts(posts: list[dict], pb: dict) -> list[dict]:
     """Composite S per post (same-format baseline), a pooled S (feed baseline, for formats) and the goal scores."""
     pol = pb["policies"]
@@ -741,6 +757,13 @@ def fit_models(posts: list[dict], pb: dict) -> dict:
     records: dict[tuple[str, str], list[dict]] = {}
     cohort: dict[str, list[dict]] = {}
     judged = [p for p in posts if p["status"] in ("provisional", "final") and (p["score"] is not None or p["pooled_score"] is not None)]
+    all_judged = [p for p in posts if p["status"] in ("provisional", "final")]
+    members: dict[tuple[str, str], set[str]] = {}
+    for p in judged:
+        for var, lv, _, _, keep in post_arms(p):
+            if keep:
+                members.setdefault((var, lv[len(TRIAL):] if lv.startswith(TRIAL) else lv), set()).add(p["id"])
+    win_above = float(pb["policies"]["scoring"]["win_above"])
     for p in judged:
         p["excluded"] = sorted(set(p["flags"]) & excluded)
         if p["collab"]:
@@ -759,9 +782,13 @@ def fit_models(posts: list[dict], pb: dict) -> dict:
             e[2] += 1
             e[0 if won else 1] += w * factor
             if keep:
-                records.setdefault((var, lv), []).append({"post": p["id"], "date": p["posted"].date().isoformat() if p["posted"] else None,
-                                                          "S": s, "win": bool(won), "final": p["status"] == "final",
-                                                          "january": p["january"]})
+                # decisions judge the arm against the other posts (leave-arm-out); the shown score stays as it is
+                mine = members.get((var, lv[len(TRIAL):] if lv.startswith(TRIAL) else lv), set())
+                ds = decision_score(p, [q for q in all_judged if q["id"] not in mine], pb, kind == "pooled")
+                rec = {"post": p["id"], "date": p["posted"].date().isoformat() if p["posted"] else None,
+                       "S": round(ds, 4) if ds is not None else s, "win": bool(ds > win_above) if ds is not None else bool(won),
+                       "S_full": s, "leave_arm_out": ds is not None, "final": p["status"] == "final", "january": p["january"]}
+                records.setdefault((var, lv), []).append(rec)
     n = len(judged)
     arms: dict[tuple[str, str], dict] = {}
     for key in set(ev) | set(records):
