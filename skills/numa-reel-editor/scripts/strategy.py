@@ -784,7 +784,9 @@ def fit_models(posts: list[dict], pb: dict) -> dict:
             if keep:
                 # decisions judge the arm against the other posts (leave-arm-out); the shown score stays as it is
                 mine = members.get((var, lv[len(TRIAL):] if lv.startswith(TRIAL) else lv), set())
-                ds = decision_score(p, [q for q in all_judged if q["id"] not in mine], pb, kind == "pooled")
+                # format arms already compare a format with the whole feed (pooled); a feed-without-reels baseline
+                # would compare unlike metric sets, so they keep the pooled score
+                ds = None if kind == "pooled" else decision_score(p, [q for q in all_judged if q["id"] not in mine], pb, False)
                 rec = {"post": p["id"], "date": p["posted"].date().isoformat() if p["posted"] else None,
                        "S": round(ds, 4) if ds is not None else s, "win": bool(ds > win_above) if ds is not None else bool(won),
                        "S_full": s, "leave_arm_out": ds is not None, "final": p["status"] == "final", "january": p["january"]}
@@ -2791,6 +2793,10 @@ def build_brief(plan: dict, pb: dict, posts: list[dict], fits: dict, week: date,
     if plan.get("strategy", {}).get("rules_overrode_bandit"):
         reasoning.append("Planning rules overrode part of the bandit's choice this month (see each slot's why).")
     reasoning += [f"Do more: {x}" for x in more[:4]] + [f"Do less: {x}" for x in less[:4]]
+    ow = {w: decision_stats(arm(fits, pb, "offer_week", w)["records"])["tries"] for w in ("w1", "w2", "w3", "w4", "w5")}
+    reasoning.append("Offer week of the month: learning is slow by nature (2-3 offers a month, so each week gets a try only "
+                     "every couple of months); tries so far " + ", ".join(f"{w} {n}" for w, n in ow.items()) +
+                     ". Judged on the composite score until bookings per 1,000 reach exist (v2.2, Growth Analyst data).")
     for d in diag:
         reasoning.append(f"{d['title']} underperformed ({d['index']:.2f}x Numa's median): {d['rows'][0]['fix']}")
     target = nc.brand_value("positioning.content_mix", {}) or {}

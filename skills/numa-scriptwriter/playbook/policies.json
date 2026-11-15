@@ -42,6 +42,7 @@
     "offers": {
       "max_sales_per_week": 1,
       "offers_per_month": [2, 3],
+      "offer_week_outcome": {"metric": "composite", "next": "bookings_per_1000_reach", "note": "Offer weeks are judged on the composite score today. v2.2 hook-up: once the Growth Analyst stores bookings per campaign, the offer-week arm switches to bookings per 1,000 reach. With 2-3 offers a month, learning the best week of the month takes many months; the brief says so."},
       "rules": [
         "Frequency: offer-led feed posts about 15-20% of the feed (2-3 a month), never more than one sales post a week (R4 rule 1, moderate; spec p.34).",
         "Timing: the first week of the month and around paydays (days 1-5 and 14-16), or the last week for 'next month' (R2 measured for spending, low for Instagram; R4 rule 2 anecdotal).",

@@ -1116,7 +1116,10 @@ untried weeks are drawn and one offer-week test a month runs until every week ha
 (policies `cadence`, `rotations`; a level wins at 1.25x over 8 each, then holds 3 blocks in 4); planning
 rules and `approval_capacity_per_week` cap volume. Video and static hooks are separate arms with their own
 40% cap. It exits 1 when a planning rule fails even with the
-bandit off. `learn` updates statuses (promote/retire/demote/start_testing; counts restart
+bandit off. Decisions (promote, retire, demote, Do more/Do less) judge each arm's posts against a leave-arm-out baseline (the
+same-format median without that arm's own posts; the full baseline while fewer than 8 others exist), so a
+winner that fills the trailing median is not diluted toward 1.0x; shown scores keep the full baseline.
+`learn` updates statuses (promote/retire/demote/start_testing; counts restart
 at each change via `counts_from`; fast track only under 10 tries; Trial Reels decide in their own
 `trial:` pool and inform the main arm at half weight), the dated changelog and Do more/Do less lines
 (P(win rate > 0.5) >= 0.9 over 6+ tries and a median of 1.25x / 0.8x); `--text` writes the plain-text

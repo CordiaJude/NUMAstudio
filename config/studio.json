@@ -458,7 +458,77 @@
         "cron": "0 18 * * 0",
         "command": "/digest"
       }
-    ]
+    ],
+    "extra_tasks": [
+      {
+        "id": "quarterly_research",
+        "name": "Quarterly research re-check",
+        "when": "The 12th of Feb, May, Aug and Nov, 10 am",
+        "cron": "0 10 12 2,5,8,11 *",
+        "command": null,
+        "where": "cloud",
+        "notifications": false
+      },
+      {
+        "id": "story_pulls",
+        "name": "Story insights + approval re-check",
+        "when": "Daily, 12:40 pm",
+        "cron": "40 12 * * *",
+        "command": "/dashboard-refresh stories",
+        "where": "cloud",
+        "notifications": false
+      },
+      {
+        "id": "chrome_queue",
+        "name": "Chrome queue",
+        "when": "Hourly at :47, while the Mac is awake",
+        "cron": "47 * * * *",
+        "command": "/chrome-queue",
+        "where": "desktop",
+        "notifications": false
+      }
+    ],
+    "_extra_tasks": "story_pulls catches Stories inside their 12-22 h insight window (Instagram drops a Story's insights at 24 h): with runs at 05:00, 12:40, 20:00 and 22:00 Central the longest gap between pull runs is 7 h 40 min, shorter than the 10 h window, so every Story gets at least one pull between 12 h and 22 h whatever its posting time (docs/SCHEDULED_TASKS.md, 'Story capture timing').",
+    "runlog": {
+      "_source": "R340-R341, DECISIONS D26; engineering defaults (runlog.py DEFAULTS)",
+      "window_days": 7,
+      "grace_minutes": 60,
+      "early_minutes": 120,
+      "stuck_after_minutes": {
+        "default": 120,
+        "build_today": 180,
+        "plan_month": 240
+      },
+      "late_build_by": "15:00",
+      "_late_build_by": "Latest Central time a late build may start: it only builds and stages; a person still has to approve and post the same day.",
+      "rerun_within_hours": {
+        "plan_month": 144,
+        "night_check": 8,
+        "digest": 18,
+        "trend_check": 48,
+        "dashboard_refresh": 0
+      }
+    },
+    "chrome_queue": {
+      "_source": "R342 review (B1, M3, M4); engineering defaults",
+      "lease_minutes": 45,
+      "expire_margin_minutes": 60
+    },
+    "story_pulls": {
+      "_source": "docs/research/R7 (Story metrics before 24 h), REVIEW.md; metrics.py STORY pulls 12h/22h",
+      "window_hours": [
+        12,
+        22
+      ],
+      "insights_expire_hours": 24,
+      "pull_runs": [
+        "build_today",
+        "story_pulls",
+        "night_check",
+        "dashboard_refresh"
+      ],
+      "max_gap_hours": 7.67
+    }
   },
   "instagram": {
     "_source": "spec p.11 (publishing limits, container expiry), p.47-48 (Composio toolkit, scopes, API version, insights, metrics, posting), REQUIREMENTS interpretation 9 (72 h pull)",
@@ -524,7 +594,8 @@
       "boosted",
       "pattern_ids",
       "strategy_arm",
-      "story_frames"
+      "story_frames",
+      "post_type"
     ],
     "computed": {
       "retention": "avg_watch_time_ms / 1000 / length_s",
@@ -534,6 +605,30 @@
     },
     "judge_at_hours": 72,
     "competitors_tracked_posts": 12
+  },
+  "approval": {
+    "_source": "DECISIONS D26 (nothing posts until a person approves it); owners' answers Q34/Q35",
+    "approved_status": [
+      "Approved",
+      "Approved - <name or initials>"
+    ],
+    "staged_status": "Ready to post",
+    "recheck_in": [
+      "night_check",
+      "dashboard_refresh",
+      "story_pulls",
+      "chrome_queue"
+    ],
+    "min_lead_minutes": 20,
+    "latest_post_time": "21:00",
+    "min_gap_between_feed_posts_minutes": 120,
+    "next_slot_rule": "Approved before its planned posting time: posts at that time. Approved after it: posts at the next slot, the next posting time (plan row post_time, else the default posting time) at least min_lead_minutes away, never after latest_post_time, and min_gap_between_feed_posts_minutes from any other feed post; a Story set takes the next slot too.",
+    "stale_after_days": 7,
+    "notify": "One batched line per run to the approver, listing every post newly waiting; never one per post and never a question.",
+    "notify_until_approver_named": [
+      "the owners",
+      "the social media lead"
+    ]
   },
   "carousel": {
     "_source": "DECISIONS D21 (Claude Design carousels); engineering default",
@@ -651,5 +746,70 @@
       "_source": "spec p.30 (render 2-3 alternate openings)"
     },
     "crop_rule": "Crops for other formats are done in the engine, never with Higgsfield Reframe."
+  },
+  "post_types": {
+    "_source": "R336, DECISIONS D21, D26; strategy.py plan row kinds",
+    "types": [
+      {
+        "id": "reel",
+        "row_kind": "reel",
+        "metrics_post_type": "reel",
+        "built_by": "/make-reel (editor, engine.py, finish.py, formats.py)",
+        "files": "<slug>_reel.mp4 + cover, Stories, reach cut",
+        "films": true
+      },
+      {
+        "id": "trial_reel",
+        "row_kind": "trial_reel",
+        "metrics_post_type": "trial_reel",
+        "built_by": "/make-reel with plan meta trial_reel true",
+        "files": "<slug>_reel.mp4",
+        "films": true
+      },
+      {
+        "id": "component_carousel",
+        "row_kind": "carousel",
+        "carousel_source": "component",
+        "metrics_post_type": "carousel",
+        "built_by": "designer agent + numa-carousel skill (Claude Design canvas, design_render.py)",
+        "files": "<slug>_carousel_NN.jpg",
+        "films": false
+      },
+      {
+        "id": "photo_carousel",
+        "row_kind": "carousel",
+        "carousel_source": "photos",
+        "metrics_post_type": "carousel",
+        "built_by": "photo_post.py carousel",
+        "files": "<slug>_carousel_NN.jpg",
+        "films": false
+      },
+      {
+        "id": "reel_carousel",
+        "row_kind": "carousel",
+        "carousel_source": "reel",
+        "metrics_post_type": "carousel",
+        "built_by": "formats.py --only carousel,cover from the reel it is derived_from",
+        "files": "<slug>_carousel_NN.jpg",
+        "films": false
+      },
+      {
+        "id": "single_photo",
+        "row_kind": "image",
+        "metrics_post_type": "image",
+        "built_by": "photo_post.py single",
+        "files": "<slug>_photo.jpg",
+        "films": false
+      },
+      {
+        "id": "story",
+        "row_kind": "stories",
+        "metrics_post_type": "story",
+        "built_by": "formats.py --only story (from the latest reel)",
+        "files": "<slug>_story_<N>.jpg|mp4",
+        "films": false
+      }
+    ],
+    "carousel_source_default": "component when the row has a carousel pattern or new copy; reel when it is derived_from a reel; photos when the day folder or library has 2+ fitting photos and no copy"
   }
 }

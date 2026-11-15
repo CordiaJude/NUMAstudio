@@ -305,3 +305,22 @@ def test_half_day_closure_posts_early_and_invites_nobody_after():
     assert date(2026, 12, 31) not in S.closure_dates(None)          # a half day is not a full closure
     lines = S.guardrails(date(2026, 12, 28), date(2027, 1, 3), plan)
     assert any("Half day" in x and "12:00" in x for x in lines)
+
+
+def test_decisions_use_a_leave_arm_out_baseline():
+    """A winning hook that fills the trailing median is not diluted toward 1.0x in its own decisions."""
+    store = {"reels": {}}
+    start = date(2026, 9, 21)
+    for i in range(66):
+        d = start + timedelta(days=i)
+        hook = i % 3 != 2                                     # two in three reels carry the winner
+        store["reels"][f"r{i}"] = post(d, 1.6 if hook else 1.0, ["steam-pour"] if hook else ["timer-challenge"])
+    pb, posts, fits = fits_for(store)
+    recs = fits["arms"][("hook", "steam-pour")]["records"]
+    lao = [r for r in recs if r["leave_arm_out"]]
+    assert lao and all(r["S"] > r["S_full"] for r in lao)     # judged against the other posts, not itself
+    st = S.decision_stats(recs)
+    shown = 2 ** sorted(r["S_full"] for r in st["records"])[len(st["records"]) // 2]
+    assert st["median_index"] >= 1.25 > shown
+    early = [r for r in recs if not r["leave_arm_out"]]       # fewer than 8 other posts: the full baseline
+    assert early and all(r["S"] == r["S_full"] for r in early)

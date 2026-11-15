@@ -103,13 +103,18 @@ MONTHS_SHORT = [m[:3] for m in MONTHS]
 ROOMS = ["plunge room", "sauna", "class studio", "front of house", "outside"]
 SERIES = ["ask_the_dpt", "first_plunge", "too_hot_for_a_diy_plunge", "regulate", "meet_the_collective"]
 PILLARS = ["education", "community", "local_seasonal", "collective_collabs", "offers_events"]
-KINDS = ["reel", "trial_reel", "carousel", "stories"]
+KINDS = ["reel", "trial_reel", "carousel", "image", "stories"]
 REEL_KINDS = {"reel", "trial_reel"}
-FEED_KINDS = {"reel", "carousel"}
-TOPIC_KINDS = {"reel", "trial_reel", "carousel"}
+FEED_KINDS = {"reel", "carousel", "image"}
+STATIC_KINDS = {"carousel", "image"}
+TOPIC_KINDS = {"reel", "trial_reel", "carousel", "image"}
+# How a carousel row is built (config post_types): component = the designer in Claude Design
+# (design_render.py), photos = photo_post.py carousel, reel = formats.py from the reel it is derived_from.
+CAROUSEL_SOURCES = ("component", "photos", "reel")
 SHEET_COLUMNS = ["Day", "Date", "Title", "Goal", "Template", "Hook (first 2 seconds)", "Voiceover script",
                  "Shot list", "Music mood + BPM", "Call to action", "Status", "Folder link", "Reel link"]
-STATUSES = ["Planned", "Shot", "Ready to build", "Ready to post", "Posted"]
+STATUSES = ["Planned", "Shot", "Ready to build", "Ready to post", "Approved", "Posted"]
+APPROVED_STATUS = re.compile(r"^Approved(?:\s*[-:]\s*\S.*)?$")   # "Approved" or "Approved - <name or initials>" (D26)
 MAX_NEW_SHOTS = 8
 TOPIC_GAP_DAYS = 14
 TEASER_WINDOW = (2, 3)      # days before the event
@@ -664,7 +669,7 @@ def check_plan(plan: dict, closures: dict[date, str],
         feed = [r for r in wrows if r["kind"] in FEED_KINDS]
         trials = [r for r in wrows if r["kind"] == "trial_reel" or (r["kind"] == "reel" and truthy(r.get("trial_reel")))]
         feed_total += len(feed)
-        carousels += sum(r["kind"] == "carousel" for r in feed)
+        carousels += sum(r["kind"] in STATIC_KINDS for r in feed)
         ndays = len({r["_d"] for r in wrows})
         if ndays == 7:
             if not FEED_PER_WEEK[0] <= len(feed) <= FEED_PER_WEEK[1]:
@@ -680,7 +685,7 @@ def check_plan(plan: dict, closures: dict[date, str],
                 bad("cadence", f"week of {wk.isoformat()}: {len(feed)} feed posts and {len(trials)} Trial Reels; "
                     f"at most {FEED_PER_WEEK[1]} and {TRIAL_PER_WEEK[1]}")
     if feed_total and not 0.15 <= carousels / feed_total <= 0.45:
-        W.append(f"carousels are {carousels} of {feed_total} feed posts; about a third is the target")
+        W.append(f"carousels and photo posts are {carousels} of {feed_total} feed posts; about a third is the target")
 
     # month-level: collabs, Meet the Collective, signature, series rotation, mix
     mix_report: dict = {}
@@ -790,6 +795,13 @@ def shot_text(s: dict) -> str:
     return f"{body} ({'; '.join(tags)})"
 
 
+CAROUSEL_WHAT = {
+    "reel": "Claude builds this carousel from this week's reel and the library.",
+    "component": "Claude designs this carousel in Claude Design from the plan; photos from the library.",
+    "photos": "Claude builds this photo carousel from the day's photos and the library.",
+}
+
+
 def render_card(r: dict) -> str:
     for key in ("day", "date", "title"):
         if r.get(key) in (None, ""):
@@ -798,6 +810,10 @@ def render_card(r: dict) -> str:
     kind = r.get("kind", "reel")
     if kind not in KINDS:
         raise nc.UserError(f"plan row: kind must be one of {', '.join(KINDS)}, got {kind!r}")
+    src = r.get("carousel_source")
+    if src is not None and (kind != "carousel" or src not in CAROUSEL_SOURCES):
+        raise nc.UserError(f"plan row Day {r['day']}: carousel_source {src!r} needs kind carousel and one of "
+                           f"{', '.join(CAROUSEL_SOURCES)}")
     if kind in REEL_KINDS:
         clean = {k: v for k, v in r.items() if not k.startswith("_")}
         errs = nc.schema_errors("script.schema.json", clean)
@@ -809,7 +825,8 @@ def render_card(r: dict) -> str:
     nothing = not fresh and not reading
     L: list[str] = []
     if nothing:
-        what = {"carousel": "Claude builds this carousel from this week's reel and the library.",
+        what = {"carousel": CAROUSEL_WHAT.get(str(r.get("carousel_source") or "reel"), CAROUSEL_WHAT["reel"]),
+                "image": "Claude builds this photo post from the day's photos, the media library and brand photos.",
                 "stories": "Claude cuts today's Stories from this week's material."}.get(
             kind, "Claude builds this reel from the media library and brand photos.")
         L += [f"NO FILMING NEEDED. {what}", ""]
@@ -850,7 +867,8 @@ def render_card(r: dict) -> str:
             parts += " + library"
         L.append(f"{music_text(r.get('music'))}  LENGTH: {r['length_s']:g} s ({parts}).")
     else:
-        L.append(f"POST: {r.get('post') or kind.title()}. Nothing to record.")
+        post = r.get("post") or {"image": "Photo post", "stories": "Stories"}.get(kind, kind.replace("_", " ").title())
+        L.append(f"POST: {post}. Nothing to record.")
     L.append(LAST_LINE)
     return "\n".join(L) + "\n"
 
@@ -904,8 +922,9 @@ def sheet_rows(plan: dict) -> list[dict]:
         bpm = music.get("bpm") or []
         mtext = ", ".join(x for x in [music.get("mood") or "", f"{bpm[0]}-{bpm[1]} BPM" if len(bpm) == 2 else ""] if x)
         status = r.get("status") or "Planned"
-        if status not in STATUSES:
-            raise nc.UserError(f"{label(r)}: status must be one of {', '.join(STATUSES)}, got {status!r}")
+        if status not in STATUSES and not APPROVED_STATUS.match(str(status)):
+            raise nc.UserError(f"{label(r)}: status must be one of {', '.join(STATUSES)} "
+                               f"(or \"Approved - <name>\"), got {status!r}")
         title = r.get("title") or (r.get("post") or r["kind"].replace("_", " ").title())
         script = "\n".join(r.get("lines") or []) if r["kind"] in REEL_KINDS else ""
         out.append({

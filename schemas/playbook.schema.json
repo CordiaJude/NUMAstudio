@@ -969,6 +969,16 @@
           ],
           "additionalProperties": false,
           "properties": {
+            "offer_week_outcome": {
+              "type": "object",
+              "required": ["metric", "note"],
+              "additionalProperties": false,
+              "properties": {
+                "metric": {"enum": ["composite"]},
+                "next": {"enum": ["bookings_per_1000_reach"]},
+                "note": {"type": "string"}
+              }
+            },
             "max_sales_per_week": {
               "type": "integer",
               "minimum": 0

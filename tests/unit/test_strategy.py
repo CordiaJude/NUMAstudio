@@ -584,6 +584,7 @@ def test_brief_lists_provisional_posts_and_validates(sim, tmp_path):
     assert any(u["id"] == WIN_HOOK for u in b["use_patterns"])
     g = " ".join(b["guardrails"])
     assert "Discover Numa" in g and "never invent" in g and "Saturday mornings" in g
+    assert any("Offer week of the month: learning is slow" in x and "v2.2" in x for x in b["reasoning"])
     text = md.read_text()
     for head in ("## This week", "## Still provisional", "## Do more of", "## Why", "## Strategist notes", "## Guardrails"):
         assert head in text
