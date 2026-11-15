@@ -18,7 +18,7 @@
 | T11 Integration | ACCEPTED (re-review 6/6 PASS) | 2 | |
 | T14 Claude Design carousels (v2.1) | ACCEPTED (re-review must-fixes verified by orchestrator: brand-font and placeholder errors) | 4 | shared asks: README, CI playwright install, post-reel re-render → T16 |
 | T15 Photo posts + carousel/image posting (v2.1) | ACCEPTED (re-review PASS; consent-no always blocks) | 3 | shared asks: README, config instagram.tags post_type, CONTRACTS metrics → T16 |
-| T16 Planner/shoot cards/build/digest for new post types (v2.1) | PENDING | 0 | |
+| T16 v2.1 wiring end to end (planner, build, approval re-check, story capture, docs, 2.1.0) | REVISING (review FAIL: double-post/never-post approval scheduling) | 2 | |
 | T17 Scheduling reliability: ensure_env, runlog watchdog, Chrome queue (v2.1) | ACCEPTED (re-review PASS all R339-R343; N1-N3 + D26 checks closed) | 3 | |
 | T18 Adaptive strategy engine + playbook (v2.1) | ACCEPTED after 3 review rounds (orchestrator: residual N40 false promote/retire rate within R6's ~10% design, caught by demotion/re-entry; offer-week learning slow by data volume, stated in brief) | 4 | |
 | T19 Owners' answers into brand data (v2.1) | ACCEPTED (review fixes verified: run_tests 5/5, privacy test clean with private names, approval gate) | 2 | people/consent stay private (STATE) |
