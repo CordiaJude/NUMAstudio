@@ -1,6 +1,6 @@
 # NUMA Studio
 
-NUMA Wellness Collective's in-house video studio, as a Claude plugin. Katie films; NUMA Studio does
+Numa Wellness Collective's in-house video studio, as a Claude plugin. Katie films; NUMA Studio does
 the rest. Every day it takes the photos, clips, voiceover and music in that day's Google Drive
 folder and turns them into a finished, on-brand 1080x1920 Instagram reel with captions, a reach
 cut-down, Stories, a carousel, a cover and the post copy. Nobody makes a decision along the way:
@@ -25,7 +25,7 @@ In Claude Code:
 
 Then connect **Google Drive**, **Google Sheets**, **Higgsfield** (Plus plan) and **Composio**
 (Instagram toolkit; Gmail optional) under Settings → Connectors, install Claude in Chrome in a
-Chrome profile signed in to NUMA's accounts, and run `/numa-setup` once. `/numa-setup` checks
+Chrome profile signed in to Numa's accounts, and run `/numa-setup` once. `/numa-setup` checks
 Python and every package, ffmpeg, fonts and brand data, renders a 3-second test reel, pre-downloads
 the speech model, confirms each connector with one harmless call, builds the Drive folders and
 approves the connector tools so scheduled runs never stop on a permission prompt. Then run
@@ -53,7 +53,7 @@ To make a reel by hand: drop photos, clips, music and a voiceover in a Drive fol
 | `/plan-month` | The 24th, 9 pm: plans next month (research, re-weighting from results, plan Sheet, day folders, SHOOT CARDs); nobody approves it |
 | `/night-check` | Daily 8 pm: checks tomorrow's folder against its shoot card, sends the Scout for anything missing, swaps the topic if needed, gives Katie a heads-up |
 | `/dashboard-refresh` | Daily 10 pm: pulls Instagram insights through Composio, rebuilds and republishes the performance dashboard |
-| `/trend-check` | Fridays 7 pm: three trend ideas that fit NUMA plus a weather check of the coming week |
+| `/trend-check` | Fridays 7 pm: three trend ideas that fit Numa plus a weather check of the coming week |
 | `/digest` | Sundays 6 pm: the Monday digest (results, schedule, batched shoot list, credits) as a phone-readable Google Doc |
 | `/post-reel` | Auto-posting through Composio at the best time, with the legal-review gate, the approval switch (off by default), the AI label and Trial Reels |
 | `/numa-setup` | One-time setup and self-check on Katie's Mac (run by Jude), and `recheck` after updates |
@@ -78,7 +78,7 @@ To make a reel by hand: drop photos, clips, music and a voiceover in a Drive fol
   |---|---|
   | `librarian` | Downloads the day folder into `raw/`, converts HEIC, checks it against the shoot card |
   | `analyst` | Runs analyze, fix_transcript, vision and prep_media; rates every photo and clip |
-  | `scout` | Finds missing photos, clips, music and facts (NUMA's channels first, then licensed stock) |
+  | `scout` | Finds missing photos, clips, music and facts (Numa's channels first, then licensed stock) |
   | `motion` | Higgsfield: outpaint, upscale, Kling/Seedance motion clips, music beds, within budget |
   | `scriptwriter` | Hook, voiceover script, shot list and SHOOT CARD with the claims check |
   | `copywriter` | Three caption options, hashtags, Story line and e-mail paragraph, claims-scanned |
@@ -87,7 +87,7 @@ To make a reel by hand: drop photos, clips, music and a voiceover in a Drive fol
 
 - **Skills.** `numa-reel-editor` (edit grammar, plan building and every script),
   `numa-scriptwriter` (pre-production and `templates.json`, the reel templates), `numa-caption`
-  (copy in NUMA's voice) and `numa-brand-check` (the pre-post review).
+  (copy in Numa's voice) and `numa-brand-check` (the pre-post review).
 
 ## What v2 adds
 
@@ -199,7 +199,7 @@ Scripts (in `skills/numa-reel-editor/scripts/`, each with `--help`; command line
 ## Privacy and licensing
 
 - The repo is public. Never commit secrets (API keys, tokens; connectors hold the credentials) or
-  member photos. The only media in the repo are NUMA's own brand assets under
+  member photos. The only media in the repo are Numa's own brand assets under
   `skills/numa-reel-editor/assets/`; the test pack and the developer kit stay outside the repo
   (`spec/` is git-ignored) and the tests build their own fixtures. `tests/unit/test_release.py`
   scans for both.
@@ -208,7 +208,7 @@ Scripts (in `skills/numa-reel-editor/scripts/`, each with `--help`; command line
 - Music must be Katie's or licensed; every outside file is recorded in `sources.txt`.
 - Fonts: Liberation Serif (SIL Open Font License, `skills/numa-reel-editor/assets/fonts/LICENSE`).
   Face detection model: YuNet (`skills/numa-reel-editor/assets/models/LICENSE`). Brand assets ©
-  NUMA Wellness Collective.
+  Numa Wellness Collective.
 
 ## Costs
 

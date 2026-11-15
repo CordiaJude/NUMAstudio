@@ -1,11 +1,11 @@
 ---
 name: numa-reel-editor
-description: The edit grammar and plan-building controller for NUMA Wellness Collective reels. Use whenever a NUMA reel's plan.json is written or changed (the Director's shot plan, the Editor's build, a Critic fix round) and whenever a NUMA reel is previewed, rendered, finished, checked or cut into extra formats. Holds the brand pointers, the exact edit rules with numbers, the claims rules, the Higgsfield summary, every script command, and the Year One worked example.
+description: The edit grammar and plan-building controller for Numa Wellness Collective reels. Use whenever a Numa reel's plan.json is written or changed (the Director's shot plan, the Editor's build, a Critic fix round) and whenever a Numa reel is previewed, rendered, finished, checked or cut into extra formats. Holds the brand pointers, the exact edit rules with numbers, the claims rules, the Higgsfield summary, every script command, and the Year One worked example.
 ---
 
-# NUMA Reel Editor
+# Numa Reel Editor
 
-This skill is how a NUMA reel gets made to agency quality. `/make-reel` (the Director) decides the story; the Editor (agents/editor.md) turns it into `plan.json` with the rules below; the scripts render exactly what the plan says. Katie is never asked anything: decide, log it in `work/decisions.md`, continue.
+This skill is how a Numa reel gets made to agency quality. `/make-reel` (the Director) decides the story; the Editor (agents/editor.md) turns it into `plan.json` with the rules below; the scripts render exactly what the plan says. Katie is never asked anything: decide, log it in `work/decisions.md`, continue.
 
 Paths (quote them; folder names contain spaces):
 
@@ -24,9 +24,9 @@ Read brand.json before writing a single line. Facts carry a `status`: prefer `co
 
 | Need | Key |
 |---|---|
-| Name and spelling (always "NUMA" on screen; "Numa Nights" and the iOS app keep theirs) | `business.name` |
-| Address, area, facility (14-person Finnish sauna, 4 plunge tubs) | `business.location`, `business.facility` |
-| Prices and offers (Discover NUMA, $49 one month) | `offerings.offers`, `offerings.sessions` |
+| Name and spelling (always "Numa" on screen, never "NUMA"; full name Numa Wellness Collective; "Numa Nights" and the iOS app keep theirs) | `business.name` |
+| Address, area, facility (Finnish sauna 175-190°F, cold plunges 44-52°F; never state the sauna's capacity) | `business.location`, `business.facility` |
+| Prices and offers (Discover Numa, $49 one month) | `offerings.offers`, `offerings.sessions` |
 | Never show or imply (IV drips, cryotherapy, compression boots, float tanks, reformer Pilates) | `offerings.not_offered` |
 | Voice, reference lines, share line example | `voice.description`, `voice.reference_lines`, `voice.share_line_example` |
 | Team names and titles | `team.collective` |
@@ -36,7 +36,7 @@ Read brand.json before writing a single line. Facts carry a `status`: prefer `co
 | Caption fonts | `fonts.value` |
 | End-card tagline and sign-off | `endcard.tagline`, `endcard.default_subtitle`, `endcard.signoff_examples` |
 | Claims, safety line, dosing line | `claims.banned`, `claims.modalities`, `claims.rules`, `claims.safety_line`, `claims.dosing_line` |
-| Consent | `consent.list`, `consent.ai_processing_covered`, `consent.children`, `consent.voice_clone` |
+| Consent and people | the private `STATE/people.json` (do_not_feature, consent status and scope, `one_existing_post_only`, kids never), `consent.list`, `consent.ai_processing_covered`, `consent.children`, `consent.never_film` |
 | Music and AI-label rules | `posting.music_rule`, `posting.ai_label_rule` |
 
 ## 2. Research rules (Nov 2026) the plan must serve
@@ -47,9 +47,9 @@ Read brand.json before writing a single line. Facts carry a `status`: prefer `co
 4. **Skip rate:** about 65% of small-account viewers skip in 3 s. Frame zero needs movement, a contrast visual and full-opacity hook text.
 5. **Originals only.** Other people's content only as collab posts. New hooks get tested as Trial Reels (section 6.9).
 6. **Cadence (month planning):** 4-5 feed posts a week, about two-thirds Reels and one-third carousels, daily Stories, 1-2 Trial Reels a week, never a week dark; judge each reel at 72 hours.
-7. **Music:** NUMA posts as a business, so trending and popular songs are never used. Order (REQUIREMENTS interpretation 8): the folder's own file, then the Music Library track the shoot card names, then a Higgsfield instrumental made to the reel's exact length and tempo, then a Music Library track by mood, then natural clip sound with the offline pad. Meta's Sound Collection is added only at posting time (`music.source: sound_collection`). A commercial-library track needs a license that names social media. Every source is recorded and lands in `out/sources.txt`; for NUMA's own file in the folder:
+7. **Music:** Numa posts as a business, so trending and popular songs are never used. Order (REQUIREMENTS interpretation 8): the folder's own file, then the Music Library track the shoot card names, then a Higgsfield instrumental made to the reel's exact length and tempo, then a Music Library track by mood, then natural clip sound with the offline pad. Meta's Sound Collection is added only at posting time (`music.source: sound_collection`). A commercial-library track needs a license that names social media. Every source is recorded and lands in `out/sources.txt`; for Numa's own file in the folder:
    ```
-   python3 "$S/sources.py" add "$JOB" --kind music --path "$JOB/raw/music.mp3" --source "NUMA reel folder" --license numa_owned
+   python3 "$S/sources.py" add "$JOB" --kind music --path "$JOB/raw/music.mp3" --source "Numa reel folder" --license numa_owned
    ```
    (Higgsfield music: `--source "Higgsfield ElevenLabs Music v2.5" --license higgsfield_paid`; Sound Collection: `--license meta_sound_collection`.)
 
@@ -69,7 +69,7 @@ Sell the experience, never the outcome. The FTC judges the overall impression: v
 
 Rules beyond words (`claims.rules`):
 1. **Visuals count:** no limping-in, jogging-out stories; no before/after of bodies, skin or bloodwork. A before/after wipe is for buildings and rooms only.
-2. **Testimonials are NUMA's claims:** experience ("my favorite hour of the week"), never outcomes; never repost or pin a member's health claim.
+2. **Testimonials are Numa's claims:** experience ("my favorite hour of the week"), never outcomes; never repost or pin a member's health claim.
 3. **Ask the DPT is education only:** no booking pitch in the same reel; Katie's credential is never a promise of results.
 4. **Titles:** breathwork staff are "guides" or "facilitators"; only licensed counselors talk about mental health, within scope.
 5. **Safety:** cold and heat reels carry `claims.safety_line.text` as a caption line or end-card subtitle; never show breath-holding in or near water.
@@ -89,8 +89,8 @@ These rules are the product's IP. The validator enforces the ones marked (rule N
 | Arc | Beat sequence | Typical reels |
 |---|---|---|
 | Transformation | before -> struggle -> turn -> payoff -> gratitude -> logo | Year One, a first plunge, a renovation |
-| Offer | problem -> modality -> feeling -> call to action | Discover NUMA $49, a new class |
-| Event recap | arrival -> energy -> faces -> community -> logo | Numa Nights, Clinical Conversations |
+| Offer | problem -> modality -> feeling -> call to action | Discover Numa $49, a new class |
+| Event recap | arrival -> energy -> faces (yes on record only) -> community -> logo | Numa Nights (Clinical Conversations is cancelled: never promote it) |
 
 ### 4.2 The hook and the first second
 
@@ -173,7 +173,7 @@ Every caption and the hook get a soft shadow, over the subtle dark gradient at t
 
 ### 4.10 End card
 
-The last shot is the ripple image (`assets.endcard_background`, `look: none`, `tr: flash`, slow zoom). `endcard` = {`t` (= that shot's `t0`), `tagline` (default `endcard.tagline`), `subtitle`}: a gold italic sign-off written for this reel in NUMA's voice ("Year one. Thank you, Mobile."). The wordmark renders white. Holds 3.5-5 s.
+The last shot is the ripple image (`assets.endcard_background`, `look: none`, `tr: flash`, slow zoom). `endcard` = {`t` (= that shot's `t0`), `tagline` (default `endcard.tagline`), `subtitle`}: a gold italic sign-off written for this reel in Numa's voice ("Year one. Thank you, Mobile."). The wordmark renders white. Holds 3.5-5 s.
 
 ## Step 5: Higgsfield (the motion agent does the work)
 
@@ -185,12 +185,12 @@ The motion agent (agents/motion.md) owns prompts, models, inspection, re-rolls a
 4. Real-room moves from start + end frames (two real photos of the same room); also the AI before/after of a building.
 5. People: Kling 3.0 with the person bound as an Element, consent list only, medium shot, one simple action, under 8 s, hands low and still.
 6. Custom instrumental music to the exact length and tempo (about 6).
-7. Voice fallback (0.5 a line): a preset voice, or Katie's clone only when `consent.voice_clone` is true.
+7. Voice fallback (0.5 a line): only when brand.json `voice.generic_ai_allowed.value` is true, a generic, non-cloned preset voice; never a cloned voice (Scott records the voiceovers, DECISIONS D25). Without that yes: music plus on-screen text.
 8. Seedance 2.5 for people-free spaces only (35 at 720p); long empty-room walkthroughs up to 30 s.
 9. Logos and signs: frontal, slow move; the engine overlays the real wordmark on the end card.
-10. Motion transfer (Genjutsu or Kling Motion Control) for trend formats on NUMA's own material.
+10. Motion transfer (Genjutsu or Kling Motion Control) for trend formats on Numa's own material.
 11. Virality predictor on the final cut and hook variants: a second opinion for the Critic, never a gate.
-12. Marketing Studio ad variants: not built (DECISIONS D5; only if NUMA runs ads).
+12. Marketing Studio ad variants: not built (DECISIONS D5; only if Numa runs ads).
 
 **Prompt rules:** describe the motion, not the room; one camera move per clip with a size ("about ten percent"); end with a keep clause; prototype at 720p and change one thing per retry. Safe moves: small push-ins, pull-backs, short lateral slides. Risky: crane or vertical moves, orbits, anything that reveals space outside the photo. Kling order: scene, Element, camera, action timing, lighting, audio ("no music, no dialogue"), locks. The full prompt library is in agents/motion.md.
 
@@ -278,7 +278,7 @@ Also in the plan: `music` (source `folder`, license recorded), `ai` all false (n
 ## 9. Quality bar (before handing over)
 
 - Frame zero grabs: movement, the strongest image, hook text. Every cut on a beat (within 1 frame).
-- Captions match the spoken words exactly, spelled right (NUMA), no line over 2 rows, clear of faces and the app's interface.
+- Captions match the spoken words exactly, spelled right (Numa), no line over 2 rows, clear of faces and the app's interface.
 - No shot repeats outside the outro montage; no bars, no mirrored edges, no frozen frame.
 - Exactly one signature moment; end card 3.5-5 s.
 - Voice clear, music under it, -15 LUFS, 48 kHz.

@@ -1,6 +1,6 @@
 ---
 name: scriptwriter
-description: Writes NUMA reel pre-production with the numa-scriptwriter skill - hook, voiceover script timed at 2.3 words a second, shot list tied to lines, photos, audio direction, on-screen text and CTA, draft caption, and the SHOOT CARD - and runs the claims check on every line. Use at month planning (all cards in one pass), on build day or the night before when material is missing (rewrite only the affected lines), and alone for a one-off reel ("help me plan a reel for Numa Nights").
+description: Writes Numa reel pre-production with the numa-scriptwriter skill - hook, voiceover script timed at 2.3 words a second, shot list tied to lines, photos, audio direction, on-screen text and CTA, draft caption, and the SHOOT CARD - and runs the claims check on every line. Use at month planning (all cards in one pass), on build day or the night before when material is missing (rewrite only the affected lines), and alone for a one-off reel ("help me plan a reel for Numa Nights").
 model: sonnet
 tools: Bash, Read, Write, Glob
 ---

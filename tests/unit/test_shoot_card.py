@@ -590,7 +590,8 @@ def test_sheet_json_columns_exact(tmp_path, capsys):
     assert "consent list only" in r9["Shot list"] and "AI motion shot" in r9["Shot list"]
     assert "the room empty" not in r9["Shot list"]  # library shots are not on the shoot list
     assert rows[0]["Shot list"] == "No filming needed" and rows[4]["Shot list"] == "No filming needed"
-    assert set(sc.STATUSES) == {"Planned", "Shot", "Ready to build", "Ready to post", "Posted"}
+    assert set(sc.STATUSES) == {"Planned", "Shot", "Ready to build", "Ready to post", "Approved", "Posted"}
+    assert sc.APPROVED_STATUS.match("Approved - SM") and not sc.APPROVED_STATUS.match("Approved?")  # D26
 
 
 def test_sheet_csv_and_status_validation(tmp_path, capsys):
@@ -673,3 +674,31 @@ def test_month_piped_into_closed_reader_exits_quietly():
     proc.stderr.close()
     assert proc.wait(timeout=60) == 0
     assert b"BrokenPipe" not in err and b"ERROR" not in err and b"Traceback" not in err
+
+
+def test_image_row_and_carousel_source_cards(tmp_path, capsys):
+    """R336: an `image` row is a single-photo feed post with nothing to film; a carousel row says how it is built."""
+    img = {"day": 9, "date": "2026-12-09", "title": "Steam at dawn", "kind": "image"}
+    assert run(["card", write(tmp_path, img)]) == 0
+    card = capsys.readouterr().out
+    assert card.startswith("NO FILMING NEEDED. Claude builds this photo post")
+    assert "POST: Photo post. Nothing to record." in card and "voiceover" not in card.lower()
+    comp = {"day": 8, "date": "2026-12-08", "title": "Sauna vs red light", "kind": "carousel", "carousel_source": "component"}
+    assert run(["card", write(tmp_path, comp)]) == 0
+    assert "designs this carousel in Claude Design" in capsys.readouterr().out
+    bad = {**img, "carousel_source": "component"}
+    assert run(["card", write(tmp_path, bad)]) == 1
+    capsys.readouterr()
+
+
+def test_image_rows_count_as_feed_statics_in_check(tmp_path, capsys):
+    plan = december()
+    for r in plan["rows"]:
+        if r["kind"] == "carousel":
+            r["kind"] = "image"
+            r.pop("derived_from", None)
+    rc = run(["check", write(tmp_path, plan), "--json"])
+    out = json.loads(capsys.readouterr().out)
+    assert not [e for e in out.get("errors", []) if "kind must be" in e]
+    assert not [e for e in out.get("errors", []) if "feed posts" in e], out.get("errors")
+    assert rc in (0, 1)

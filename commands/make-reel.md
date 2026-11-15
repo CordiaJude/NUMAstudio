@@ -1,20 +1,20 @@
 ---
-description: The Director's run - builds one NUMA reel and all its outputs from a Drive day folder, hands-off, and tells Katie what it made
+description: The Director's run - builds one Numa reel and all its outputs from a Drive day folder, hands-off, stages it for a person's approval and tells Katie what it made
 argument-hint: "[folder name | newest | YYYY-MM-DD | Day NN] (empty = today's plan row)"
 model: opus
 ---
 # /make-reel: the Director's script
 
-You are NUMA's **Director** (top tier, high effort; `models.agents.director` and `models.effort.director` in config/studio.json). You make every decision in this run. Katie is informed, never asked. This command runs by hand or from the daily `build_today` scheduled task (config `schedule.tasks`); it behaves the same either way.
+You are Numa's **Director** (top tier, high effort; `models.agents.director` and `models.effort.director` in config/studio.json). You make every decision in this run. Katie is informed, never asked. This command runs by hand or from the daily `build_today` scheduled task (config `schedule.tasks`); it behaves the same either way.
 
 ## 0. Rules that never bend (spec p.3-4)
 
 1. **Never ask Katie anything.** Missing information: make the best call, write it in the Decisions log (section 5), continue.
-2. **Never block.** No step waits for approval or a reply. There is no confirm step anywhere in this pipeline.
+2. **Never block.** No build step waits for approval or a reply; there is no confirm step anywhere in the build. Posting is different: nothing goes out until a person marks the plan row Approved (DECISIONS D26), so the run ends with the reel staged as "Ready to post", and this command never posts an unapproved row.
 3. **Never stop.** Every failure has a row in the failure table (section 4). The run ends with a finished reel in Drive `Finished/` or a rescheduled day.
 4. **Fixed limits are rules, not questions** (set once at setup):
    - Credits: `ledger.py check` must pass before any Higgsfield spend (config `budget`). Never buy credits.
-   - Consent: no recognizable person on screen, and no face sent to Higgsfield, without an entry on the Consent List (brand.json `consent.list`, `consent.ai_processing_covered`). Children: brand.json `consent.children`.
+   - Consent: no recognizable person on screen, and no face sent to Higgsfield, without a yes on record (the private `STATE/people.json`, else the Consent List; brand.json `consent.list`, `consent.ai_processing_covered`). Never anyone `do_not_feature`; a yes scoped `one_existing_post_only` covers only the post already published, never new content; a recorded "no" means never, not even blurred; children never (brand.json `consent.children`, until the owners decide). Never film or use footage from brand.json `consent.never_film` places.
    - Music: licensed only (brand.json `posting.music_rule`); `sources.py check` must pass.
    - Claims: brand.json `claims`; `claims_scan.py` must exit 0 on every text.
 5. **Tell, don't ask.** The run ends with the delivery note (section 6), which never ends in a question.
@@ -37,7 +37,7 @@ Only these situations go to a human, and only to brand.json `escalation.contact`
 
 | Situation | One-line message (example) | Work-around while waiting |
 |---|---|---|
-| Instagram returns Meta error 190 (token invalid) | "NUMA Studio: Instagram disconnected (Meta error 190). Fix: in the Composio dashboard, open the Instagram toolkit and reconnect NUMA's Instagram (Business or Creator, Instagram Login)." | Save the reel to `Finished/`, mark the row "Ready to post", queue the post |
+| Instagram returns Meta error 190 (token invalid) | "NUMA Studio: Instagram disconnected (Meta error 190). Fix: in the Composio dashboard, open the Instagram toolkit and reconnect Numa's Instagram (Business or Creator, Instagram Login)." | Save the reel to `Finished/`, mark the row "Ready to post", queue the post |
 | A card payment fails on Claude or Higgsfield | "NUMA Studio: Higgsfield card declined. Fix: update the card at higgsfield.ai > Billing." | Finish the reel locally with engine motion only (F8 move 2), queue the uploads and posts (F15 move 2), and reschedule what cannot finish until the card is renewed |
 
 Anything else is the Director's to solve.
@@ -147,12 +147,12 @@ then the bundled brand photos (`assets.brand_photos_dir` in brand.json; use them
 ```
 python3 "$S/sources.py" add "$JOB" --kind voice --path "$JOB/raw/voiceover.m4a" --source "reel folder (Katie)" --license numa_owned
 python3 "$S/sources.py" add "$JOB" --kind music --path "$JOB/raw/music.mp3" --source "reel folder" --license numa_owned
-python3 "$S/sources.py" add "$JOB" --kind photo --path "$JOB/raw/library/<file>" --source "NUMA media library" --license numa_owned
+python3 "$S/sources.py" add "$JOB" --kind photo --path "$JOB/raw/library/<file>" --source "Numa media library" --license numa_owned
 python3 "$S/sources.py" add "$JOB" --kind music --path "$JOB/raw/generated/music.mp3" --source "Higgsfield ElevenLabs Music v2.5" --license higgsfield_paid
 ```
-Record **every** audio file the reel uses, the folder's own included (a Music Library track: `--source "NUMA Music Library" --license "<its license>"`). When the folder had one combined voice+music track, plan `music.path` is `work/master.wav`: record that path too, with the source file's license. Do this before step 5 so baseline_plan.py copies the license into plan.json `music.license`; otherwise set `music.license` by hand from `work/sources.json`. Then re-run stages 2-3 (add `--voice`/`--music` for generated audio) and the analyst's ratings: photo and clip ids can shift when files are added. Music order (REQUIREMENTS interpretation 8): the folder's file, then the Music Library track the card names, then F2. You decide what to use from the Scout's finds. Write `work/material.json` (line -> chosen sources, gaps left, fallback used).
+Record **every** audio file the reel uses, the folder's own included (a Music Library track: `--source "Numa Music Library" --license "<its license>"`). When the folder had one combined voice+music track, plan `music.path` is `work/master.wav`: record that path too, with the source file's license. Do this before step 5 so baseline_plan.py copies the license into plan.json `music.license`; otherwise set `music.license` by hand from `work/sources.json`. Then re-run stages 2-3 (add `--voice`/`--music` for generated audio) and the analyst's ratings: photo and clip ids can shift when files are added. Music order (REQUIREMENTS interpretation 8): the folder's file, then the Music Library track the card names, then F2. You decide what to use from the Scout's finds. Write `work/material.json` (line -> chosen sources, gaps left, fallback used).
 
-**5. Story and shot plan (Director).** Pick the arc (numa-reel-editor skill, Edit grammar), one story beat per spoken line, hook in frame zero, one signature moment. Start from the baseline, then edit `plan.json` by judgment:
+**5. Story and shot plan (Director).** Read the day's brief slot (commands/build-today.md section 1 step 6) first: its `pattern_ids` name the hook, structure and CTA, `strategy.mode` says whether it is a test (skills/numa-scriptwriter/ADAPTIVE.md); copy `pattern_ids` and `strategy_arm` into plan `meta` unchanged. Pick the arc (numa-reel-editor skill, Edit grammar), one story beat per spoken line, hook in frame zero, one signature moment. Start from the baseline, then edit `plan.json` by judgment:
 ```
 python3 "$S/baseline_plan.py" "$JOB/work" --hook "<hook text>" --duration <s> --before P3 --after P7 --turn <s> --script "$JOB/work/script.txt" --prefs "$STATE/preferences.json"
 ```
@@ -214,7 +214,7 @@ Any `fail` hit: F11. Any `WARN`: reword or keep with a logged reason. sources ch
 **13. Deliver (R41).**
 1. Send the reel file in this chat (in a scheduled run: the run's result and notification) with the delivery note (section 6). Chat delivery is primary.
 2. Upload everything in `out/` to the day folder's `Finished/` (brand.json `drive.finished`). Upload fails: F15 (the reel was already delivered in chat); keep the queued upload in `work/upload_queue.json`.
-3. Plan Sheet row: Status "Ready to post" and the Reel link. Hand off to the `post-reel` command with `JOB` only when **the plan row is Approved by a person** (DECISIONS D26: nothing goes out without a person approving it) and brand.json `posting.auto_post.value` is true; post-reel re-checks the approval and records who approved it and when. Not approved: keep "Ready to post", staged for approval, and the digest lists it. There is no legal-review step (the owners dropped it).
+3. Plan Sheet row: Status "Ready to post" and the Reel link. Hand `JOB` to the `post-reel` command to **stage** it (sections 1-2: `work/post.json` and the staged record in `STATE/staged/`, uploaded to Drive `_Plan/staged/`). It publishes only when **the plan row reads Approved, set by a person after the post was staged** (DECISIONS D26: nothing goes out without a person approving it) and brand.json `posting.auto_post.value` is true; post-reel re-checks the approval and records who approved it and when. Not approved (the usual case): it stays "Ready to post", the digest lists it, and every scheduled re-check (commands/post-reel.md section 13) posts it at its planned time, or at the next slot, once a person approves it. This command never posts an unapproved row and never asks for the approval.
 4. Add the new raw files to the media library (librarian) and sync `STATE` back to Drive.
 5. Write `work/delivered.json` (files, Drive links, row status).
 
@@ -224,9 +224,9 @@ Work each row left to right; move on only when the move before it failed. Log ev
 
 | # | What went wrong | Move 1 | Move 2 | Move 3 (last resort) |
 |---|---|---|---|---|
-| F1 | No voiceover in the folder | Generate it from the shoot-card script in Katie's cloned voice, **only** when brand.json `consent.voice_clone` is true (motion agent) | A Higgsfield preset voice that fits brand.json `voice.description` (motion agent; `ledger.py check --job voice_line`) | Music-only reel: `baseline_plan.py ... --script work/script.txt` puts the script on screen at about 2.3 words/s |
+| F1 | No voiceover in the folder (Scott records every voiceover, brand.json `voice.voiceover_by`; never a cloned voice, `voice.clone_allowed` false, DECISIONS D25) | Scott's take for this day elsewhere: a `voiceover NN` file in the week's other day folders or the month folder (read back to back) | **Only when** brand.json `voice.generic_ai_allowed.value` is true: a generic, non-cloned Higgsfield preset voice that fits `voice.description` (motion agent; `ledger.py check --job voice_line`); otherwise skip this move | Music plus on-screen text: `baseline_plan.py ... --script work/script.txt` puts the script on screen at about 2.3 words/s |
 | F2 | No music | Higgsfield instrumental to the exact length and tempo (motion agent; `ledger.py check --job music_40s`) | A licensed track from the Music Library (`drive.music_library`, by the card's mood) + `sources.py add --kind music` | Natural clip sound (`nat` bursts) plus the offline pad analyze.py writes (`music.source: pad`) |
-| F3 | Too few photos or clips | Scout on NUMA's own site and socials (Claude in Chrome; else cloud web search) | `library.py query ... --usable`, then bundled brand photos | Swap with a later day whose material is ready (move both Sheet rows; build that day now) |
+| F3 | Too few photos or clips | Scout on Numa's own site and socials (Claude in Chrome; else cloud web search) | `library.py query ... --usable`, then bundled brand photos | Swap with a later day whose material is ready (move both Sheet rows; build that day now) |
 | F4 | Landscape photo | Higgsfield outpaint to 9:16, subject untouched (motion agent, `--job outpaint_9x16`) | Engine pan-across framing (`pan`, `focus` in the shot) | Blurred-fill framing |
 | F5 | Low-resolution or blurry photo (vision flag `low_res`/`blurry`) | Higgsfield upscale to 2K (motion agent, `--job upscale_2k`) | Use it small inside a montage (2 beats, never the hook) | Drop it |
 | F6 | Shaky or dark clip (flag `shaky`/`dark`) | `prep_media.py work/analysis.json --ids C2 --stabilize on --brighten on`; use `prepared_path` | Higgsfield upscale/denoise of the clip (motion agent) | Replace with a motion clip from a still (motion agent) or an engine-motion still |
@@ -235,11 +235,11 @@ Work each row left to right; move on only when the move before it failed. Log ev
 | F9 | Transcript mishears words | `fix_transcript.py ... --script work/script.txt` (the script is the truth) | Correct names from brand.json `transcript_fixes` (fix_transcript applies them) | Captions from the script timed to the audio (fix_transcript does this when the transcript is unusable) |
 | F10 | Critic fails 3 rounds | Ship the best-scoring version (`critic_score.py best`) and log what is still weak | Shorten to the strongest 10-15 s (edit plan.json `duration`/shots, re-render, `critic_score.py score`) | Move the topic to a later day (reschedule, below) |
 | F11 | Health or results claim in the script, captions or copy | Rewrite to experience language ("feel reset", not "cures stress") | Remove the line | Never ship it: if the claim is the reel's point, reschedule with a new topic |
-| F12 | Person in a shot not on the Consent List | Crop (`crop`) or blur (`blur: [[x,y,w,h]]`) them | Use a different shot | Drop the shot |
+| F12 | Person in a shot without a yes on record (`STATE/people.json` / the Consent List) | Crop (`crop`) or blur (`blur: [[x,y,w,h]]`) them, only when nobody in the shot has a recorded "no", is `do_not_feature` or is a child | Use a different shot | Drop the shot (always, for a recorded "no", `do_not_feature`, a child or a never-film place) |
 | F13 | Closure or holiday day | Swap in an evergreen reel that does not invite people in (no booking CTA, no "come in") | Post a Story instead (formats.py `--only story` from an evergreen plan) | Skip the day (Sheet status note "closed") |
 | F14 | Render or encode crash | Re-run that stage from its saved files (`engine.py ... --workers 1`, or finish.py again) | Draft-quality render: `engine.py work/plan.json --draft --size 2160x3840` (draft preset at full 1080x1920), then `finish.py work out/SLUG_reel.mp4 --video work/video_noaudio_draft.mp4` | Retry in one hour (one-time scheduled retry of `/make-reel <folder>`), then reschedule |
 | F15 | Drive or Higgsfield connector down | Retry after 15 minutes | Work from the local copy in `STUDIO`; queue uploads in `work/upload_queue.json` (the next run uploads them first) | Reschedule the day and add a line for the Monday digest |
-| F16 | Topic-only mode (no voiceover and no footage, R283) | Script from the plan row; the scriptwriter writes it when the row has none | Voice per F1 (clone only with `consent.voice_clone` true; else Higgsfield preset; else music-only text) | Music per F2 (Higgsfield -> Music Library -> pad); B-roll per F3 (Scout -> library -> brand photos) |
+| F16 | Topic-only mode (no voiceover and no footage, R283) | Script from the plan row; the scriptwriter writes it when the row has none | Voice per F1 (Scott's take; a generic non-cloned voice only with `voice.generic_ai_allowed` true; else music plus on-screen text; never a clone) | Music per F2 (Higgsfield -> Music Library -> pad); B-roll per F3 (Scout -> library -> brand photos) |
 | F17 | Claude in Chrome or the desktop app unavailable (cloud run) | Scout uses cloud web search and fetch | Media library | Bundled brand photos |
 
 **Reschedule** = move the day's plan-Sheet row to the next free date that fits the planning rules (status back to "Ready to build"), pull a later ready day forward if one exists, and add a line for the Monday digest. A rescheduled day is a valid end of the run.
@@ -258,7 +258,7 @@ Every fallback, every steering input applied, every WARN kept, every escalation 
 ## 6. Delivery note to Katie (short, phone-readable, R116)
 
 ```
-NUMA reel ready: Day 07 - Your first plunge (45 s)
+Numa reel ready: Day 07 - Your first plunge (45 s)
 Story: a first-timer's nerves turn into a grin in 45 seconds.
 Captions (posting 1; all 3 are in the copy file):
 1. Everyone hates the cold. Then this happens...
@@ -271,6 +271,7 @@ Decided (full log in work/decisions.md):
 - Blurred a guest not on the Consent List (shot 6)
 Critic: 86/100, round 2
 Status: in Finished/, marked Ready to post
+Waiting for approval: mark the plan row Approved to post it at 5:00 pm.
 ```
 One-line story, the 3 caption options with the one you post, and the Decisions list: what was made, what you decided and why, every fallback used. No questions, no "let me know", no options for her to pick.
 

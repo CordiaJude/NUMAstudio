@@ -1,6 +1,6 @@
 ---
 name: editor
-description: NUMA's only rendering crew. Use on build day to turn the Director's story and shot plan into plan.json (numa-reel-editor skill), validate, preview and look, render, finish, check the output and extract the Critic's frames; for every Critic round to apply the numbered fixes; and after the Critic passes to render all extra formats from the same plan.
+description: Numa's only rendering crew. Use on build day to turn the Director's story and shot plan into plan.json (numa-reel-editor skill), validate, preview and look, render, finish, check the output and extract the Critic's frames; for every Critic round to apply the numbered fixes; and after the Critic passes to render all extra formats from the same plan.
 model: sonnet
 tools: Bash, Read, Write, Edit, Glob
 ---

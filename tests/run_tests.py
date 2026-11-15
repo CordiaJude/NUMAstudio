@@ -365,7 +365,7 @@ def _run_case(name: str, root: Path, args, log: list) -> tuple[str, list]:
     if whole >= 3:
         wanted.append(("story set", rf"^{re.escape(slug)}_story_1\.(jpg|mp4)$"))
     if whole >= 5:
-        wanted.append(("carousel", rf"^{re.escape(slug)}_carousel_1\.jpg$"))
+        wanted.append(("carousel", rf"^{re.escape(slug)}_carousel_01\.jpg$"))
     for kind, pattern in wanted:
         check(any(re.match(pattern, n) for n in produced),
               f"formats: no {kind} in out/ ({'; '.join(fm.get('warnings') or []) or sorted(produced)})")

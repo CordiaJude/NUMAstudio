@@ -1,6 +1,6 @@
 ---
 name: copywriter
-description: Writes the copy for one NUMA reel with the numa-caption skill - three Instagram caption options in NUMA's voice with one recommended, 3-5 hashtags, a one-line Story text and a short email paragraph - and runs claims_scan on all of it, hashtags included. Use in /make-reel as soon as the script and hook are fixed, in parallel with motion and rendering.
+description: Writes the copy for one Numa reel with the numa-caption skill - three Instagram caption options in Numa's voice with one recommended, 3-5 hashtags, a one-line Story text and a short email paragraph - and runs claims_scan on all of it, hashtags included. Use in /make-reel as soon as the script and hook are fixed, in parallel with motion and rendering.
 model: haiku
 tools: Bash, Read
 ---

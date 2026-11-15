@@ -1,11 +1,11 @@
 ---
-description: Desktop-only, hourly while Katie's Mac is awake - claim and do the queued Claude in Chrome steps (signed-in Scout research, competitor log, Higgsfield unlimited drafts, and for approved posts only the Trial Reel, collab invite or AI label), and start a late build that stages the day's post for approval when today's build was missed
+description: Desktop-only, hourly while Katie's Mac is awake - claim and do the queued Claude in Chrome steps (signed-in Scout research, competitor log, Higgsfield unlimited drafts, and for approved posts only the Trial Reel, collab invite or AI label), and start a late build that stages the day's post for approval when today's build was missed, and re-check staged posts for approval
 argument-hint: "(no arguments; runs from the desktop scheduled task \"Chrome queue\")"
 model: opus
 ---
 # /chrome-queue: do the Chrome steps while the Mac is awake
 
-You are NUMA's **Director**. This runs from the desktop scheduled task **Chrome queue** (hourly at minute 47, created in the Claude desktop app on Katie's Mac, so it runs only while the Mac is awake; docs/SCHEDULED_TASKS.md). Cloud runs cannot reach Claude in Chrome, so they queue those steps in `STATE/chrome_queue.json` with a deadline and a fallback (R342); this task does them. Rules as commands/make-reel.md section 0: never ask Katie anything, never wait, nothing blocks. **Nothing goes out without a person approving it (DECISIONS D26):** posting steps are queued only for approved posts, and no fallback ever publishes.
+You are Numa's **Director**. This runs from the desktop scheduled task **Chrome queue** (hourly at minute 47, created in the Claude desktop app on Katie's Mac, so it runs only while the Mac is awake; docs/SCHEDULED_TASKS.md). Cloud runs cannot reach Claude in Chrome, so they queue those steps in `STATE/chrome_queue.json` with a deadline and a fallback (R342); this task does them. Rules as commands/make-reel.md section 0: never ask Katie anything, never wait, nothing blocks. **Nothing goes out without a person approving it (DECISIONS D26):** posting steps are queued only for approved posts, and no fallback ever publishes.
 
 This is the only drainer of the posting kinds (`trial_reel`, `collab_invite`, `ai_label`), so one machine, Katie's Mac, ever posts through Chrome; its claims (below) keep two overlapping runs on the Mac from taking the same item. Cloud runs that happen to see Chrome take only the other kinds. Expiry is not done here: the 8 pm night check is the one designated runner that expires items and runs their fallbacks.
 
@@ -58,6 +58,10 @@ python3 "$S/runlog.py" check --state "$STATE" --json
 ```
 For a `build_today` problem with `action` `late_build` (the build was missed outright today, no run at all in its slot, and it is still before `late_build_by`): follow commands/build-today.md for its `date` now, starting its run with `runlog.py start build_today --late`. It builds and stages the post for a person to approve; it never posts by itself. Its run fills the slot, so no second late build follows, whatever its outcome. Every other problem is left to the night check and the dashboard refresh (they send Jude's line); do not pass `--mark-reported` here.
 
+## 4a. Approval re-check (DECISIONS D26)
+
+Every hour the Mac is awake, run commands/post-reel.md section 13 (`approvals`): a staged post whose plan row now reads Approved posts at its planned time, or at the next slot when that time has passed (this task can post it itself when the slot is inside this hour; else it creates the one-time task); an approved post that needs a Chrome step gets its queue item (post-reel section 5). It never posts an unapproved row. The approver notice follows section 13 step 4 (only posts newly waiting since the last notice, so an hourly task does not repeat itself), by the approval channel; this task's notifications are off.
+
 ## 5. Run end (always, also on failure)
 
 ```
@@ -69,4 +73,4 @@ This task runs with notifications off: its final message is one short statement 
 
 ## Done means
 
-Every item Chrome could do is done or has a failed attempt recorded, no claim of this run is left open, the queue and this run's log file are back in Drive, and the run is finished in the run log.
+Every item Chrome could do is done or has a failed attempt recorded, staged posts were re-checked for approval, no claim of this run is left open, the queue and this run's log file are back in Drive, and the run is finished in the run log.

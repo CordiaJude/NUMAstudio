@@ -1,11 +1,11 @@
 ---
-description: Weekly trend and weather check (Fridays, 7 pm) - the Scout finds three trend ideas that fit NUMA (formats, hooks, editing styles, topics; never songs), the Director checks the 7-day forecast for weather hooks and may slot one idea into next week as a Trial Reel
+description: Weekly trend and weather check (Fridays, 7 pm) - the Scout finds three trend ideas that fit Numa (formats, hooks, editing styles, topics; never songs), the Director checks the 7-day forecast for weather hooks and may slot one idea into next week as a Trial Reel
 argument-hint: "[YYYY-MM-DD] (empty = today, Central time)"
 model: opus
 ---
 # /trend-check: what's working this week, and the weather
 
-You are NUMA's **Director**. This runs from the `trend_check` scheduled task (config `schedule.tasks`, Fridays 7 pm, `schedule.timezone`). You may change next week's plan; you never have to, and you never ask anyone.
+You are Numa's **Director**. This runs from the `trend_check` scheduled task (config `schedule.tasks`, Fridays 7 pm, `schedule.timezone`). You may change next week's plan; you never have to, and you never ask anyone.
 
 Paths: `S` = `${CLAUDE_PLUGIN_ROOT}/skills/numa-reel-editor/scripts`, `STATE` = `~/NUMA Studio/_Plan`, `PLAN` = `STATE/plans/plan_YYYY-MM.json`.
 
@@ -41,7 +41,7 @@ Send the **scout** (agents/scout.md) to look at what is working this week for we
 
 **Claude in Chrome (R342).** Check first that the `mcp__claude-in-chrome__*` tools are visible and answer a harmless call (read the open tab's title). Visible: drain the queue first (commands/chrome-queue.md section 3; a cloud run takes only the non-posting kinds), then the scout works in Chrome. Not visible: the scout uses web search now; the trend ideas are not queued (next Friday looks again).
 
-Trending audio is off-limits for a business account (brand.json `posting.music_rule`): a trend is used only if its idea works with NUMA's own audio or a Sound Collection track.
+Trending audio is off-limits for a business account (brand.json `posting.music_rule`): a trend is used only if its idea works with Numa's own audio or a Sound Collection track.
 
 ## 3. Three ideas (R242)
 
@@ -49,11 +49,11 @@ Write `STATE/trends/trends_<DAY>.json` with exactly three ideas and one winner:
 ```json
 {"date": "2026-12-11", "ideas": [
   {"idea": "POV first plunge, filmed from the water line", "example_link": "https://www.instagram.com/reel/...",
-   "why_it_fits": "First-timer reactions are NUMA's best sends format", "how_with_numa": "Katie films a 5 s water-line clip in the plunge room; one hero still gets Higgsfield motion transfer from the example's camera move",
-   "audio": "NUMA voiceover + generated bed", "claims_ok": true}],
+   "why_it_fits": "First-timer reactions are Numa's best sends format", "how_with_numa": "Katie films a 5 s water-line clip in the plunge room; one hero still gets Higgsfield motion transfer from the example's camera move",
+   "audio": "Numa voiceover + generated bed", "claims_ok": true}],
  "winner": 0, "slotted": "2026-12-17"}
 ```
-Each idea: a real example link the scout opened, why it fits NUMA (series, audience, the claims policy), and how to make it with NUMA's own material (often Higgsfield motion transfer onto a NUMA still; motion agent, within `ledger.py check`). Scan each idea's text: `python3 "$S/claims_scan.py" "<idea>" "<why_it_fits>" "<how_with_numa>"`; drop an idea that only works with a claim.
+Each idea: a real example link the scout opened, why it fits Numa (series, audience, the claims policy), and how to make it with Numa's own material (often Higgsfield motion transfer onto a Numa still; motion agent, within `ledger.py check`). Scan each idea's text: `python3 "$S/claims_scan.py" "<idea>" "<why_it_fits>" "<how_with_numa>"`; drop an idea that only works with a claim.
 
 ## 4. Slot the winner (optional)
 

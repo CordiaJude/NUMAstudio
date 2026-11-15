@@ -1,9 +1,9 @@
 ---
 name: numa-scriptwriter
-description: Pre-production for NUMA Wellness Collective reels - hook, voiceover script timed to length, shot list tied to script lines, photos, audio direction, on-screen text and CTA, draft caption, and the one-page SHOOT CARD Katie films from. Powers /plan-month (all cards in one pass), rewrites lines when material is missing, and works alone for a one-off reel ("help me plan a reel for Numa Nights"). Enforces the claims policy on every line.
+description: Pre-production for Numa Wellness Collective reels - hook, voiceover script timed to length, shot list tied to script lines, photos, audio direction, on-screen text and CTA, draft caption, and the one-page SHOOT CARD Katie films from. Powers /plan-month (all cards in one pass), rewrites lines when material is missing, and works alone for a one-off reel ("help me plan a reel for Numa Nights"). Enforces the claims policy on every line.
 ---
 
-# NUMA Scriptwriter
+# Numa Scriptwriter
 
 You plan each reel before anything is filmed, so the edit has the right material. Output: one `script.json` per reel (schemas/script.schema.json) and its SHOOT CARD, rendered by `shoot_card.py`. `S` = `${CLAUDE_PLUGIN_ROOT}/skills/numa-reel-editor/scripts`. Nothing here asks Katie anything: an unknown means the safe choice and a line in `notes`.
 

@@ -1,9 +1,9 @@
 ---
 name: numa-brand-check
-description: The pre-post review of a NUMA reel, image or post against NUMA's brand, the claims policy, consent, music licensing, the AI label and the output spec, each check mapped to a script. Use on every shipped /make-reel version (after the Critic) and whenever a NUMA video, graphic or caption needs an on-brand check before it goes out.
+description: The pre-post review of a Numa reel, image or post against Numa's brand, the claims policy, consent, music licensing, the AI label and the output spec, each check mapped to a script. Use on every shipped /make-reel version (after the Critic) and whenever a Numa video, graphic or caption needs an on-brand check before it goes out.
 ---
 
-# NUMA Brand Check
+# Numa Brand Check
 
 Run every row; a row that fails names the fix. Nothing here waits on anyone: the verdict goes to the Director (or the Editor, for edit-level fixes).
 
@@ -18,8 +18,8 @@ Run every row; a row that fails names the fix. Nothing here waits on anyone: the
 | 3 | Consent | `python3 "$S/validate_plan.py" "$JOB/work/plan.json" "$JOB/work/analysis.json" --json` (rule 28) and LOOK: every recognizable person is on `STATE/consent_list.json` (`consent.list`), blurred, or absent; `consent.children`. Items with `orig_faces` but empty `faces` get checked by eye | No rule-28 ERROR; no unlisted face in any frame |
 | 4 | Music license | `python3 "$S/sources.py" check "$JOB" --plan "$JOB/work/plan.json"` | Exit 0; never trending audio (`posting.music_rule`) |
 | 5 | AI label | Plan `ai` and every `ai_generated` shot; validate_plan rule 30 | `ai.label_required` is true whenever AI people or AI scenes appear (`posting.ai_label_rule`), and the copy file says `AI label: ON` |
-| 6 | Facts | Every on-screen word, the transcript and the copy against brand.json: `business.name` (on-screen "NUMA"), prices in `offerings.offers` / `offerings.sessions`, dates against the plan row and `offerings.events`, `business.location` | No misspelling, wrong price, date or offer; no `needs_katie` value stated as fact |
-| 7 | Brand look | LOOK at `out/qa_strip.jpg` and `out/critic_frames/` (for an outside video: `python3 "$S/qa_frames.py" FILE.mp4 PLAN_JSON` when a plan exists, else 8-12 evenly spaced frames) | Warm grade (cool "before" only before the turn); serif captions, white with 1-2 gold italic words (#F7D6A0, `palette.value`); nothing in the top 12% or bottom 10%; the white wordmark on the ripple end card, not stretched or recoloured; NUMA's voice (`voice.description`), no hype |
+| 6 | Facts | Every on-screen word, the transcript and the copy against brand.json: `business.name` (always "Numa" on screen and in copy, never "NUMA"), prices in `offerings.offers` / `offerings.sessions`, dates against the plan row and `offerings.events`, `business.location` | No misspelling, wrong price, date or offer; no `needs_katie` value stated as fact |
+| 7 | Brand look | LOOK at `out/qa_strip.jpg` and `out/critic_frames/` (for an outside video: `python3 "$S/qa_frames.py" FILE.mp4 PLAN_JSON` when a plan exists, else 8-12 evenly spaced frames) | Warm grade (cool "before" only before the turn); serif captions, white with 1-2 gold italic words (#F7D6A0, `palette.value`); nothing in the top 12% or bottom 10%; the white wordmark on the ripple end card, not stretched or recoloured; Numa's voice (`voice.description`), no hype |
 
 ## Verdict
 

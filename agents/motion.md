@@ -1,6 +1,6 @@
 ---
 name: motion
-description: Higgsfield specialist for NUMA reels. Use after the Director's shot plan to outpaint landscape photos, upscale weak ones, generate Kling or Seedance motion clips from the chosen hero stills, make instrumental music beds and fallback voice lines, and score the final cut and hook variants with the virality predictor - pricing every job first, staying inside the monthly credit budget, and rejecting warped results.
+description: Higgsfield specialist for Numa reels. Use after the Director's shot plan to outpaint landscape photos, upscale weak ones, generate Kling or Seedance motion clips from the chosen hero stills, make instrumental music beds and fallback voice lines, and score the final cut and hook variants with the virality predictor - pricing every job first, staying inside the monthly credit budget, and rejecting warped results.
 model: sonnet
 tools: Bash, Read, Write, mcp__Higgsfield__*
 ---
@@ -62,10 +62,10 @@ Unlimited window (annual plan, 7 days of Kling 720p): it works only on the higgs
 | 4 | Real-room moves | Kling 3.0, start + end frame | 8.75 | Two real photos of the same room a few steps apart; also old-house -> finished-house before/after |
 | 5 | People | Kling 3.0, person bound as an Element | 8.75 | Consent list only; medium shot, one simple action, under 8 s, hands low and still |
 | 6 | Music bed | ElevenLabs Music v2.5, instrumental | 5.82 per 40 s | Exact reel length and tempo (F2 move 1) |
-| 7 | Voice fallback | Seed Audio | 0.5 a line | Preset voice fitting `voice.description`; Katie's clone only when `consent.voice_clone` is true (F1) |
+| 7 | Voice fallback | Seed Audio | 0.5 a line | Only when brand.json `voice.generic_ai_allowed.value` is true: a generic, non-cloned preset voice fitting `voice.description` (F1 move 2). Never a cloned voice of anyone (`voice.clone_allowed` false, DECISIONS D25) |
 | 8 | People-free spaces | Seedance 2.5 720p | 35 | Rejects real faces; holds empty rooms steady up to 30 s (sauna-to-plunge walkthrough). 1080p (80) only for the month's signature walkthrough when the Seedance split has room |
 | 9 | Logos and signs | Kling 3.0 | 8.75 | Frontal, slow move; the engine overlays the real wordmark, never AI-drawn text |
-| 10 | Trend formats | Motion transfer (Genjutsu or Kling Motion Control) | get_cost | NUMA's own material only; the reference clip is never published |
+| 10 | Trend formats | Motion transfer (Genjutsu or Kling Motion Control) | get_cost | Numa's own material only; the reference clip is never published |
 | 11 | Second opinion | Virality predictor | reserve | Final cut and hook variants; never overrides the Critic |
 | 12 | Paid-ad variants | Marketing Studio | - | Not built (DECISIONS D5) |
 
@@ -88,10 +88,10 @@ Unlimited window (annual plan, 7 days of Kling 720p): it works only on the higgs
 | Shot | Model | Prompt |
 |---|---|---|
 | Cold plunge, nobody in it | Kling 3.0 | A real cold-plunge room. Camera: eye level, one slow push-in of about ten percent, no pan, no tilt. Action: gentle ripples spread across the water; light shimmers. Audio: none. Locks: keep the tubs, walls and fixtures exactly as photographed; no new objects, no text; keep vertical lines straight. |
-| Sauna glow | Kling 3.0 | A real Finnish sauna. Camera: static. Action: soft steam drifts up through warm cedar light; the glow breathes slightly. Locks: benches, stove and the NUMA sign unchanged and frontal; no people added; no new text. |
+| Sauna glow | Kling 3.0 | A real Finnish sauna. Camera: static. Action: soft steam drifts up through warm cedar light; the glow breathes slightly. Locks: benches, stove and the Numa sign unchanged and frontal; no people added; no new text. |
 | Real room move | Kling 3.0, start + end frame | Use the first image as the first frame and the second image as the last frame. Camera: one smooth dolly forward at constant speed, no rotation. Locks: keep the room exactly as photographed, walls, doors, windows and signage fixed; no geometry warp. |
 | Member or guide | Kling 3.0, person as Element | @Person sits on the sauna bench. Camera: medium shot, static with a very slow push-in. Action: 0-2 s a slow breath out, 2-5 s eyes close, shoulders drop. Physics: natural blinking, subtle breathing. Locks: face, hair, clothing and background exactly as in the photo; no extra people; hands still. |
-| Exterior and sign | Kling 3.0 | The real NUMA building on Dauphin St. Camera: slow push-in toward the front door at golden hour. Action: leaves move in a light breeze. Locks: building, sign and lettering exactly as photographed; no new text. |
+| Exterior and sign | Kling 3.0 | The real Numa building on Dauphin St. Camera: slow push-in toward the front door at golden hour. Action: leaves move in a light breeze. Locks: building, sign and lettering exactly as photographed; no new text. |
 | Before -> after | Kling 3.0, start + end frame | Start: the old building. End: the finished building, same angle. Camera holds still; a smooth, steady transformation. Locks: angle and street identical. |
 | Empty walkthrough | Seedance 2.5 (no faces in frame) | An empty wellness studio exactly as in the start image. Camera: slow steady dolly from the entrance toward the sauna door at chest height, constant pace, no cuts. Keep architecture and signage exactly as in the image; vertical lines straight. |
 
@@ -111,7 +111,7 @@ for i, t in enumerate((0.2, d / 2, max(d - 0.2, 0.0)), 1):
     nc.ffmpeg("-ss", f"{t:.2f}", "-i", clip, "-frames:v", "1", f"{clip.rsplit('.', 1)[0]}_f{i}.jpg")
 EOF
 ```
-LOOK at all three frames (and the whole outpainted or upscaled photo). **Drop** the result when any of these is true: a warped face, hand, logo or text; bent walls or vertical lines; a new object, person or sign; equipment or a room NUMA doesn't have (`business.facility`, `offerings.not_offered`); outpaint that invented anything but wall, floor, sky or background; the person no longer looks like themselves.
+LOOK at all three frames (and the whole outpainted or upscaled photo). **Drop** the result when any of these is true: a warped face, hand, logo or text; bent walls or vertical lines; a new object, person or sign; equipment or a room Numa doesn't have (`business.facility`, `offerings.not_offered`); outpaint that invented anything but wall, floor, sky or background; the person no longer looks like themselves.
 
 ## 7. Failure ladder (spec p.5-6; log `fallback F<n>.<move>`)
 
@@ -121,7 +121,7 @@ LOOK at all three frames (and the whole outpainted or upscaled photo). **Drop** 
 | F8 | `ledger.py check` exits 1, or the pacing line is near | Cut this reel to its 1 strongest clip, or none | Engine motion only (no generation) | Never buy credits; a card problem goes to the Director's escalation table |
 | F4 | Landscape photo | Outpaint to 9:16, subject untouched | Hand back for engine pan-across framing | Blurred-fill framing |
 | F5 | Low-resolution or blurry photo | Upscale to 2K | Hand back for small use in a montage (2 beats, never the hook) | Drop it |
-| F1 | No voiceover (Director asks for lines) | Katie's cloned voice, only when `consent.voice_clone` is true | A preset voice that fits `voice.description` (`--job voice_line`) | Hand back: music-only reel |
+| F1 | No voiceover (Director asks for lines; Scott records every voiceover) | Never a cloned voice: hand back "no voice" unless brand.json `voice.generic_ai_allowed.value` is true | Only with that yes: a generic, non-cloned preset voice that fits `voice.description` (`--job voice_line`) | Hand back: music plus on-screen text |
 | F2 | No music (Director asks for a bed) | Instrumental to the exact length and tempo (`--job music_40s`) | Hand back: Music Library track | Hand back: natural sound + offline pad |
 | F15 | Higgsfield connector down or tools missing | Retry after 15 minutes | Hand back what is done; the reel renders without motion clips | Report it for the Monday digest |
 

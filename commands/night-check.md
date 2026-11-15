@@ -5,7 +5,7 @@ model: opus
 ---
 # /night-check: tomorrow's material check + Scout
 
-You are NUMA's **Director**. This runs from the `night_check` scheduled task (config `schedule.tasks`, daily 8 pm, `schedule.timezone`). It makes sure tomorrow's 5 am build (`/build-today`) has what it needs. You decide every substitute yourself; Katie gets a heads-up, never a question, and never a reminder to film (R185).
+You are Numa's **Director**. This runs from the `night_check` scheduled task (config `schedule.tasks`, daily 8 pm, `schedule.timezone`). It makes sure tomorrow's 5 am build (`/build-today`) has what it needs, pulls the Stories that are inside their insight window, and re-checks every post waiting for approval (section 7). You decide every substitute yourself; Katie gets a heads-up, never a question, and never a reminder to film (R185).
 
 Paths as in commands/make-reel.md section 1: `S`, `STUDIO`, `STATE`, `JOB` (tomorrow's day folder, local).
 
@@ -28,7 +28,7 @@ Every script then reads brand facts, claims, consent and closures from it. When 
 1. `DAY` = `$ARGUMENTS`, else tomorrow's date in Central time.
 2. Read `DAY`'s row from the plan Sheet (brand.json `drive.plan_sheet`, the month's tab) through the Google Sheets connector, as Katie may have edited it; save it as `JOB/work/plan_row.json`. No row: nothing is planned; log it and stop (build-today makes an evergreen reel).
 3. Closure check: `DAY` in `STATE/closures.json` (or the Closures Sheet, brand.json `closures.location`) and the row invites people in (an offer, a teaser, a booking CTA): swap now (section 4, move 3) or turn the day into a non-inviting evergreen reel (make-reel failure row F13). Re-run the plan check afterwards.
-4. Stories and carousel rows need nothing filmed: check that the reel they come from (`derived_from`, else the latest reel) exists in `Finished/` or will be built first, then go to section 5.
+4. Rows with nothing to film (config `post_types`): Stories and a `carousel_source` reel carousel need the reel they come from (`derived_from`, else the latest reel) in `Finished/` or built first; a photo carousel (`carousel_source` photos) or single photo (`image`) needs 2-10 (or 1) usable photos in the day folder or the media library that pass the librarian's people rules (agents/librarian.md section 5; none: queue a library query or swap the topic, section 4); a component carousel (`carousel_source` component) needs nothing but the plan row. Then go to section 5.
 
 ## 2. Compare the folder with its card (librarian)
 
@@ -40,7 +40,7 @@ Voiceovers are often read back to back for the whole week (R183). Before calling
 
 For every item on `missing` (and every `unusable` item that a card line depends on), send the **scout** (agents/scout.md) with the line it serves. Claude in Chrome works only while Katie's Mac is awake; in the cloud the scout uses web search and fetch (failure row F17). Its finds land in `JOB/raw/scout/` with their licenses recorded.
 
-**Claude in Chrome (R342).** Check first that the `mcp__claude-in-chrome__*` tools are visible and answer a harmless call (read the open tab's title). Visible: drain the queue first (commands/chrome-queue.md section 3; a cloud run takes only the non-posting kinds), then the scout searches NUMA's signed-in channels. Not visible: the scout uses web search now, section 4 decides tonight as usual, and the lines still without a shot are queued for a signed-in search before the 5 am build (the build uses whatever lands in the day folder's `scout/`):
+**Claude in Chrome (R342).** Check first that the `mcp__claude-in-chrome__*` tools are visible and answer a harmless call (read the open tab's title). Visible: drain the queue first (commands/chrome-queue.md section 3; a cloud run takes only the non-posting kinds), then the scout searches Numa's signed-in channels. Not visible: the scout uses web search now, section 4 decides tonight as usual, and the lines still without a shot are queued for a signed-in search before the 5 am build (the build uses whatever lands in the day folder's `scout/`):
 ```
 python3 "$S/chrome_queue.py" add --kind scout_research --payload '{"for": "Day 10", "what": "line 4: sauna glowing, empty", "save_to": "Day 10 - 2026-12-10 - Cold snap calm/scout"}' --deadline 2026-12-10T04:30:00-06:00 --fallback "Tonight's section 4 substitute stands" --state "$STATE" --json
 ```
@@ -52,13 +52,13 @@ Work each row left to right (the same moves as commands/make-reel.md section 4) 
 | Still missing | Move 1 | Move 2 | Move 3 |
 |---|---|---|---|
 | One or more shots | `python3 "$S/library.py" query --index "$STATE/media_library.json" --tags "<line topic>" --usable --orientation vertical --limit 8 --json`, then bundled brand photos (brand.json `assets.brand_photos_dir`) | the **scriptwriter** rewrites only the lines that lost their shot, to fit what exists (numa-scriptwriter skill, "Missing material"), then `shoot_card.py script` | swap with a later day whose material is ready |
-| Voiceover | generated voice per F1 (clone only when brand.json `consent.voice_clone` is true, else a preset voice) | music-only reel with the script on screen (F1 move 3) | swap with a later day |
+| Voiceover | Scott's take for this day in another folder of the week (above), else F1: a generic, non-cloned voice only when brand.json `voice.generic_ai_allowed.value` is true, never a clone | music plus on-screen text (F1 move 3) | swap with a later day |
 | Music | nothing to do tonight: build day uses folder > card track > Higgsfield > Music Library > natural sound (F2) | | |
 | Everything (empty folder) | topic-only mode (F16) from the row | swap with a later day that has material | an evergreen library reel |
 
 **Swap with a later day** (topic swap): pick the nearest later row whose folder is complete and whose move keeps the plan valid; exchange the two rows' dates in the Sheet, rename both day folders to their new `Day NN - YYYY-MM-DD - Title`, re-render both SHOOT CARDs (`python3 "$S/shoot_card.py" card ...`), and run `python3 "$S/shoot_card.py" check "$STATE/plans/plan_YYYY-MM.json" --closures "$STATE/closures.json"` (rules 1, 7 and 8 must still pass; a failed check means pick another day).
 
-## 5. Update the row and tell Katie
+## 5. Update the row and tell Katie (one final message)
 
 - Material complete (card shots present, voiceover present or decided): Sheet Status `Ready to build`. Some of it filmed: `Shot`. Write `JOB/work/night_check.json` {day, missing, found_by_scout, substitutes, swap, status}.
 - Send one heads-up only when something changed; it is a statement, never a question, and never asks her to film:
@@ -66,11 +66,12 @@ Work each row left to right (the same moves as commands/make-reel.md section 4) 
   Heads-up for tomorrow (Day 10, Cold snap calm): no plunge clip in the folder, so Claude is using the library's plunge shot and a generated music bed. Nothing for you to do.
   ```
   Send it as the run's final message (the scheduled task's notification), and add the same line to `STATE/digest_notes.json` `heads_ups` for Sunday's digest.
-- Nothing missing: no message; log "all material present".
+- Nothing missing: no heads-up; log "all material present".
+- The run's final message also carries section 7's approver line when there is one (one notification per run, never one per post).
 
 ## 6. Watchdog (R341)
 
-After section 5's Sheet update and before the run's final message (Katie's heads-up stays the final message), check the last 7 days of scheduled runs:
+After section 5's Sheet update and before the run's final message (Katie's heads-up and the approver line stay the final message), check the last 7 days of scheduled runs:
 ```
 python3 "$S/runlog.py" check --state "$STATE" --json --mark-reported <RUN_ID>
 ```
@@ -87,6 +88,11 @@ Act on every problem with `"new": true` by its `action`:
 
 Then send **Jude one line** through the escalation channel in `STATE/brand.json` (DECISIONS D19) naming the new problems and what was done, for example: "NUMA Studio watchdog: Build today missed Tue Nov 10 (day rescheduled); Dashboard refresh failed Sat Nov 7 (Composio unreachable; next run catches up). Fix: none unless it repeats; then check the task in the Claude app's Scheduled list." **Katie gets nothing:** the watchdog line never goes in this run's final message (that message is Katie's notification) and never in her heads-up. No new problems: no line.
 
+## 7. Story pulls and the approval re-check (before the final message)
+
+1. **Story pulls.** This 8 pm run is one of the four Story pull runs (5 am, 12:40 pm, 8 pm, 10 pm; docs/SCHEDULED_TASKS.md "Story capture timing"): sync `STATE/metrics.json` from Drive, run commands/dashboard-refresh.md section 2 for the due items whose `post_type` is `story` only (a Story posted at 9 am is 11 h old now and is caught at 10 pm; one posted at 5 pm yesterday is past 24 h and `metrics.py due` no longer lists it), then upload `metrics.json` and `insights/`.
+2. **Approvals (DECISIONS D26).** Run commands/post-reel.md section 13 (`approvals`): every staged post whose plan row now reads Approved posts at its planned time, or at the next slot when that time has passed; every post still waiting goes on the approver's one batched line, which joins this run's final message (section 5). It never posts an unapproved row and asks nobody anything.
+
 ## Done means
 
-Tomorrow's row is `Ready to build` (or swapped, with both folders and cards updated), every decision is in `JOB/work/decisions.md`, any heads-up is sent, the watchdog ran and the run is finished in the run log. Nobody was asked anything.
+Tomorrow's row is `Ready to build` (or swapped, with both folders and cards updated), every decision is in `JOB/work/decisions.md`, due Story pulls are stored, approved posts are scheduled or posted and waiting ones are on the approver's line, any heads-up is sent, the watchdog ran and the run is finished in the run log. Nobody was asked anything.
