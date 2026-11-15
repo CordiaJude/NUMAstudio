@@ -90,7 +90,7 @@ import numa_common as nc  # noqa: E402
 import engine_media as em  # noqa: E402
 import engine_text as et  # noqa: E402
 
-ENGINE_VERSION = "2.0.0"
+ENGINE_VERSION = "2.1.0"
 
 # Transition timings (spec p.19)
 PUNCH_S, PUNCH_ZOOM, PUNCH_LIFT = 0.22, 0.16, 0.28

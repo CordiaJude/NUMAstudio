@@ -401,7 +401,7 @@ def test_slug_job_paths_and_deliverables(nc, tmp_path):
     assert jp.plan == jp.work / "plan.json" and jp.analysis == jp.work / "analysis.json"
     assert jp.deliverable("reel").name == "day-07-2026-12-09-your-first-plunge_reel.mp4"
     assert nc.deliverable_name("year-one", "story", 2, "mp4") == "year-one_story_2.mp4"
-    assert nc.deliverable_name("year-one", "carousel", 1) == "year-one_carousel_1.jpg"
+    assert nc.deliverable_name("year-one", "carousel", 1) == "year-one_carousel_01.jpg"
     assert nc.deliverable_name("year-one", "srt") == "year-one.srt"
     assert nc.deliverable_name("year-one", "cover") == "year-one_cover.jpg"
     with pytest.raises(nc.UserError):
