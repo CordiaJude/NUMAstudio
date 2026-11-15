@@ -87,7 +87,7 @@ def test_cli_outputs_and_csv(nc, tmp_path, capsys):
     args = ["--metrics", str(m), "--plan-rows", str(csv_f), "--today", "2026-11-15"]
     assert run(args + ["--out", str(out), "--text", str(txt)]) == 0
     text = txt.read_text()
-    assert text.startswith("NUMA MONDAY DIGEST · week of Nov 16")
+    assert text.startswith("Numa Monday digest · week of Nov 16")
     for part in ("1. LAST WEEK", "Your first plunge: 2,400 views, 15.0 s avg watch, 30 sends", "Best: Your first plunge",
                  "3. THIS WEEK", "Mon Nov 16: Ask the DPT", "4. SHOOT LIST", "SAUNA", "OUTSIDE"):
         assert part in text
@@ -121,16 +121,16 @@ def test_errors(nc, tmp_path):
 def test_us_dates_and_tidy_shots(nc, tmp_path):
     csv_f = tmp_path / "plan.csv"
     csv_f.write_text("Day,Date,Title,Status,Shot list\n"
-                     "15,11/16/2026,Ask the DPT,Planned,\"[class studio] Fallon on the mat, morning\nroom: sauna | wide of the benches\"\n"
+                     "15,11/16/2026,Ask the DPT,Planned,\"[class studio] A guide on the mat, morning\nroom: sauna | wide of the benches\"\n"
                      "16,11/17/26,Carousel,Planned,No filming needed\n")
     rows = dd.load_rows(str(csv_f))
     assert [r["date"] for r in rows] == [dd.date(2026, 11, 16), dd.date(2026, 11, 17)]
     d = dd.assemble(store(), rows, None, {}, dd.date(2026, 11, 15))
     shots = {g["room"]: [s["shot"] for s in g["shots"]] for g in d["shoot_list"]["rooms"]}
-    assert shots == {"sauna": ["wide of the benches"], "class studio": ["Fallon on the mat, morning"]}
+    assert shots == {"sauna": ["wide of the benches"], "class studio": ["A guide on the mat, morning"]}
     text = dd.text_draft(d)
     assert "[class studio]" not in text and "morning · morning" not in text
-    assert "Fallon on the mat, morning · Day 15" in text
+    assert "A guide on the mat, morning · Day 15" in text
     best = d["last_week"]["best"]["signals"]
     assert all(not any(len(n.split(".")[-1]) > 1 for n in sig.replace("%", "").split() if n[:1].isdigit() and "." in n)
                for sig in best)
@@ -141,3 +141,54 @@ def test_bad_us_date(nc, tmp_path):
     f.write_text("Date,Title\n13/45/2026,x\n")
     with pytest.raises(nc.UserError):
         dd.load_rows(str(f))
+
+
+def test_waiting_for_approval_learned_and_post_types(nc, tmp_path):
+    """D26: staged rows wait for a person's approval and the digest lists them; R350: "What we learned"."""
+    rows = ROWS[:-1] + [
+        {"Day": "14", "Date": "2026-11-15", "Title": "Steam at dawn", "Status": "Ready to post", "Post type": "image"},
+        {"Day": "19", "Date": "2026-11-20", "Title": "Offer week", "Status": "Ready to post"},
+        {"Day": "20", "Date": "2026-11-21", "Title": "Approved one", "Status": "Approved - SM"},
+        {"Day": "30", "Date": "2026-11-30", "Title": "Next week", "Status": "Ready to post"},
+    ]
+    rows_f = tmp_path / "rows.json"
+    rows_f.write_text(json.dumps(rows))
+    st = store()
+    st["reels"]["b"]["tags"]["post_type"] = "carousel"
+    learned_f = tmp_path / "strategy_changes.txt"
+    learned_f.write_text("Strategy update 2026-11-14 (6 posts judged: 4 final, 2 provisional; data-led share 20%)\n"
+                         "What changed:\n- plunge-entry promoted: 6 of 8 wins\nDo more of:\n- (nothing clear yet)\n"
+                         "Do less of:\n- (nothing clear yet)\n")
+    brief = {"do_more": ["Hot/cold contrast hooks"], "do_less": ["(nothing clear yet)"],
+             "changes": [{"date": "2026-11-12", "action": "retire", "target": "x", "why": "graphic-quote retired: 1 of 6 wins"},
+                         {"date": "2026-10-01", "action": "retire", "target": "y", "why": "too old"}]}
+    d = dd.assemble(st, dd.load_rows(str(rows_f)), None,
+                    {"awaiting_approval": ["Offer week is staged and waits for approval", "Members' night recap waits for a member's yes"]},
+                    dd.date(2026, 11, 15), str(learned_f), brief)
+    titles = [a.get("title") or a.get("note") for a in d["awaiting_approval"]]
+    assert titles == ["Steam at dawn", "Offer week", "Members' night recap waits for a member's yes"]
+    assert d["awaiting_approval"][0]["post_type"] == "image"
+    assert d["learned"] == {"as_of": "Strategy update 2026-11-14 (6 posts judged: 4 final, 2 provisional; data-led share 20%)",
+                            "changes": ["plunge-entry promoted: 6 of 8 wins", "graphic-quote retired: 1 of 6 wins"],
+                            "do_more": ["Hot/cold contrast hooks"], "do_less": []}
+    assert {r["reel"]: r["post_type"] for r in d["last_week"]["reels"]}["b"] == "carousel"
+    text = dd.text_draft(d)
+    assert text.index("STAGED FOR APPROVAL") < text.index("1. LAST WEEK")
+    assert "- Sun Nov 15: Steam at dawn (photo)" in text
+    assert "Next week" not in text.split("1. LAST WEEK")[0]          # only up to the end of this week... (Nov 22)
+    assert "Sauna vs infrared (carousel): 900 views, 2 saves" in text   # no watch time for a carousel
+    assert "What we learned:" in text and "- Do more: Hot/cold contrast hooks" in text
+    assert "NUMA" not in text
+
+
+def test_cli_learned_and_brief_flags(nc, tmp_path):
+    m = tmp_path / "metrics.json"
+    m.write_text(json.dumps(store()))
+    rows_f = tmp_path / "rows.json"
+    rows_f.write_text(json.dumps(ROWS))
+    brief = tmp_path / "brief.json"
+    brief.write_text(json.dumps({"do_more": ["Walk-out lines"], "do_less": []}))
+    out = tmp_path / "d.json"
+    assert run(["--metrics", str(m), "--plan-rows", str(rows_f), "--today", "2026-11-15", "--brief", str(brief),
+                "--learned", str(tmp_path / "missing.txt"), "--out", str(out)]) == 0
+    assert json.loads(out.read_text())["learned"]["do_more"] == ["Walk-out lines"]

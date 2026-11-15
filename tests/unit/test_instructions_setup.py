@@ -266,12 +266,18 @@ def question_rows(text: str) -> dict[int, str]:
     return rows
 
 
+# brand-setup asks these reworded (owners' answers 2026-11-13, D25/D26/D27): never the clone or lawyer questions again
+ASK_NOW = {28: "Who records the voiceovers", 47: "57 minutes of sauna", 51: "the owners skipped the advertising-lawyer review"}
+
+
 @pytest.mark.parametrize("doc", ["brand-setup", "questions"])
 def test_all_51_questions_in_order_with_keys(doc, texts, brand):
     text = texts[doc]
     rows = question_rows(text)
     assert sorted(rows) == list(range(1, 52)), doc
     for n, phrase in enumerate(QUESTIONS, 1):
+        if doc == "brand-setup" and n in ASK_NOW:
+            phrase = ASK_NOW[n]
         assert phrase in rows[n], f"{doc} Q{n}: {phrase!r} missing"
     # every question names at least one brand.json key
     if doc == "brand-setup":
@@ -287,6 +293,11 @@ def test_all_51_questions_in_order_with_keys(doc, texts, brand):
 def test_question_texts_match_between_docs(texts):
     a, b = question_rows(texts["brand-setup"]), question_rows(texts["questions"])
     for n in range(1, 52):
+        if n in ASK_NOW:   # QUESTIONS_FOR_KATIE keeps the original question; brand-setup asks the reworded one
+            cell = a[n].split(" | ")[0].strip()
+            assert cell.startswith(("**Ask now:**", "**Do not ask:**")), f"Q{n}"
+            assert "cloned version of your voice" not in cell and "lawyer's OK" not in cell, f"Q{n}"
+            continue
         assert a[n].split(" | ")[0].strip() == b[n].rstrip(" ").rstrip(), f"Q{n} differs"
 
 
@@ -300,7 +311,8 @@ def test_brand_setup_rules(texts, brand):
     # defaults the spec fixes are the shipped values
     assert brand["consent"]["children"]["value"] == "never"
     assert brand["posting"]["auto_post"]["value"] is True
-    assert brand["posting"]["see_first"]["value"] == []
+    # owners' answers (2026-11-13, Q35): member posts need the member's yes first
+    assert brand["posting"]["see_first"]["value"] == ["members"]
 
 
 # ---------------------------------------------------------------------------
@@ -347,15 +359,22 @@ def test_post_reel_composio_tools(texts, config):
 
 def test_post_reel_gates_and_flow(texts, brand):
     t = texts["post-reel"]
-    for key in ("posting.auto_post.value", "posting.legal_review_done.value",
-                "posting.require_approval.value", "posting.see_first.value"):
+    # owners' answers (2026-11-13, DECISIONS D26): the lawyer gate is gone; human approval, then the member's yes
+    keys = ("posting.auto_post.value", "posting.human_approval_required.value", "posting.require_approval.value",
+                "posting.see_first.value", "posting.member_yes_required.value")
+    for key in keys:
         assert f"`{key}`" in t and resolve(brand, key), key
-    gates = [t.find(k) for k in ("`posting.auto_post.value`", "`posting.legal_review_done.value`",
-                                 "`posting.require_approval.value`")]
+    gates = [t.find(f"`{k}`") for k in keys if k != "posting.see_first.value"]
     assert gates == sorted(gates)
-    assert brand["posting"]["require_approval"]["value"] is False  # the switch ships off
-    assert brand["posting"]["legal_review_done"]["value"] is False
-    for needle in ["off by default", "escalation.contact", "`instagram.publishing_limit_per_24h`",
+    assert "legal_review_done" not in t and "staged_legal" not in t
+    assert "Approved" in t and "held_for_approval" in t and "`approval`" in t
+    # owners' answers (2026-11-13, DECISIONS D26): nothing goes out without a person approving it, and the
+    # lawyer review is waived (kept as an open gate so post-reel's legacy gate 3 doesn't block)
+    assert brand["posting"]["require_approval"]["value"] is True
+    assert brand["posting"]["human_approval_required"]["value"] is True
+    assert brand["posting"]["legal_review_done"]["value"] is True
+    assert brand["posting"]["legal_review_done"]["waived"] is True
+    for needle in ["held_for_approval", "escalation.contact", "`instagram.publishing_limit_per_24h`",
                    "`instagram.container_max_age_hours`", "never reuse", "`instagram.publish_wait_minutes`",
                    "sleep 180", "Composio file staging", "Drive public link", "video/mp4", "publicly fetchable",
                    "`posting.posting_time`", "5:00 pm Central", "Facebook", "Meta Business Suite",
@@ -381,7 +400,7 @@ def test_setup_guide(texts, config):
     for needle in ["Max", "Keep computer awake", "Run on startup", "CordiaJude/numa-studio", "Google Drive",
                    "Higgsfield", "Composio", "Business or Creator", "Gmail", "Claude in Chrome", "Consent List",
                    "Closures", "voice sample", "/numa-setup", "/brand-setup", "Golden test", "SCHEDULED_TASKS.md",
-                   "Account fixes", "NUMA | Sauna + Cold Plunge Mobile AL", "One phone number everywhere",
+                   "Account fixes", "Numa | Sauna + Cold Plunge Mobile AL", "One phone number everywhere",
                    "Google Business Profile", "AI label", "Monthly cost", "$100", "$0 (free Hobby plan)",
                    "about $150-160 a month", "blocking inputs", "lawyer", "Verify these first",
                    "Research prompts", "every quarter", "`higgsfield.prices_verified_on`"]:
@@ -422,3 +441,122 @@ def test_setup_questions_go_to_jude_only(texts):
     assert "never ask" in t.lower() or "never asked of Katie" in t
     asks = [ln for ln in t.splitlines() if re.search(r"\bask\b", ln, re.I)]
     assert all("Jude" in ln or "never" in ln.lower() or "only" in ln.lower() or "once" in ln.lower() for ln in asks), asks
+
+
+# ---------------------------------------------------------------------------
+# /post-reel: carousels and single photos (R333, R335)
+# ---------------------------------------------------------------------------
+IMAGE_POST_TOOLS = ["INSTAGRAM_POST_IG_USER_MEDIA", "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH",
+                    "INSTAGRAM_CREATE_CAROUSEL_CONTAINER", "INSTAGRAM_GET_IG_USER_CONTENT_PUBLISHING_LIMIT",
+                    "INSTAGRAM_GET_IG_USER_MEDIA", "INSTAGRAM_GET_IG_MEDIA", "FACEBOOK_CREATE_MULTI_PHOTO_POST",
+                    "FACEBOOK_CREATE_PHOTO_POST", "FACEBOOK_LIST_MANAGED_PAGES"]
+
+
+def _section12(texts) -> str:
+    t = texts["post-reel"]
+    start = t.find("## 12. Carousels and single photos")
+    assert start > 0
+    return t[start:]
+
+
+def test_post_reel_describes_all_post_types():
+    fm = frontmatter(CMD["post-reel"])
+    assert "posts reels, carousels and photos" in fm["description"]
+    assert "carousel or photo" in fm["argument-hint"]
+
+
+def test_post_reel_image_tools_and_fields(texts):
+    sec = _section12(texts)
+    for tool in IMAGE_POST_TOOLS:
+        assert re.search(rf"\*\*{tool}\*\*|\b{tool}\b", sec), tool
+    for field in ("`image_url`", "`image_file`", "`is_carousel_item` true", "`alt_text`", "`media_type` CAROUSEL",
+                  "`children`", "`creation_id`", "`caption`", "`photo_urls`", "`page_id`", "`graph_api_version`"):
+        assert field in sec, field
+    # the carousel order: children, then the CAROUSEL parent, then publish
+    car = sec[sec.find("| Carousel (2-10 slides) |"):]
+    car = car[:car.find("\n")]
+    assert car.find("`is_carousel_item` true") < car.find("`media_type` CAROUSEL") < car.find(
+        "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH")
+    single = sec[sec.find("| Single photo (IMAGE) |"):]
+    single = single[:single.find("\n")]
+    assert "no `media_type`" in single and "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH" in single
+
+
+def test_post_reel_image_gates_and_rules(texts, brand, config):
+    sec = _section12(texts)
+    gates = [sec.find(f"`{k}`") for k in ("posting.auto_post.value", "posting.human_approval_required.value",
+                                           "posting.require_approval.value", "posting.see_first.value",
+                                           "posting.member_yes_required.value")]
+    assert all(g >= 0 for g in gates) and gates == sorted(gates)
+    for key in ("instagram.publishing_limit_per_24h", "instagram.container_max_age_hours", "instagram.graph_api_version"):
+        assert f"`{key}`" in sec and resolve(config, key), key
+    for needle in ["counts as **one** post", "same run", "never publish an old container", "AI label",
+                   "Drive public link", "image/jpeg", "Composio file staging", "1,000 characters",
+                   "Status `Posted`", "permalink", "post_type", "metrics.py\" tag", "--post <media_id>",
+                   "Facebook never blocks Instagram", "Meta Business Suite", "Never publish the same carousel or photo twice",
+                   "code 9007", "section 8", "never a question", "STATE/consent_list.json", "--blur-faces",
+                   "photo_post.py\" carousel", "photo_post.py\" single", "LOOK at every slide",
+                   "`--people-free`", "only ever says yes", "Never pass `--people-free` for a photo you have not looked at",
+                   "`people_basis`", "Consent recorded as no", "never blurred, never posted", "other than `people_free_flag` or `library_tag_no`", "`max_wait_seconds`",
+                   '"mimetype": "image/jpeg"', "`s3key`",
+                   "_carousel_NN.jpg", "read as a number", "Never ask Katie anything"]:
+        assert needle in sec, needle
+    assert "socials.facebook" in sec and resolve(brand, "socials.facebook")
+
+
+def test_post_reel_reel_flow_unchanged(texts):
+    """The reel sections keep their numbers and order; the new sections come last (12 carousels and photos,
+    13 the approval re-check, DECISIONS D26)."""
+    t = texts["post-reel"]
+    heads = re.findall(r"^## (\d+)\. ", t, re.M)
+    assert heads == [str(i) for i in range(1, 14)]
+    assert "media_type` = config `instagram.media_type` (REELS)" in t
+
+
+def test_post_reel_post_types_match_metrics():
+    import metrics
+    sec = body(CMD["post-reel"])
+    assert "reel, carousel, image, story, trial_reel" in sec
+    assert tuple("reel, carousel, image, story, trial_reel".split(", ")) == metrics.POST_TYPES
+
+
+def test_post_reel_prefers_public_urls(texts):
+    sec = _section12(texts)
+    step = sec[sec.find("**3. Public image URLs**"):sec.find("**4. Limits")]
+    assert step.find("Drive public link (first choice, `image_url`)") < step.find("Composio file staging (fallback, `image_file`)")
+
+
+# ---------------------------------------------------------------------------
+# R339, R343: setup bootstraps with ensure_env and verifies every task in the run log
+# ---------------------------------------------------------------------------
+def test_numa_setup_bootstrap_and_task_verification(texts):
+    t = texts["numa-setup"]
+    step1 = t[t.find("## 1."):t.find("## 2.")]
+    assert 'ensure_env.py" --with-model --with-chromium' in step1 and "--break-system-packages" in step1
+    sec = t[t.find("## 10. Scheduled tasks"):t.find("## 11.")]
+    for needle in ["nine scheduled tasks", "Quarterly research re-check", "0 10 12 2,5,8,11 *", "Chrome queue",
+                   "Story insights + approval re-check", "40 12 * * *",
+                   "local (desktop) scheduled task", "never in the cloud", "Run now", "`SINCE`",
+                   'runlog.py" check --since "<SINCE>" --tasks', "(not run)", "Leave the schedule off",
+                   "do not expand", "copied **exactly**", 'runlog.py" merge-dir "$STATE/runlog.drive"',
+                   "`WARN:` (finished `partial`", "**Nothing posts during this round:**",
+                   "leave that row unapproved", "**off** for the quarterly reminder"]:
+        assert needle in sec, needle
+    ids = re.search(r"--tasks ([a-z_,]+)", sec).group(1).split(",")
+    assert ids == ["plan_month", "night_check", "build_today", "dashboard_refresh", "trend_check", "digest",
+                   "quarterly_research", "story_pulls", "chrome_queue"]
+
+
+def test_setup_guide_nine_tasks_and_runlog_check(texts):
+    t = texts["guide"]
+    for needle in ["Create the nine scheduled tasks", "| Quarterly research re-check |", "| Chrome queue |",
+                   "| Story insights + approval re-check |", "12-22 h insight window", "playwright install --with-deps chromium",
+                   "**Approval on the plan Sheet**", "_Plan/people.json", "no cloned voices",
+                   "**Desktop** (Katie's Mac)", "Cloud or desktop.", "only while the Mac is awake",
+                   "Check the run log", "runlog.py check --since", "`ensure_env.py`", "`WARN:`",
+                   "a post goes out only after a person approves it", "fallback that never publishes",
+                   "posts nothing", "**off** for the quarterly reminder and the Chrome queue"]:
+        assert needle in t, needle
+    assert "plan, build and post every reel" not in t and "built and posted" not in t
+    assert "**Who approves posts** (DECISIONS D26" in t and "A lawyer's one-time review" not in t
+    assert "six scheduled tasks" not in t

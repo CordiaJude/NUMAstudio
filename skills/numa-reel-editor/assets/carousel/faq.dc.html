@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{slide_title}}</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@200..700&amp;family=Nunito+Sans:wght@300..800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:{{color.ink}}}a:hover{color:{{color.ink}}}
+</style>
+</helmet>
+<!--slide-->
+<div data-slide="{{component}}" style="width: 1080px; height: 1350px; box-sizing: border-box; padding: 96px 96px 80px; display: flex; flex-direction: column; gap: 48px; overflow: hidden; background: {{color.bg}}; color: {{color.ink}}; font-family: 'Nunito Sans', 'Avenir Next', Avenir, sans-serif">
+<div style="display: flex; align-items: center; gap: 18px; height: 40px; flex-shrink: 0">
+<div style="width: 48px; height: 4px; flex-shrink: 0; background: {{color.accent}}"></div>
+<p data-fit="kicker" style="margin: 0; max-width: 820px; overflow: hidden; white-space: nowrap; font-size: 26px; line-height: 40px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: {{color.ink}}">{{kicker}}</p>
+</div>
+<div data-fit="content" style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 64px">
+<h2 data-fit="question" style="margin: 0; max-height: 372px; overflow: hidden; font-family: 'Hanken Grotesk', 'Helvetica Neue', Arial, sans-serif; font-size: 124px; line-height: 124px; font-weight: 300; color: {{color.ink}}; letter-spacing: -0.02em; text-wrap: balance">{{question}}</h2>
+<div style="width: 120px; height: 4px; flex-shrink: 0; background: {{color.accent}}"></div>
+<p data-fit="answer" style="margin: 0; max-height: 438px; overflow: hidden; font-family: 'Nunito Sans', 'Avenir Next', Avenir, sans-serif; font-size: 50px; line-height: 73px; font-weight: 400; color: {{color.ink}}; text-wrap: pretty">{{answer}}</p>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 32px; height: 72px; flex-shrink: 0; box-sizing: border-box; border-top: 2px solid {{color.rule}}; padding-top: 26px">
+<p style="margin: 0; font-size: 28px; line-height: 44px; font-weight: 400; letter-spacing: 0.02em; color: {{color.ink}}">{{brand_name}}</p>
+<p style="margin: 0; font-size: 28px; line-height: 44px; font-weight: 600; letter-spacing: 0.08em; color: {{color.ink}}">{{page}}</p>
+</div>
+</div>
+<!--/slide-->
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":1350}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

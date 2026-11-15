@@ -1,0 +1,187 @@
+{
+  "_readme": "Starting policies for the strategy engine, all tunable. Scoring and learning are R6 (docs/research/R6_Learning_loop.md), adopted as defaults: per-reach rates, a log2 index against the trailing median of the last 20 same-format posts (only posts at least 7 days old), clipped at +/-2; composite S; win = S > 0; discounted Beta-Bernoulli Thompson sampling. Judging windows are R7 (docs/research/R7_Judging_windows.md). Mix and cadence are R2 inside the spec's planning rules (4-5 feed posts a week, one sales post a week; spec p.34). Offer rules are R4 corrected by docs/research/REVIEW.md (Numa's facts win). Thresholds marked 'heuristic (R6)' are reasoned starting settings: re-check them against Numa's own data after a quarter. Planning rules (shoot_card.py check) and brand.json always override these numbers.",
+  "schema_version": 1,
+  "kind": "policies",
+  "policies": {
+    "post_types": {
+      "reel": {"role": "Discovery: reach new local people; the most sends.", "default_goal": "reach",
+               "evidence": {"level": "measured", "sources": ["docs/research/R2_Formats_and_mix.md (post-type table: Metricool/HypeAuditor 700M posts; Buffer 4M+; Socialinsider 35M)"], "confidence": "high"}},
+      "trial_reel": {"role": "Hook tests on non-followers, on top of the feed count; compared only with other Trial Reels.", "default_goal": "reach",
+                     "evidence": {"level": "measured", "sources": ["docs/research/R2_Formats_and_mix.md (Instagram Creators blog Dec 10 2024; Meta Newsroom Jun 12 2025)", "docs/research/R6_Learning_loop.md section 7"], "notes": "Meta's figures are self-reported.", "confidence": "medium"}},
+      "carousel": {"role": "Saves and per-viewer depth: how-tos, first-visit guides, offer explainers.", "default_goal": "saves",
+                   "evidence": {"level": "measured", "sources": ["docs/research/R2_Formats_and_mix.md (Socialinsider 0.55% ER; Buffer 6.9% engagement by reach; Metricool 9x the saves of images)"], "confidence": "high"}},
+      "image": {"role": "Announcements and quick community moments of real people; weakest reach.", "default_goal": "reach",
+                "evidence": {"level": "measured", "sources": ["docs/research/R2_Formats_and_mix.md (Metricool: 23 vs 134 median views for Reels under 1K followers)"], "notes": "Owners' data: graphics and posters flopped; real people worked (REVIEW.md).", "confidence": "high"}},
+      "story": {"role": "Retain members; same-day reminders; captured before 24 h.", "default_goal": "reach",
+                "evidence": {"level": "measured", "sources": ["docs/research/R2_Formats_and_mix.md (Socialinsider Stories 160K; Mosseri 2021 about 2 a day)"], "confidence": "medium"}}
+    },
+    "cadence": {
+      "feed_per_week": {"value": 5, "min": 4, "max": 5},
+      "trial_per_week": {"value": 1, "min": 1, "max": 2},
+      "approval_capacity_per_week": 5,
+      "stories": "1-3 a day on most days (R2 C5); never a full week dark (R2 C2); at most one feed post a day, 24 h apart (R2 C4, opinion).",
+      "never_dark_week": true,
+      "evidence": {"level": "measured", "sources": ["docs/research/R2_Formats_and_mix.md cadence rules C1-C8 (Buffer 2.1M posts, correlational)", "spec p.33-34 (4-5 feed posts, 1-2 Trial Reels a week)"], "notes": "R2 says 3-5 feed posts; the spec's 4-5 is the planning rule.", "confidence": "medium"}
+    },
+    "feed_mix": {
+      "reel": {"prior": 0.6, "min": 0.5, "max": 0.85, "min_with_evidence": 0.4},
+      "carousel": {"prior": 0.33, "min": 0.1, "max": 0.5, "max_with_evidence": 0.6},
+      "image": {"prior": 0.07, "min": 0.0, "max": 0.2, "max_with_evidence": 0.4},
+      "evidence": {"level": "measured", "sources": ["docs/research/R2_Formats_and_mix.md (Reels 55-60%, carousels 30-35%, single photos <=10% of feed posts)"], "notes": "Shares are R2's and soft: min/max hold until a format beats reels at an R6-grade bar (at least 12 final posts each, P(its pooled win rate beats the reels') >= 0.95 and a median index >= 1.25x), then *_with_evidence widen them (images up to 40% of the feed). A format-test slot a week tries the least-tried format until it has the 8 tries R6 needs.", "confidence": "medium"}
+    },
+    "hour_bands": {
+      "bands": {
+        "morning": {"hours": [5, 9], "post_at": "07:00"},
+        "midday": {"hours": [10, 14], "post_at": "12:00"},
+        "late_afternoon": {"hours": [15, 17], "post_at": "16:30"},
+        "evening": {"hours": [18, 23], "post_at": "18:00"}
+      },
+      "default": "late_afternoon",
+      "evidence": {"level": "opinion", "sources": ["spec p.34 (start late afternoon Central)", "docs/research/R2_Formats_and_mix.md section 3 (studies conflict; rotate 7 a.m., 12 p.m., post-work; 8-10 posts a slot before acting)", "docs/research/R6_Learning_loop.md section 6 (time slot last, blocked rotation, >= 1.25x over >= 8 posts each)"], "confidence": "low"}
+    },
+    "offers": {
+      "max_sales_per_week": 1,
+      "offers_per_month": [2, 3],
+      "offer_week_outcome": {"metric": "composite", "next": "bookings_per_1000_reach", "note": "Offer weeks are judged on the composite score today. v2.2 hook-up: once the Growth Analyst stores bookings per campaign, the offer-week arm switches to bookings per 1,000 reach. With 2-3 offers a month, learning the best week of the month takes many months; the brief says so."},
+      "rules": [
+        "Frequency: offer-led feed posts about 15-20% of the feed (2-3 a month), never more than one sales post a week (R4 rule 1, moderate; spec p.34).",
+        "Timing: the first week of the month and around paydays (days 1-5 and 14-16), or the last week for 'next month' (R2 measured for spending, low for Instagram; R4 rule 2 anecdotal).",
+        "Formats: lead with a carousel or a Reel; single photos only as reminders; a permanent 'New here?' Story highlight (R4 rule 3, moderate).",
+        "Framing: the experience and reassurance first ('what your first visit looks like'), then the offer; never lead with a deal (R4 rule 4, moderate).",
+        "Deadlines and scarcity only when true at posting time; no reset countdowns, no 'only 3 spots left' (R4 rules 5-6, strong: FTC dark patterns).",
+        "No 'normally $X' unless it is a bona fide recent price (R4 rule 7, strong: 16 CFR 233.1).",
+        "Discover Numa ends on its own: one time, no commitment; say so instead of renewal terms (REVIEW.md overrides R4 rule 8).",
+        "No outcome promises and no before/after of bodies (R4 rule 10, strong; brand.json claims).",
+        "Testimonials: real members with a yes on record, experience only, comps disclosed (R4 rules 11-12, strong).",
+        "No engagement bait: no 'comment YES', no 'tag 3 friends' (R4 rule 13, moderate).",
+        "Only offers in brand.json offerings.offers; never invent an offer, code, paid boost or partnership; the private email code is never public (REVIEW.md).",
+        "Don't send new people to Saturday mornings (often full); point them to weekdays (REVIEW.md).",
+        "Nothing that invites people in on a closure day (spec p.34 rule 8)."
+      ],
+      "evidence": {"level": "measured", "sources": ["docs/research/R4_Carousels_photos_offers.md (c) offer-post rules", "docs/research/R2_Formats_and_mix.md section 4", "docs/research/REVIEW.md"], "notes": "Legal rules are strong (FTC); frequency and timing are moderate or anecdotal.", "confidence": "medium"}
+    },
+    "scoring": {
+      "rates": "Every metric divided by reach (R6 section 2): sends, saves, follows, profile visits, link clicks per reach; watch-through = average watch time / length; carousels and images use views per reach instead of watch-through.",
+      "baseline": {"window_posts": 20, "min_age_days": 7, "min_posts": 3},
+      "index_clip_log2": 2,
+      "composite": {"sends": 0.3, "follows": 0.2, "watch_through": 0.2, "saves": 0.15, "reach": 0.15},
+      "static_watch_substitute": "views_per_reach",
+      "goals": {
+        "reach": {"reach": 0.4, "watch_through": 0.3, "sends": 0.3},
+        "sends": {"sends": 0.8, "watch_through": 0.2},
+        "saves": {"saves": 0.8, "watch_through": 0.2},
+        "follows": {"follows": 0.7, "sends": 0.3},
+        "profile_visits": {"profile_visits": 0.7, "follows": 0.3},
+        "link_clicks": {"link_taps_per_visit": 0.6, "link_clicks": 0.4}
+      },
+      "win_above": 0,
+      "bookings": "Bookings are reviewed monthly by campaign (UTM links, booking codes, 'how did you hear about us'), never per post (R6 section 3).",
+      "evidence": {"level": "opinion", "sources": ["docs/research/R6_Learning_loop.md sections 2-3 (Mosseri: 'the rate is more important than the count'; watch time, likes and sends are the top signals; official)"], "notes": "heuristic (R6): the signals are official, the weights and the 20-post window are judgement. Missing components drop out and the weights re-normalise; a component with a metric exception (R7) is read at its own pull.", "confidence": "medium"}
+    },
+    "judging": {
+      "reel": {"ignore_before_hours": 48, "provisional_hours": 72, "provisional_weight": 0.6, "final_hours": 168, "long_tail_audit_hours": 720,
+               "best_early_metric": "Skip rate + average watch time at 72 h; sends per reach second.",
+               "how_to_verify": "After 20 Reels, Spearman of the 72 h score against the 168 h score: rho >= 0.9 raise the weight to 0.8; rho < 0.7 lower it to 0.4. Count Reels gaining >25% views between day 7 and day 30 (evergreen).",
+               "origin": "research",
+               "evidence": {"level": "measured", "sources": ["docs/research/R7_Judging_windows.md (Meta media insights reference; Metricool 2026; measure.studio; Socialinsider)"], "notes": "Accumulation curve measured; the weight is opinion.", "confidence": "medium"},
+               "exceptions": {
+                 "saves": {"ignore_before_hours": 72, "provisional_hours": 168, "provisional_weight": 0.5, "final_hours": 336, "best_early_metric": "Saves per reach.", "origin": "research",
+                           "evidence": {"level": "opinion", "sources": ["docs/research/R7_Judging_windows.md metric exceptions (Metricool 2026: interactions less front-loaded than views)"], "confidence": "low"}},
+                 "shares": {"ignore_before_hours": 72, "provisional_hours": 168, "provisional_weight": 0.5, "final_hours": 336, "best_early_metric": "Sends per reach.", "origin": "research",
+                            "evidence": {"level": "observed", "sources": ["docs/research/R7_Judging_windows.md metric exceptions (Mosseri Jan 2025 on sends)"], "confidence": "low"}},
+                 "skip_rate": {"ignore_before_hours": 24, "provisional_hours": 48, "provisional_weight": 0.7, "final_hours": 72, "best_early_metric": "Skip rate settles first.", "origin": "research",
+                               "evidence": {"level": "observed", "sources": ["docs/research/R7_Judging_windows.md metric exceptions (Meta reels_skip_rate, ig_reels_avg_watch_time)"], "confidence": "medium"}},
+                 "avg_watch_time_s": {"ignore_before_hours": 24, "provisional_hours": 48, "provisional_weight": 0.7, "final_hours": 72, "best_early_metric": "Average watch time settles first.", "origin": "research",
+                                      "evidence": {"level": "observed", "sources": ["docs/research/R7_Judging_windows.md metric exceptions"], "confidence": "medium"}}
+               }},
+      "trial_reel": {"ignore_before_hours": 24, "provisional_hours": 24, "provisional_weight": 0.5, "final_hours": 72,
+                     "best_early_metric": "Views compared with previous Trial Reels; then skip rate and shares.",
+                     "how_to_verify": "After 10 trials, check whether the 24 h ranking matches the 72 h ranking.",
+                     "origin": "research",
+                     "evidence": {"level": "observed", "sources": ["docs/research/R7_Judging_windows.md (Meta Newsroom Dec 2024; Instagram Creators blog)"], "confidence": "high"}},
+      "carousel": {"ignore_before_hours": 24, "provisional_hours": 72, "provisional_weight": 0.75, "final_hours": 168,
+                   "best_early_metric": "Reach vs Numa's median plus likes per reach; saves at 7 d, not 72 h.",
+                   "how_to_verify": "After 20 carousels compare 72 h and 168 h reach ranks; if 72 h is >= 85% of 7 d reach on average, raise the weight to 0.85.",
+                   "origin": "research",
+                   "evidence": {"level": "measured", "sources": ["docs/research/R7_Judging_windows.md (Metricool 2026: 76% of views in 3 days; measure.studio)"], "confidence": "medium"},
+                   "exceptions": {
+                     "saves": {"ignore_before_hours": 72, "provisional_hours": 168, "provisional_weight": 0.5, "final_hours": 336, "origin": "research",
+                               "evidence": {"level": "opinion", "sources": ["docs/research/R7_Judging_windows.md metric exceptions"], "confidence": "low"}},
+                     "shares": {"ignore_before_hours": 72, "provisional_hours": 168, "provisional_weight": 0.5, "final_hours": 336, "origin": "research",
+                                "evidence": {"level": "observed", "sources": ["docs/research/R7_Judging_windows.md metric exceptions"], "confidence": "low"}},
+                     "follows": {"ignore_before_hours": 72, "provisional_hours": 168, "provisional_weight": 0.6, "final_hours": 168, "origin": "research",
+                                 "evidence": {"level": "observed", "sources": ["docs/research/R7_Judging_windows.md metric exceptions (Meta: follows and profile_visits for FEED and STORY)"], "confidence": "medium"}},
+                     "profile_visits": {"ignore_before_hours": 72, "provisional_hours": 168, "provisional_weight": 0.6, "final_hours": 168, "origin": "research",
+                                        "evidence": {"level": "observed", "sources": ["docs/research/R7_Judging_windows.md metric exceptions"], "confidence": "medium"}}
+                   }},
+      "image": {"ignore_before_hours": 24, "provisional_hours": 72, "provisional_weight": 0.8, "final_hours": 168,
+                "best_early_metric": "Likes per reach + profile visits.",
+                "how_to_verify": "If 72 h is >= 90% of 7 d reach across 20 posts, move the weight to 0.9.",
+                "origin": "research",
+                "evidence": {"level": "measured", "sources": ["docs/research/R7_Judging_windows.md (Metricool 2026: 76% by day 3; measure.studio)"], "confidence": "medium"},
+                "exceptions": {
+                  "saves": {"ignore_before_hours": 72, "provisional_hours": 168, "provisional_weight": 0.5, "final_hours": 336, "origin": "research",
+                            "evidence": {"level": "opinion", "sources": ["docs/research/R7_Judging_windows.md metric exceptions"], "confidence": "low"}},
+                  "shares": {"ignore_before_hours": 72, "provisional_hours": 168, "provisional_weight": 0.5, "final_hours": 336, "origin": "research",
+                             "evidence": {"level": "observed", "sources": ["docs/research/R7_Judging_windows.md metric exceptions"], "confidence": "low"}},
+                  "follows": {"ignore_before_hours": 72, "provisional_hours": 168, "provisional_weight": 0.6, "final_hours": 168, "origin": "research",
+                              "evidence": {"level": "observed", "sources": ["docs/research/R7_Judging_windows.md metric exceptions"], "confidence": "medium"}},
+                  "profile_visits": {"ignore_before_hours": 72, "provisional_hours": 168, "provisional_weight": 0.6, "final_hours": 168, "origin": "research",
+                                     "evidence": {"level": "observed", "sources": ["docs/research/R7_Judging_windows.md metric exceptions"], "confidence": "medium"}}
+                }},
+      "story": {"ignore_before_hours": 6, "provisional_hours": 12, "provisional_weight": 0.7, "final_hours": 20,
+                "best_early_metric": "Reach as % of followers plus completion: forward taps, exits, replies, link taps.",
+                "how_to_verify": "Snapshot 20 Stories at about 12 h and 22 h; if 12 h reach is >= 80% of 22 h, rely on 12 h.",
+                "origin": "research",
+                "evidence": {"level": "observed", "sources": ["docs/research/R7_Judging_windows.md (Meta: Story metrics available 24 h via the API; values under 5 not returned)"], "notes": "Capture before 24 h; the store needs a pull at about 20-23 h (metrics.py change requested).", "confidence": "medium"}}
+    },
+    "judging_cohorts": {
+      "collab": {"ignore_before_hours": 48, "provisional_hours": 168, "provisional_weight": 0.4, "final_hours": 168,
+                 "best_early_metric": "Score against the collab cohort's own baseline.", "origin": "research",
+                 "evidence": {"level": "observed", "sources": ["docs/research/R7_Judging_windows.md metric exceptions (collab / reshared posts pool metrics across co-authors)"], "confidence": "medium"}}
+    },
+    "learning": {
+      "discount": 0.97,
+      "explore_share": 0.3,
+      "trial_reels_on_top": true,
+      "arms_per_variable": [3, 5],
+      "test_order": ["hook", "structure", "format", "cta", "time"],
+      "prior": {
+        "numa": {"tries": 4, "worked": 0.75, "flopped": 0.25},
+        "measured": {"tries": 2, "win_rate": 0.55},
+        "observed": {"tries": 1.5, "win_rate": 0.55},
+        "opinion": {"tries": 1, "win_rate": 0.5}
+      },
+      "promote": {"min_tries": 8, "min_wins": 6, "min_median_index": 1.25},
+      "fast_track": {"first": 6, "min_wins": 5, "min_median_index": 1.4},
+      "retire": {"rules": [{"min_tries": 6, "max_wins": 1}, {"min_tries": 8, "max_wins": 2}], "max_median_index": 0.8},
+      "demote": {"last": 8, "max_wins": 3, "min_median_index": 1.0},
+      "max_pattern_share_month": 0.4,
+      "retired_months": 3,
+      "exclude_from_decisions": ["holiday", "boosted", "collab"],
+      "holiday_windows": [{"from": "12-20", "to": "01-05"}],
+      "january_confirm_months": [2, 3],
+      "data_led_after_posts": 30,
+      "stickiness": 0.1,
+      "underperform_index": 0.8,
+      "insight": {"min_tries": 6, "min_prob": 0.9},
+      "time_slots": {"rotation": ["late_afternoon", "midday", "evening"], "min_posts_each": 8, "min_ratio": 1.25},
+      "evidence": {"level": "opinion", "sources": ["docs/research/R6_Learning_loop.md sections 5-9 (Beta-Bernoulli posteriors, Russo et al. 2018; discounted Thompson sampling, Raj & Kalyani 2017; sign-test arithmetic)", "docs/research/REVIEW.md (owners' data outranks research)"], "notes": "heuristic (R6): thresholds, the 0.97 discount, the 70/30 split and the 40% cap are reasoned starting settings. Owner priors count as 4 tries, research priors 1-2, so Numa's data leads after a few posts. data-led share = min(1, judged posts / 30) gates format changes (spec p.34 rule 10). Trial Reels learn in a trial-only pool; holiday-week, boosted and collab posts are scored but kept out of the posteriors and decisions; January wins must repeat in February-March before a promotion.", "confidence": "medium"}
+    },
+    "rotations": {
+      "block_weeks": 4,
+      "cadence": {"levels": [5, 4], "min_each": 8, "min_ratio": 1.25, "min_per_post_ratio": 0.8,
+                  "judged_on": "Marginal value, judged per week against the median of the 8 weeks before: the higher cadence wins only if its posts hold up per post (per-post reach index at least 0.8x the lower cadence's) and weekly follows (weekly reach until the store carries follows; bookings per 1,000 reach once Growth Analyst data exists) do not fall; otherwise the lower cadence wins. At least 8 weeks of each; holiday and boosted weeks left out.",
+                  "evidence": {"level": "opinion", "sources": ["docs/research/R2_Formats_and_mix.md experiment 4 (blocked 4-week cadence rotation)", "spec p.34 (4-5 feed posts a week is the planning rule)"], "notes": "R2 tests 3-5 a week; the spec's planning rule keeps it to 4-5, and approval_capacity_per_week caps it."}},
+      "story_frames": {"levels": [2, 1, 3], "min_each": 8, "min_ratio": 1.25,
+                       "judged_on": "Story posts' score (reach and link taps against the Story median), tagged story_frames.",
+                       "evidence": {"level": "opinion", "sources": ["docs/research/R2_Formats_and_mix.md cadence rule C5 (1-3 Stories a day)"]}},
+      "off_day": {"levels": ["Sat", "Sun"], "min_each": 8, "min_ratio": 1.25,
+                  "judged_on": "Feed posts on Saturday vs Sunday (the weekday arms); the other day carries Stories only.",
+                  "evidence": {"level": "opinion", "sources": ["docs/research/R6_Learning_loop.md section 6 (timing outside the bandit: blocked rotation, >= 1.25x over >= 8 posts each)", "docs/research/R2_Formats_and_mix.md section 3 (Saturday weak in several studies)"]}}
+    },
+    "prior_means": {
+      "offer_week": {"w1": 0.03, "w2": 0.0, "w3": 0.02, "w4": 0.0, "w5": 0.0}
+    }
+  }
+}

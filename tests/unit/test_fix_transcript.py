@@ -42,13 +42,14 @@ def test_brand_fix_moby_to_mobile_keeps_punctuation_and_timing(nc):
 
 
 def test_brand_fix_possessive_case_and_protect(nc):
-    words = words_of("Moby's best spot is Numa and numa but Numa Nights stays")
+    # owners' answers (2026-11-13): the name is "Numa", never "NUMA"
+    words = words_of("Moby's best spot is NUMA and numa but Numa Nights stays")
     protect, fixes = ft.load_fixes()
     ft.apply_brand_fixes(words, protect, fixes)
     got = [w["w"] for w in words]
     assert got[0] == "Mobile's"
-    assert got[4] == "NUMA"          # case-sensitive variant "Numa"
-    assert got[6] == "numa"          # lowercase is not a listed variant
+    assert got[4] == "Numa"          # case-sensitive variant "NUMA"
+    assert got[6] == "Numa"          # lowercase "numa" is a listed variant too
     assert got[8:10] == ["Numa", "Nights"]  # protected phrase
 
 

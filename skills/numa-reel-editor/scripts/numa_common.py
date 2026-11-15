@@ -525,7 +525,7 @@ _DELIVERABLES = {
     "reel": ("_reel", "mp4"),
     "reach": ("_reach", "mp4"),
     "story": ("_story_{n}", "jpg"),
-    "carousel": ("_carousel_{n}", "jpg"),
+    "carousel": ("_carousel_{n:02d}", "jpg"),
     "cover": ("_cover", "jpg"),
     "srt": ("", "srt"),
     "copy": ("_copy", "txt"),
@@ -538,7 +538,7 @@ def deliverable_name(slug: str, kind: str, n: int | None = None, ext: str | None
     if kind not in _DELIVERABLES:
         raise UserError(f"unknown deliverable kind {kind!r}; one of {', '.join(_DELIVERABLES)}")
     suffix, default_ext = _DELIVERABLES[kind]
-    if "{n}" in suffix:
+    if "{n" in suffix:
         if not n or n < 1:
             raise UserError(f"deliverable {kind!r} needs a number N >= 1")
         suffix = suffix.format(n=n)

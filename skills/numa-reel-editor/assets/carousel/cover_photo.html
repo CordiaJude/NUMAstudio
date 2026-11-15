@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="numa-component" content="cover_photo">
+<title>{{slide_title}}</title>
+<link rel="stylesheet" href="carousel.css">
+</head>
+<body>
+<!--slide-->
+<div data-slide="{{component}}" style="width: 1080px; height: 1350px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: {{color.bg}}; color: {{color.ink}}; font-family: 'Nunito Sans', 'Avenir Next', Avenir, sans-serif">
+<img src="{{photo}}" alt="{{photo_alt}}" style="display: block; width: 1080px; height: 800px; flex-shrink: 0; object-fit: cover; object-position: {{photo_position}}">
+<div style="flex: 1; min-height: 0; box-sizing: border-box; padding: 52px 96px 80px; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; align-items: center; gap: 18px; height: 40px; flex-shrink: 0">
+<div style="width: 48px; height: 4px; flex-shrink: 0; background: {{color.accent}}"></div>
+<p data-fit="kicker" style="margin: 0; max-width: 820px; overflow: hidden; white-space: nowrap; font-size: 26px; line-height: 40px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: {{color.ink}}">{{kicker}}</p>
+</div>
+<div data-fit="content" style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-start; gap: 40px">
+<h1 data-fit="title" style="margin: 0; max-height: 261px; overflow: hidden; font-family: 'Hanken Grotesk', 'Helvetica Neue', Arial, sans-serif; font-size: 84px; line-height: 87px; font-weight: 300; color: {{color.ink}}; letter-spacing: -0.02em; text-wrap: balance">{{title}}</h1>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 32px; height: 72px; flex-shrink: 0; box-sizing: border-box; border-top: 2px solid {{color.rule}}; padding-top: 26px">
+<p style="margin: 0; font-size: 28px; line-height: 44px; font-weight: 400; letter-spacing: 0.02em; color: {{color.ink}}">{{brand_name}}</p>
+<p style="margin: 0; font-size: 28px; line-height: 44px; font-weight: 600; letter-spacing: 0.08em; color: {{color.ink}}">{{page}}</p>
+</div>
+</div>
+</div>
+<!--/slide-->
+</body>
+</html>

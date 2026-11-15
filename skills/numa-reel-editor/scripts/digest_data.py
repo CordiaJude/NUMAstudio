@@ -3,11 +3,11 @@
 
 Usage:
     digest_data.py --metrics METRICS_JSON --plan-rows ROWS [--ledger PATH] [--notes NOTES_JSON]
-                   [--today YYYY-MM-DD] [--out JSON] [--text TXT] [--json]
+                   [--learned TXT] [--brief BRIEF_JSON] [--today YYYY-MM-DD] [--out JSON] [--text TXT] [--json]
 
 Inputs:
 * METRICS_JSON: the metrics store (metrics.py).
-* ROWS: the "NUMA 30-Day Reel Plan" Sheet exported as JSON (a list of row
+* ROWS: the "Numa 30-Day Reel Plan" Sheet exported as JSON (a list of row
   objects, or {"rows": [...]}) or CSV with a header row. Column names are
   matched loosely (case and punctuation ignored; dates YYYY-MM-DD or M/D/YYYY): Day, Date, Title, Goal,
   Template, Hook, Voiceover script, Shot list (or Shots), Music, Call to action,
@@ -18,8 +18,23 @@ Inputs:
   front of house, outside).
 * PATH: the credit ledger (ledger.py). Optional; without it the budget
   section is left for the Director.
-* NOTES_JSON: optional {"changes": [...], "heads_ups": [...]} written by the
-  Director (what changed because of last week; swaps, Scout finds, skips).
+* NOTES_JSON: optional {"changes": [...], "heads_ups": [...], "awaiting_approval": [...]}
+  written by the Director (what changed because of last week; swaps, Scout
+  finds, skips; posts post-reel held for a person's approval, DECISIONS D26).
+* --learned TXT: STATE/strategy_changes.txt (`strategy.py learn --text`): its
+  "What changed:" bullets go into "What we learned".
+* --brief BRIEF_JSON: STATE/strategy_brief.json (`strategy.py brief`): its
+  do_more / do_less lines, and its dated `changes` from the last seven days,
+  go into "What we learned".
+
+Staged for approval (D26): every plan row up to the end of this week whose
+Status is "Ready to post" (built and staged, not yet marked Approved by a
+person), plus the notes' `awaiting_approval` lines that name another post.
+Approved rows ("Approved" or "Approved - <name>") are not listed.
+
+Post types: every post in the metrics store carries its post_type (reel,
+carousel, image, story, trial_reel); last week lists each with its type.
+Carousels and photos have no watch time (shown as n/a).
 
 Weeks: the digest goes out Sunday evening. "This week" starts on the next
 Monday (today, when --today is a Monday); "last week" is the seven days
@@ -60,7 +75,10 @@ ROOM_WORDS = [
 TIMES = ["morning", "midday", "afternoon", "evening", "night"]
 MIN_PER_SHOT, MIN_PER_ROOM, MIN_PER_VOICEOVER = 1.0, 3.0, 2.0
 NO_FILMING = re.compile(r"no filming needed", re.I)
-DONE_STATUS = {"shot", "ready to build", "ready to post", "posted"}
+DONE_STATUS = {"shot", "ready to build", "ready to post", "approved", "posted"}
+STAGED_STATUS = "ready to post"
+APPROVED = re.compile(r"^approved\b", re.I)
+TYPE_LABEL = {"reel": "reel", "trial_reel": "Trial Reel", "carousel": "carousel", "image": "photo", "story": "Stories"}
 
 
 def norm_key(k: str) -> str:
@@ -190,7 +208,7 @@ def shoot_list(rows: list[dict]) -> dict:
     shots, voiceovers = [], []
     for r in rows:
         status = str(r.get("status") or "").strip().lower()
-        if status in DONE_STATUS or NO_FILMING.search(str(r.get("shots") or "")):
+        if status in DONE_STATUS or APPROVED.match(status) or NO_FILMING.search(str(r.get("shots") or "")):
             continue
         shots += shots_of(r)
         if str(r.get("script") or "").strip():
@@ -232,6 +250,7 @@ def last_week(store: dict, start: date, end: date, rows: list[dict]) -> dict:
         m = reel["pulls"][label]["metrics"] if label else {}
         reels.append({
             "reel": rid, "title": tags.get("title") or tags.get("slug") or rid, "posted": d.isoformat(),
+            "post_type": mx.post_type_of(reel),
             "permalink": tags.get("permalink"), "thumbnail": tags.get("thumbnail"), "pull": label,
             "views": m.get("views"), "reach": m.get("reach"), "avg_watch_time_s": c.get("avg_watch_time_s"),
             "sends": m.get("shares"), "saves": m.get("saves"), "retention": c.get("retention"),
@@ -251,10 +270,11 @@ def last_week(store: dict, start: date, end: date, rows: list[dict]) -> dict:
                               ("sends_per_1k_reach", "sends per 1,000 reach", lambda x: f"{x:.1f}"),
                               ("saves_per_1k_reach", "saves per 1,000 reach", lambda x: f"{x:.1f}")):
             if isinstance(b[k], (int, float)) and medians[k] and b[k] > medians[k]:
-                signals.append(f"{label} {fmt(b[k])} vs NUMA median {fmt(medians[k])}")
+                signals.append(f"{label} {fmt(b[k])} vs Numa's median {fmt(medians[k])}")
         if isinstance(b["skip_rate_vs_median"], (int, float)) and b["skip_rate_vs_median"] < 0:
-            signals.append(f"skip rate {abs(b['skip_rate_vs_median']):.1f} points under NUMA's median")
-        best = {"reel": b["reel"], "title": b["title"], "views": b["views"], "signals": signals, "tags": b["tags"]}
+            signals.append(f"skip rate {abs(b['skip_rate_vs_median']):.1f} points under Numa's median")
+        best = {"reel": b["reel"], "title": b["title"], "post_type": b["post_type"], "views": b["views"],
+                "signals": signals, "tags": b["tags"]}
     known = {r["reel"] for r in reels} | {r["title"] for r in reels}
     pending = [{"date": r["date"].isoformat(), "title": r.get("title"), "reel_link": r.get("reel_link")}
                for r in rows if start <= r["date"] <= end and str(r.get("status") or "").lower() == "posted"
@@ -274,6 +294,65 @@ def this_week(rows: list[dict], start: date, end: date) -> list[dict]:
     return out
 
 
+def awaiting_approval(rows: list[dict], end: date, notes: dict) -> list[dict]:
+    """Posts built and staged but not yet approved by a person (D26): Status "Ready to post" up to `end`."""
+    out = []
+    for r in rows:
+        if r["date"] <= end and str(r.get("status") or "").strip().lower() == STAGED_STATUS:
+            out.append({"date": r["date"].isoformat(), "weekday": r["date"].strftime("%a"), "day": r.get("day"),
+                        "title": r.get("title"), "post_type": r.get("post_type") or r.get("kind"),
+                        "posting_time": r.get("posting_time"), "link": r.get("reel_link") or r.get("folder")})
+    named = {str(x["title"]).strip().lower() for x in out if x.get("title")}
+    for line in notes.get("awaiting_approval", []):
+        if not any(n and n in line.lower() for n in named):
+            out.append({"date": None, "title": None, "note": line})
+    return out
+
+
+def learned(learned_path: str | None, brief: dict, start: date, end: date) -> dict:
+    """What the strategy loop learned: strategy.py learn's changelog bullets plus the brief's lines."""
+    changes: list[str] = []
+    as_of = None
+    if learned_path:
+        p = Path(learned_path).expanduser()
+        if p.exists():
+            section = None
+            for line in p.read_text(encoding="utf-8").splitlines():
+                s = line.strip()
+                if s.startswith("Strategy update"):
+                    as_of = s
+                elif s.endswith(":") or s.startswith("What changed:"):
+                    section = "changes" if s.startswith("What changed") else None
+                elif section == "changes" and s.startswith("- "):
+                    changes.append(s[2:].strip())
+        else:
+            nc.warn(f"strategy changelog not found ({p}); 'What we learned' uses the brief only")
+    for c in brief.get("changes") or []:
+        try:
+            d = date.fromisoformat(str(c.get("date"))[:10])
+        except ValueError:
+            continue
+        why = str(c.get("why") or "").strip()
+        if start <= d <= end and why and why not in changes:
+            changes.append(why)
+    real = lambda xs: [x for x in xs if isinstance(x, str) and x.strip() and "nothing clear yet" not in x]  # noqa: E731
+    return {"as_of": as_of, "changes": changes, "do_more": real(brief.get("do_more") or []),
+            "do_less": real(brief.get("do_less") or [])}
+
+
+def load_brief(path: str | None) -> dict:
+    if not path:
+        return {}
+    p = Path(path).expanduser()
+    if not p.exists():
+        nc.warn(f"strategy brief not found ({p}); 'What we learned' has no Do more / Do less lines")
+        return {}
+    data = nc.read_json(p, "strategy brief")
+    if not isinstance(data, dict):
+        raise nc.UserError("strategy brief: expected a JSON object (schemas/strategy_brief.schema.json)")
+    return data
+
+
 def budget(ledger_path: str | None, today: date) -> dict | None:
     if not ledger_path:
         return None
@@ -291,7 +370,7 @@ def load_notes(path: str | None) -> dict:
     data = nc.read_json(Path(path).expanduser(), "notes file")
     if not isinstance(data, dict):
         raise nc.UserError("notes file: expected {\"changes\": [...], \"heads_ups\": [...]}")
-    for k in ("changes", "heads_ups"):
+    for k in ("changes", "heads_ups", "awaiting_approval"):
         if not isinstance(data.get(k, []), list) or not all(isinstance(x, str) for x in data.get(k, [])):
             raise nc.UserError(f"notes file: '{k}' must be a list of sentences")
     return data
@@ -302,13 +381,16 @@ def week_bounds(today: date) -> tuple[date, date, date, date]:
     return start - timedelta(days=7), start - timedelta(days=1), start, start + timedelta(days=6)
 
 
-def assemble(store: dict, rows: list[dict], ledger_path: str | None, notes: dict, today: date) -> dict:
+def assemble(store: dict, rows: list[dict], ledger_path: str | None, notes: dict, today: date,
+             learned_path: str | None = None, brief: dict | None = None) -> dict:
     lw0, lw1, tw0, tw1 = week_bounds(today)
     week_rows = [r for r in rows if tw0 <= r["date"] <= tw1]
     data = {
         "schema_version": 1, "today": today.isoformat(),
         "last_week": last_week(store, lw0, lw1, rows),
         "changes": notes.get("changes", []),
+        "learned": learned(learned_path, brief or {}, lw0, lw1),
+        "awaiting_approval": awaiting_approval(rows, tw1, notes),
         "this_week": {"start": tw0.isoformat(), "end": tw1.isoformat(), "rows": this_week(rows, tw0, tw1)},
         "shoot_list": shoot_list(week_rows),
         "budget": budget(ledger_path, today),
@@ -333,23 +415,42 @@ def _n(x: Any, digits: int = 0) -> str:
 
 def text_draft(d: dict) -> str:
     lw, tw = d["last_week"], d["this_week"]
-    L: list[str] = [f"NUMA MONDAY DIGEST · week of {date.fromisoformat(tw['start']).strftime('%b %-d')}", ""]
+    L: list[str] = [f"Numa Monday digest · week of {date.fromisoformat(tw['start']).strftime('%b %-d')}", ""]
+    if d.get("awaiting_approval"):
+        L.append("STAGED FOR APPROVAL (mark the plan row Approved to post it)")
+        for a in d["awaiting_approval"]:
+            if a.get("note"):
+                L.append(f"- {a['note']}")
+                continue
+            kind = f" ({TYPE_LABEL.get(str(a.get('post_type') or ''), a['post_type'])})" if a.get("post_type") else ""
+            when = f", posting {a['posting_time']}" if a.get("posting_time") else ""
+            L.append(f"- {a['weekday']} {date.fromisoformat(a['date']).strftime('%b %-d')}: {a['title'] or 'untitled'}{kind}{when}")
+        L.append("")
     L.append(f"1. LAST WEEK ({date.fromisoformat(lw['start']).strftime('%b %-d')}–{date.fromisoformat(lw['end']).strftime('%b %-d')})")
     if lw["reels"]:
         for r in lw["reels"]:
-            L.append(f"- {r['title']}: {_n(r['views'])} views, {_n(r['avg_watch_time_s'], 1)} s avg watch, {_n(r['sends'])} sends"
+            kind = "" if r.get("post_type", "reel") == "reel" else f" ({TYPE_LABEL.get(r['post_type'], r['post_type'])})"
+            watch = f"{_n(r['avg_watch_time_s'], 1)} s avg watch" if r.get("post_type", "reel") in ("reel", "trial_reel", "story") \
+                else f"{_n(r['saves'])} saves"
+            L.append(f"- {r['title']}{kind}: {_n(r['views'])} views, {watch}, {_n(r['sends'])} sends"
                      + (f" · {r['permalink']}" if r.get("permalink") else ""))
         if lw["best"]:
             sig = "; ".join(lw["best"]["signals"])
             L.append(f"Best: {lw['best']['title']} ({_n(lw['best']['views'])} views)" + (f": {sig}" if sig else ""))
     else:
-        L.append("- No reels with insights from last week.")
+        L.append("- No posts with insights from last week.")
     for p in lw["posted_without_insights"]:
         L.append(f"- {p['title']} ({p['date']}): insights not in yet")
     L.append("")
-    if d["changes"]:
+    lr = d.get("learned") or {}
+    if d["changes"] or any(lr.get(k) for k in ("changes", "do_more", "do_less")):
         L.append("2. WHAT CHANGED")
         L += [f"- {c}" for c in d["changes"]]
+        if any(lr.get(k) for k in ("changes", "do_more", "do_less")):
+            L.append("What we learned:")
+            L += [f"- {c}" for c in lr.get("changes", [])]
+            L += [f"- Do more: {x}" for x in lr.get("do_more", [])]
+            L += [f"- Do less: {x}" for x in lr.get("do_less", [])]
         L.append("")
     L.append("3. THIS WEEK")
     if tw["rows"]:
@@ -396,7 +497,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--metrics", required=True, metavar="METRICS_JSON")
     ap.add_argument("--plan-rows", required=True, metavar="ROWS", help="plan Sheet export (.json or .csv)")
     ap.add_argument("--ledger", metavar="PATH", help="credit ledger file or folder")
-    ap.add_argument("--notes", metavar="NOTES_JSON", help="the Director's changes and heads-ups")
+    ap.add_argument("--notes", metavar="NOTES_JSON", help="the Director's changes, heads-ups and posts awaiting approval")
+    ap.add_argument("--learned", metavar="TXT", help="STATE/strategy_changes.txt (strategy.py learn --text)")
+    ap.add_argument("--brief", metavar="BRIEF_JSON", help="STATE/strategy_brief.json (do_more, do_less, changes)")
     ap.add_argument("--today", metavar="YYYY-MM-DD", help="the digest day (default: today)")
     ap.add_argument("--out", metavar="JSON", help="write the JSON here")
     ap.add_argument("--text", metavar="TXT", help="write the plain-text draft here")
@@ -410,7 +513,8 @@ def main(argv: list[str] | None = None) -> int:
     store = mx.load_store(mpath) if mpath.exists() else mx.empty_store()
     if not mpath.exists():
         nc.warn(f"metrics store not found ({mpath}); last week has no insights")
-    data = assemble(store, load_rows(args.plan_rows), args.ledger, load_notes(args.notes), today)
+    data = assemble(store, load_rows(args.plan_rows), args.ledger, load_notes(args.notes), today,
+                    args.learned, load_brief(args.brief))
     text = text_draft(data)
     if args.out:
         nc.write_json(Path(args.out).expanduser().resolve(), data)

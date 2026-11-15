@@ -52,7 +52,7 @@ TESTIMONIALS = ["It fixed my back pain", "My anxiety is gone since I started", "
 
 CLEAN = [
     "Three minutes of cold. Walk out wide awake.", "A challenge that leaves many people feeling energized.",
-    "Pairs well with the sauna for contrast.", "Deep, quiet heat to unwind.", "A centuries-old Finnish ritual.",
+    "Pairs well with the sauna for contrast.", "Deep, quiet heat to unwind.", "Our sauna runs 175 to 190°F.",
     "Relax, breathe, disconnect.", "our panels use 660 nm and 850 nm light", "A warm, calming session",
     "Guided breathing to help you slow down.", "Feel more centered.", "Learn techniques people use to relax.",
     "Your reset starts here.", "Year one. Thank you, Mobile.", "Treat yourself to a Friday contrast session.",
@@ -91,7 +91,6 @@ def test_clean_text_passes(text):
 @pytest.mark.parametrize("text, rule", [
     ("Cold brew and summer treats at the front desk.", "treat_ambiguous"),
     ("The cure for Monday: three minutes of cold.", "cure_ambiguous"),
-    ("Meet our neighbors at Healing Arts.", "healing_ambiguous"),
     ("Grip mats help prevent slipping.", "prevent_ambiguous"),
     ("Improves sleep", "outcome_verbs"), ("recover faster", "outcome_verbs"),
     ("Try our cryotherapy", "not_offered"), ("IV drips on Fridays", "not_offered"),
@@ -99,6 +98,12 @@ def test_clean_text_passes(text):
 def test_ambiguous_wording_warns_only(text, rule):
     assert fails(text) == [], text
     assert rule in warns(text), (text, warns(text))
+
+
+def test_healing_fails_but_an_allowed_proper_name_passes():
+    # owners' answers (2026-11-13): never "heal"; a business's proper name is listed in claims.allow_exact
+    assert "heals" in fails("A healing session")
+    assert fails("Meet our neighbors at Healing Arts.") == [] and warns("Meet our neighbors at Healing Arts.") == []
 
 
 def test_warn_overlapping_a_fail_is_dropped():

@@ -1,11 +1,11 @@
 ---
-description: Weekly trend and weather check (Fridays, 7 pm) - the Scout finds three trend ideas that fit NUMA (formats, hooks, editing styles, topics; never songs), the Director checks the 7-day forecast for weather hooks and may slot one idea into next week as a Trial Reel
+description: Weekly trend and weather check (Fridays, 7 pm) - the Scout finds three trend ideas that fit Numa (formats, hooks, editing styles, topics; never songs), the Director checks the 7-day forecast for weather hooks and may slot one idea into next week as a Trial Reel
 argument-hint: "[YYYY-MM-DD] (empty = today, Central time)"
 model: opus
 ---
 # /trend-check: what's working this week, and the weather
 
-You are NUMA's **Director**. This runs from the `trend_check` scheduled task (config `schedule.tasks`, Fridays 7 pm, `schedule.timezone`). You may change next week's plan; you never have to, and you never ask anyone.
+You are Numa's **Director**. This runs from the `trend_check` scheduled task (config `schedule.tasks`, Fridays 7 pm, `schedule.timezone`). You may change next week's plan; you never have to, and you never ask anyone.
 
 Paths: `S` = `${CLAUDE_PLUGIN_ROOT}/skills/numa-reel-editor/scripts`, `STATE` = `~/NUMA Studio/_Plan`, `PLAN` = `STATE/plans/plan_YYYY-MM.json`.
 
@@ -16,6 +16,12 @@ if [ "$STATE/brand.json" -nt "${CLAUDE_PLUGIN_ROOT}/brand/brand.json" ]; then ex
 ```
 
 Every script then reads brand facts, claims, consent and closures from it. When the copy is missing or older, leave `NUMA_BRAND` unset (the bundled brand.json is used).
+
+## Run start and end (R339-R342)
+
+1. **Log the start (R340).** Download the Drive folder `drive.plan_dir`/`runlog/` (every file) into `STATE/runlog.drive/` and run `python3 "$S/runlog.py" merge-dir "$STATE/runlog.drive" --state "$STATE"`. Then `python3 "$S/runlog.py" start trend_check --state "$STATE"`; keep the printed run id (`RUN_ID`) and upload `STATE/runlog/<RUN_ID>.json` to Drive `_Plan/runlog/` (a file only this run ever writes, so no other run's record is overwritten). Download the Drive folder `drive.plan_dir`/`chrome_queue/` (one file per queued item) into `STATE/chrome_queue.drive/` and run `python3 "$S/chrome_queue.py" merge-dir "$STATE/chrome_queue.drive" --state "$STATE"`. **A failed download is never "absent":** merge only after a download that worked, or when Drive confirms a folder does not exist yet (then start from an empty `STATE/runlog.drive/` or `STATE/chrome_queue.drive/`). When the Drive connector fails, upload only this run's own `runlog/<RUN_ID>.json` and upload no queue items this run.
+2. **Environment:** `python3 "$S/ensure_env.py" --json` (a fresh cloud machine installs what is missing; a warm one returns in seconds). Exit 1: send Jude its ERROR line's fix through the escalation channel in `STATE/brand.json` (DECISIONS D19), finish `failed` (step 3) and stop; next Friday catches up.
+3. **Finish, always, also when the run fails or stops early:** `python3 "$S/runlog.py" finish <RUN_ID> --outcome ok --note "<one line>" --state "$STATE"` (`ok` = "Done means" met; `partial` = done with something left out; `failed` = stopped), then upload `STATE/runlog/<RUN_ID>.json` again (and `STATE/runlog/reported-<RUN_ID>.json` when the watchdog wrote one). Upload to Drive `_Plan/chrome_queue/` exactly the item files that this run's `chrome_queue.py` calls listed under `files` (`--json`), never the whole folder (only after the step 1 download worked). Lost the id: `--task trend_check`.
 
 ## 1. Weather: the 7-day forecast (planning rule 5, R167)
 
@@ -33,7 +39,9 @@ When one applies, swap next week's Thursday Trial Reel (or the Sunday slot) for 
 
 Send the **scout** (agents/scout.md) to look at what is working this week for wellness studios (sauna, cold plunge, breathwork, recovery) and Mobile businesses: **formats, hooks, editing styles and topics, never songs**. It uses Claude in Chrome when Katie's Mac is awake, else web search (failure row F17). It watches the formats that travel in this niche: seasonal and weather hooks, hot/cold contrast, teasers, behind-the-scenes and first-timer reactions.
 
-Trending audio is off-limits for a business account (brand.json `posting.music_rule`): a trend is used only if its idea works with NUMA's own audio or a Sound Collection track.
+**Claude in Chrome (R342).** Check first that the `mcp__claude-in-chrome__*` tools are visible and answer a harmless call (read the open tab's title). Visible: drain the queue first (commands/chrome-queue.md section 3; a cloud run takes only the non-posting kinds), then the scout works in Chrome. Not visible: the scout uses web search now; the trend ideas are not queued (next Friday looks again).
+
+Trending audio is off-limits for a business account (brand.json `posting.music_rule`): a trend is used only if its idea works with Numa's own audio or a Sound Collection track.
 
 ## 3. Three ideas (R242)
 
@@ -41,11 +49,11 @@ Write `STATE/trends/trends_<DAY>.json` with exactly three ideas and one winner:
 ```json
 {"date": "2026-12-11", "ideas": [
   {"idea": "POV first plunge, filmed from the water line", "example_link": "https://www.instagram.com/reel/...",
-   "why_it_fits": "First-timer reactions are NUMA's best sends format", "how_with_numa": "Katie films a 5 s water-line clip in the plunge room; one hero still gets Higgsfield motion transfer from the example's camera move",
-   "audio": "NUMA voiceover + generated bed", "claims_ok": true}],
+   "why_it_fits": "First-timer reactions are Numa's best sends format", "how_with_numa": "Katie films a 5 s water-line clip in the plunge room; one hero still gets Higgsfield motion transfer from the example's camera move",
+   "audio": "Numa voiceover + generated bed", "claims_ok": true}],
  "winner": 0, "slotted": "2026-12-17"}
 ```
-Each idea: a real example link the scout opened, why it fits NUMA (series, audience, the claims policy), and how to make it with NUMA's own material (often Higgsfield motion transfer onto a NUMA still; motion agent, within `ledger.py check`). Scan each idea's text: `python3 "$S/claims_scan.py" "<idea>" "<why_it_fits>" "<how_with_numa>"`; drop an idea that only works with a claim.
+Each idea: a real example link the scout opened, why it fits Numa (series, audience, the claims policy), and how to make it with Numa's own material (often Higgsfield motion transfer onto a Numa still; motion agent, within `ledger.py check`). Scan each idea's text: `python3 "$S/claims_scan.py" "<idea>" "<why_it_fits>" "<how_with_numa>"`; drop an idea that only works with a claim.
 
 ## 4. Slot the winner (optional)
 
@@ -53,8 +61,11 @@ The winner is tested as a **Trial Reel** before it reaches the grid. You may slo
 
 ## 5. Competitor log (first Friday of the month)
 
-On the first Friday of a month, the scout also writes the competitor log (agents/scout.md "Competitor log") to `STATE/competitors_YYYY-MM.json` for the dashboard.
+On the first Friday of a month, the scout also writes the competitor log (agents/scout.md "Competitor log") to `STATE/competitors_YYYY-MM.json` for the dashboard. Without Chrome it writes the web-search log now (what web search can see) and the Chrome version is queued for the month; when the Mac is awake before the month ends, commands/chrome-queue.md replaces the file:
+```
+python3 "$S/chrome_queue.py" add --kind competitor_log --payload '{"month": "2026-12"}' --deadline 2026-12-31T23:59:00-06:00 --fallback "Keep the web-search competitor log for 2026-12" --state "$STATE" --json
+```
 
 ## Done means
 
-The trends file has three ideas and a winner, any weather swap and slotted Trial Reel are in the plan, cards and Sheet, and the heads-ups are noted. Nobody was asked anything.
+The trends file has three ideas and a winner, any weather swap and slotted Trial Reel are in the plan, cards and Sheet, the heads-ups are noted, and the run is finished in the run log. Nobody was asked anything.

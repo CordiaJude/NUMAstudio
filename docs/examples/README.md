@@ -7,6 +7,7 @@ NUMA account data, media ids or member information.
 | File | Written by | What it shows |
 |---|---|---|
 | `metrics.example.json` | `metrics.py` (`STATE/metrics.json` at run time) | The Instagram metrics store after four reels and a week of account insights |
+| `people.example.json` | the owners' setup answers, entered by hand (`STATE/people.json` at run time; private, never committed) | The people and consent file's shape (`schemas/people.schema.json`), with placeholder names only |
 
 ## metrics.example.json
 

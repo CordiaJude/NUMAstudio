@@ -1,0 +1,69 @@
+{
+ "_readme": "Characters every bundled carousel font draws (the intersection of their cmaps), as inclusive code point ranges. design_render.py rejects slide text outside it, so no glyph ever falls back to a system font. Regenerate when the bundled fonts change: python3 tools/gen_carousel_components.py --charset",
+ "fonts": {
+  "Hanken Grotesk": "HankenGrotesk.woff2",
+  "Nunito Sans": "NunitoSans.woff2"
+ },
+ "ranges": [
+  [
+   32,
+   126
+  ],
+  [
+   160,
+   255
+  ],
+  [
+   305,
+   305
+  ],
+  [
+   338,
+   339
+  ],
+  [
+   710,
+   710
+  ],
+  [
+   730,
+   730
+  ],
+  [
+   732,
+   732
+  ],
+  [
+   8211,
+   8212
+  ],
+  [
+   8216,
+   8218
+  ],
+  [
+   8220,
+   8222
+  ],
+  [
+   8226,
+   8226
+  ],
+  [
+   8230,
+   8230
+  ],
+  [
+   8364,
+   8364
+  ],
+  [
+   8482,
+   8482
+  ],
+  [
+   8722,
+   8722
+  ]
+ ]
+}

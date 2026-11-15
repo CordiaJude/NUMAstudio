@@ -7,7 +7,7 @@
       "name": "numa-studio",
       "source": "./",
       "description": "Hands-off branded NUMA reels from a Google Drive folder: script, edit, Higgsfield motion, captions and delivery.",
-      "version": "2.0.0"
+      "version": "2.1.0"
     }
   ]
 }

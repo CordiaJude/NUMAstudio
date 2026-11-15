@@ -67,6 +67,9 @@ jobs:
       - name: Install Python packages (clean install from the requirements files)
         run: pip install -r requirements.txt -r requirements-dev.txt
 
+      - name: Install headless Chromium for the carousel slide renderer (design_render.py, setup_check.py)
+        run: python -m playwright install --with-deps chromium
+
       - name: Cache the speech model
         uses: actions/cache@v4
         with:
@@ -104,6 +107,9 @@ jobs:
       - name: Install Python packages (clean install from the requirements files)
         run: pip install -r requirements.txt -r requirements-dev.txt
 
+      - name: Install headless Chromium for the carousel slide renderer (design_render.py, setup_check.py)
+        run: python -m playwright install --with-deps chromium
+
       - name: Cache the speech model
         uses: actions/cache@v4
         with:
@@ -135,6 +141,9 @@ jobs:
 
       - name: Install Python packages
         run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Install headless Chromium for the carousel slide renderer (design_render.py, setup_check.py)
+        run: python -m playwright install --with-deps chromium
 
       - name: Cache the speech model
         uses: actions/cache@v4

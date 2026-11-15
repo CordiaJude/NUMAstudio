@@ -23,7 +23,7 @@
     "kinetic_type": "true: the reel uses large animated text cards (engine kinetic type, R195).",
     "text_cards": "[{beat, source: line|label, text?, max_words}]: a card shows the beat's spoken line (shortened to max_words) or a fixed label.",
     "cta_style": "How the CTA is matched to the goal.",
-    "example_hook": "One hook in NUMA's voice that passes claims_scan.py."
+    "example_hook": "One hook in Numa's voice that passes claims_scan.py."
   },
   "templates": [
     {
@@ -109,7 +109,7 @@
       "id": "class_spotlight",
       "name": "Class spotlight",
       "kind": "template",
-      "what": "One class or session (Embodiment Flow Yoga, a guided breathwork class, the NUMA Experience): the energy, who it's for, how it feels.",
+      "what": "One class or session (a yoga class, a guided breathwork class, an Experience Pass visit): the energy, who it's for, how it feels.",
       "example_hook": "Tuesday, 6 pm. This room.",
       "arc": [
         {
@@ -287,7 +287,7 @@
         },
         {
           "beat": "how",
-          "does": "How a session at NUMA goes"
+          "does": "How a session at Numa goes"
         },
         {
           "beat": "feel",
@@ -358,8 +358,8 @@
       "id": "offer_promo",
       "name": "Offer promo",
       "kind": "template",
-      "what": "One offer (Discover NUMA, one month for $49 from brand.json offerings.offers): what it is, what a first visit feels like, how to start.",
-      "example_hook": "Your first month at NUMA: $49.",
+      "what": "One offer (Discover Numa, one month for $49 from brand.json offerings.offers): what it is, what a first visit feels like, how to start.",
+      "example_hook": "Your first month at Numa: $49.",
       "arc": [
         {
           "beat": "hook",
@@ -431,7 +431,7 @@
       "id": "event_recap",
       "name": "Event recap",
       "kind": "template",
-      "what": "The night after an event (Numa Nights, Clinical Conversations): the arrival, the peak, the people, thank you and what's next. Within 2 days of the event.",
+      "what": "The night after an event (Numa Nights, Community Days): the arrival, the peak, the people, thank you and what's next. Within 2 days of the event.",
       "example_hook": "Last night at Numa Nights.",
       "arc": [
         {
@@ -659,7 +659,7 @@
       "id": "founder_message",
       "name": "Founder message",
       "kind": "template",
-      "what": "Katie on why NUMA exists, in her own words: the story, why it matters, what NUMA is for Mobile.",
+      "what": "Katie on why Numa exists, in her own words: the story, why it matters, what Numa is for Mobile.",
       "example_hook": "We started Numa because we needed it.",
       "arc": [
         {
@@ -676,7 +676,7 @@
         },
         {
           "beat": "what",
-          "does": "What NUMA is now"
+          "does": "What Numa is now"
         },
         {
           "beat": "invite",
@@ -756,7 +756,7 @@
         },
         {
           "beat": "practice",
-          "does": "What to do at NUMA instead"
+          "does": "What to do at Numa instead"
         },
         {
           "beat": "save",
@@ -846,7 +846,7 @@
         },
         {
           "beat": "answer",
-          "does": "NUMA's answer to it"
+          "does": "Numa's answer to it"
         },
         {
           "beat": "detail",
@@ -1156,11 +1156,11 @@
     },
     {
       "id": "offer_promo_discover",
-      "name": "Offer promo: Discover NUMA",
+      "name": "Offer promo: Discover Numa",
       "kind": "preset",
       "base": "offer_promo",
-      "what": "The offer promo preset for Discover NUMA (brand.json offerings.offers): one month, price as confirmed there.",
-      "example_hook": "Your first month at NUMA: $49.",
+      "what": "The offer promo preset for Discover Numa (brand.json offerings.offers): one month, price as confirmed there.",
+      "example_hook": "Your first month at Numa: $49.",
       "arc": [
         {
           "beat": "hook",
@@ -1227,7 +1227,7 @@
       "kinetic_type": false,
       "text_cards": [],
       "cta_style": "discover link (brand.json business.cta_link)",
-      "offer": "Discover NUMA"
+      "offer": "Discover Numa"
     },
     {
       "id": "education_three_things",
@@ -1338,7 +1338,7 @@
       "kind": "preset",
       "base": "seasonal_holiday",
       "what": "Holiday or closure hours as a short announcement with kinetic type; never invites people in on a closed day.",
-      "example_hook": "Holiday hours at NUMA.",
+      "example_hook": "Holiday hours at Numa.",
       "arc": [
         {
           "beat": "hook",
@@ -1413,5 +1413,124 @@
       "cta_style": "None or 'see you after the holiday'; nothing inviting on the closed days",
       "invites": false
     }
-  ]
+  ],
+  "post_types": [
+    {
+      "id": "component_carousel",
+      "kind": "carousel",
+      "carousel_source": "component",
+      "name": "Component carousel (Claude Design)",
+      "what": "A saveable carousel of new copy: an explainer, a protocol, myth vs fact, a first-timer FAQ, or an offer, built by the designer agent in Claude Design (skills/numa-carousel/SKILL.md).",
+      "slides": [
+        5,
+        8
+      ],
+      "outline": [
+        "cover_photo: the hook over a real photo",
+        "point, steps, myth_fact, faq or stat slides: one idea each",
+        "photo: a real room or member moment (yes on record only)",
+        "cta: Numa and the bio link"
+      ],
+      "rules": [
+        "Photo-led: at least half the slides carry a real photo",
+        "Never a standalone quote card, flyer or poster; a member's words only over that member's photo",
+        "Prices only from brand.json offerings; a needs_katie price drops the offer slide",
+        "No emoji; always Numa"
+      ],
+      "goal": "education",
+      "built_by": "designer + design_render.py",
+      "files": "<slug>_carousel_NN.jpg"
+    },
+    {
+      "id": "photo_carousel",
+      "kind": "carousel",
+      "carousel_source": "photos",
+      "name": "Photo carousel",
+      "what": "Two to ten real photos of one moment (a class, a member's first plunge, the rooms at dawn) with one short line each, graded and framed by photo_post.py.",
+      "slides": [
+        2,
+        10
+      ],
+      "outline": [
+        "the strongest photo with the hook line",
+        "the moment in order, one short line each",
+        "the last photo with the share line"
+      ],
+      "rules": [
+        "Every person has a yes on record that covers new posts (agents/librarian.md section 5)",
+        "Lines at most 60 characters, one *gold* word",
+        "No emoji; always Numa"
+      ],
+      "goal": "community",
+      "built_by": "photo_post.py carousel",
+      "files": "<slug>_carousel_NN.jpg"
+    },
+    {
+      "id": "reel_carousel",
+      "kind": "carousel",
+      "carousel_source": "reel",
+      "name": "Carousel from a reel",
+      "what": "The saveable recap of a reel posted earlier in the week (derived_from), cut by formats.py from the same plan.",
+      "slides": [
+        5,
+        8
+      ],
+      "outline": [
+        "cover frame with the reel's hook",
+        "one whole sentence of the voiceover per slide"
+      ],
+      "rules": [
+        "No two slides with the same picture side by side",
+        "Whole sentences only"
+      ],
+      "goal": "education",
+      "built_by": "formats.py --only carousel,cover",
+      "files": "<slug>_carousel_NN.jpg"
+    },
+    {
+      "id": "single_photo",
+      "kind": "image",
+      "name": "Single photo post",
+      "what": "One 1080x1350 photo on a topic with an optional short line in the brand serif: a room, the steam, a calm moment, a member with a yes on record.",
+      "slides": [
+        1,
+        1
+      ],
+      "outline": [
+        "one strong real photo",
+        "optional line, at most 60 characters"
+      ],
+      "rules": [
+        "A real photo, never a designed graphic or quote card",
+        "People only with a yes on record",
+        "No emoji; always Numa"
+      ],
+      "goal": "awareness",
+      "built_by": "photo_post.py single",
+      "files": "<slug>_photo.jpg"
+    },
+    {
+      "id": "story_set",
+      "kind": "stories",
+      "name": "Story set",
+      "what": "Three to five Story frames cut from the latest reel, one short line each; posted after approval, pulled at 12 h and 22 h.",
+      "slides": [
+        3,
+        5
+      ],
+      "outline": [
+        "frame 1: the hook moment",
+        "frames 2-4: behind the scenes, class energy",
+        "last frame: the soft call to action"
+      ],
+      "rules": [
+        "story_frames from the plan slot",
+        "Nothing inviting on a closure day"
+      ],
+      "goal": "community",
+      "built_by": "formats.py --only story",
+      "files": "<slug>_story_<N>.jpg|mp4"
+    }
+  ],
+  "_post_types": "Non-reel post types (config post_types, R336): what each is, its slide outline and rules. Reels and Trial Reels use the templates and presets above."
 }

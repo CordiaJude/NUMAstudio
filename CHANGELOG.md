@@ -9,6 +9,96 @@ reconstructed from the git history.
 
 Nothing yet.
 
+## [2.1.0] - 2026-11-15
+
+Numa Studio 2.1: more post types, a schedule that survives a Mac that is on and off, an adaptive
+strategy that learns from Numa's own results, the owners' setup answers, and a person's approval
+before anything posts.
+
+### Release check (golden test, spec p.52)
+- M2 golden test (`tests/golden_year_one.py`, Year One test pack, Linux sandbox): PASS in 6.1 min on the 2.1.0 tree.
+  107.7 BPM, transcript with "Mobile", 50 words; example plan and baseline plan (`--template
+  transformation`): 0 validator errors, before/after wipe at 14.63 s, cuts within one frame of a beat
+  (25/25 and 26/26), every caption word within 0.1 s, output spec met, 39.0 s vs the reference's
+  39.0 s, drop-to-file 1.5 min each (limit 15); formats 17 and 16 files with two-digit carousel names.
+- M3 five-folder suite (`tests/run_tests.py`): 5/5 PASS (531 s).
+- Unit suite (`python -m pytest tests/unit -q`): all green (1,707 passed, 5 skipped); privacy guard
+  (`tests/unit/test_brand_privacy.py` with the private people file): passed.
+- Jude's rating against the hand-built reference (the manual M2 step) is pending; record it here
+  before tagging.
+
+### Added
+- **Human approval before posting (DECISIONS D26).** Every post is built, checked and staged as
+  "Ready to post" with no questions; it publishes only once a person sets its plan Sheet row to
+  `Approved` (or `Approved - <initials>`) after it was staged. `/post-reel` writes a staged record per
+  post (`_Plan/staged/<slug>.json`) and has an `approvals` re-check (section 13) that the night
+  check, the dashboard refresh, the new midday Story task and the desktop Chrome queue task run: an
+  approved post goes out at its planned time, or at the next slot when that time has passed
+  (config `approval`). One batched line per run goes to the approver (the owners and the social
+  media lead until one approver is named), never one per post; the Monday digest lists every post
+  staged for approval first. `/build-today` and `/make-reel` never post an unapproved row; Chrome
+  posting steps are queued only for approved posts and no fallback ever publishes.
+- **Post types (R336).** Reels, Trial Reels, component carousels (Claude Design), photo carousels,
+  single photos and Story sets across `/plan-month`, `/build-today`, the scriptwriter skill
+  (`templates.json` `post_types`), `shoot_card.py` (new row kind `image`, `carousel_source`
+  component|photos|reel, the `Approved` status), `digest_data.py` (post type per post) and config
+  `post_types`.
+- **Claude Design carousels (R328-R332, D21; T14).** The `designer` agent, the `numa-carousel`
+  skill, `design_render.py` and the component library from `tools/gen_carousel_components.py`;
+  `/post-reel` re-renders a canvas carousel right before it posts. Carousel slides from every
+  renderer are named `<slug>_carousel_NN.jpg` (formats.py now writes `_01`, `_02`, ...).
+- **Photo posts (R333-R335, R337; T15).** `photo_post.py` single and carousel; carousel and image
+  publishing in `/post-reel` section 12; `post_type` in the metrics store and the config tags.
+- **Scheduling reliability (R339-R343; T17).** `ensure_env.py`, `runlog.py` with the watchdog,
+  `chrome_queue.py` and `/chrome-queue` (desktop, hourly); config `schedule.extra_tasks`,
+  `schedule.runlog`, `schedule.chrome_queue`; CONTRACTS entries and state folders.
+- **Story capture timing.** A ninth scheduled task, "Story insights + approval re-check" (daily
+  12:40 pm, `/dashboard-refresh stories`), plus Story pulls in the 5 am build and the 8 pm night
+  check: with pull runs at 05:00, 12:40, 20:00 and 22:00 the longest gap is 7 h 40 min, inside the
+  10-hour 12-22 h window, so every Story is pulled before its insights vanish at 24 h
+  (docs/SCHEDULED_TASKS.md).
+- **Adaptive strategy (R344-R350, D23-D24; T18).** `/plan-month` runs the Strategist
+  (`strategy.py plan --month`) before any script and plans from `_Plan/plans/strategy_YYYY-MM.json`;
+  `/build-today` reads the day's brief slot and copies `pattern_ids`, `strategy_arm`, `boosted`,
+  `story_frames` and `post_type` into the post's tags (`metrics.py tag --post`); `/dashboard-refresh`
+  pulls whatever `metrics.py due` lists (`ingest --pulled-at`) and runs the Strategist's refresh;
+  the digest's "What we learned" comes from `strategy_changes.txt` and the brief
+  (`digest_data.py --learned --brief`).
+- **People rules (D25).** The librarian, the designer, the critic, the scout and the photo flows
+  honour the private `_Plan/people.json` (`do_not_feature`, `one_existing_post_only`, a recorded no,
+  kids never) and brand.json `consent.never_film`. The public repo names only Scott and Katie Moore.
+- CI installs headless Chromium for Playwright (`python -m playwright install --with-deps chromium`).
+
+### Changed
+- The owners' answers (T19) applied to every command, agent and skill: "Numa" in all user-facing
+  text (the plugin keeps its name, NUMA Studio); no emojis; no quote cards; Clinical Conversations
+  is never promoted; the sauna is never called Finnish and its capacity is never stated; Scott
+  records every voiceover and there are no cloned voices (fallback: music plus on-screen text, or a
+  generic voice only when `voice.generic_ai_allowed` is true); the lawyer review is dropped.
+- `/numa-setup` asks once where the approval line goes, adds the Approved option to the plan
+  Sheet, and creates and verifies nine scheduled tasks.
+- `shoot_card.py` sets aside the plan-row fields strategy.py adds before the script.json schema
+  check, and no longer assumes Katie reads the voiceover.
+- Approved posts are scheduled once and published by exactly one designated run (T16 reviews):
+  staged records carry a `status` enum (staged, held_for_approval, held_member_yes, scheduled,
+  publishing, awaiting_chrome, queued, published, expired) with `publish_at` and a `publisher`
+  (`task:<slug>@<time>`, `night_check:<date>` or `chrome_queue`). Drive has no compare-and-swap, so
+  only that publisher may create containers or publish; it re-reads the record before every call
+  and runs a duplicate check; every other run only reads. A clearly failed publisher is reassigned
+  to the next night check by the 8 pm or 10 pm run, which never publishes it itself. The shared
+  post queue is gone (per-record `queued`, rescheduled, never published by the drain). Chrome-only
+  posts are queued at scheduling and expire to a new day, never to a publish. `design_render.py
+  text-hash` defines the D29 slide-text hash.
+  Nothing posts before `approval.earliest_post_time` (12:00): strategy.py no longer plans 7 am posts
+  (rotation late afternoon, midday, evening); a half day that must post earlier is built and staged
+  the evening before (`build_evening_before`). Approver notices count only when delivered.
+- Jude-only escalations go by email or `_Plan/escalations.md`, never as a run notification.
+- New claims rule `sauna_type_finnish` (the sauna's type is unconfirmed); playbook examples reworded.
+- Drive names are "Numa Reels", "Numa 30-Day Reel Plan" and "Numa Reel Metrics" (nothing existed on
+  Drive yet: /numa-setup creates them, and asks for an existing material folder by name).
+- A canvas carousel whose slide text changed after approval is held for re-approval (DECISIONS D29).
+- Version 2.1.0 (plugin.json, marketplace.json).
+
 ## [2.0.0] - 2026-11-12
 
 NUMA Studio v2: from a hand-run reel editor to a hands-off studio. A Director agent plans the month
@@ -186,7 +276,8 @@ table below) and analysis.json to schema_version 2 (re-run `analyze.py`; v1 plan
   skills, `/make-reel` and `/numa-setup`, bundled wordmark, phoenix mark,
   ripple image, six brand photos and the Liberation Serif caption fonts.
 
-[Unreleased]: https://github.com/CordiaJude/numa-studio/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/CordiaJude/numa-studio/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/CordiaJude/numa-studio/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/CordiaJude/numa-studio/compare/v1.3.0...v2.0.0
 [1.3.0]: https://github.com/CordiaJude/numa-studio/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/CordiaJude/numa-studio/compare/v1.1.0...v1.2.0

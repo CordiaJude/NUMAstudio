@@ -16,7 +16,7 @@ and brought back to -15 LUFS. Outputs in DIR (default: the reel's folder):
   (short fades, loudness to spec), checked with check_output --kind reach.
 * ``<slug>_story_<N>.jpg`` 3-5 vertical stills (or ``.mp4`` 5 s clips when the
   entry has ``clip: true``), one line of text each, inside the safe areas.
-* ``<slug>_carousel_<N>.jpg`` 5-8 slides rendered by the engine at 1080x1350
+* ``<slug>_carousel_NN.jpg`` (01, 02, ...) 5-8 slides rendered by the engine at 1080x1350
   (4:5, never cropped from the 9:16 frame), a short caption each; from a reel
   time ``t`` or a source photo ``src``.
 * ``<slug>_cover.jpg`` 1080x1920 cover with the title inside the centre square
@@ -1275,6 +1275,8 @@ class Job:
         self._audio: Path | None = None
 
     def name(self, kind: str, n: int | None = None, ext: str | None = None) -> Path:
+        if kind == "carousel":   # <slug>_carousel_NN.jpg, the same names as photo_post.py and design_render.py
+            return self.out / f"{nc.slugify(self.slug)}_carousel_{int(n or 0):02d}.{(ext or 'jpg').lstrip('.')}"
         return self.out / nc.deliverable_name(self.slug, kind, n, ext)
 
     def clear(self, kind: str, exts: tuple[str, ...]) -> None:

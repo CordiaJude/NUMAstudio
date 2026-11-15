@@ -20,8 +20,10 @@ month   The deterministic skeleton of a calendar month: one row per day with
         output has the MONTH_JSON shape that `check` and `sheet` read.
 
 card    The phone-readable shoot card for one plan row (a script.json, or a
-        carousel/Stories row) in the spec p.36 format: "No filming needed" as
-        the first line when the day needs nothing from Katie, the header
+        carousel, photo-post or Stories row) in the spec p.36 format: "No
+        filming needed" as the first line when the day needs nothing from Katie
+        (a carousel row says how it is built from `carousel_source`: component,
+        photos or reel; an `image` row is a single-photo feed post on a topic), the header
         (DAY · date · title · FILM BY), the filing rules (where, voiceover,
         music, file names, phone settings, changes), numbered checkbox shots
         tied to script lines with framing and duration, "consent list only"
@@ -37,7 +39,7 @@ check   The planning rules on a month plan (spec p.33-35), where they are
           rule 4   at least one collab reel and one Meet the Collective a month
           rule 6   one signature transformation/reveal reel a month
           rule 7   every event: teaser 2-3 days before, recap within 2 days after
-          rule 8   nothing that invites people in on a closure day
+          rule 8   nothing that invites people in on a closure day (a WARN on a brand.json closures.partial half day)
           rule 9   filming grouped into at most 2 batch sessions a week, each before its day
           cadence  4-5 feed posts and 1-2 Trial Reels a week, never a week dark
           series   all five series every month; Ask the DPT never sells
@@ -59,7 +61,7 @@ script  The card rules and timing for one script.json (spec p.35-36): the
         shots, photos, on-screen text, CTA, share line, caption, hashtags).
         Exit 1 on any ERROR; WARN lines never change the exit code.
 
-sheet   The plan as "NUMA 30-Day Reel Plan" Sheet rows with exactly the spec
+sheet   The plan as "Numa 30-Day Reel Plan" Sheet rows with exactly the spec
         p.33 columns, in order: Day, Date, Title, Goal, Template, Hook (first 2
         seconds), Voiceover script, Shot list, Music mood + BPM, Call to
         action, Status, Folder link, Reel link. JSON (a list of row objects) by
@@ -70,10 +72,16 @@ sheet   The plan as "NUMA 30-Day Reel Plan" Sheet rows with exactly the spec
 MONTH_JSON: {"month": "2026-12", "rows": [row, ...], "events": [{"name", "date"}],
 "closures": ["YYYY-MM-DD" | {"date", "name"}], "mix": {pillar: share},
 "mix_tolerance": 0.10} or a bare list of rows. A row has at least day, date and
-kind (reel, trial_reel, carousel, stories); reel rows carry the script.json
-fields once scripted. Defaults: topic = title; sales = goal is offer, or an
+kind (reel, trial_reel, carousel, image, stories; `image` = a single-photo feed
+post on a topic, nothing to film; carousel rows may carry `carousel_source`
+component|photos|reel, default carousel_source_of(): component when its
+pattern_ids name a carousel pattern, else reel when derived_from, else
+component; strategy.py plan writes it on every carousel row); reel rows carry the script.json fields once scripted.
+Carousels and photo posts are the feed's statics (about a third of feed posts).
+Status: Planned, Shot, Ready to build, Ready to post, Approved (or "Approved -
+<name or initials>", set by a person: DECISIONS D26), Posted. Defaults: topic = title; sales = goal is offer, or an
 offer or booking ask ("book", "$49", a brand.json offer name such as Discover
-NUMA) in the CTA, hook, lines or on-screen text (`sales: true` forces it; false
+Numa) in the CTA, hook, lines or on-screen text (`sales: true` forces it; false
 never hides it); invites = sales, an event teaser, or a booking-style CTA; mix = brand.json
 positioning.content_mix. --closures FILE: JSON (list of dates or
 {"date", "name"} objects, or {"closures": [...]}) or CSV with a Date column;
@@ -103,13 +111,22 @@ MONTHS_SHORT = [m[:3] for m in MONTHS]
 ROOMS = ["plunge room", "sauna", "class studio", "front of house", "outside"]
 SERIES = ["ask_the_dpt", "first_plunge", "too_hot_for_a_diy_plunge", "regulate", "meet_the_collective"]
 PILLARS = ["education", "community", "local_seasonal", "collective_collabs", "offers_events"]
-KINDS = ["reel", "trial_reel", "carousel", "stories"]
+KINDS = ["reel", "trial_reel", "carousel", "image", "stories"]
 REEL_KINDS = {"reel", "trial_reel"}
-FEED_KINDS = {"reel", "carousel"}
-TOPIC_KINDS = {"reel", "trial_reel", "carousel"}
+FEED_KINDS = {"reel", "carousel", "image"}
+STATIC_KINDS = {"carousel", "image"}
+TOPIC_KINDS = {"reel", "trial_reel", "carousel", "image"}
+# How a carousel row is built (config post_types): component = the designer in Claude Design
+# (design_render.py), photos = photo_post.py carousel, reel = formats.py from the reel it is derived_from.
+CAROUSEL_SOURCES = ("component", "photos", "reel")
+# Plan-row fields strategy.py plan adds (docs/CONTRACTS.md section 9, strategy.py): kept on the row, never part of
+# script.json's schema, so they are set aside before the schema check.
+PLAN_ROW_FIELDS = {"post_type", "post_time", "hour_band", "strategy", "moments", "story_frames", "carousel_source",
+                   "build_evening_before"}
 SHEET_COLUMNS = ["Day", "Date", "Title", "Goal", "Template", "Hook (first 2 seconds)", "Voiceover script",
                  "Shot list", "Music mood + BPM", "Call to action", "Status", "Folder link", "Reel link"]
-STATUSES = ["Planned", "Shot", "Ready to build", "Ready to post", "Posted"]
+STATUSES = ["Planned", "Shot", "Ready to build", "Ready to post", "Approved", "Posted"]
+APPROVED_STATUS = re.compile(r"^Approved(?:\s*[-:]\s*\S.*)?$")   # "Approved" or "Approved - <name or initials>" (D26)
 MAX_NEW_SHOTS = 8
 TOPIC_GAP_DAYS = 14
 TEASER_WINDOW = (2, 3)      # days before the event
@@ -367,6 +384,17 @@ def closure_dates(plan: dict, closures_file: str | None) -> dict[date, str]:
     return out
 
 
+def partial_closures() -> dict[date, str]:
+    """Half days from brand.json closures.partial ({date, name, open_until}): date -> "name, open until HH:MM"."""
+    out: dict[date, str] = {}
+    items = nc.brand_value("closures.partial")
+    for it in items if isinstance(items, list) else []:
+        if isinstance(it, dict) and it.get("date"):
+            until = f", open until {it['open_until']}" if it.get("open_until") else ""
+            out[parse_date(it["date"], "partial closure")] = f"{it.get('name') or 'half day'}{until}"
+    return out
+
+
 def row_topic(r: dict) -> str | None:
     t = r.get("topic") or r.get("title")
     if not t:
@@ -431,7 +459,7 @@ def label(r: dict) -> str:
 def script_problems(s: dict, templates: dict | None = None, where: str = "script") -> tuple[list[str], list[str]]:
     """(errors, warnings) for one script.json / reel row."""
     errs, warns = [], []
-    clean = {k: v for k, v in s.items() if not k.startswith("_")}
+    clean = {k: v for k, v in s.items() if not k.startswith("_") and k not in PLAN_ROW_FIELDS}
     for e in nc.schema_errors("script.schema.json", clean):
         errs.append(f"{where}: {e}")
     if errs:
@@ -526,7 +554,8 @@ def full_months(rows: list[dict]) -> list[tuple[int, int]]:
     return [ym for ym, days in sorted(have.items()) if len(days) == calendar.monthrange(*ym)[1]]
 
 
-def check_plan(plan: dict, closures: dict[date, str]) -> tuple[list[dict], list[str], dict]:
+def check_plan(plan: dict, closures: dict[date, str],
+               partial: dict[date, str] | None = None) -> tuple[list[dict], list[str], dict]:
     rows = plan["rows"]
     V: list[dict] = []
     W: list[str] = []
@@ -620,6 +649,15 @@ def check_plan(plan: dict, closures: dict[date, str]) -> tuple[list[dict], list[
             elif r["kind"] == "stories" and truthy(r.get("invites")):
                 bad("8-closure", f"{label(r)}: Stories invite people in on a closure day ({why})", [r["day"]])
 
+    # rule 8 (half days, brand.json closures.partial): open only in the morning, so an invite is a WARN
+    for d, why in sorted((partial_closures() if partial is None else partial).items()):
+        if d in closures:
+            continue
+        for r in by_date.get(d, []):
+            if (r["kind"] != "stories" and is_invite(r)) or (r["kind"] == "stories" and truthy(r.get("invites"))):
+                W.append(f"{label(r)}: invites people in on a half day ({why}): post it early or invite for "
+                         "another day")
+
     # rule 9: batch sessions
     sessions: dict[date, set[date]] = {}
     for r in rows:
@@ -643,7 +681,7 @@ def check_plan(plan: dict, closures: dict[date, str]) -> tuple[list[dict], list[
         feed = [r for r in wrows if r["kind"] in FEED_KINDS]
         trials = [r for r in wrows if r["kind"] == "trial_reel" or (r["kind"] == "reel" and truthy(r.get("trial_reel")))]
         feed_total += len(feed)
-        carousels += sum(r["kind"] == "carousel" for r in feed)
+        carousels += sum(r["kind"] in STATIC_KINDS for r in feed)
         ndays = len({r["_d"] for r in wrows})
         if ndays == 7:
             if not FEED_PER_WEEK[0] <= len(feed) <= FEED_PER_WEEK[1]:
@@ -659,7 +697,7 @@ def check_plan(plan: dict, closures: dict[date, str]) -> tuple[list[dict], list[
                 bad("cadence", f"week of {wk.isoformat()}: {len(feed)} feed posts and {len(trials)} Trial Reels; "
                     f"at most {FEED_PER_WEEK[1]} and {TRIAL_PER_WEEK[1]}")
     if feed_total and not 0.15 <= carousels / feed_total <= 0.45:
-        W.append(f"carousels are {carousels} of {feed_total} feed posts; about a third is the target")
+        W.append(f"carousels and photo posts are {carousels} of {feed_total} feed posts; about a third is the target")
 
     # month-level: collabs, Meet the Collective, signature, series rotation, mix
     mix_report: dict = {}
@@ -769,6 +807,25 @@ def shot_text(s: dict) -> str:
     return f"{body} ({'; '.join(tags)})"
 
 
+def carousel_source_of(r: dict) -> str:
+    """How a carousel row is built, one rule everywhere (strategy.py plan, /build-today, the card): the row's
+    `carousel_source`; else component when its pattern_ids name a carousel pattern (new copy from the playbook);
+    else reel when it is derived_from a reel; else component."""
+    src = r.get("carousel_source")
+    if src:
+        return str(src)
+    if any(str(p).startswith("carousel-") for p in r.get("pattern_ids") or []):
+        return "component"
+    return "reel" if r.get("derived_from") else "component"
+
+
+CAROUSEL_WHAT = {
+    "reel": "Claude builds this carousel from this week's reel and the library.",
+    "component": "Claude designs this carousel in Claude Design from the plan; photos from the library.",
+    "photos": "Claude builds this photo carousel from the day's photos and the library.",
+}
+
+
 def render_card(r: dict) -> str:
     for key in ("day", "date", "title"):
         if r.get(key) in (None, ""):
@@ -777,8 +834,12 @@ def render_card(r: dict) -> str:
     kind = r.get("kind", "reel")
     if kind not in KINDS:
         raise nc.UserError(f"plan row: kind must be one of {', '.join(KINDS)}, got {kind!r}")
+    src = r.get("carousel_source")
+    if src is not None and (kind != "carousel" or src not in CAROUSEL_SOURCES):
+        raise nc.UserError(f"plan row Day {r['day']}: carousel_source {src!r} needs kind carousel and one of "
+                           f"{', '.join(CAROUSEL_SOURCES)}")
     if kind in REEL_KINDS:
-        clean = {k: v for k, v in r.items() if not k.startswith("_")}
+        clean = {k: v for k, v in r.items() if not k.startswith("_") and k not in PLAN_ROW_FIELDS}
         errs = nc.schema_errors("script.schema.json", clean)
         if errs:
             raise nc.UserError(f"plan row Day {r['day']}: {errs[0]}" + (f" (+{len(errs) - 1} more)" if len(errs) > 1 else ""))
@@ -788,7 +849,8 @@ def render_card(r: dict) -> str:
     nothing = not fresh and not reading
     L: list[str] = []
     if nothing:
-        what = {"carousel": "Claude builds this carousel from this week's reel and the library.",
+        what = {"carousel": CAROUSEL_WHAT.get(carousel_source_of(r), CAROUSEL_WHAT["component"]),
+                "image": "Claude builds this photo post from the day's photos, the media library and brand photos.",
                 "stories": "Claude cuts today's Stories from this week's material."}.get(
             kind, "Claude builds this reel from the media library and brand photos.")
         L += [f"NO FILMING NEEDED. {what}", ""]
@@ -799,7 +861,7 @@ def render_card(r: dict) -> str:
         film_by = f"    FILM BY: {short_date(fb)} (batch shoot{room})"
     L.append(f"DAY {int(r['day']):02d} · {short_date(d)} · \"{r['title']}\"{film_by}")
     L.append("")
-    root = nc.brand_value("drive.root", "NUMA Reels")
+    root = nc.brand_value("drive.root", "Numa Reels")
     L.append("WHERE TO PUT FILES")
     L.append(f"  Drive > {root} > {month_folder(d)} > {folder}")
     L += [f"  {x}".replace("{nn}", f"{int(r['day']):02d}") for when, x in FILING_RULES
@@ -813,8 +875,9 @@ def render_card(r: dict) -> str:
             L.append(f"  Also snap: {'; '.join(r['photos'])}")
         L.append("")
     if reading:
-        who = str(r.get("voiceover_by") or "Katie")
-        reader = "" if who.lower() == "katie" else f" ({who} reads this)"
+        # who reads it: the row's voiceover_by (owners: Scott records the voiceovers, brand.json voice.voiceover_by)
+        who = str(r.get("voiceover_by") or "")
+        reader = "" if who.lower() in ("", "katie") else f" ({who} reads this)"
         L.append(f"READ THIS OUT LOUD{reader}  ({RECORDING_TIPS})")
         n_lines = len(r["lines"])
         for i, line in enumerate(r["lines"]):
@@ -829,7 +892,8 @@ def render_card(r: dict) -> str:
             parts += " + library"
         L.append(f"{music_text(r.get('music'))}  LENGTH: {r['length_s']:g} s ({parts}).")
     else:
-        L.append(f"POST: {r.get('post') or kind.title()}. Nothing to record.")
+        post = r.get("post") or {"image": "Photo post", "stories": "Stories"}.get(kind, kind.replace("_", " ").title())
+        L.append(f"POST: {post}. Nothing to record.")
     L.append(LAST_LINE)
     return "\n".join(L) + "\n"
 
@@ -883,8 +947,9 @@ def sheet_rows(plan: dict) -> list[dict]:
         bpm = music.get("bpm") or []
         mtext = ", ".join(x for x in [music.get("mood") or "", f"{bpm[0]}-{bpm[1]} BPM" if len(bpm) == 2 else ""] if x)
         status = r.get("status") or "Planned"
-        if status not in STATUSES:
-            raise nc.UserError(f"{label(r)}: status must be one of {', '.join(STATUSES)}, got {status!r}")
+        if status not in STATUSES and not APPROVED_STATUS.match(str(status)):
+            raise nc.UserError(f"{label(r)}: status must be one of {', '.join(STATUSES)} "
+                               f"(or \"Approved - <name>\"), got {status!r}")
         title = r.get("title") or (r.get("post") or r["kind"].replace("_", " ").title())
         script = "\n".join(r.get("lines") or []) if r["kind"] in REEL_KINDS else ""
         out.append({

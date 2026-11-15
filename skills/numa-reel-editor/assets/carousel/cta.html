@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="numa-component" content="cta">
+<title>{{slide_title}}</title>
+<link rel="stylesheet" href="carousel.css">
+</head>
+<body>
+<!--slide-->
+<div data-slide="{{component}}" style="width: 1080px; height: 1350px; box-sizing: border-box; padding: 96px 96px 80px; display: flex; flex-direction: column; gap: 48px; overflow: hidden; background: {{color.bg}}; color: {{color.ink}}; font-family: 'Nunito Sans', 'Avenir Next', Avenir, sans-serif">
+<div data-fit="content" style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 48px; align-items: center">
+<!--if:logo-->
+<img src="{{logo}}" alt="Numa" style="display: block; height: 120px; width: auto; max-width: 600px; flex-shrink: 0">
+<!--/if:logo-->
+<!--if:no_logo-->
+<p style="margin: 0; font-family: 'Hanken Grotesk', 'Helvetica Neue', Arial, sans-serif; font-weight: 300; font-size: 88px; line-height: 96px; letter-spacing: 0.02em; color: {{color.ink}}">{{brand_short}}</p>
+<!--/if:no_logo-->
+<div style="width: 120px; height: 4px; flex-shrink: 0; background: {{color.accent}}"></div>
+<h2 data-fit="title" style="margin: 0; max-height: 400px; overflow: hidden; font-family: 'Hanken Grotesk', 'Helvetica Neue', Arial, sans-serif; font-size: 96px; line-height: 100px; font-weight: 300; color: {{color.ink}}; letter-spacing: -0.02em; text-wrap: balance; text-align: center">{{title}}</h2>
+<!--if:body-->
+<p data-fit="body" style="margin: 0; max-height: 177px; overflow: hidden; font-family: 'Nunito Sans', 'Avenir Next', Avenir, sans-serif; font-size: 42px; line-height: 59px; font-weight: 400; color: {{color.ink}}; text-wrap: pretty; text-align: center">{{body}}</p>
+<!--/if:body-->
+<p data-fit="button" style="margin: 0; max-width: 888px; box-sizing: border-box; overflow: hidden; white-space: nowrap; padding: 0 48px; border: 2px solid {{color.ink}}; border-radius: 48px; color: {{color.ink}}; font-size: 34px; line-height: 88px; font-weight: 600">{{button}}</p>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 32px; height: 72px; flex-shrink: 0; box-sizing: border-box; border-top: 2px solid {{color.rule}}; padding-top: 26px">
+<p style="margin: 0; font-size: 28px; line-height: 44px; font-weight: 400; letter-spacing: 0.02em; color: {{color.ink}}">{{brand_name}}</p>
+<p style="margin: 0; font-size: 28px; line-height: 44px; font-weight: 600; letter-spacing: 0.08em; color: {{color.ink}}">{{page}}</p>
+</div>
+</div>
+<!--/slide-->
+</body>
+</html>

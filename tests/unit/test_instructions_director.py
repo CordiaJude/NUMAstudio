@@ -242,7 +242,7 @@ def test_json_examples_parse(texts, tmp_path):
 # make-reel.md required content
 # ---------------------------------------------------------------------------
 FAILURE_ROWS = {
-    "F1": ["No voiceover", "consent.voice_clone", "preset voice", "Music-only reel"],
+    "F1": ["No voiceover", "voice.generic_ai_allowed", "never a cloned voice", "preset voice", "Music plus on-screen text"],
     "F2": ["No music", "Higgsfield instrumental", "Music Library", "pad"],
     "F3": ["Too few photos or clips", "Scout", "library.py query", "brand photos", "later day"],
     "F4": ["Landscape photo", "outpaint", "pan-across", "Blurred-fill"],
@@ -257,7 +257,7 @@ FAILURE_ROWS = {
     "F13": ["Closure or holiday", "evergreen", "Story instead", "Skip the day"],
     "F14": ["Render or encode crash", "saved files", "--draft", "one hour", "reschedule"],
     "F15": ["connector down", "15 minutes", "local copy", "queue uploads", "Monday digest"],
-    "F16": ["Topic-only mode", "scriptwriter", "consent.voice_clone", "Music Library", "B-roll"],
+    "F16": ["Topic-only mode", "scriptwriter", "voice.generic_ai_allowed", "never a clone", "Music Library", "B-roll"],
     "F17": ["Chrome or the desktop app unavailable", "web search", "Media library", "brand photos"],
 }
 
@@ -340,7 +340,7 @@ def test_decision_authority_and_escalation(texts, brand):
     t = texts["make-reel"]
     for needle in ["Never ask Katie anything", "No step waits", "Never stop", "Fixed limits are rules",
                    "Tell, don't ask", "Decision authority", "Meta error 190", "card payment fails",
-                   "legal_review_done", "`escalation.contact`", "work continues"]:
+                   "Approved by a person", "`escalation.contact`", "work continues"]:
         assert needle.lower() in t.lower(), needle
     assert len(brand["escalation"]["for"]) == 3
 
@@ -384,7 +384,7 @@ def test_librarian_steps(texts):
 
 def test_scout_search_order_and_rules(texts):
     t = texts["scout"]
-    order = ["NUMA's own channels", "NUMA's own accounts", "Free stock", "Royalty-free music", "Facts for the script"]
+    order = ["Numa's own channels", "Numa's own accounts", "Free stock", "Royalty-free music", "Facts for the script"]
     idx = [t.find(s) for s in order]
     assert all(i > 0 for i in idx) and idx == sorted(idx), idx
     for needle in ["Never take other businesses' or creators'", "Consent List", "license page", "sources.py\" add",
@@ -501,3 +501,20 @@ def test_r119_exemptions_are_setup_only():
     for rel in LINT_XFAIL:
         assert (REPO / rel).exists(), f"stale xfail entry {rel}"
         assert rel not in {p.relative_to(REPO).as_posix() for p in OWNED.values()}, "owned files may not be xfailed"
+
+
+# ---------------------------------------------------------------------------
+# R340, R342: the crew keeps the run log and Chrome queue merged with Drive; the scout hands back Chrome wishes
+# ---------------------------------------------------------------------------
+def test_librarian_merges_runlog_and_chrome_queue(texts):
+    t = texts["librarian"]
+    assert 'runlog.py" merge-dir "$STATE/runlog.drive" --state "$STATE"' in t
+    assert 'chrome_queue.py" merge-dir "$STATE/chrome_queue.drive" --state "$STATE"' in t
+    assert "never overwritten" in t and "only its own `runlog/<run id>.json`" in t
+    assert "Never upload `runlog.json` or `chrome_queue.json`" in t and 'never treated as "no file yet"' in t
+
+
+def test_scout_chrome_queue_handback(texts):
+    t = texts["scout"]
+    assert "**Chrome queue (R342).**" in t and "`chrome_wanted`" in t and '"chrome_wanted": []' in t
+    assert "commands/chrome-queue.md" in t and '{"queue_id", "result"}' in t

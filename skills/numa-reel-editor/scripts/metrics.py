@@ -2,7 +2,7 @@
 """Instagram metrics store for the performance loop (spec p.47, DECISIONS D7: metrics.json).
 
 Usage:
-    metrics.py ingest   --store FILE --reel ID --pull 48h|72h|7d --data INSIGHTS_JSON [--tags TAGS_JSON]
+    metrics.py ingest   --store FILE --reel ID --pull 12h|22h|48h|72h|7d|14d|30d --data INSIGHTS_JSON [--tags TAGS_JSON]
                         [--pulled-at ISO]
     metrics.py account  --store FILE --data USER_INSIGHTS_JSON [--date YYYY-MM-DD]
     metrics.py tag      --store FILE --reel ID --tags TAGS_JSON
@@ -10,12 +10,14 @@ Usage:
     metrics.py compute  --store FILE [--json]
     metrics.py validate --store FILE
 
+`--post ID` is the same as `--reel ID` (every post type is stored the same way).
+
 `--data` is the raw response of Composio's INSTAGRAM_GET_IG_MEDIA_INSIGHTS /
 INSTAGRAM_GET_USER_INSIGHTS (the Composio envelope {"data": ..., "successful":
 ...} is unwrapped) in the Graph API insights shape: `data[].name` with
 `values[].value` (and `end_time` for daily account values) or `total_value.value`.
 A flat object {"views": 120, "reach": 95, ...} is accepted too. `--tags` is a
-JSON file (or inline JSON object) of NUMA's tags.
+JSON file (or inline JSON object) of Numa's tags.
 
 Rules:
 * Per-reel metrics are config `instagram.metrics` (views, reach, likes, comments,
@@ -27,22 +29,38 @@ Rules:
 * Tags (config `instagram.tags`): length (s), series, pillar, hook_type,
   transitions (list), music_source, posting_time (ISO 8601; naive times are
   Central), trial_reel (bool), collab (bool); plus title, slug, media_id,
-  permalink, thumbnail.
-* Pulls are stored per reel at 48h / 72h / 7d (config `instagram.insight_pulls_hours`);
+  boosted (bool), pattern_ids (list of playbook ids), strategy_arm (text) and
+  story_frames (int) for strategy.py (docs/CONTRACTS.md section 9),
+  permalink, thumbnail, and post_type (R337): reel, carousel, image, story or
+  trial_reel (POST_TYPES). A post without post_type is a reel (a trial_reel
+  when its trial_reel tag is true); trial_reel true with a post_type other than
+  trial_reel or reel is an error, and post_type trial_reel sets trial_reel true.
+* Posts of every type share the store (the `reels` key holds every post). Only
+  video posts (reel, trial_reel, story) have watch time and skip rate: a
+  carousel's or image's avg_watch_time_ms, total_watch_time_ms or skip_rate is
+  dropped at ingest with a WARN and rejected by `validate`.
+* Pulls are stored per post at the config `instagram.insight_pulls_hours` ages:
+  12h / 22h for Stories (before their insights expire at 24 h), 48h / 72h / 7d /
+  14d / 30d for every other post (R7: saves and shares final at 14 d; a 30-day
+  long-tail audit for Reels);
   re-ingesting a pull replaces it. Account-level insights are kept forever
   (Meta keeps them only 90 days).
-* `compute` (config `instagram.computed`) writes per pull and per reel (from the
+* `compute` (config `instagram.computed`) writes per pull and per post (from the
   latest pull: 7d, else 72h, else 48h): retention = avg watch time (s) / length (s);
   sends_per_1k_reach = shares / reach * 1000; saves_per_1k_reach; and
-  skip_rate_vs_median = skip rate - median skip rate of NUMA's reels.
-* `due` lists the reels whose next pull is due at --now (posting_time + 48 h,
-  72 h, 168 h and not yet pulled).
+  skip_rate_vs_median = skip rate - median skip rate of Numa's reels (reel and
+  trial_reel posts only). Metrics a post type does not have (watch time,
+  retention and skip rate of a carousel or image) are null, never an error;
+  each post's `computed` carries its `post_type`.
+* `due` lists the posts whose next pull is due at --now (posting_time + each
+  configured age, not yet pulled). A Story is due at 12 h and 22 h and never
+  after 24 h (Instagram keeps a Story's insights only while it is live).
 
 Store shape (metrics.json):
     {"schema_version": 1,
      "reels": {"<id>": {"tags": {...},
                         "pulls": {"48h": {"pulled_at": ISO|null, "metrics": {...}, "computed": {...}}},
-                        "computed": {..., "from_pull": "7d"}}},
+                        "computed": {..., "post_type": "reel", "from_pull": "7d"}}},
      "account": {"daily": {"YYYY-MM-DD": {"reach": 812, ...}},   (dated by period start = end_time - 1 day)
                  "totals": {"YYYY-MM-DD": {"accounts_engaged": 120, ...}}}}
 """
@@ -61,8 +79,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numa_common as nc  # noqa: E402
 
 STORE_SCHEMA_VERSION = 1
-PULL_LABELS = {48: "48h", 72: "72h", 168: "7d"}
-PULL_ORDER = ["48h", "72h", "7d"]
+PULL_LABELS = {12: "12h", 22: "22h", 48: "48h", 72: "72h", 168: "7d", 336: "14d", 720: "30d"}
+PULL_ORDER = ["12h", "22h", "48h", "72h", "7d", "14d", "30d"]
+STORY_PULLS_MAX_H = 23      # Instagram keeps a Story's insights for 24 h only (R7)
 CENTRAL = "America/Chicago"
 
 # Graph API metric names -> store names.
@@ -77,8 +96,15 @@ NAME_MAP = {
 EXTRA_REEL_METRICS = {"total_watch_time_ms", "follows", "profile_visits", "profile_activity"}
 # Counters that went away together with plays/impressions.
 RETIRED_EXTRA = {"ig_reels_aggregated_all_plays_count", "clips_replays_count", "video_views"}
-TAG_TEXT = ("series", "pillar", "hook_type", "music_source", "title", "slug", "media_id", "permalink", "thumbnail")
-TAG_BOOL = ("trial_reel", "collab")
+TAG_TEXT = ("series", "pillar", "hook_type", "music_source", "title", "slug", "media_id", "permalink", "thumbnail",
+            "strategy_arm")
+TAG_BOOL = ("trial_reel", "collab", "boosted")
+TAG_INT = ("story_frames",)
+# Post types (R337). Video posts have watch time and skip rate; carousels and single images do not.
+POST_TYPES = ("reel", "carousel", "image", "story", "trial_reel")
+VIDEO_TYPES = ("reel", "trial_reel", "story")
+REEL_TYPES = ("reel", "trial_reel")           # the skip-rate median is over these
+VIDEO_ONLY_METRICS = ("avg_watch_time_ms", "total_watch_time_ms", "skip_rate")
 
 
 def cfg_metrics() -> list[str]:
@@ -296,7 +322,8 @@ def parse_user_insights(obj: Any, where: str, day: str | None) -> tuple[dict, di
 def clean_tags(tags: Any, where: str = "tags") -> dict:
     if not isinstance(tags, dict):
         raise nc.UserError(f"{where}: expected a JSON object")
-    allowed = set(nc.config_value("instagram.tags", []) or []) | set(TAG_TEXT) | set(TAG_BOOL) | {"length", "transitions", "posting_time"}
+    allowed = (set(nc.config_value("instagram.tags", []) or []) | set(TAG_TEXT) | set(TAG_BOOL)
+               | {"length", "transitions", "posting_time", "post_type", "pattern_ids"} | set(TAG_INT))
     out: dict[str, Any] = {}
     for k, v in tags.items():
         if k.startswith("_"):
@@ -313,6 +340,14 @@ def clean_tags(tags: Any, where: str = "tags") -> dict:
             if not isinstance(v, bool):
                 raise nc.UserError(f"{where}: {k} must be true or false, got {v!r}")
             out[k] = v
+        elif k in TAG_INT:
+            if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+                raise nc.UserError(f"{where}: {k} must be a whole number >= 0, got {v!r}")
+            out[k] = v
+        elif k == "pattern_ids":
+            if not isinstance(v, list) or not all(isinstance(x, str) and re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", x) for x in v):
+                raise nc.UserError(f"{where}: pattern_ids must be a list of playbook ids (kebab-case), got {v!r}")
+            out[k] = list(v)
         elif k == "transitions":
             items = [v] if isinstance(v, str) else v
             if not isinstance(items, list) or not all(isinstance(x, str) and x.strip() for x in items):
@@ -321,10 +356,59 @@ def clean_tags(tags: Any, where: str = "tags") -> dict:
         elif k == "posting_time":
             parse_time(v, f"{where}: posting_time")
             out[k] = v.strip()
+        elif k == "post_type":
+            if not isinstance(v, str) or v.strip().lower() not in POST_TYPES:
+                raise nc.UserError(f"{where}: post_type must be one of {', '.join(POST_TYPES)}, got {v!r}")
+            out[k] = v.strip().lower()
         else:
             if not isinstance(v, str):
                 raise nc.UserError(f"{where}: {k} must be text, got {v!r}")
             out[k] = v.strip()
+    check_post_type(out, where)
+    return out
+
+
+def check_post_type(tags: dict, where: str = "tags") -> None:
+    """trial_reel true only goes with a reel or trial_reel post."""
+    pt = tags.get("post_type")
+    if tags.get("trial_reel") is True and pt not in (None, "reel", "trial_reel"):
+        raise nc.UserError(f"{where}: trial_reel is true but post_type is {pt}; a Trial Reel is post_type trial_reel")
+
+
+def merge_tags(current: dict, new: dict, where: str = "tags") -> dict:
+    """Tags after an update (post_type trial_reel also sets trial_reel true), checked together."""
+    merged = dict(current or {})
+    merged.update(new)
+    if merged.get("post_type") == "trial_reel":
+        merged["trial_reel"] = True
+    check_post_type(merged, where)
+    return merged
+
+
+def post_type_of(post: dict) -> str:
+    """The post's type: its post_type tag, else trial_reel when tagged so, else reel (the v2.0 stores)."""
+    tags = post.get("tags") or {}
+    pt = tags.get("post_type")
+    if isinstance(pt, str) and pt in POST_TYPES:
+        return pt
+    return "trial_reel" if tags.get("trial_reel") is True else "reel"
+
+
+def article(word: str) -> str:
+    """'a carousel', 'an image'."""
+    return f"{'an' if word[:1] in 'aeiou' else 'a'} {word}"
+
+
+def drop_video_only(metrics: dict, post_type: str, where: str) -> dict:
+    """A carousel's or image's metrics without watch time or skip rate (WARN for each dropped)."""
+    if post_type in VIDEO_TYPES:
+        return metrics
+    out = {}
+    for k, v in metrics.items():
+        if k in VIDEO_ONLY_METRICS:
+            nc.warn(f"{where}: {k} does not apply to {article(post_type)} post; ignored")
+            continue
+        out[k] = v
     return out
 
 
@@ -364,6 +448,7 @@ def store_problems(data: Any) -> list[str]:
             clean_tags(reel.get("tags", {}), f"reels.{rid}.tags")
         except nc.UserError as e:
             out.append(str(e))
+        ptype = post_type_of(reel)
         pulls = reel.get("pulls", {})
         if not isinstance(pulls, dict):
             out.append(f"reels.{rid}.pulls: not an object")
@@ -378,6 +463,8 @@ def store_problems(data: Any) -> list[str]:
             for k, v in m.items():
                 if k in banned:
                     out.append(f"reels.{rid}.pulls.{label}.metrics.{k}: retired metric")
+                elif k in VIDEO_ONLY_METRICS and ptype not in VIDEO_TYPES:
+                    out.append(f"reels.{rid}.pulls.{label}.metrics.{k}: {article(ptype)} post has no {k}")
                 elif isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0:
                     out.append(f"reels.{rid}.pulls.{label}.metrics.{k}: not a number >= 0")
     acct = data.get("account", {})
@@ -412,8 +499,11 @@ def _ratio(a: Any, b: Any, scale: float = 1.0) -> float | None:
     return None
 
 
-def pull_computed(metrics: dict, length: Any) -> dict:
-    awt = metrics.get("avg_watch_time_ms")
+def pull_computed(metrics: dict, length: Any, post_type: str = "reel") -> dict:
+    """Computed metrics of one pull; watch time and retention are null for a carousel or image."""
+    awt = metrics.get("avg_watch_time_ms") if post_type in VIDEO_TYPES else None
+    if not isinstance(awt, (int, float)) or isinstance(awt, bool):
+        awt = None
     return {
         "avg_watch_time_s": round(awt / 1000.0, 3) if isinstance(awt, (int, float)) else None,
         "retention": _ratio(awt / 1000.0 if isinstance(awt, (int, float)) else None, length),
@@ -435,7 +525,7 @@ def compute(store: dict) -> dict:
     skips = []
     for reel in store["reels"].values():
         label = latest_pull(reel)
-        if label:
+        if label and post_type_of(reel) in REEL_TYPES:
             s = reel["pulls"][label]["metrics"].get("skip_rate")
             if isinstance(s, (int, float)):
                 skips.append(float(s))
@@ -444,15 +534,17 @@ def compute(store: dict) -> dict:
     for rid in sorted(store["reels"]):
         reel = store["reels"][rid]
         length = (reel.get("tags") or {}).get("length")
+        ptype = post_type_of(reel)
         for pull in (reel.get("pulls") or {}).values():
-            pull["computed"] = pull_computed(pull["metrics"], length)
+            pull["computed"] = pull_computed(pull["metrics"], length, ptype)
         label = latest_pull(reel)
         if not label:
             reel.pop("computed", None)
             continue
         m = reel["pulls"][label]["metrics"]
         c = dict(reel["pulls"][label]["computed"])
-        s = m.get("skip_rate")
+        s = m.get("skip_rate") if ptype in REEL_TYPES else None
+        c["post_type"] = ptype
         c["skip_rate_median"] = round(median_skip, 4) if median_skip is not None else None
         c["skip_rate_vs_median"] = round(s - median_skip, 4) if isinstance(s, (int, float)) and median_skip is not None else None
         c["from_pull"] = label
@@ -469,13 +561,18 @@ def due(store: dict, now: datetime) -> list[dict]:
         pt = (reel.get("tags") or {}).get("posting_time")
         if not pt:
             continue
+        story = post_type_of(reel) == "story"
         posted = parse_time(pt, f"reels.{rid}.tags.posting_time")
         age_h = (now - posted).total_seconds() / 3600.0
         done = set((reel.get("pulls") or {}).keys())
         last_done = max([hours.get(label, 0) for label in done] or [0])
-        ready = [label for label, h in hours.items() if age_h >= h and label not in done and h > last_done]
+        # Stories: only the pulls before Instagram drops their insights at 24 h; other posts: 48 h and later
+        mine = {lb: h for lb, h in hours.items() if (h <= STORY_PULLS_MAX_H) == story}
+        if story and age_h >= 24:
+            continue
+        ready = [label for label, h in mine.items() if age_h >= h and label not in done and h > last_done]
         if ready:
-            out.append({"reel": rid, "pulls": ready, "pull_now": ready[-1], "hours_since_post": round(age_h, 1),
+            out.append({"reel": rid, "post_type": post_type_of(reel), "pulls": ready, "pull_now": ready[-1], "hours_since_post": round(age_h, 1),
                         "posting_time": pt, "media_id": (reel.get("tags") or {}).get("media_id")})
     return out
 
@@ -488,20 +585,20 @@ def build_parser() -> nc.ArgParser:
     sub = ap.add_subparsers(dest="cmd", metavar="COMMAND", parser_class=nc.ArgParser)
     i = sub.add_parser("ingest", help="store one reel's insights pull")
     i.add_argument("--store", required=True)
-    i.add_argument("--reel", required=True, help="reel id (media id or slug)")
+    i.add_argument("--reel", "--post", dest="reel", required=True, help="post id (media id or slug), any post type")
     i.add_argument("--pull", required=True, choices=PULL_ORDER)
     i.add_argument("--data", required=True, help="INSTAGRAM_GET_IG_MEDIA_INSIGHTS response (file or inline JSON)")
-    i.add_argument("--tags", help="NUMA tags (file or inline JSON object)")
+    i.add_argument("--tags", help="Numa tags (file or inline JSON object)")
     i.add_argument("--pulled-at", help="ISO time of the pull (stored as given)")
     a = sub.add_parser("account", help="store account insights (kept beyond Meta's 90 days)")
     a.add_argument("--store", required=True)
     a.add_argument("--data", required=True, help="INSTAGRAM_GET_USER_INSIGHTS response (file or inline JSON)")
     a.add_argument("--date", help="YYYY-MM-DD for total_value metrics")
-    t = sub.add_parser("tag", help="set or update a reel's NUMA tags")
+    t = sub.add_parser("tag", help="set or update a post's Numa tags")
     t.add_argument("--store", required=True)
-    t.add_argument("--reel", required=True)
+    t.add_argument("--reel", "--post", dest="reel", required=True, help="post id (media id or slug)")
     t.add_argument("--tags", required=True)
-    d = sub.add_parser("due", help="reels whose 48h/72h/7d pull is due now")
+    d = sub.add_parser("due", help="posts whose next insights pull is due now")
     d.add_argument("--store", required=True)
     d.add_argument("--now", help="ISO date-time (default: the current time)")
     d.add_argument("--json", action="store_true")
@@ -549,7 +646,8 @@ def main(argv: list[str] | None = None) -> int:
         metrics, ignored = parse_media_insights(load_json_arg(args.data, "--data"), "--data")
         reel = store["reels"].setdefault(args.reel, {"tags": {}, "pulls": {}})
         if args.tags:
-            reel["tags"].update(clean_tags(load_json_arg(args.tags, "--tags"), "--tags"))
+            reel["tags"] = merge_tags(reel["tags"], clean_tags(load_json_arg(args.tags, "--tags"), "--tags"), "--tags")
+        metrics = drop_video_only(metrics, post_type_of(reel), "--data")
         if args.pulled_at:
             parse_time(args.pulled_at, "--pulled-at")
         reel["pulls"][args.pull] = {"pulled_at": args.pulled_at, "metrics": metrics}
@@ -579,7 +677,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "tag":
         reel = store["reels"].setdefault(args.reel, {"tags": {}, "pulls": {}})
-        reel["tags"].update(clean_tags(load_json_arg(args.tags, "--tags"), "--tags"))
+        reel["tags"] = merge_tags(reel["tags"], clean_tags(load_json_arg(args.tags, "--tags"), "--tags"), "--tags")
+        ptype = post_type_of(reel)
+        for label, pull in reel.get("pulls", {}).items():
+            pull["metrics"] = drop_video_only(pull["metrics"], ptype, f"pull {label}")
         compute(store)
         nc.write_json(path, store)
         print(f"Tagged {args.reel}: " + ", ".join(f"{k}={v}" for k, v in reel["tags"].items()))
@@ -593,7 +694,7 @@ def main(argv: list[str] | None = None) -> int:
             for rid, c in result.items():
                 parts = [f"{k}={c[k]:g}" for k in ("retention", "sends_per_1k_reach", "saves_per_1k_reach",
                                                     "skip_rate_vs_median") if isinstance(c.get(k), (int, float))]
-                print(f"{rid} ({c['from_pull']}): " + (", ".join(parts) or "no computable metrics"))
+                print(f"{rid} ({c['post_type']}, {c['from_pull']}): " + (", ".join(parts) or "no computable metrics"))
         return 0
     raise nc.UsageError(f"unknown command {args.cmd}")
 

@@ -65,7 +65,7 @@ CASES = ["photos_only", "clips_only", "voice_and_music", "music_only", "heic_pho
 EXTRA = ["combined_track"]
 PY = sys.executable
 
-VOICE_TEXT = ("Welcome to NUMA in Mobile. Heat first, then the cold plunge. "
+VOICE_TEXT = ("Welcome to Numa in Mobile. Heat first, then the cold plunge. "
               "Breathe slow and stay with it. This is how you reset.")
 SCRIPT_LINES = ["Twelve minutes in the sauna.", "Then two minutes in the cold plunge.",
                 "Rest, breathe and repeat.", "Three rounds is plenty.", "Come try it in Mobile."]
@@ -73,13 +73,13 @@ SCRIPT_LINES = ["Twelve minutes in the sauna.", "Then two minutes in the cold pl
 
 # The shoot card the Librarian saves as work/plan_row.json (title, hook, on-screen lines) for each case.
 CARDS = {
-    "photos_only": ("Quiet morning at NUMA", "Your morning reset starts here.",
+    "photos_only": ("Quiet morning at Numa", "Your morning reset starts here.",
                     ["The sauna is warm by six.", "Take ten slow breaths.", "Walk out lighter.",
                      "Doors open at six.", "Bring a friend this week."]),
     "clips_only": ("Plunge day", "Watch this first cold plunge.",
                    ["Two minutes in the cold.", "Breathe through the first ten seconds.", "Then it gets easier.",
                     "Warm up in the sauna after.", "Book your first plunge."]),
-    "voice_and_music": ("Welcome to NUMA", "This is how you reset.",
+    "voice_and_music": ("Welcome to Numa", "This is how you reset.",
                         ["Heat first, then the cold.", "Breathe slow and stay with it.", "Rest between rounds.",
                          "Leave lighter than you came.", "Come try it in Mobile."]),
     "music_only": ("Contrast therapy 101", "Contrast therapy in three steps.",
@@ -88,7 +88,7 @@ CARDS = {
     "heic_photos": ("Red light evening", "Ten quiet minutes under red light.",
                     ["Lie back and breathe.", "Let the room go quiet.", "Ten minutes is enough.",
                      "Pair it with the sauna.", "Book a red light session."]),
-    "combined_track": ("Welcome to NUMA", "This is how you reset.",
+    "combined_track": ("Welcome to Numa", "This is how you reset.",
                        ["Heat first, then the cold.", "Breathe slow and stay with it.", "Rest between rounds.",
                         "Leave lighter than you came.", "Come try it in Mobile."]),
 }
@@ -365,7 +365,7 @@ def _run_case(name: str, root: Path, args, log: list) -> tuple[str, list]:
     if whole >= 3:
         wanted.append(("story set", rf"^{re.escape(slug)}_story_1\.(jpg|mp4)$"))
     if whole >= 5:
-        wanted.append(("carousel", rf"^{re.escape(slug)}_carousel_1\.jpg$"))
+        wanted.append(("carousel", rf"^{re.escape(slug)}_carousel_01\.jpg$"))
     for kind, pattern in wanted:
         check(any(re.match(pattern, n) for n in produced),
               f"formats: no {kind} in out/ ({'; '.join(fm.get('warnings') or []) or sorted(produced)})")

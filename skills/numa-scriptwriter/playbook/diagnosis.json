@@ -1,0 +1,592 @@
+{
+  "_readme": "Symptom -> cause -> fix, the 17 rows of docs/research/R3_Script_structures.md, mapped to metric conditions on metrics.py names (raw: views, reach, likes, comments, saves, shares, skip_rate, profile_visits, follows, link_clicks; computed: retention = watch-through, sends_per_1k_reach, saves_per_1k_reach, skip_rate_vs_median). median_ratio / median_delta compare with Numa's trailing same-format median (strategy.py). R3's thresholds are directional (no official benchmarks); rows R3 states as trends ('rising across Reels', 'bookings low', 'comments mostly ask about outcomes') are flagged by the nearest per-post condition and the symptom says what to check by hand. strategy.py diagnose lists the rows a post matches; the Strategist puts the fix in the brief and the Scriptwriter applies it on the series' next post.",
+  "schema_version": 1,
+  "kind": "diagnosis",
+  "diagnosis": [
+    {
+      "id": "skip-above-median",
+      "metric": "skip_rate_vs_median",
+      "post_types": [
+        "reel",
+        "trial_reel"
+      ],
+      "when": [
+        {
+          "metric": "skip_rate_vs_median",
+          "op": ">",
+          "ref": "value",
+          "x": 0.05
+        }
+      ],
+      "symptom": "Skip rate well above Numa's median (R3: or roughly 50%+).",
+      "cause": "The opening frame is static, a logo or an establishing shot; the hook only works with sound.",
+      "fix": "Open mid-action on a face or motion; add a 5-8 word text hook in frame 1; test two hooks as Trial Reels.",
+      "try_patterns": [
+        "plunge-entry",
+        "reaction-face",
+        "instructor-mid-sentence"
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)",
+          "docs/research/R1_Hooks.md (skip rate measures the first 3 seconds; official)"
+        ],
+        "confidence": "medium"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "skip-rising",
+      "metric": "skip_rate_vs_median",
+      "post_types": [
+        "reel",
+        "trial_reel"
+      ],
+      "when": [
+        {
+          "metric": "skip_rate_vs_median",
+          "op": ">",
+          "ref": "value",
+          "x": 0.1
+        }
+      ],
+      "symptom": "Skip rate far above the median (R3: rising across consecutive Reels; check the last three).",
+      "cause": "The same first shot, host angle or hook template every time (recognition skips).",
+      "fix": "Rotate opening shot types: POV, close-up, overhead, text-on-black for at most 1 s.",
+      "try_patterns": [
+        "pov-first-visit",
+        "sound-first-asmr",
+        "stillness-break"
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "retention-cliff-early",
+      "metric": "retention",
+      "post_types": [
+        "reel",
+        "trial_reel"
+      ],
+      "when": [
+        {
+          "metric": "skip_rate_vs_median",
+          "op": "<",
+          "ref": "value",
+          "x": 0.0
+        },
+        {
+          "metric": "retention",
+          "op": "<",
+          "ref": "median_ratio",
+          "x": 0.8
+        }
+      ],
+      "symptom": "Skip rate low but retention well below the median (a cliff at 3-8 s).",
+      "cause": "The hook promises something the next beat doesn't deliver; slow setup.",
+      "fix": "Cut the setup; put the first payoff by 5-6 s; restate the promise in text.",
+      "try_patterns": [
+        "end-result-first",
+        "struct-myth-vs-fact"
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "retention-mid-dip",
+      "metric": "retention",
+      "post_types": [
+        "reel",
+        "trial_reel"
+      ],
+      "when": [
+        {
+          "metric": "retention",
+          "op": "<",
+          "ref": "median_ratio",
+          "x": 0.85
+        },
+        {
+          "metric": "skip_rate_vs_median",
+          "op": "<",
+          "ref": "value",
+          "x": 0.03
+        }
+      ],
+      "symptom": "Retention dips mid-Reel while the hook holds.",
+      "cause": "A dead beat: a long static shot, a rambling line or repeated information.",
+      "fix": "Trim that segment; a visual change every 2-4 s; move the strongest beat earlier.",
+      "try_patterns": [
+        "struct-micro-ritual-loop"
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "watch-under-length",
+      "metric": "retention",
+      "post_types": [
+        "reel",
+        "trial_reel"
+      ],
+      "when": [
+        {
+          "metric": "retention",
+          "op": "<",
+          "ref": "value",
+          "x": 0.35
+        }
+      ],
+      "symptom": "Average watch time under about 30-40% of the length.",
+      "cause": "The Reel is longer than its idea; too many words a second or talk over visuals.",
+      "fix": "Cut 20-30% of the runtime; about 2.5 words a second; let the visuals carry the payoff.",
+      "try_patterns": [
+        "struct-micro-ritual-loop",
+        "struct-checklist-how-to-prepare"
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "loops-but-low-reach",
+      "metric": "reach",
+      "post_types": [
+        "reel",
+        "trial_reel"
+      ],
+      "when": [
+        {
+          "metric": "retention",
+          "op": ">",
+          "ref": "value",
+          "x": 1.0
+        },
+        {
+          "metric": "reach",
+          "op": "<",
+          "ref": "median_ratio",
+          "x": 0.8
+        }
+      ],
+      "symptom": "Average watch time over 100% of the length but reach below the median.",
+      "cause": "A good loop, but the hook doesn't stop cold viewers, or the topic is too niche.",
+      "fix": "Keep the loop; strengthen the first-frame text; broaden the identity angle.",
+      "try_patterns": [
+        "local-callout",
+        "expectation-vs-reality"
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "followers-only-reach",
+      "metric": "reach",
+      "post_types": [
+        "reel"
+      ],
+      "when": [
+        {
+          "metric": "reach",
+          "op": "<",
+          "ref": "median_ratio",
+          "x": 0.8
+        },
+        {
+          "metric": "retention",
+          "op": ">",
+          "ref": "median_ratio",
+          "x": 1.0
+        }
+      ],
+      "symptom": "Retention fine, reach stuck at followers.",
+      "cause": "Low sends per reach; the content speaks to insiders only.",
+      "fix": "Add a 'send to [specific person]' payoff; universal framing (relatable POV, comparison, local guide); avoid Numa jargon.",
+      "try_patterns": [
+        "send-this-to",
+        "struct-relatable-pov-send-to-sketch",
+        "struct-local-guide"
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "reach-suddenly-low",
+      "metric": "reach",
+      "post_types": [
+        "reel",
+        "carousel",
+        "image"
+      ],
+      "when": [
+        {
+          "metric": "reach",
+          "op": "<",
+          "ref": "median_ratio",
+          "x": 0.5
+        }
+      ],
+      "symptom": "Reach suddenly far below the median on one post.",
+      "cause": "Not eligible for recommendations: watermark, border, mostly text, muted, reposted footage, engagement-bait caption.",
+      "fix": "Re-export clean original footage; remove 'tag/share/comment YES' language.",
+      "try_patterns": [
+        "growth-original-only"
+      ],
+      "evidence": {
+        "level": "observed",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)",
+          "docs/research/R5_Local_growth.md (Instagram recommendation guidelines; official)"
+        ],
+        "confidence": "medium"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "sends-low",
+      "metric": "sends_per_1k_reach",
+      "post_types": [
+        "reel",
+        "trial_reel",
+        "carousel",
+        "image"
+      ],
+      "when": [
+        {
+          "metric": "sends_per_1k_reach",
+          "op": "<",
+          "ref": "value",
+          "x": 5.0
+        }
+      ],
+      "symptom": "Sends per 1,000 reached well under about 5 (R3: wellness stretch about 10).",
+      "cause": "No clear recipient; the payoff is informative but not socially useful.",
+      "fix": "Name the recipient ('your plunge buddy'); add a relatable POV or a shared plan (an event date).",
+      "try_patterns": [
+        "send-this-to",
+        "bring-a-friend-duo",
+        "cta-send-to-friend"
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "saves-low",
+      "metric": "saves_per_1k_reach",
+      "post_types": [
+        "reel",
+        "carousel"
+      ],
+      "when": [
+        {
+          "metric": "saves_per_1k_reach",
+          "op": "<",
+          "ref": "value",
+          "x": 3.0
+        }
+      ],
+      "symptom": "Saves per 1,000 reached well under about 3 (R3: wellness stretch about 7-8).",
+      "cause": "Not a reference; nothing specific worth returning to.",
+      "fix": "Add times, steps, a packing list; turn it into a checklist; cross-post as a carousel.",
+      "try_patterns": [
+        "struct-checklist-how-to-prepare",
+        "carousel-what-to-bring",
+        "cta-save-for-later"
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "saves-not-sends",
+      "metric": "sends_per_1k_reach",
+      "post_types": [
+        "reel",
+        "carousel"
+      ],
+      "when": [
+        {
+          "metric": "saves_per_1k_reach",
+          "op": ">",
+          "ref": "median_ratio",
+          "x": 1.2
+        },
+        {
+          "metric": "sends_per_1k_reach",
+          "op": "<",
+          "ref": "median_ratio",
+          "x": 0.8
+        }
+      ],
+      "symptom": "High saves, low sends.",
+      "cause": "Useful but private: people save it for themselves.",
+      "fix": "Add a social hook: 'send to whoever you're booking with'; tie it to an event date.",
+      "try_patterns": [
+        "send-this-to",
+        "cta-send-to-friend"
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "sends-not-saves",
+      "metric": "saves_per_1k_reach",
+      "post_types": [
+        "reel",
+        "carousel"
+      ],
+      "when": [
+        {
+          "metric": "sends_per_1k_reach",
+          "op": ">",
+          "ref": "median_ratio",
+          "x": 1.2
+        },
+        {
+          "metric": "saves_per_1k_reach",
+          "op": "<",
+          "ref": "median_ratio",
+          "x": 0.8
+        }
+      ],
+      "symptom": "High sends, low saves.",
+      "cause": "Entertaining but not reusable.",
+      "fix": "Follow up with a utility Reel or carousel; add one concrete takeaway at the end.",
+      "try_patterns": [
+        "carousel-your-first-visit-step-by-step",
+        "cta-save-for-later"
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "likes-low-followers",
+      "metric": "likes",
+      "post_types": [
+        "reel",
+        "carousel",
+        "image"
+      ],
+      "when": [
+        {
+          "metric": "likes",
+          "op": "<",
+          "ref": "median_ratio",
+          "x": 0.8
+        }
+      ],
+      "symptom": "Likes per reach low among followers.",
+      "cause": "Content drifted toward cold-audience bait; followers want community and people.",
+      "fix": "Post more faces, regulars and staff (day in the life, founder, event recap); reply to comments.",
+      "try_patterns": [
+        "struct-day-in-the-life",
+        "struct-event-recap",
+        "member-experience-voice"
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)",
+          "docs/research/R3_Script_structures.md row 13 (Buffer 700K+ posts: replying to comments about 21% higher engagement)"
+        ],
+        "confidence": "medium"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "visits-not-follows",
+      "metric": "follows",
+      "post_types": [
+        "reel",
+        "carousel",
+        "image"
+      ],
+      "when": [
+        {
+          "metric": "profile_visits",
+          "op": ">",
+          "ref": "median_ratio",
+          "x": 1.2
+        },
+        {
+          "metric": "follows",
+          "op": "<",
+          "ref": "median_ratio",
+          "x": 0.8
+        }
+      ],
+      "symptom": "Profile visits high, follows low.",
+      "cause": "The bio is unclear (what, where, how to book) or the grid shows no series.",
+      "fix": "Rewrite the bio: what, Midtown Mobile, how to book; pin three Reels (explainer, first-timer reaction, event teaser).",
+      "try_patterns": [
+        "growth-keyword-captions"
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "follows-not-clicks",
+      "metric": "link_clicks",
+      "post_types": [
+        "reel",
+        "carousel",
+        "image"
+      ],
+      "when": [
+        {
+          "metric": "follows",
+          "op": ">",
+          "ref": "median_ratio",
+          "x": 1.0
+        },
+        {
+          "metric": "link_clicks",
+          "op": "<",
+          "ref": "median_ratio",
+          "x": 0.8
+        }
+      ],
+      "symptom": "Follows fine but link clicks low.",
+      "cause": "The CTA is buried; link-in-bio friction; several CTAs.",
+      "fix": "One CTA per post, repeated in on-screen text and the caption's first line; a Story link sticker.",
+      "try_patterns": [
+        "cta-soft-local"
+      ],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed"
+    },
+    {
+      "id": "clicks-not-bookings",
+      "metric": "link_clicks",
+      "post_types": [
+        "reel",
+        "carousel",
+        "image"
+      ],
+      "when": [
+        {
+          "metric": "link_clicks",
+          "op": ">",
+          "ref": "median_ratio",
+          "x": 1.5
+        }
+      ],
+      "symptom": "Link clicks high (R3: but bookings low; check bookings in the monthly campaign review).",
+      "cause": "The landing page doesn't match: the offer isn't visible, no times shown.",
+      "fix": "Deep-link to the exact offer or event with a time picker; match the post's wording on the page.",
+      "try_patterns": [],
+      "evidence": {
+        "level": "opinion",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)"
+        ],
+        "confidence": "low"
+      },
+      "origin": "seed",
+      "sales_only": true
+    },
+    {
+      "id": "comments-ask-outcomes",
+      "metric": "comments",
+      "post_types": [
+        "reel",
+        "carousel",
+        "image"
+      ],
+      "when": [
+        {
+          "metric": "comments",
+          "op": ">",
+          "ref": "median_ratio",
+          "x": 1.5
+        }
+      ],
+      "symptom": "Comments well above the median (R3: read them: mostly 'does it help with ___?').",
+      "cause": "Viewers infer health promises from the edit.",
+      "fix": "Remove implied-outcome visuals and words; answer with what's included plus 'ask your provider'; make a reply-to-comment Reel.",
+      "try_patterns": [
+        "struct-reply-to-comment-faq"
+      ],
+      "evidence": {
+        "level": "measured",
+        "sources": [
+          "docs/research/R3_Script_structures.md (symptom -> cause -> fix table; thresholds directional, judged against Numa's last 10-20 Reels)",
+          "docs/research/R3_Script_structures.md row 17 (FTC 2022 health guidance; official)"
+        ],
+        "confidence": "medium"
+      },
+      "origin": "seed"
+    }
+  ]
+}

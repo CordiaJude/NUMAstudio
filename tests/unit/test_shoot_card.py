@@ -25,15 +25,15 @@ TITLES = ["Why we plunge", "Sauna vs infrared", "Gulf water in winter", "Plunge 
           "What red light does", "Your first plunge", "Cold snap calm", "Sweat there recover here",
           "Numa Nights tease", "Numa Nights recap", "Contrast flow basics", "Member moment", "Midtown mornings",
           "Steam and stillness", "Desk breath reset", "Heat then cold", "Plunge buddy", "New Year reset",
-          "Meet Kandi", "Four count breath", "Sauna etiquette", "The front door", "Year in review",
-          "Free Flow explained", "Hold the exhale", "Breath before bed"]
+          "Meet the massage provider", "Four count breath", "Sauna etiquette", "The front door", "Year in review",
+          "Flow Space explained", "Hold the exhale", "Breath before bed"]
 
 SPEC_EXAMPLE = {
     "day": 9, "date": "2026-12-09", "title": "Your first plunge", "series": "first_plunge", "pillar": "community",
     "goal": "community", "template": "member_story_reel", "length_s": 45, "hook_text": "Three minutes.",
     "lines": ["Three minutes. That's all it takes.", "The first ten seconds are loud. Then it gets quiet.",
               "You come out different than you went in.",
-              "Try a month with Discover NUMA, $49. Send this to your plunge buddy."],
+              "Try a month with Discover Numa, $49. Send this to your plunge buddy."],
     "shots": [
         {"n": 1, "line": 1, "what": "a hand touching the water surface, slow", "framing": "close", "seconds": 5,
          "people": False, "ai_motion": False},
@@ -50,7 +50,7 @@ SPEC_EXAMPLE = {
     ],
     "photos": ["a candle by the plunge"],
     "music": {"mood": "calm, warm piano", "bpm": [90, 100], "source": "generate"},
-    "cta": "Try a month with Discover NUMA, $49.", "share_line": "Send this to your plunge buddy.",
+    "cta": "Try a month with Discover Numa, $49.", "share_line": "Send this to your plunge buddy.",
     "safety_line": True, "needs_consent": True, "film_by": "2026-12-07", "batch_room": "plunge room",
 }
 
@@ -73,7 +73,7 @@ def script_for(row: dict, title: str) -> dict:
              "people": False, "ai_motion": True, "room": room},
         ],
         "music": {"mood": "calm, warm piano", "bpm": [90, 100], "source": "generate"},
-        "cta": "Save this for your first visit." if edu or row.get("goal") != "offer" else "Try a month with Discover NUMA, $49.",
+        "cta": "Save this for your first visit." if edu or row.get("goal") != "offer" else "Try a month with Discover Numa, $49.",
         "share_line": "Send this to your plunge buddy.", "safety_line": True, "needs_consent": True, "batch_room": room,
     }
 
@@ -90,7 +90,7 @@ def december() -> dict:
         r["folder"] = sc.day_folder(r["day"], date.fromisoformat(r["date"]), r["title"])
     rows = {r["day"]: r for r in sk["rows"]}
     rows[11].update(collab="Mission Fitness")
-    rows[25].update(series="meet_the_collective", collab="Kandi Roemhildt", pillar="collective_collabs")
+    rows[25].update(series="meet_the_collective", collab="the massage provider", pillar="collective_collabs")
     rows[16].update(template="transformation", signature=True)
     rows[10].update(event="Numa Nights", event_role="teaser", template="event_teaser", goal="offer", sales=True,
                     pillar="offers_events", cta="Friday 7 pm. Book your spot.")
@@ -202,7 +202,7 @@ def test_card_matches_the_spec_example_structure(tmp_path, capsys):
     heads = ["WHERE TO PUT FILES", "WHAT TO FILM", "READ THIS OUT LOUD", "MUSIC:"]
     pos = [next(i for i, ln in enumerate(lines) if ln.startswith(h)) for h in heads]
     assert pos == sorted(pos)
-    assert "Drive > NUMA Reels > 2026-12 December > Day 09 - 2026-12-09 - Your first plunge" in text
+    assert "Drive > Numa Reels > 2026-12 December > Day 09 - 2026-12-09 - Your first plunge" in text
     # filing rules at the top: where, voiceover naming and re-record, music, file names, changes
     filing = "\n".join(lines[pos[0]:pos[1]])
     for needle in ["photos/", "clips/", '"voiceover 09"', "re-record", "Music optional", "Any file names",
@@ -275,13 +275,13 @@ def test_card_for_non_reel_days(tmp_path, capsys, kind):
 
 def test_card_voice_reader_and_capture_moment(tmp_path, capsys):
     s = copy.deepcopy(SPEC_EXAMPLE)
-    s["voiceover_by"] = "Fallon Gleason"
+    s["voiceover_by"] = "a breathwork guide"
     s["shots"][0]["during"] = "Numa Nights"
     s["music"] = {"mood": "warm, slow", "bpm": [70, 80], "source": "library", "track": "calm_72_ember.mp3"}
     out = tmp_path / "cards" / "SHOOT CARD.txt"
     assert run(["card", write(tmp_path, s, "row.json"), "--out", str(out)]) == 0
     text = out.read_text(encoding="utf-8")
-    assert "READ THIS OUT LOUD (Fallon Gleason reads this)" in text
+    assert "READ THIS OUT LOUD (a breathwork guide reads this)" in text
     assert "(during Numa Nights; line 1)" in text
     assert 'Music Library "calm_72_ember.mp3"' in text
 
@@ -467,6 +467,17 @@ def test_rule8_closures_from_file_csv_and_plan(tmp_path, capsys):
     assert rules(violations(tmp_path, capsys, p)[1]) == {"8-closure"}
 
 
+def test_rule8_half_day_from_brand_partial_closures():
+    """brand.json closures.partial (New Year's Eve, open until 12:00): an invite that day is a WARN, not an error."""
+    assert sc.partial_closures()[date(2026, 12, 31)] == "New Year's Eve, open until 12:00"
+    plan = _loaded(december())
+    v, w, _ = sc.check_plan(plan, {}, {date(2026, 12, 10): "Half day, open until 12:00"})  # day 10 invites people in
+    assert "8-closure" not in {x["rule"] for x in v}
+    assert any("half day (Half day, open until 12:00)" in x for x in w), w
+    v, w, _ = sc.check_plan(plan, {}, {})
+    assert not any("half day" in x for x in w)
+
+
 def test_rule9_batch_sessions(tmp_path, capsys):
     p = december()
     row(p, 9)["film_by"] = "2026-12-08"  # Mon, Tue and Thu of one week
@@ -579,7 +590,8 @@ def test_sheet_json_columns_exact(tmp_path, capsys):
     assert "consent list only" in r9["Shot list"] and "AI motion shot" in r9["Shot list"]
     assert "the room empty" not in r9["Shot list"]  # library shots are not on the shoot list
     assert rows[0]["Shot list"] == "No filming needed" and rows[4]["Shot list"] == "No filming needed"
-    assert set(sc.STATUSES) == {"Planned", "Shot", "Ready to build", "Ready to post", "Posted"}
+    assert set(sc.STATUSES) == {"Planned", "Shot", "Ready to build", "Ready to post", "Approved", "Posted"}
+    assert sc.APPROVED_STATUS.match("Approved - SM") and not sc.APPROVED_STATUS.match("Approved?")  # D26
 
 
 def test_sheet_csv_and_status_validation(tmp_path, capsys):
@@ -630,7 +642,7 @@ def test_sales_from_cta_text_only(tmp_path, capsys):
     code, vs = violations(tmp_path, capsys, p)
     assert code == 1 and "1-sales-per-week" in rules(vs)
     p = december()
-    row(p, 2)["lines"] = row(p, 2)["lines"][:3] + ["Try a month with Discover NUMA, $49."]
+    row(p, 2)["lines"] = row(p, 2)["lines"][:3] + ["Try a month with Discover Numa, $49."]
     assert "1-sales-per-week" in rules(violations(tmp_path, capsys, p)[1])
 
 
@@ -646,7 +658,7 @@ def test_sales_flag_forces_and_collab_friday_is_not_sales(tmp_path, capsys):
 
 def test_offer_hidden_in_an_ask_the_dpt_reel(tmp_path, capsys):
     p = december()
-    row(p, 14)["lines"] = row(p, 14)["lines"][:3] + ["Discover NUMA is $49 for your first month."]
+    row(p, 14)["lines"] = row(p, 14)["lines"][:3] + ["Discover Numa is $49 for your first month."]
     code, vs = violations(tmp_path, capsys, p)
     assert code == 1 and any("Ask the DPT" in v["message"] for v in vs)
 
@@ -662,3 +674,43 @@ def test_month_piped_into_closed_reader_exits_quietly():
     proc.stderr.close()
     assert proc.wait(timeout=60) == 0
     assert b"BrokenPipe" not in err and b"ERROR" not in err and b"Traceback" not in err
+
+
+def test_image_row_and_carousel_source_cards(tmp_path, capsys):
+    """R336: an `image` row is a single-photo feed post with nothing to film; a carousel row says how it is built."""
+    img = {"day": 9, "date": "2026-12-09", "title": "Steam at dawn", "kind": "image"}
+    assert run(["card", write(tmp_path, img)]) == 0
+    card = capsys.readouterr().out
+    assert card.startswith("NO FILMING NEEDED. Claude builds this photo post")
+    assert "POST: Photo post. Nothing to record." in card and "voiceover" not in card.lower()
+    comp = {"day": 8, "date": "2026-12-08", "title": "Sauna vs red light", "kind": "carousel", "carousel_source": "component"}
+    assert run(["card", write(tmp_path, comp)]) == 0
+    assert "designs this carousel in Claude Design" in capsys.readouterr().out
+    bad = {**img, "carousel_source": "component"}
+    assert run(["card", write(tmp_path, bad)]) == 1
+    capsys.readouterr()
+
+
+def test_image_rows_count_as_feed_statics_in_check(tmp_path, capsys):
+    plan = december()
+    for r in plan["rows"]:
+        if r["kind"] == "carousel":
+            r["kind"] = "image"
+            r.pop("derived_from", None)
+    rc = run(["check", write(tmp_path, plan), "--json"])
+    out = json.loads(capsys.readouterr().out)
+    assert not [e for e in out.get("errors", []) if "kind must be" in e]
+    assert not [e for e in out.get("errors", []) if "feed posts" in e], out.get("errors")
+    assert rc in (0, 1)
+
+
+def test_strategy_plan_row_fields_are_set_aside_for_the_schema(tmp_path, capsys):
+    """strategy.py plan adds post_type, post_time, hour_band, strategy, moments, story_frames to a row; a scripted
+    reel row carrying them still passes `script` (they are not script.json fields)."""
+    row = {**SPEC_EXAMPLE, "post_type": "reel", "post_time": "16:30", "hour_band": "late_afternoon",
+           "strategy": {"mode": "explore", "tests": "hook", "why": ["test"]}, "moments": [],
+           "pattern_ids": ["plunge-entry"], "strategy_arm": "type=reel;pillar=community"}
+    assert run(["script", write(tmp_path, row, "row.json"), "--json"]) == 0, capsys.readouterr().out
+    capsys.readouterr()
+    assert run(["card", write(tmp_path, row, "row.json")]) == 0
+    capsys.readouterr()

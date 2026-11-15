@@ -33,7 +33,7 @@ def test_import_from_any_cwd(scripts_dir, tmp_path):
     """))
     out = subprocess.run([sys.executable, str(probe)], cwd=os.sep, capture_output=True, text=True, timeout=60)
     assert out.returncode == 0, out.stderr
-    assert out.stdout.split() == ["NUMA", "True"]
+    assert out.stdout.split() == ["Numa", "True"]  # owners: "Numa", never "NUMA"
 
 
 # --------------------------------------------------------------------------- ffmpeg lookup
@@ -341,7 +341,7 @@ def test_schema_error_messages(nc, plan_factory):
 def test_load_brand_and_config(nc):
     brand = nc.load_brand()
     assert brand is nc.load_brand()  # cached
-    assert nc.brand_value("business.name.short") == "NUMA"
+    assert nc.brand_value("business.name.short") == "Numa"
     assert nc.accent_rgb() == [247, 214, 160]
     assert nc.brand_color("caption_text") == [255, 255, 255]
     for key in ("wordmark", "secondary_mark", "endcard_background", "brand_photos_dir"):
@@ -401,7 +401,7 @@ def test_slug_job_paths_and_deliverables(nc, tmp_path):
     assert jp.plan == jp.work / "plan.json" and jp.analysis == jp.work / "analysis.json"
     assert jp.deliverable("reel").name == "day-07-2026-12-09-your-first-plunge_reel.mp4"
     assert nc.deliverable_name("year-one", "story", 2, "mp4") == "year-one_story_2.mp4"
-    assert nc.deliverable_name("year-one", "carousel", 1) == "year-one_carousel_1.jpg"
+    assert nc.deliverable_name("year-one", "carousel", 1) == "year-one_carousel_01.jpg"
     assert nc.deliverable_name("year-one", "srt") == "year-one.srt"
     assert nc.deliverable_name("year-one", "cover") == "year-one_cover.jpg"
     with pytest.raises(nc.UserError):
