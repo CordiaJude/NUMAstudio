@@ -16,9 +16,13 @@ strategy that learns from Numa's own results, the owners' setup answers, and a p
 before anything posts.
 
 ### Release check (golden test, spec p.52)
-- M2 golden test (`tests/golden_year_one.py`, Year One test pack, Linux sandbox): GOLDEN_RESULT.
-- M3 five-folder suite (`tests/run_tests.py`): E2E_RESULT.
-- Unit suite (`python -m pytest tests/unit -q`): UNIT_RESULT; privacy guard
+- M2 golden test (`tests/golden_year_one.py`, Year One test pack, Linux sandbox): PASS in 6.1 min on the 2.1.0 tree.
+  107.7 BPM, transcript with "Mobile", 50 words; example plan and baseline plan (`--template
+  transformation`): 0 validator errors, before/after wipe at 14.63 s, cuts within one frame of a beat
+  (25/25 and 26/26), every caption word within 0.1 s, output spec met, 39.0 s vs the reference's
+  39.0 s, drop-to-file 1.5 min each (limit 15); formats 17 and 16 files with two-digit carousel names.
+- M3 five-folder suite (`tests/run_tests.py`): 5/5 PASS (590 s).
+- Unit suite (`python -m pytest tests/unit -q`): all green (1,690 passed, 5 skipped); privacy guard
   (`tests/unit/test_brand_privacy.py` with the private people file): passed.
 - Jude's rating against the hand-built reference (the manual M2 step) is pending; record it here
   before tagging.
