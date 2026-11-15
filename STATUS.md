@@ -21,7 +21,7 @@
 | T16 Planner/shoot cards/build/digest for new post types (v2.1) | PENDING | 0 | |
 | T17 Scheduling reliability: ensure_env, runlog watchdog, Chrome queue (v2.1) | ACCEPTED (re-review PASS all R339-R343; N1-N3 + D26 checks closed) | 3 | |
 | T18 Adaptive strategy engine + playbook (v2.1) | IN PROGRESS (re-seeding from real research R1-R7) | 1 | |
-| T19 Owners' answers into brand data (v2.1) | IN PROGRESS | 1 | people/consent stay private (STATE) |
+| T19 Owners' answers into brand data (v2.1) | ACCEPTED (review fixes verified: run_tests 5/5, privacy test clean with private names, approval gate) | 2 | people/consent stay private (STATE) |
 
 ## Minor findings (all resolved)
 All minor findings logged during review rounds (example-plan whip spacing, claims gaps/false positives, finish loudness loop, render cache in synced folders, shoot_card BrokenPipe, D18 NUMA_BRAND wiring, formats/baseline sentence fragments, rule 24 counting, card clause length, analyze role guess, transcript capitals and dropped words, outro-aware caption spans, music-only reel length, myth_vs_fact hook, caption legibility over bright frames, prep colour tags, macOS CI, real-3.10 parse) were fixed in the round revisions or the final polish tasks P1-P3.
